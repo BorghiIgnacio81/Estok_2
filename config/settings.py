@@ -34,8 +34,15 @@ ALLOWED_HOSTS = os.environ.get(
 ).split(',')
 
 # =============================================================================
-# CORS CONFIGURATION (dinámico desde variable de entorno)
+# CORS CONFIGURATION
+# En producción (Coolify/Hetzner) se permite todo origen para que Astro
+# (servido por Nginx en otro contenedor/dominio) pueda comunicarse con la API.
+# En desarrollo se restringe a los orígenes locales.
 # =============================================================================
+CORS_ALLOW_ALL_ORIGINS = os.environ.get(
+    'CORS_ALLOW_ALL_ORIGINS', 'True'
+).lower() in ('true', '1', 'yes')
+
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'DJANGO_CORS_ORIGINS',
     'http://localhost:4321,http://localhost:4322,http://127.0.0.1:4321,http://127.0.0.1:4322'

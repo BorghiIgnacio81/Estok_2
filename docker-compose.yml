@@ -22,6 +22,7 @@ services:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DEBUG=${DEBUG:-False}
       - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS:-True}
       - DJANGO_CORS_ORIGINS=${DJANGO_CORS_ORIGINS:-http://localhost:4321}
 
       # Base de datos PostgreSQL (Coolify resource)
