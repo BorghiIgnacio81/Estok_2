@@ -1,0 +1,278 @@
+---
+// =============================================================================
+// COMPONENTE CategoryFields - Campos dinámicos según categoría
+// Muestra los campos específicos de la herencia multi-tabla
+// según el tipo de objeto seleccionado (Libro, Tecnología, Mueble, Ropa)
+// =============================================================================
+
+export interface Props {
+  tipo: 'libro' | 'tecnologia' | 'mueble' | 'ropa' | 'objeto';
+  values?: Record<string, any>;
+  errors?: Record<string, string>;
+}
+
+const { tipo, values = {}, errors = {} } = Astro.props;
+
+// =============================================================================
+// MAPEO DE CAMPOS POR CATEGORÍA
+// Basado en los modelos Django: LibroRevista, Tecnologia, MuebleArte, Ropa
+// =============================================================================
+
+const fieldCategories: Record<string, {
+  label: string;
+  icon: string;
+  color: string;
+  fields: Array<{
+    name: string;
+    label: string;
+    type: 'text' | 'number' | 'textarea' | 'select';
+    placeholder?: string;
+    required?: boolean;
+    options?: Array<{ value: string; label: string }>;
+    helpText?: string;
+  }>;
+}> = {
+  libro: {
+    label: 'Libro / Revista',
+    icon: '📚',
+    color: 'blue',
+    fields: [
+      {
+        name: 'autor',
+        label: 'Autor',
+        type: 'text',
+        placeholder: 'Nombre del autor o autores',
+        helpText: 'Ej: Gabriel García Márquez',
+      },
+      {
+        name: 'edicion',
+        label: 'Edición',
+        type: 'text',
+        placeholder: 'Ej: 1ra Edición, Edición de Coleccionista',
+      },
+      {
+        name: 'anio',
+        label: 'Año de publicación',
+        type: 'number',
+        placeholder: 'Ej: 2020',
+      },
+      {
+        name: 'isbn_issn',
+        label: 'ISBN / ISSN',
+        type: 'text',
+        placeholder: 'Ej: 978-3-16-148410-0',
+        helpText: 'Código ISBN para libros o ISSN para revistas',
+      },
+    ],
+  },
+  tecnologia: {
+    label: 'Tecnología',
+    icon: '💻',
+    color: 'green',
+    fields: [
+      {
+        name: 'marca',
+        label: 'Marca',
+        type: 'text',
+        placeholder: 'Ej: Samsung, Apple, Sony',
+        required: true,
+      },
+      {
+        name: 'modelo',
+        label: 'Modelo',
+        type: 'text',
+        placeholder: 'Ej: Galaxy S24, MacBook Pro M3',
+        required: true,
+      },
+      {
+        name: 'numero_serie',
+        label: 'Número de serie',
+        type: 'text',
+        placeholder: 'Número de serie único del dispositivo',
+        helpText: 'Útil para garantías y registros',
+      },
+      {
+        name: 'peso',
+        label: 'Peso (kg)',
+        type: 'number',
+        placeholder: 'Ej: 1.5',
+      },
+    ],
+  },
+  mueble: {
+    label: 'Mueble / Arte',
+    icon: '🖼️',
+    color: 'amber',
+    fields: [
+      {
+        name: 'material',
+        label: 'Material',
+        type: 'text',
+        placeholder: 'Ej: Madera de roble, Lienzo, Mármol',
+      },
+      {
+        name: 'artista_fabricante',
+        label: 'Artista / Fabricante',
+        type: 'text',
+        placeholder: 'Nombre del artista o fabricante',
+      },
+      {
+        name: 'largo',
+        label: 'Largo (cm)',
+        type: 'number',
+        placeholder: 'Ej: 120',
+      },
+      {
+        name: 'ancho',
+        label: 'Ancho (cm)',
+        type: 'number',
+        placeholder: 'Ej: 80',
+      },
+      {
+        name: 'alto',
+        label: 'Alto (cm)',
+        type: 'number',
+        placeholder: 'Ej: 200',
+      },
+    ],
+  },
+  ropa: {
+    label: 'Ropa / Accesorio',
+    icon: '👕',
+    color: 'purple',
+    fields: [
+      {
+        name: 'tamano',
+        label: 'Tamaño / Talla',
+        type: 'text',
+        placeholder: 'Ej: S, M, L, XL, 38, 42',
+        helpText: 'Talla de la prenda o accesorio',
+        required: true,
+      },
+    ],
+  },
+  objeto: {
+    label: 'Objeto Genérico',
+    icon: '📦',
+    color: 'gray',
+    fields: [],
+  },
+};
+
+const category = fieldCategories[tipo] || fieldCategories.objeto;
+const colorMap: Record<string, string> = {
+  blue: 'border-blue-200 bg-blue-50',
+  green: 'border-green-200 bg-green-50',
+  amber: 'border-amber-200 bg-amber-50',
+  purple: 'border-purple-200 bg-purple-50',
+  gray: 'border-gray-200 bg-gray-50',
+};
+---
+
+<!-- Campos específicos según categoría -->
+<div class="border-2 rounded-xl p-5 {colorMap[category.color] || colorMap.gray}">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="text-xl">{category.icon}</span>
+    <h3 class="font-semibold text-gray-900">Campos de {category.label}</h3>
+  </div>
+
+  {category.fields.length === 0 ? (
+    <p class="text-sm text-gray-500 italic">
+      No hay campos específicos para esta categoría.
+    </p>
+  ) : (
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {category.fields.map((field) => {
+        const fieldValue = values[field.name] || '';
+        const fieldError = errors[field.name];
+        const inputId = `field-${field.name}`;
+
+        return (
+          <div class={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
+            <label
+              for={inputId}
+              class="block text-sm font-medium text-gray-700 mb-1"
+            >
+              {field.label}
+              {field.required && <span class="text-red-500 ml-1">*</span>}
+            </label>
+
+            {field.type === 'textarea' ? (
+              <textarea
+                id={inputId}
+                name={field.name}
+                placeholder={field.placeholder}
+                required={field.required}
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-sm"
+                rows={3}
+              >{fieldValue}</textarea>
+            ) : field.type === 'select' ? (
+              <select
+                id={inputId}
+                name={field.name}
+                required={field.required}
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-sm bg-white"
+              >
+                <option value="">Seleccionar...</option>
+                {field.options?.map((opt) => (
+                  <option value={opt.value} selected={fieldValue === opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={inputId}
+                name={field.name}
+                type={field.type}
+                placeholder={field.placeholder}
+                required={field.required}
+                value={fieldValue}
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-sm"
+              />
+            )}
+
+            {field.helpText && !fieldError && (
+              <p class="mt-1 text-xs text-gray-400">{field.helpText}</p>
+            )}
+            {fieldError && (
+              <p class="mt-1 text-xs text-red-500">{fieldError}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
+
+<script>
+  // Script para manejar la visibilidad de los campos cuando se usa en cliente
+  // (para formularios interactivos con JavaScript)
+  const categoryFields = {
+    libro: ['autor', 'edicion', 'anio', 'isbn_issn'],
+    tecnologia: ['marca', 'modelo', 'numero_serie', 'peso'],
+    mueble: ['material', 'largo', 'ancho', 'alto', 'artista_fabricante'],
+    ropa: ['tamano'],
+    objeto: [],
+  };
+
+  // Función para mostrar/ocultar campos según el tipo seleccionado
+  (window as any).updateCategoryFields = function (tipo: string) {
+    const allFields = document.querySelectorAll('[id^="field-"]');
+    allFields.forEach((field) => {
+      const input = field.closest('.sm\\:col-span-2, div');
+      if (input) {
+        (input as HTMLElement).style.display = 'none';
+      }
+    });
+
+    const fields = (categoryFields as Record<string, string[]>)[tipo] || [];
+    fields.forEach((name) => {
+      const el = document.getElementById(`field-${name}`);
+      if (el) {
+        const container = el.closest('.sm\\:col-span-2, div') as HTMLElement;
+        if (container) container.style.display = 'block';
+      }
+    });
+  };
+</script>

@@ -1,0 +1,54 @@
+---
+// =============================================================================
+// COMPONENTE CARD - Tarjeta reutilizable
+// =============================================================================
+
+export interface Props {
+  title: string;
+  description?: string;
+  icon?: string;
+  color?: 'blue' | 'green' | 'amber' | 'purple' | 'red' | 'gray';
+  href?: string;
+}
+
+const { title, description, icon, color = 'blue', href } = Astro.props;
+
+const colorMap = {
+  blue: { bg: 'bg-blue-50', text: 'text-blue-700', iconBg: 'bg-blue-100' },
+  green: { bg: 'bg-green-50', text: 'text-green-700', iconBg: 'bg-green-100' },
+  amber: { bg: 'bg-amber-50', text: 'text-amber-700', iconBg: 'bg-amber-100' },
+  purple: { bg: 'bg-purple-50', text: 'text-purple-700', iconBg: 'bg-purple-100' },
+  red: { bg: 'bg-red-50', text: 'text-red-700', iconBg: 'bg-red-100' },
+  gray: { bg: 'bg-gray-50', text: 'text-gray-700', iconBg: 'bg-gray-100' },
+};
+
+const colors = colorMap[color];
+---
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-base">
+  {icon && (
+    <div class={`w-12 h-12 ${colors.iconBg} rounded-lg flex items-center justify-center mb-4`}>
+      <span class="text-2xl">{icon}</span>
+    </div>
+  )}
+
+  <h3 class="text-lg font-semibold text-gray-900">{title}</h3>
+
+  {description && (
+    <p class="mt-2 text-sm text-gray-500">{description}</p>
+  )}
+
+  {href && (
+    <a
+      href={href}
+      class={`mt-4 inline-flex items-center text-sm font-medium ${colors.text} hover:underline`}
+    >
+      Ver más
+      <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+      </svg>
+    </a>
+  )}
+
+  <slot />
+</div>

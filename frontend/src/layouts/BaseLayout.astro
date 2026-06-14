@@ -1,0 +1,311 @@
+---
+// =============================================================================
+// LAYOUT BASE - Estok Inventory System
+// Estructura HTML principal con Tailwind CSS y meta tags
+// =============================================================================
+
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gestión de inventario personal con herencia multi-tabla' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#1e40af" />
+
+    <title>{title}</title>
+
+    <!-- Fuente Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- PWA: Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Estok" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.svg" />
+
+    <!-- Estilos globales -->
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <!-- Barra de navegación -->
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <!-- Logo y marca -->
+          <div class="flex items-center">
+            <a href="/" class="flex items-center space-x-2">
+              <span class="text-2xl font-bold text-blue-700">Estok</span>
+              <span class="text-sm text-gray-500 hidden sm:inline">| Inventario</span>
+            </a>
+          </div>
+
+          <!-- Navegación principal -->
+          <div class="hidden md:flex items-center space-x-6">
+            <a href="/" class="text-gray-600 hover:text-blue-700 transition-base font-medium">
+              Dashboard
+            </a>
+            <a href="/objetos" class="text-gray-600 hover:text-blue-700 transition-base font-medium">
+              Objetos
+            </a>
+            <a href="/ubicaciones" class="text-gray-600 hover:text-blue-700 transition-base font-medium">
+              Ubicaciones
+            </a>
+            <a href="/contenedores" class="text-gray-600 hover:text-blue-700 transition-base font-medium">
+              Contenedores
+            </a>
+          </div>
+
+          <!-- Acciones / Usuario -->
+          <div class="flex items-center space-x-3">
+            <!-- Dark Mode Toggle -->
+            <button id="darkModeToggle" class="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-base" title="Cambiar tema">
+              <svg id="sunIcon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <svg id="moonIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            </button>
+            <div id="authSection" class="hidden flex items-center gap-3">
+              <span id="userName" class="text-sm text-gray-600 font-medium"></span>
+              <button
+                id="logoutBtn"
+                class="text-sm text-red-600 hover:text-red-700 transition-base font-medium"
+              >
+                Cerrar Sesión
+              </button>
+            </div>
+            <a id="loginLink" href="/login" class="text-sm text-gray-600 hover:text-blue-700 transition-base">
+              Iniciar Sesión
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </nav>
+
+    <!-- Toast Container Global -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Contenido principal -->
+    <main class="min-h-screen">
+      <slot />
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+          <p class="text-sm text-gray-500">
+            &copy; {new Date().getFullYear()} Estok - Sistema de Inventario Personal
+          </p>
+          <p class="text-sm text-gray-400">
+            Construido con Astro + Tailwind CSS
+          </p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<script>
+  // ===========================================================================
+  // SISTEMA DE TOASTS GLOBAL
+  // ===========================================================================
+
+  const toastContainer = document.getElementById('toastContainer')!;
+  let toastCount = 0;
+
+  const TOAST_ICONS: Record<string, string> = {
+    success: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+    error: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+    info: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+    warning: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>`,
+  };
+
+  const TOAST_COLORS: Record<string, string> = {
+    success: 'bg-green-600 text-white',
+    error: 'bg-red-600 text-white',
+    info: 'bg-blue-600 text-white',
+    warning: 'bg-amber-500 text-white',
+  };
+
+  function showToast(message: string, type: string = 'info', duration: number = 4000): string {
+    const id = `toast-${++toastCount}`;
+    const toast = document.createElement('div');
+    toast.id = id;
+    toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${TOAST_COLORS[type] || TOAST_COLORS.info} transform translate-x-full opacity-0 transition-all duration-300 ease-out max-w-sm`;
+    toast.innerHTML = `
+      <span class="flex-shrink-0">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
+      <span class="flex-1 text-sm font-medium">${message}</span>
+      <button onclick="document.getElementById('${id}')?.remove()" class="flex-shrink-0 opacity-70 hover:opacity-100">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    `;
+    toastContainer.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-x-full', 'opacity-0');
+    });
+
+    if (duration > 0) {
+      setTimeout(() => {
+        toast.classList.add('translate-x-full', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    return id;
+  }
+
+  // Exponer globalmente
+  (window as any).showToast = showToast;
+  (window as any).showSuccess = (msg: string) => showToast(msg, 'success');
+  (window as any).showError = (msg: string) => showToast(msg, 'error');
+  (window as any).showInfo = (msg: string) => showToast(msg, 'info');
+  (window as any).showWarning = (msg: string) => showToast(msg, 'warning');
+
+  // ===========================================================================
+  // CONTROL DE AUTENTICACIÓN EN LA NAVEGACIÓN
+  // ===========================================================================
+
+  const authSection = document.getElementById('authSection')!;
+  const loginLink = document.getElementById('loginLink')!;
+  const userName = document.getElementById('userName')!;
+  const logoutBtn = document.getElementById('logoutBtn')!;
+
+  function updateAuthUI() {
+    const token = localStorage.getItem('estok_access_token');
+    const userData = localStorage.getItem('estok_user');
+
+    if (token && userData) {
+      try {
+        const user = JSON.parse(userData);
+        authSection.classList.remove('hidden');
+        loginLink.classList.add('hidden');
+        userName.textContent = user.first_name
+          ? `${user.first_name} ${user.last_name || ''}`
+          : user.username;
+      } catch {
+        authSection.classList.add('hidden');
+        loginLink.classList.remove('hidden');
+      }
+    } else {
+      authSection.classList.add('hidden');
+      loginLink.classList.remove('hidden');
+    }
+  }
+
+  logoutBtn?.addEventListener('click', () => {
+    localStorage.removeItem('estok_access_token');
+    localStorage.removeItem('estok_refresh_token');
+    localStorage.removeItem('estok_user');
+    window.location.href = '/login';
+  });
+
+  // Actualizar UI al cargar la página
+  updateAuthUI();
+
+  // ===========================================================================
+  // DARK MODE TOGGLE
+  // ===========================================================================
+
+  const darkModeToggle = document.getElementById('darkModeToggle')!;
+  const sunIcon = document.getElementById('sunIcon')!;
+  const moonIcon = document.getElementById('moonIcon')!;
+
+  function setDarkMode(enabled: boolean) {
+    if (enabled) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('estok_dark_mode', 'true');
+      sunIcon?.classList.remove('hidden');
+      moonIcon?.classList.add('hidden');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('estok_dark_mode', 'false');
+      sunIcon?.classList.add('hidden');
+      moonIcon?.classList.remove('hidden');
+    }
+  }
+
+  // Inicializar desde localStorage o preferencia del sistema
+  const savedDarkMode = localStorage.getItem('estok_dark_mode');
+  if (savedDarkMode === 'true') {
+    setDarkMode(true);
+  } else if (savedDarkMode === null && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    setDarkMode(true);
+  }
+
+  darkModeToggle?.addEventListener('click', () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    setDarkMode(!isDark);
+  });
+
+  // ===========================================================================
+  // PWA: REGISTRO DE SERVICE WORKER
+  // ===========================================================================
+
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then(
+        (registration) => {
+          console.log('✅ SW registrado:', registration.scope);
+        },
+        (err) => {
+          console.warn('❌ SW falló:', err);
+        }
+      );
+    });
+  }
+
+  // ===========================================================================
+  // PWA: BOTÓN DE INSTALACIÓN
+  // ===========================================================================
+
+  let deferredPrompt: any = null;
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Disparar evento personalizado para que el Dashboard muestre el botón
+    window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
+    console.log('✅ Estok instalada como PWA');
+  });
+
+  // Exponer función de instalación globalmente
+  (window as any).installPWA = async function installPWA(): Promise<boolean> {
+    if (!deferredPrompt) {
+      (window as any).showInfo?.('Estok ya está instalada o no es compatible.');
+      return false;
+    }
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (result.outcome === 'accepted') {
+      (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
+      return true;
+    } else {
+      (window as any).showInfo?.('Instalación cancelada');
+      return false;
+    }
+  };
+</script>

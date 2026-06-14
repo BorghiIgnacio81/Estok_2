@@ -1,0 +1,566 @@
+---
+// =============================================================================
+// PÁGINA PRINCIPAL - Dashboard Pro de Estok
+// Con Chart.js, PWA Install, AI Heartbeat y estadísticas reales
+// =============================================================================
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AuthGuard from '../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Dashboard | Sistema de Inventario">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Hero Section -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <div>
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900">
+          Bienvenido a <span class="text-blue-700">Estok</span>
+        </h1>
+        <p class="mt-2 text-base sm:text-lg text-gray-500 max-w-3xl">
+          Sistema de gestión de inventario personal con análisis por IA y herencia multi-tabla
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- AI Status Badge -->
+        <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+          <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+          <span id="aiStatusText">Verificando IA...</span>
+        </span>
+        <!-- PWA Install Button -->
+        <button id="installPwaBtn" class="hidden items-center gap-1.5 px-3 py-1.5 bg-blue-700 text-white text-xs font-medium rounded-full hover:bg-blue-800 transition-base shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Instalar App
+        </button>
+      </div>
+    </div>
+
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-12">
+      <svg class="animate-spin h-10 w-10 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando estadísticas...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center mb-8">
+      <p id="errorMessage" class="font-medium">Error al cargar estadísticas.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div id="dashboardContent" class="hidden space-y-8">
+      <!-- ================================================================ -->
+      <!-- KPI CARDS - Métricas principales -->
+      <!-- ================================================================ -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 font-medium">Total Objetos</p>
+          </div>
+          <p id="kpiTotalObjetos" class="text-2xl sm:text-3xl font-bold text-gray-900">—</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 font-medium">Valor Total</p>
+          </div>
+          <p id="kpiValorTotal" class="text-2xl sm:text-3xl font-bold text-green-700">—</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 font-medium">Valor Promedio</p>
+          </div>
+          <p id="kpiValorPromedio" class="text-2xl sm:text-3xl font-bold text-purple-700">—</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 font-medium">Ubicaciones</p>
+          </div>
+          <p id="kpiUbicaciones" class="text-2xl sm:text-3xl font-bold text-gray-900">—</p>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- GRÁFICOS CON CHART.JS -->
+      <!-- ================================================================ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Gráfico de torta: Distribución por tipo -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Distribución por Categoría</h2>
+          <div class="relative h-64">
+            <canvas id="chartTorta"></canvas>
+          </div>
+        </div>
+
+        <!-- Gráfico de barras: Valor por categoría -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Valor por Categoría (USD)</h2>
+          <div class="relative h-64">
+            <canvas id="chartBarras"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- BARRAS DE PROGRESO + ÚLTIMOS OBJETOS -->
+      <!-- ================================================================ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Estado de conservación -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Estado de Conservación</h2>
+          <div id="estadosContainer" class="space-y-3">
+            <p class="text-sm text-gray-400">Cargando...</p>
+          </div>
+        </div>
+
+        <!-- Últimos objetos registrados -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Últimos Objetos</h2>
+          <div id="ultimosContainer" class="space-y-3">
+            <p class="text-sm text-gray-400">Cargando...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- CATEGORÍAS (cards informativas) -->
+      <!-- ================================================================ -->
+      <div>
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Categorías del Sistema</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base">
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mb-3">
+              <span class="text-xl">📚</span>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Libros / Revistas</h3>
+            <p class="text-xs text-gray-500 mt-1">Autor, edición, ISBN</p>
+            <p id="countLibros" class="text-xs text-blue-700 font-medium mt-2">0 objetos</p>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base">
+            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mb-3">
+              <span class="text-xl">💻</span>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Tecnología</h3>
+            <p class="text-xs text-gray-500 mt-1">Marca, modelo, serie</p>
+            <p id="countTecnologia" class="text-xs text-green-700 font-medium mt-2">0 objetos</p>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base">
+            <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+              <span class="text-xl">🖼️</span>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Muebles / Arte</h3>
+            <p class="text-xs text-gray-500 mt-1">Material, dimensiones</p>
+            <p id="countMueble" class="text-xs text-amber-700 font-medium mt-2">0 objetos</p>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base">
+            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mb-3">
+              <span class="text-xl">👕</span>
+            </div>
+            <h3 class="font-semibold text-gray-900 text-sm">Ropa / Accesorios</h3>
+            <p class="text-xs text-gray-500 mt-1">Talla, tamaño</p>
+            <p id="countRopa" class="text-xs text-purple-700 font-medium mt-2">0 objetos</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- CTA + PWA Install -->
+      <!-- ================================================================ -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+        <a href="/objetos/nuevo" class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Agregar Nuevo Objeto
+        </a>
+        <button id="installPwaBtn2" class="hidden inline-flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-lg hover:bg-gray-900 transition-base shadow-sm">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Instalar App
+        </button>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // DASHBOARD PRO - Estadísticas en tiempo real + Chart.js + PWA + AI
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const LM_STUDIO_URL = 'http://localhost:1234/v1';
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const dashboardContent = document.getElementById('dashboardContent')!;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  // ===========================================================================
+  // AI HEARTBEAT
+  // ===========================================================================
+
+  const aiStatusBadge = document.getElementById('aiStatusBadge')!;
+  const aiStatusDot = document.getElementById('aiStatusDot')!;
+  const aiStatusText = document.getElementById('aiStatusText')!;
+
+  async function checkAIAvailability(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${LM_STUDIO_URL}/models`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function updateAIStatus() {
+    const connected = await checkAIAvailability();
+    if (connected) {
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+      aiStatusText.textContent = 'IA Conectada';
+    } else {
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
+      aiStatusText.textContent = 'Modo Manual';
+    }
+  }
+
+  updateAIStatus();
+  setInterval(updateAIStatus, 30000);
+
+  // ===========================================================================
+  // PWA INSTALL BUTTON
+  // ===========================================================================
+
+  const installPwaBtn = document.getElementById('installPwaBtn')!;
+  const installPwaBtn2 = document.getElementById('installPwaBtn2')!;
+
+  window.addEventListener('estok-pwa-ready', () => {
+    installPwaBtn.classList.remove('hidden');
+    installPwaBtn2.classList.remove('hidden');
+  });
+
+  window.addEventListener('estok-pwa-installed', () => {
+    installPwaBtn.classList.add('hidden');
+    installPwaBtn2.classList.add('hidden');
+  });
+
+  installPwaBtn?.addEventListener('click', () => (window as any).installPWA?.());
+  installPwaBtn2?.addEventListener('click', () => (window as any).installPWA?.());
+
+  // ===========================================================================
+  // MAPEOS
+  // ===========================================================================
+
+  const TIPO_LABELS: Record<string, { icon: string; label: string; color: string; chartColor: string }> = {
+    libro: { icon: '📚', label: 'Libros / Revistas', color: 'bg-blue-100 text-blue-700', chartColor: '#3b82f6' },
+    tecnologia: { icon: '💻', label: 'Tecnología', color: 'bg-green-100 text-green-700', chartColor: '#22c55e' },
+    mueble: { icon: '🖼️', label: 'Muebles / Arte', color: 'bg-amber-100 text-amber-700', chartColor: '#f59e0b' },
+    ropa: { icon: '👕', label: 'Ropa / Accesorios', color: 'bg-purple-100 text-purple-700', chartColor: '#a855f7' },
+    objeto: { icon: '📦', label: 'Genérico', color: 'bg-gray-100 text-gray-700', chartColor: '#6b7280' },
+  };
+
+  const ESTADO_LABELS: Record<string, { label: string; color: string }> = {
+    excelente: { label: 'Excelente', color: 'bg-green-100 text-green-700' },
+    bueno: { label: 'Bueno', color: 'bg-blue-100 text-blue-700' },
+    regular: { label: 'Regular', color: 'bg-yellow-100 text-yellow-700' },
+    malo: { label: 'Malo', color: 'bg-orange-100 text-orange-700' },
+    muy_malo: { label: 'Muy malo', color: 'bg-red-100 text-red-700' },
+  };
+
+  // ===========================================================================
+  // RENDERIZADO DE BARRAS DE PROGRESO
+  // ===========================================================================
+
+  function renderBarChart(containerId: string, data: Record<string, number>, labelMap: Record<string, any>, total: number) {
+    const container = document.getElementById(containerId)!;
+    const entries = Object.entries(data);
+
+    if (entries.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400">Sin datos</p>';
+      return;
+    }
+
+    container.innerHTML = entries.map(([key, count]) => {
+      const info = labelMap[key] || { label: key, color: 'bg-gray-100 text-gray-700' };
+      const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-sm text-gray-700">${info.label || key}</span>
+            <span class="text-sm font-medium text-gray-900">${count} (${percentage}%)</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-2.5">
+            <div class="h-2.5 rounded-full ${info.color.split(' ')[0]}" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===========================================================================
+  // RENDERIZADO DE ÚLTIMOS OBJETOS
+  // ===========================================================================
+
+  function renderUltimos(objetos: any[]) {
+    const container = document.getElementById('ultimosContainer')!;
+    if (!objetos || objetos.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400">No hay objetos registrados aún.</p>';
+      return;
+    }
+
+    container.innerHTML = objetos.map(o => {
+      const tipoInfo = TIPO_LABELS[o.tipo] || TIPO_LABELS.objeto;
+      return `
+        <a href="/objetos/${o.id}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-base border border-gray-100">
+          <span class="text-lg">${tipoInfo.icon}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">${o.nombre}</p>
+            <p class="text-xs text-gray-400">${new Date(o.fecha_registro).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+          ${o.valor_estimado ? `<span class="text-sm font-medium text-green-700">$${Number(o.valor_estimado).toLocaleString('es-AR')}</span>` : ''}
+        </a>
+      `;
+    }).join('');
+  }
+
+  // ===========================================================================
+  // CHART.JS - Gráficos
+  // ===========================================================================
+
+  let chartTorta: any = null;
+  let chartBarras: any = null;
+
+  async function cargarChartJS(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if ((window as any).Chart) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  function initChartTorta(data: Record<string, number>) {
+    const canvas = document.getElementById('chartTorta') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const entries = Object.entries(data).filter(([_, v]) => v > 0);
+    if (entries.length === 0) {
+      canvas.parentElement!.innerHTML = '<p class="text-sm text-gray-400 text-center py-12">Sin datos para mostrar</p>';
+      return;
+    }
+
+    if (chartTorta) chartTorta.destroy();
+
+    const Chart = (window as any).Chart;
+    chartTorta = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: entries.map(([k]) => TIPO_LABELS[k]?.label || k),
+        datasets: [{
+          data: entries.map(([_, v]) => v),
+          backgroundColor: entries.map(([k]) => TIPO_LABELS[k]?.chartColor || '#6b7280'),
+          borderWidth: 2,
+          borderColor: '#ffffff',
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 16, usePointStyle: true, font: { size: 12 } }
+          }
+        }
+      }
+    });
+  }
+
+  function initChartBarras(data: Record<string, number>) {
+    const canvas = document.getElementById('chartBarras') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const entries = Object.entries(data).filter(([_, v]) => v > 0);
+    if (entries.length === 0) {
+      canvas.parentElement!.innerHTML = '<p class="text-sm text-gray-400 text-center py-12">Sin datos para mostrar</p>';
+      return;
+    }
+
+    if (chartBarras) chartBarras.destroy();
+
+    const Chart = (window as any).Chart;
+    chartBarras = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: entries.map(([k]) => TIPO_LABELS[k]?.label || k),
+        datasets: [{
+          label: 'Valor Total (USD)',
+          data: entries.map(([_, v]) => v),
+          backgroundColor: entries.map(([k]) => {
+            const c = TIPO_LABELS[k]?.chartColor || '#6b7280';
+            return c + '80'; // 50% opacity
+          }),
+          borderColor: entries.map(([k]) => TIPO_LABELS[k]?.chartColor || '#6b7280'),
+          borderWidth: 2,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (value: any) => '$' + Number(value).toLocaleString('es-AR')
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ===========================================================================
+  // CARGA DE ESTADÍSTICAS
+  // ===========================================================================
+
+  async function cargarEstadisticas() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    dashboardContent.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/objetos/estadisticas/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor (${response.status})`);
+      }
+
+      const data = await response.json();
+
+      // === KPIs ===
+      document.getElementById('kpiTotalObjetos')!.textContent = data.total_objetos.toString();
+      document.getElementById('kpiValorTotal')!.textContent = `$${Number(data.valor_total_inventario).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+      document.getElementById('kpiUbicaciones')!.textContent = data.total_ubicaciones.toString();
+
+      // Valor promedio
+      const promedio = data.total_objetos > 0
+        ? Number(data.valor_total_inventario) / data.total_objetos
+        : 0;
+      document.getElementById('kpiValorPromedio')!.textContent = `$${promedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+
+      // === Gráficos Chart.js ===
+      await cargarChartJS();
+      initChartTorta(data.objetos_por_tipo);
+      // Usar valor_por_tipo real del backend (suma de valor_estimado por categoría)
+      initChartBarras(data.valor_por_tipo || {});
+
+
+      // === Estado de conservación (barras) ===
+      renderBarChart('estadosContainer', data.objetos_por_estado, ESTADO_LABELS, data.total_objetos);
+
+      // === Actualizar contadores en cards de categorías ===
+      document.getElementById('countLibros')!.textContent = `${data.objetos_por_tipo.libro || 0} objetos`;
+      document.getElementById('countTecnologia')!.textContent = `${data.objetos_por_tipo.tecnologia || 0} objetos`;
+      document.getElementById('countMueble')!.textContent = `${data.objetos_por_tipo.mueble || 0} objetos`;
+      document.getElementById('countRopa')!.textContent = `${data.objetos_por_tipo.ropa || 0} objetos`;
+
+      // === Últimos objetos ===
+      renderUltimos(data.ultimos_objetos);
+
+      // === Mostrar dashboard ===
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      dashboardContent.classList.remove('hidden');
+
+    } catch (err: any) {
+      console.error('Error al cargar estadísticas:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión. Verifica que el servidor esté corriendo.';
+    }
+  }
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+  retryBtn?.addEventListener('click', cargarEstadisticas);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  cargarEstadisticas();
+</script>

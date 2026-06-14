@@ -1,0 +1,253 @@
+---
+// =============================================================================
+// PÁGINA DE DETALLE DE UBICACIÓN
+// Muestra los contenedores dentro de una ubicación y objetos totales
+// =============================================================================
+
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AuthGuard from '../../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Detalle de Ubicación | Inventario">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-20">
+      <svg class="animate-spin h-12 w-12 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando ubicación...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+      <p id="errorMessage" class="font-medium">Error al cargar la ubicación.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Contenido -->
+    <div id="detailContent" class="hidden space-y-6">
+      <!-- Encabezado -->
+      <div class="flex items-center justify-between">
+        <a href="/ubicaciones" class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Volver a ubicaciones
+        </a>
+      </div>
+
+      <!-- Card principal -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-start gap-4">
+          <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg class="w-7 h-7 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h1 id="nombreUbicacion" class="text-2xl font-bold text-gray-900"></h1>
+            <p id="descripcionUbicacion" class="text-gray-500 text-sm mt-1"></p>
+            <div class="flex gap-4 mt-3">
+              <div class="bg-blue-50 rounded-lg px-4 py-2">
+                <p class="text-xs text-blue-600 font-medium">Contenedores</p>
+                <p id="contenedoresCount" class="text-lg font-bold text-blue-700"></p>
+              </div>
+              <div class="bg-green-50 rounded-lg px-4 py-2">
+                <p class="text-xs text-green-600 font-medium">Objetos totales</p>
+                <p id="objetosTotalCount" class="text-lg font-bold text-green-700"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de contenedores -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+          Contenedores en esta ubicación
+        </h2>
+
+        <div id="contenedoresLoading" class="text-center py-8">
+          <svg class="animate-spin h-8 w-8 mx-auto text-blue-700 mb-2" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p class="text-sm text-gray-500">Cargando contenedores...</p>
+        </div>
+
+        <div id="contenedoresEmpty" class="hidden text-center py-8 text-gray-400">
+          <p class="text-lg font-medium">No hay contenedores en esta ubicación</p>
+          <p class="text-sm mt-1">Crea contenedores desde la sección de contenedores.</p>
+        </div>
+
+        <div id="contenedoresGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // DETALLE DE UBICACIÓN CON CONTENEDORES
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const ubicacionId = window.location.pathname.split('/').filter(Boolean).pop();
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const detailContent = document.getElementById('detailContent')!;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  // ===========================================================================
+  // CARGA DE LA UBICACIÓN
+  // ===========================================================================
+
+  async function cargarUbicacion() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    detailContent.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/ubicaciones/${ubicacionId}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) throw new Error(`Error del servidor (${response.status})`);
+
+      const ubicacion = await response.json();
+
+      document.getElementById('nombreUbicacion')!.textContent = ubicacion.nombre;
+      document.getElementById('descripcionUbicacion')!.textContent = ubicacion.descripcion || 'Sin descripción';
+      document.getElementById('objetosTotalCount')!.textContent = `${ubicacion.objetos_count || 0}`;
+
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      detailContent.classList.remove('hidden');
+
+      // Cargar contenedores
+      cargarContenedores();
+
+    } catch (err: any) {
+      console.error('Error al cargar ubicación:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión.';
+    }
+  }
+
+  // ===========================================================================
+  // CARGA DE CONTENEDORES DE LA UBICACIÓN
+  // ===========================================================================
+
+  async function cargarContenedores() {
+    const loading = document.getElementById('contenedoresLoading')!;
+    const empty = document.getElementById('contenedoresEmpty')!;
+    const grid = document.getElementById('contenedoresGrid')!;
+
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+    grid.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/contenedores/?ubicacion=${ubicacionId}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) throw new Error('Error al cargar contenedores');
+
+      const data = await response.json();
+      const contenedores = data.results || data;
+
+      loading.classList.add('hidden');
+
+      document.getElementById('contenedoresCount')!.textContent = `${contenedores.length}`;
+
+      if (contenedores.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      grid.innerHTML = contenedores.map((c: any) => `
+        <div class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-base cursor-pointer" data-id="${c.id}">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-gray-900 text-sm">${c.nombre}</h3>
+              ${c.descripcion ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${c.descripcion}</p>` : ''}
+              <p class="text-xs text-gray-400 mt-1">📦 ${c.objetos_count || 0} objetos</p>
+            </div>
+            ${c.qr_code_url
+              ? `<a href="${c.qr_code_url}" target="_blank" class="text-blue-500 hover:text-blue-700 flex-shrink-0" title="Ver QR">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                  </svg>
+                </a>`
+              : ''
+            }
+          </div>
+        </div>
+      `).join('');
+
+      grid.classList.remove('hidden');
+
+      // Click para ver detalle del contenedor
+      grid.querySelectorAll('[data-id]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-id');
+          if (id) window.location.href = `/contenedores/${id}`;
+        });
+      });
+
+    } catch (err) {
+      console.error('Error al cargar contenedores:', err);
+      loading.classList.add('hidden');
+      empty.classList.remove('hidden');
+      empty.innerHTML = '<p class="text-red-500">Error al cargar contenedores.</p>';
+    }
+  }
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+  retryBtn?.addEventListener('click', cargarUbicacion);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  if (ubicacionId) {
+    cargarUbicacion();
+  } else {
+    errorMessage.textContent = 'ID de ubicación no válido.';
+    errorState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
+  }
+</script>

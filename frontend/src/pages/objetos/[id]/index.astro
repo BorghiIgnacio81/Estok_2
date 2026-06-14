@@ -1,0 +1,504 @@
+---
+// =============================================================================
+// PÁGINA DE DETALLE DE OBJETO (Soporta herencia multi-tabla)
+// =============================================================================
+
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AuthGuard from '../../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Detalle del Objeto | Inventario">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-20">
+      <svg class="animate-spin h-12 w-12 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando objeto...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+      <p id="errorMessage" class="font-medium">Error al cargar el objeto.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Contenido del detalle -->
+    <div id="detailContent" class="hidden space-y-6">
+      <!-- Encabezado con volver -->
+      <div class="flex items-center justify-between">
+        <a href="/objetos" class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Volver a objetos
+        </a>
+        <div class="flex gap-2">
+          <button id="shareBtn" class="px-3 py-1.5 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-base inline-flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+            </svg>
+            Compartir
+          </button>
+          <a id="editBtn" href="#" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-base inline-flex items-center">
+            ✏️ Editar
+          </a>
+          <button id="deleteBtn" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-base">
+            🗑️ Eliminar
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Card principal: Foto + Info básica -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0">
+          <!-- Galería de fotos -->
+          <div class="bg-gray-50 p-4 sm:p-6">
+            <div id="fotoPrincipal" class="w-full aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-3">
+              <div id="fotoPlaceholder" class="text-center text-gray-400">
+                <svg class="w-16 h-16 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p class="text-sm">Sin foto</p>
+              </div>
+              <img id="fotoImg" class="hidden w-full h-full object-cover" alt="Foto del objeto" />
+            </div>
+            <!-- Miniaturas -->
+            <div id="fotosThumbnails" class="flex gap-2 overflow-x-auto pb-2"></div>
+          </div>
+
+          <!-- Info básica -->
+          <div class="p-4 sm:p-6 space-y-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span id="tipoBadge" class="text-sm px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium"></span>
+                <span id="cargaBadge" class="text-sm px-2 py-0.5 rounded-full font-medium"></span>
+              </div>
+              <h1 id="nombreObj" class="text-2xl font-bold text-gray-900"></h1>
+            </div>
+
+            <p id="descripcionObj" class="text-gray-600 text-sm leading-relaxed"></p>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Estado</p>
+                <p id="estadoObj" class="font-semibold text-gray-800 text-sm"></p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Color</p>
+                <p id="colorObj" class="font-semibold text-gray-800 text-sm"></p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Valor estimado</p>
+                <p id="valorObj" class="font-semibold text-green-700 text-sm"></p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Registrado</p>
+                <p id="fechaObj" class="font-semibold text-gray-800 text-sm"></p>
+              </div>
+            </div>
+
+            <!-- Ubicación y contenedor -->
+            <div class="border-t border-gray-100 pt-3 space-y-2">
+              <div class="flex items-center gap-2 text-sm text-gray-600">
+                <span class="text-base">📍</span>
+                <span id="ubicacionObj">Sin ubicación</span>
+              </div>
+              <div class="flex items-center gap-2 text-sm text-gray-600">
+                <span class="text-base">📦</span>
+                <span id="contenedorObj">Sin contenedor</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos específicos según tipo (herencia multi-tabla) -->
+      <div id="camposEspecificos" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span id="camposTitulo">Detalles específicos</span>
+        </h2>
+        <div id="camposGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Legado y trazabilidad -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Legado y Trazabilidad
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="bg-amber-50 rounded-lg p-4">
+            <p class="text-xs text-amber-600 font-medium mb-1">Dueño original</p>
+            <p id="duenoObj" class="text-gray-800 font-medium">—</p>
+          </div>
+          <div class="bg-green-50 rounded-lg p-4">
+            <p class="text-xs text-green-600 font-medium mb-1">Beneficiario</p>
+            <p id="beneficiarioObj" class="text-gray-800 font-medium">—</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historial de precios -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+          Historial de Precios
+        </h2>
+        <div id="historialContainer">
+          <p class="text-sm text-gray-400">Sin historial de precios registrado.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // DETALLE DE OBJETO CON HERENCIA MULTI-TABLA
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const objetoId = window.location.pathname.split('/').filter(Boolean).pop();
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const detailContent = document.getElementById('detailContent')!;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  // ===========================================================================
+  // MAPEOS VISUALES
+  // ===========================================================================
+
+  const TIPO_MAP: Record<string, { icon: string; label: string; color: string }> = {
+    libro: { icon: '📚', label: 'Libro / Revista', color: 'bg-blue-100 text-blue-700' },
+    tecnologia: { icon: '💻', label: 'Tecnología', color: 'bg-green-100 text-green-700' },
+    mueble: { icon: '🖼️', label: 'Mueble / Arte', color: 'bg-amber-100 text-amber-700' },
+    ropa: { icon: '👕', label: 'Ropa / Accesorio', color: 'bg-purple-100 text-purple-700' },
+    objeto: { icon: '📦', label: 'Objeto', color: 'bg-gray-100 text-gray-700' },
+  };
+
+  const ESTADO_MAP: Record<string, { label: string; color: string }> = {
+    excelente: { label: 'Excelente', color: 'bg-green-100 text-green-700' },
+    bueno: { label: 'Bueno', color: 'bg-blue-100 text-blue-700' },
+    regular: { label: 'Regular', color: 'bg-yellow-100 text-yellow-700' },
+    malo: { label: 'Malo', color: 'bg-orange-100 text-orange-700' },
+    muy_malo: { label: 'Muy malo', color: 'bg-red-100 text-red-700' },
+  };
+
+  const CARGA_MAP: Record<string, { label: string; color: string }> = {
+    completo: { label: '✅ Completo', color: 'bg-green-100 text-green-700' },
+    incompleto: { label: '⚠️ Incompleto', color: 'bg-yellow-100 text-yellow-700' },
+    pendiente_ia: { label: '⏳ Pendiente IA', color: 'bg-gray-100 text-gray-500' },
+  };
+
+  // ===========================================================================
+  // RENDERIZADO DE CAMPOS ESPECÍFICOS POR TIPO
+  // ===========================================================================
+
+  function renderCamposEspecificos(tipo: string, datos: any) {
+    const container = document.getElementById('camposEspecificos')!;
+    const grid = document.getElementById('camposGrid')!;
+    const titulo = document.getElementById('camposTitulo')!;
+
+    if (!datos || Object.keys(datos).length === 0) {
+      container.classList.add('hidden');
+      return;
+    }
+
+    container.classList.remove('hidden');
+    titulo.textContent = `Detalles de ${TIPO_MAP[tipo]?.label || 'Objeto'}`;
+
+    const fieldLabels: Record<string, string> = {
+      autor: 'Autor',
+      edicion: 'Edición',
+      anio: 'Año',
+      isbn_issn: 'ISBN / ISSN',
+      marca: 'Marca',
+      modelo: 'Modelo',
+      numero_serie: 'Número de serie',
+      peso: 'Peso (kg)',
+      especificaciones: 'Especificaciones',
+      material: 'Material',
+      largo: 'Largo (cm)',
+      ancho: 'Ancho (cm)',
+      alto: 'Alto (cm)',
+      artista_fabricante: 'Artista / Fabricante',
+      tamano: 'Tamaño / Talla',
+    };
+
+    grid.innerHTML = Object.entries(datos)
+      .filter(([_, v]) => v !== null && v !== undefined && v !== '' && !(typeof v === 'object' && Object.keys(v).length === 0))
+      .map(([key, value]) => {
+        const label = fieldLabels[key] || key;
+        let displayValue = String(value);
+        if (key === 'especificaciones' && typeof value === 'object') {
+          displayValue = Object.entries(value as Record<string, any>)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(', ');
+        }
+        return `
+          <div class="bg-gray-50 rounded-lg p-3">
+            <p class="text-xs text-gray-500 mb-0.5">${label}</p>
+            <p class="font-medium text-gray-800 text-sm">${displayValue}</p>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  // ===========================================================================
+  // RENDERIZADO DE HISTORIAL DE PRECIOS
+  // ===========================================================================
+
+  function renderHistorial(historial: any[]) {
+    const container = document.getElementById('historialContainer')!;
+    if (!historial || historial.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400">Sin historial de precios registrado.</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-200">
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Fecha</th>
+              <th class="text-right py-2 px-3 text-gray-500 font-medium">Anterior</th>
+              <th class="text-right py-2 px-3 text-gray-500 font-medium">Nuevo</th>
+              <th class="text-right py-2 px-3 text-gray-500 font-medium">Cambio</th>
+              <th class="text-left py-2 px-3 text-gray-500 font-medium">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${historial.map(h => {
+              const diff = h.diferencia;
+              const diffClass = diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-500';
+              const diffSign = diff > 0 ? '+' : '';
+              return `
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                  <td class="py-2 px-3 text-gray-600">${new Date(h.fecha_cambio).toLocaleDateString('es-AR')}</td>
+                  <td class="py-2 px-3 text-right text-gray-600">${h.valor_anterior ? `$${Number(h.valor_anterior).toLocaleString('es-AR')}` : '—'}</td>
+                  <td class="py-2 px-3 text-right font-medium">$${Number(h.valor_nuevo).toLocaleString('es-AR')}</td>
+                  <td class="py-2 px-3 text-right ${diffClass} font-medium">${diffSign}$${Number(diff).toLocaleString('es-AR')} (${h.porcentaje_cambio ? `${diffSign}${Number(h.porcentaje_cambio).toFixed(1)}%` : '—'})</td>
+                  <td class="py-2 px-3 text-gray-600">${h.motivo || '—'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===========================================================================
+  // RENDERIZADO DE FOTOS
+  // ===========================================================================
+
+  function renderFotos(fotos: any[]) {
+    const fotoImg = document.getElementById('fotoImg') as HTMLImageElement;
+    const fotoPlaceholder = document.getElementById('fotoPlaceholder')!;
+    const thumbnails = document.getElementById('fotosThumbnails')!;
+
+    if (!fotos || fotos.length === 0) {
+      fotoImg.classList.add('hidden');
+      fotoPlaceholder.classList.remove('hidden');
+      thumbnails.innerHTML = '';
+      return;
+    }
+
+    const principal = fotos.find(f => f.es_principal) || fotos[0];
+    fotoImg.src = principal.imagen;
+    fotoImg.classList.remove('hidden');
+    fotoPlaceholder.classList.add('hidden');
+
+    if (fotos.length > 1) {
+      thumbnails.innerHTML = fotos.map((f, i) => `
+        <button class="thumb-btn w-16 h-16 rounded-lg overflow-hidden border-2 flex-shrink-0 transition-base ${f.id === principal.id ? 'border-blue-500' : 'border-transparent hover:border-gray-300'}" data-img="${f.imagen}" data-id="${f.id}">
+          <img src="${f.imagen}" alt="Foto ${i + 1}" class="w-full h-full object-cover" />
+        </button>
+      `).join('');
+
+      thumbnails.querySelectorAll('.thumb-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const imgUrl = btn.getAttribute('data-img')!;
+          fotoImg.src = imgUrl;
+          thumbnails.querySelectorAll('.thumb-btn').forEach(b => b.classList.remove('border-blue-500'));
+          btn.classList.add('border-blue-500');
+        });
+      });
+    } else {
+      thumbnails.innerHTML = '';
+    }
+  }
+
+  // ===========================================================================
+  // CARGA DEL DETALLE
+  // ===========================================================================
+
+  async function cargarDetalle() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    detailContent.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor (${response.status})`);
+      }
+
+      const obj = await response.json();
+
+      // === Renderizar info básica ===
+      const tipoInfo = TIPO_MAP[obj.tipo] || TIPO_MAP.objeto;
+      const estadoInfo = ESTADO_MAP[obj.estado_conservacion] || { label: obj.estado_conservacion, color: 'bg-gray-100 text-gray-700' };
+      const cargaInfo = CARGA_MAP[obj.estado_carga] || { label: obj.estado_carga, color: 'bg-gray-100 text-gray-500' };
+
+      document.getElementById('tipoBadge')!.innerHTML = `${tipoInfo.icon} ${tipoInfo.label}`;
+      document.getElementById('tipoBadge')!.className = `text-sm px-2 py-0.5 rounded-full font-medium ${tipoInfo.color}`;
+      document.getElementById('cargaBadge')!.textContent = cargaInfo.label;
+      document.getElementById('cargaBadge')!.className = `text-sm px-2 py-0.5 rounded-full font-medium ${cargaInfo.color}`;
+      document.getElementById('nombreObj')!.textContent = obj.nombre;
+      document.getElementById('descripcionObj')!.textContent = obj.descripcion || 'Sin descripción.';
+      document.getElementById('estadoObj')!.textContent = estadoInfo.label;
+      document.getElementById('colorObj')!.textContent = obj.color || '—';
+      document.getElementById('valorObj')!.textContent = obj.valor_estimado
+        ? `$${Number(obj.valor_estimado).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+        : '—';
+      document.getElementById('fechaObj')!.textContent = new Date(obj.fecha_registro).toLocaleDateString('es-AR', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+      document.getElementById('ubicacionObj')!.textContent = obj.ubicacion_nombre || 'Sin ubicación';
+      document.getElementById('contenedorObj')!.textContent = obj.contenedor_nombre || 'Sin contenedor';
+      document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
+      document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';
+
+      // === Renderizar campos específicos (herencia multi-tabla) ===
+      renderCamposEspecificos(obj.tipo, obj.datos_especificos);
+
+      // === Renderizar fotos ===
+      renderFotos(obj.fotos);
+
+      // === Renderizar historial de precios ===
+      renderHistorial(obj.historial_precios);
+
+      // === Mostrar contenido ===
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      detailContent.classList.remove('hidden');
+
+    } catch (err: any) {
+      console.error('Error al cargar detalle:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión. Verifica que el servidor esté corriendo.';
+    }
+  }
+
+  // ===========================================================================
+  // ACCIONES: ELIMINAR
+  // ===========================================================================
+
+  document.getElementById('deleteBtn')?.addEventListener('click', async () => {
+    if (!confirm('¿Estás seguro de eliminar este objeto? Se marcará como eliminado (soft delete).')) return;
+
+    try {
+      const res = await fetch(`${API_URL}/objetos/${objetoId}/soft_delete/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        alert('✅ Objeto eliminado correctamente.');
+        window.location.href = '/objetos';
+      } else {
+        alert('❌ Error al eliminar el objeto.');
+      }
+    } catch {
+      alert('❌ Error de conexión.');
+    }
+  });
+
+  // ===========================================================================
+  // ACCIONES: COMPARTIR (WhatsApp / Email)
+  // ===========================================================================
+
+  document.getElementById('shareBtn')?.addEventListener('click', () => {
+    const nombre = document.getElementById('nombreObj')?.textContent || 'Objeto';
+    const url = window.location.href;
+    const shareText = `📦 *Estok - Inventario*\n\nMira este objeto: *${nombre}*\n${url}`;
+
+    // Intentar con Web Share API (móviles)
+    if (navigator.share) {
+      navigator.share({
+        title: `Estok - ${nombre}`,
+        text: `Mira este objeto en mi inventario: ${nombre}`,
+        url: url,
+      }).catch(() => {});
+    } else {
+      // Fallback: WhatsApp
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+  });
+
+  // ===========================================================================
+  // ACCIONES: EDITAR (redirige al formulario de edición)
+  // ===========================================================================
+
+  const editBtn = document.getElementById('editBtn') as HTMLAnchorElement;
+  if (editBtn && objetoId) {
+    editBtn.href = `/objetos/${objetoId}/editar`;
+  }
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+
+  retryBtn?.addEventListener('click', cargarDetalle);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  if (objetoId) {
+    cargarDetalle();
+  } else {
+    errorMessage.textContent = 'ID de objeto no válido.';
+    errorState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
+  }
+</script>

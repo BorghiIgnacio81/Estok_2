@@ -1,0 +1,94 @@
+# =============================================================================
+# docker-compose.yml - Estok en Coolify
+# Orquestación: Backend Django + Frontend Astro + PostgreSQL externo
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # BACKEND - Django REST API + Gunicorn
+  # ===========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: estok-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      # Django
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DEBUG=${DEBUG:-False}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DJANGO_CORS_ORIGINS=${DJANGO_CORS_ORIGINS:-http://localhost:4321}
+
+      # Base de datos PostgreSQL (Coolify resource)
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=${DB_NAME:-estok_db}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST:-postgresql-database-cagtcifjoy8ydxugg4bkdll1}
+      - DB_PORT=${DB_PORT:-5432}
+
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_TOKEN_LIFETIME=${JWT_ACCESS_TOKEN_LIFETIME:-3600}
+      - JWT_REFRESH_TOKEN_LIFETIME=${JWT_REFRESH_TOKEN_LIFETIME:-604800}
+
+      # IA Híbrida: apunta a tu PC local con la RX 9060 XT
+      - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.1.100:1234/v1}
+      - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
+      - AI_HIGH_RES_TIMEOUT=${AI_HIGH_RES_TIMEOUT:-240}
+
+      # Media (fotos)
+      - MEDIA_URL=/media/
+      - MEDIA_ROOT=/app/media
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    networks:
+      - estok-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ===========================================================================
+  # FRONTEND - Astro (SSG) servido por Nginx
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
+    container_name: estok-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-http://backend:8000/api}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - estok-network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  media_data:
+    driver: local
+  static_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  estok-network:
+    driver: bridge

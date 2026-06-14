@@ -1,0 +1,44 @@
+---
+// =============================================================================
+// COMPONENTE AuthGuard - Protección de rutas
+// Redirige al login si el usuario no está autenticado
+// =============================================================================
+
+export interface Props {
+  redirectTo?: string;
+}
+
+const { redirectTo = '/login' } = Astro.props;
+---
+
+<!-- AuthGuard: protege la ruta redirigiendo al login si no hay sesión -->
+<script>
+  // ===========================================================================
+  // VERIFICACIÓN DE AUTENTICACIÓN
+  // ===========================================================================
+
+  const REDIRECT_TO = '${redirectTo}';
+
+  function isAuthenticated(): boolean {
+    const token = localStorage.getItem('estok_access_token');
+    if (!token) return false;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const now = Math.floor(Date.now() / 1000);
+      return payload.exp > now;
+    } catch {
+      return false;
+    }
+  }
+
+  // Si no está autenticado, redirigir al login
+  if (!isAuthenticated()) {
+    // Guardar la URL actual para redirigir después del login
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath !== REDIRECT_TO) {
+      sessionStorage.setItem('estok_redirect_after_login', currentPath);
+    }
+    window.location.href = REDIRECT_TO;
+  }
+</script>

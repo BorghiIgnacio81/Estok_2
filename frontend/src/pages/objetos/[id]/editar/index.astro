@@ -1,0 +1,499 @@
+---
+// =============================================================================
+// PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
+// Formulario dinámico con CategoryFields para herencia multi-tabla
+// =============================================================================
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import CategoryFields from '../../../../components/CategoryFields.astro';
+import AuthGuard from '../../../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Editar Objeto | Inventario">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <a
+        href="/objetos"
+        class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base mb-4"
+      >
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a objetos
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">Editar Objeto</h1>
+      <p id="editSubtitle" class="mt-1 text-gray-500">
+        Cargando datos del objeto...
+      </p>
+    </div>
+
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-12">
+      <svg class="animate-spin h-10 w-10 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando datos del objeto...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center mb-6">
+      <p id="errorMessage" class="font-medium">Error al cargar el objeto.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Formulario -->
+    <form id="objetoForm" class="hidden space-y-6" method="POST">
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: INFORMACIÓN BÁSICA -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Información Básica
+        </h2>
+
+        <div class="space-y-4">
+          <!-- Nombre -->
+          <div>
+            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
+              Nombre <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="nombre" name="nombre" type="text" required
+              placeholder="Nombre del objeto"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base"
+            />
+          </div>
+
+          <!-- Descripción -->
+          <div>
+            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <textarea
+              id="descripcion" name="descripcion" rows={3}
+              placeholder="Describe el objeto (material, estado, detalles)"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base"
+            ></textarea>
+          </div>
+
+          <!-- Grid: Tipo + Estado + Color + Valor -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="tipo" class="block text-sm font-medium text-gray-700 mb-1">
+                Tipo <span class="text-red-500">*</span>
+              </label>
+              <select id="tipo" name="tipo" required
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+                <option value="objeto">📦 Objeto Genérico</option>
+                <option value="libro">📚 Libro / Revista</option>
+                <option value="tecnologia">💻 Tecnología</option>
+                <option value="mueble">🖼️ Mueble / Arte</option>
+                <option value="ropa">👕 Ropa / Accesorio</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <select id="estado_conservacion" name="estado_conservacion"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+                <option value="excelente">Excelente</option>
+                <option value="bueno" selected>Bueno</option>
+                <option value="regular">Regular</option>
+                <option value="malo">Malo</option>
+                <option value="muy_malo">Muy malo</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="color" class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+              <input id="color" name="color" type="text" placeholder="Ej: Rojo, Azul, Negro"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
+            </div>
+
+            <div>
+              <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">Valor estimado ($)</label>
+              <input id="valor_estimado" name="valor_estimado" type="number" step="0.01" min="0" placeholder="Ej: 150.00"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: CAMPOS ESPECÍFICOS POR CATEGORÍA (CategoryFields) -->
+      <!-- ================================================================ -->
+      <div id="categoryFieldsContainer">
+        <CategoryFields tipo="objeto" />
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: UBICACIÓN Y CONTENEDOR -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Ubicación
+        </h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+            <select id="ubicacion" name="ubicacion"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+              <option value="">Sin ubicación</option>
+            </select>
+          </div>
+          <div>
+            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">Contenedor</label>
+            <select id="contenedor" name="contenedor"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+              <option value="">Sin contenedor</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: LEGADO Y TRAZABILIDAD -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Legado y Trazabilidad
+        </h2>
+        <p class="text-sm text-gray-400 mb-4">Dueño original y beneficiario del objeto</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="dueno_original" class="block text-sm font-medium text-gray-700 mb-1">Dueño original</label>
+            <select id="dueno_original" name="dueno_original"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+              <option value="">Sin dueño</option>
+            </select>
+          </div>
+          <div>
+            <label for="beneficiario" class="block text-sm font-medium text-gray-700 mb-1">Beneficiario</label>
+            <select id="beneficiario" name="beneficiario"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
+              <option value="">Sin beneficiario</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- BOTÓN DE GUARDADO -->
+      <!-- ================================================================ -->
+      <div class="flex gap-3 pt-2">
+        <button type="submit" id="saveBtn"
+          class="flex-1 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50 text-base shadow-sm">
+          <span id="saveText">💾 Guardar Cambios</span>
+          <span id="saveSpinner" class="hidden">
+            <svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          </span>
+        </button>
+        <a href="/objetos"
+          class="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base text-base text-center">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // EDICIÓN DE OBJETO - Carga datos + PUT a la API
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const objetoId = window.location.pathname.split('/').filter(Boolean).slice(-3, -2)[0];
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const form = document.getElementById('objetoForm') as HTMLFormElement;
+  const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+  const saveText = document.getElementById('saveText')!;
+  const saveSpinner = document.getElementById('saveSpinner')!;
+  const editSubtitle = document.getElementById('editSubtitle')!;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(contentType = true): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (contentType) headers['Content-Type'] = 'application/json';
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  // ===========================================================================
+  // CARGA DE DATOS DEL OBJETO
+  // ===========================================================================
+
+  async function cargarObjeto() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    form.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) throw new Error(`Error del servidor (${response.status})`);
+
+      const obj = await response.json();
+
+      // === Llenar campos básicos ===
+      setFieldValue('nombre', obj.nombre);
+      setFieldValue('descripcion', obj.descripcion);
+      setFieldValue('tipo', obj.tipo);
+      setFieldValue('estado_conservacion', obj.estado_conservacion);
+      setFieldValue('color', obj.color);
+      setFieldValue('valor_estimado', obj.valor_estimado);
+
+      // === Disparar cambio de tipo para actualizar CategoryFields ===
+      const tipoSelect = document.getElementById('tipo') as HTMLSelectElement;
+      tipoSelect?.dispatchEvent(new Event('change'));
+
+      // === Llenar campos específicos (herencia multi-tabla) ===
+      if (obj.datos_especificos) {
+        Object.entries(obj.datos_especificos).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            setFieldValue(key, value);
+          }
+        });
+      }
+
+      // === Cargar ubicaciones y contenedores, luego seleccionar valores ===
+      await cargarUbicaciones(obj.ubicacion);
+      await cargarContenedores(obj.ubicacion, obj.contenedor);
+
+      // === Cargar usuarios y seleccionar dueño/beneficiario ===
+      await cargarUsuarios(obj.dueno_original, obj.beneficiario);
+
+      // === Mostrar formulario ===
+      editSubtitle.textContent = `Editando: ${obj.nombre}`;
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      form.classList.remove('hidden');
+
+    } catch (err: any) {
+      console.error('Error al cargar objeto:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión.';
+    }
+  }
+
+  function setFieldValue(fieldName: string, value: any) {
+    if (value === null || value === undefined) return;
+    const el = document.getElementById(fieldName) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    if (!el) return;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // ===========================================================================
+  // CARGA DE UBICACIONES, CONTENEDORES Y USUARIOS
+  // ===========================================================================
+
+  const ubicacionSelect = document.getElementById('ubicacion') as HTMLSelectElement;
+  const contenedorSelect = document.getElementById('contenedor') as HTMLSelectElement;
+  const duenoSelect = document.getElementById('dueno_original') as HTMLSelectElement;
+  const beneficiarioSelect = document.getElementById('beneficiario') as HTMLSelectElement;
+
+  async function cargarUbicaciones(selectedId?: string) {
+    try {
+      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const ubicaciones = data.results || data;
+        ubicaciones.forEach((u: any) => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.nombre;
+          if (selectedId && u.id === selectedId) opt.selected = true;
+          ubicacionSelect.appendChild(opt);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function cargarContenedores(ubicacionId?: string, selectedId?: string) {
+    contenedorSelect.innerHTML = '<option value="">Sin contenedor</option>';
+    try {
+      let url = `${API_URL}/contenedores/`;
+      if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
+      const res = await fetch(url, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const contenedores = data.results || data;
+        contenedores.forEach((c: any) => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.nombre} (${c.ubicacion_nombre || 'Sin ubicación'})`;
+          if (selectedId && c.id === selectedId) opt.selected = true;
+          contenedorSelect.appendChild(opt);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function cargarUsuarios(duenoId?: string, beneficiarioId?: string) {
+    try {
+      const res = await fetch(`${API_URL}/usuarios/`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const usuarios = data.results || data;
+        usuarios.forEach((user: any) => {
+          const nombre = user.first_name
+            ? `${user.first_name} ${user.last_name || ''}`
+            : user.username;
+
+          const optD = document.createElement('option');
+          optD.value = user.id;
+          optD.textContent = nombre;
+          if (duenoId && user.id === duenoId) optD.selected = true;
+          duenoSelect.appendChild(optD);
+
+          const optB = document.createElement('option');
+          optB.value = user.id;
+          optB.textContent = nombre;
+          if (beneficiarioId && user.id === beneficiarioId) optB.selected = true;
+          beneficiarioSelect.appendChild(optB);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Cuando cambia la ubicación, recargar contenedores
+  ubicacionSelect?.addEventListener('change', () => {
+    cargarContenedores(ubicacionSelect.value);
+  });
+
+  // ===========================================================================
+  // MANEJO DE CATEGORÍAS (Cambio dinámico de campos)
+  // ===========================================================================
+
+  const tipoSelect = document.getElementById('tipo') as HTMLSelectElement;
+  tipoSelect?.addEventListener('change', () => {
+    const tipo = tipoSelect.value;
+    if ((window as any).updateCategoryFields) {
+      (window as any).updateCategoryFields(tipo);
+    }
+  });
+
+  // ===========================================================================
+  // ENVÍO DEL FORMULARIO (PUT)
+  // ===========================================================================
+
+  function showToast(message: string, type: 'success' | 'error') {
+    const existing = document.getElementById('formToast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.id = 'formToast';
+    toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${
+      type === 'success' ? 'bg-green-600' : 'bg-red-600'
+    }`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const token = getToken();
+    if (!token) {
+      showToast('Debes iniciar sesión.', 'error');
+      setTimeout(() => { window.location.href = '/login'; }, 1500);
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveText.classList.add('hidden');
+    saveSpinner.classList.remove('hidden');
+
+    try {
+      const formData = new FormData(form);
+      const payload: Record<string, any> = {};
+
+      formData.forEach((value, key) => {
+        if (value && value !== '') {
+          payload[key] = value;
+        }
+      });
+
+      // Enviar PUT a la API
+      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        showToast('✅ Objeto actualizado correctamente', 'success');
+        setTimeout(() => { window.location.href = `/objetos/${objetoId}`; }, 1000);
+      } else {
+        const error = await response.json();
+        const errorMsg = error.detail || error.error || Object.values(error).flat().join(', ');
+        showToast(`❌ Error: ${errorMsg}`, 'error');
+        saveBtn.disabled = false;
+        saveText.classList.remove('hidden');
+        saveSpinner.classList.add('hidden');
+      }
+    } catch (err) {
+      showToast('❌ Error de conexión.', 'error');
+      console.error(err);
+      saveBtn.disabled = false;
+      saveText.classList.remove('hidden');
+      saveSpinner.classList.add('hidden');
+    }
+  });
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+  retryBtn?.addEventListener('click', cargarObjeto);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  if (objetoId) {
+    cargarObjeto();
+  } else {
+    errorMessage.textContent = 'ID de objeto no válido.';
+    errorState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
+  }
+</script>

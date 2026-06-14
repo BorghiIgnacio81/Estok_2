@@ -1,0 +1,911 @@
+---
+// =============================================================================
+// PÁGINA DE CARGA MANUAL DE OBJETO (Mobile-First)
+// Formulario de emergencia para carga manual completa con captura de foto
+// =============================================================================
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import CategoryFields from '../../components/CategoryFields.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Nuevo Objeto | Carga Manual">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <a
+        href="/objetos"
+        class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base mb-4"
+      >
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a objetos
+      </a>
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-gray-900">Nuevo Objeto</h1>
+        <!-- AI Status Badge -->
+        <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+          <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+          <span id="aiStatusText">Verificando IA...</span>
+        </span>
+      </div>
+      <p class="mt-1 text-gray-500">
+        Completa los datos del objeto. Los campos marcados con <span class="text-red-500">*</span> son obligatorios.
+      </p>
+    </div>
+
+    <!-- Formulario -->
+    <form
+      id="objetoForm"
+      class="space-y-6"
+      method="POST"
+      enctype="multipart/form-data"
+    >
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: CAPTURA DE FOTO (Mobile-First con cámara) -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Foto del Objeto
+        </h2>
+
+        <!-- Preview de la foto -->
+        <div class="mb-4">
+          <div
+            id="photoPreview"
+            class="w-full h-48 sm:h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden"
+          >
+            <div id="photoPlaceholder" class="text-center text-gray-400">
+              <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p class="text-sm">Toca para tomar o seleccionar foto</p>
+              <p class="text-xs mt-1">La foto se usará para análisis por IA</p>
+            </div>
+            <img id="photoImage" class="hidden w-full h-full object-cover" alt="Preview" />
+          </div>
+        </div>
+
+        <!-- Botones de cámara / galería -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <!-- Botón: Cámara (prioritario en mobile) -->
+          <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            </svg>
+            Tomar Foto
+            <input
+              id="cameraInput"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              class="hidden"
+            />
+          </label>
+
+          <!-- Botón: Galería -->
+          <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Seleccionar de Galería
+            <input
+              id="galleryInput"
+              type="file"
+              accept="image/*"
+              class="hidden"
+            />
+          </label>
+        </div>
+
+        <!-- Input oculto para la imagen en Base64 -->
+        <input type="hidden" name="imagen_base64" id="imagenBase64" />
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- BOTÓN: ANALIZAR CON IA (se activa cuando hay foto) -->
+      <!-- ================================================================ -->
+      <div id="iaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Análisis con Inteligencia Artificial
+        </h2>
+        <p class="text-sm text-gray-500 mb-4">
+          La IA analizará la foto y autocompletará los campos del formulario automáticamente.
+        </p>
+        <button
+          type="button"
+          id="analizarIaBtn"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span id="iaBtnText">
+            <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Analizar con IA
+          </span>
+          <span id="iaBtnSpinner" class="hidden">
+            <svg class="animate-spin h-5 w-5 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Analizando...
+          </span>
+        </button>
+        <div id="iaStatus" class="mt-3 text-sm hidden"></div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: DATOS BÁSICOS -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Datos Básicos</h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Nombre -->
+          <div class="sm:col-span-2">
+            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
+              Nombre del objeto <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="nombre"
+              name="nombre"
+              type="text"
+              required
+              placeholder="Ej: iPhone 14 Pro, El Principito, Sillón de cuero"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+            />
+          </div>
+
+          <!-- Descripción -->
+          <div class="sm:col-span-2">
+            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">
+              Descripción
+            </label>
+            <textarea
+              id="descripcion"
+              name="descripcion"
+              rows={3}
+              placeholder="Describe el objeto, su estado, historia o cualquier detalle relevante..."
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+            ></textarea>
+          </div>
+
+          <!-- Categoría (Tipo) -->
+          <div>
+            <label for="tipo" class="block text-sm font-medium text-gray-700 mb-1">
+              Categoría <span class="text-red-500">*</span>
+            </label>
+            <select
+              id="tipo"
+              name="tipo"
+              required
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="">Seleccionar categoría...</option>
+              <option value="libro">📚 Libro / Revista</option>
+              <option value="tecnologia">💻 Tecnología</option>
+              <option value="mueble">🖼️ Mueble / Arte</option>
+              <option value="ropa">👕 Ropa / Accesorio</option>
+              <option value="objeto">📦 Otro / Genérico</option>
+            </select>
+          </div>
+
+          <!-- Estado de conservación -->
+          <div>
+            <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">
+              Estado de conservación
+            </label>
+            <select
+              id="estado_conservacion"
+              name="estado_conservacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="excelente">Excelente</option>
+              <option value="bueno" selected>Bueno</option>
+              <option value="regular">Regular</option>
+              <option value="malo">Malo</option>
+              <option value="muy_malo">Muy malo</option>
+            </select>
+          </div>
+
+          <!-- Color -->
+          <div>
+            <label for="color" class="block text-sm font-medium text-gray-700 mb-1">
+              Color
+            </label>
+            <input
+              id="color"
+              name="color"
+              type="text"
+              placeholder="Ej: Rojo, Negro, Plateado"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+            />
+          </div>
+
+          <!-- Valor estimado -->
+          <div>
+            <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">
+              Valor estimado (USD)
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <input
+                id="valor_estimado"
+                name="valor_estimado"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: CAMPOS ESPECÍFICOS POR CATEGORÍA -->
+      <!-- ================================================================ -->
+      <div id="categoryFieldsContainer">
+        <CategoryFields tipo="objeto" />
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: UBICACIÓN -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Ubicación</h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">
+              Ubicación
+            </label>
+            <select
+              id="ubicacion"
+              name="ubicacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="">Sin ubicación</option>
+              <!-- Poblado dinámicamente por JS -->
+            </select>
+          </div>
+
+          <div>
+            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">
+              Contenedor
+            </label>
+            <select
+              id="contenedor"
+              name="contenedor"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="">Sin contenedor</option>
+              <!-- Poblado dinámicamente por JS -->
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: LEGADO Y TRAZABILIDAD -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Legado y Trazabilidad
+        </h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Estos campos son fundamentales para el sistema de planificación sucesoria familiar.
+          Definen quién fue el dueño original del objeto y quién es el beneficiario designado.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="dueno_original" class="block text-sm font-medium text-gray-700 mb-1">
+              Dueño original
+            </label>
+            <select
+              id="dueno_original"
+              name="dueno_original"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="">Seleccionar dueño original...</option>
+              <!-- Poblado dinámicamente por JS -->
+            </select>
+          </div>
+
+          <div>
+            <label for="beneficiario" class="block text-sm font-medium text-gray-700 mb-1">
+              Beneficiario
+            </label>
+            <select
+              id="beneficiario"
+              name="beneficiario"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
+            >
+              <option value="">Seleccionar beneficiario...</option>
+              <!-- Poblado dinámicamente por JS -->
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- BOTÓN DE ENVÍO -->
+      <!-- ================================================================ -->
+      <div class="flex flex-col sm:flex-row gap-4 pt-4">
+        <button
+          type="submit"
+          id="submitBtn"
+          class="flex-1 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span id="submitText">Guardar Objeto</span>
+          <span id="submitSpinner" class="hidden">
+            <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </span>
+        </button>
+        <a
+          href="/objetos"
+          class="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base text-center"
+        >
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // CONSTANTES
+  // ===========================================================================
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const LM_STUDIO_URL = 'http://localhost:1234/v1';
+
+  // ===========================================================================
+  // AI HEARTBEAT - Verificar disponibilidad de LM Studio
+  // ===========================================================================
+  const aiStatusBadge = document.getElementById('aiStatusBadge')!;
+  const aiStatusDot = document.getElementById('aiStatusDot')!;
+  const aiStatusText = document.getElementById('aiStatusText')!;
+  const iaSection = document.getElementById('iaSection')!;
+  const analizarIaBtn = document.getElementById('analizarIaBtn') as HTMLButtonElement;
+
+  async function checkAIAvailability(): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${LM_STUDIO_URL}/models`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function updateAIStatus() {
+    const connected = await checkAIAvailability();
+    if (connected) {
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
+      aiStatusText.textContent = 'IA Conectada';
+    } else {
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
+      aiStatusText.textContent = 'Modo Manual';
+      // Ocultar sección de IA si está offline
+      iaSection.classList.add('hidden');
+    }
+  }
+
+  // Verificar cada 30 segundos
+  updateAIStatus();
+  setInterval(updateAIStatus, 30000);
+
+  // ===========================================================================
+  // MANEJO DE CAPTURA DE FOTO (Cámara + Galería)
+  // ===========================================================================
+
+  const cameraInput = document.getElementById('cameraInput') as HTMLInputElement;
+  const galleryInput = document.getElementById('galleryInput') as HTMLInputElement;
+  const photoPreview = document.getElementById('photoPreview')!;
+  const photoPlaceholder = document.getElementById('photoPlaceholder')!;
+  const photoImage = document.getElementById('photoImage') as HTMLImageElement;
+  const imagenBase64 = document.getElementById('imagenBase64') as HTMLInputElement;
+
+  function handleFile(file: File) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      photoImage.src = result;
+      photoImage.classList.remove('hidden');
+      photoPlaceholder.classList.add('hidden');
+      imagenBase64.value = result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  cameraInput?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFile(file);
+  });
+
+  galleryInput?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFile(file);
+  });
+
+  photoPreview?.addEventListener('click', () => {
+    cameraInput?.click();
+  });
+
+  // ===========================================================================
+  // FLUJO DE IA: Mostrar sección cuando hay foto
+  // ===========================================================================
+
+  const iaBtnText = document.getElementById('iaBtnText')!;
+  const iaBtnSpinner = document.getElementById('iaBtnSpinner')!;
+  const iaStatus = document.getElementById('iaStatus')!;
+
+  function onPhotoLoaded() {
+    // Solo mostrar sección IA si está conectada
+    checkAIAvailability().then(connected => {
+      if (connected) {
+        iaSection.classList.remove('hidden');
+        iaStatus.classList.add('hidden');
+        analizarIaBtn.disabled = false;
+      }
+    });
+  }
+
+  const originalHandleFile = handleFile;
+  function handleFileWithIA(file: File) {
+    originalHandleFile(file);
+    if (file) onPhotoLoaded();
+  }
+
+  cameraInput?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFileWithIA(file);
+  });
+
+  galleryInput?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) handleFileWithIA(file);
+  });
+
+  // ===========================================================================
+  // MEMORIA VISUAL - Buscar coincidencias con objetos existentes
+  // ===========================================================================
+
+  const coincidenciaContainer = document.createElement('div');
+  coincidenciaContainer.id = 'coincidenciaContainer';
+  coincidenciaContainer.className = 'hidden';
+
+  async function buscarCoincidencias(data: any) {
+    const nombre = data.nombre || data.objeto?.nombre;
+    const descripcion = data.descripcion || data.objeto?.descripcion;
+    if (!nombre && !descripcion) return;
+
+    try {
+      const token = getToken();
+      const searchTerm = (nombre || descripcion).substring(0, 50);
+      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(searchTerm)}&incluir_eliminados=false`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!response.ok) return;
+      const result = await response.json();
+      const objetos = result.results || result;
+
+      // Filtrar coincidencias relevantes (excluir el objeto recién creado si tiene ID)
+      const coincidencias = objetos.filter((o: any) => {
+        if (data.objeto?.id && o.id === data.objeto.id) return false;
+        const similitud = calcularSimilitud(nombre, o.nombre);
+        return similitud > 0.5;
+      });
+
+      if (coincidencias.length > 0) {
+        mostrarCoincidencias(coincidencias);
+      }
+    } catch (err) {
+      console.warn('Error al buscar coincidencias:', err);
+    }
+  }
+
+  function calcularSimilitud(a: string, b: string): number {
+    if (!a || !b) return 0;
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+    if (aLower === bLower) return 1;
+    if (aLower.includes(bLower) || bLower.includes(aLower)) return 0.8;
+
+    // Contar palabras en común
+    const palabrasA = new Set(aLower.split(/\s+/));
+    const palabrasB = new Set(bLower.split(/\s+/));
+    let comunes = 0;
+    palabrasA.forEach(p => { if (palabrasB.has(p)) comunes++; });
+    const total = Math.max(palabrasA.size, palabrasB.size);
+    return total > 0 ? comunes / total : 0;
+  }
+
+  function mostrarCoincidencias(coincidencias: any[]) {
+    const section = document.getElementById('legacySection') || document.querySelector('.bg-white.rounded-xl.shadow-sm.border.border-gray-200.p-6:last-of-type');
+    if (!section) return;
+
+    coincidenciaContainer.className = 'bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4';
+    coincidenciaContainer.innerHTML = `
+      <div class="flex items-start gap-3">
+        <span class="text-amber-500 text-lg">🔍</span>
+        <div class="flex-1">
+          <p class="text-sm font-medium text-amber-800">
+            Se encontraron ${coincidencias.length} objeto(s) similar(es) en el inventario
+          </p>
+          <p class="text-xs text-amber-600 mt-1">
+            Sugerencia: Podrías asignar el mismo dueño/beneficiario para mantener la trazabilidad.
+          </p>
+          <div class="mt-2 space-y-1">
+            ${coincidencias.slice(0, 3).map((o: any) => `
+              <a href="/objetos/${o.id}" target="_blank" class="block text-xs text-amber-700 hover:text-amber-900 underline">
+                📌 ${o.nombre} ${o.valor_estimado ? `- $${Number(o.valor_estimado).toLocaleString('es-AR')}` : ''}
+              </a>
+            `).join('')}
+          </div>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" class="text-amber-400 hover:text-amber-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    `;
+
+    // Insertar antes de la sección de legado
+    const legacySection = document.querySelector('.bg-white.rounded-xl.shadow-sm.border.border-gray-200.p-6:last-of-type');
+    if (legacySection && !document.getElementById('coincidenciaContainer')) {
+      legacySection.parentNode?.insertBefore(coincidenciaContainer, legacySection);
+    }
+  }
+
+  // ===========================================================================
+  // ANÁLISIS CON IA
+  // ===========================================================================
+
+  analizarIaBtn?.addEventListener('click', async () => {
+    const token = getToken();
+    if (!token) {
+      (window as any).showToast?.('Debes iniciar sesión para usar la IA.', 'error');
+      setTimeout(() => { window.location.href = '/login'; }, 1500);
+      return;
+    }
+
+    if (!imagenBase64.value) {
+      (window as any).showToast?.('Primero debes tomar o seleccionar una foto.', 'error');
+      return;
+    }
+
+    analizarIaBtn.disabled = true;
+    iaBtnText.classList.add('hidden');
+    iaBtnSpinner.classList.remove('hidden');
+    iaStatus.classList.remove('hidden');
+    iaStatus.className = 'mt-3 text-sm text-blue-600';
+    iaStatus.textContent = '⏳ Analizando imagen con IA...';
+
+    try {
+      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imagen_base64: imagenBase64.value,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || err.error || 'Error al analizar la imagen');
+      }
+
+      const data = await response.json();
+      const objeto = data.objeto || data;
+
+      // Autocompletar formulario
+      autocompletarFormulario(objeto);
+
+      // Buscar coincidencias en el inventario (Memoria Visual)
+      buscarCoincidencias(data);
+
+      iaStatus.className = 'mt-3 text-sm text-green-600';
+      iaStatus.textContent = '✅ Análisis completado. Los campos se han autocompletado.';
+      (window as any).showToast?.('✅ Campos autocompletados por IA', 'success');
+    } catch (err: any) {
+      console.error('Error en análisis IA:', err);
+      iaStatus.className = 'mt-3 text-sm text-red-600';
+      iaStatus.textContent = `❌ Error: ${err.message}`;
+      (window as any).showToast?.(`❌ Error de IA: ${err.message}`, 'error');
+    } finally {
+      analizarIaBtn.disabled = false;
+      iaBtnText.classList.remove('hidden');
+      iaBtnSpinner.classList.add('hidden');
+    }
+  });
+
+  // ===========================================================================
+  // AUTOCOMPLETAR FORMULARIO CON DATOS DE LA IA
+  // ===========================================================================
+
+  function autocompletarFormulario(data: any) {
+    setFieldValue('nombre', data.nombre);
+    setFieldValue('descripcion', data.descripcion);
+    setFieldValue('color', data.color);
+    setFieldValue('valor_estimado', data.valor_estimado);
+
+    if (data.tipo && data.tipo !== 'objeto') {
+      tipoSelect.value = data.tipo;
+      tipoSelect.dispatchEvent(new Event('change'));
+    }
+
+    if (data.estado_conservacion) {
+      const estadoSelect = document.getElementById('estado_conservacion') as HTMLSelectElement;
+      if (estadoSelect) estadoSelect.value = data.estado_conservacion;
+    }
+
+    const camposCategoria = ['autor', 'edicion', 'anio', 'isbn_issn',
+      'marca', 'modelo', 'numero_serie', 'peso',
+      'material', 'artista_fabricante', 'largo', 'ancho', 'alto',
+      'tamano'];
+
+    camposCategoria.forEach((campo) => {
+      if (data[campo]) {
+        setFieldValue(campo, data[campo]);
+      }
+    });
+  }
+
+  function setFieldValue(fieldName: string, value: any) {
+    if (!value && value !== 0) return;
+
+    const el = document.getElementById(fieldName) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    if (!el) return;
+
+    const elByName = document.querySelector(`[name="${fieldName}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    const target = el || elByName;
+    if (!target) return;
+
+    target.value = value;
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // ===========================================================================
+  // MANEJO DE CATEGORÍAS
+  // ===========================================================================
+
+  const tipoSelect = document.getElementById('tipo') as HTMLSelectElement;
+
+  tipoSelect?.addEventListener('change', () => {
+    const tipo = tipoSelect.value;
+    if ((window as any).updateCategoryFields) {
+      (window as any).updateCategoryFields(tipo);
+    }
+  });
+
+  // ===========================================================================
+  // CARGA DE UBICACIONES, CONTENEDORES Y USUARIOS
+  // ===========================================================================
+
+  const ubicacionSelect = document.getElementById('ubicacion') as HTMLSelectElement;
+  const contenedorSelect = document.getElementById('contenedor') as HTMLSelectElement;
+  const duenoSelect = document.getElementById('dueno_original') as HTMLSelectElement;
+  const beneficiarioSelect = document.getElementById('beneficiario') as HTMLSelectElement;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  async function cargarUbicaciones() {
+    try {
+      const response = await fetch(`${API_URL}/ubicaciones/`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const ubicaciones = data.results || data;
+        ubicaciones.forEach((ubicacion: any) => {
+          const option = document.createElement('option');
+          option.value = ubicacion.id;
+          option.textContent = ubicacion.nombre;
+          ubicacionSelect?.appendChild(option);
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar las ubicaciones:', err);
+    }
+  }
+
+  async function cargarContenedores(ubicacionId?: string) {
+    contenedorSelect.innerHTML = '<option value="">Sin contenedor</option>';
+    try {
+      let url = `${API_URL}/contenedores/`;
+      if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const contenedores = data.results || data;
+        contenedores.forEach((contenedor: any) => {
+          const option = document.createElement('option');
+          option.value = contenedor.id;
+          option.textContent = `${contenedor.nombre} (${contenedor.ubicacion_nombre || 'Sin ubicación'})`;
+          contenedorSelect?.appendChild(option);
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar los contenedores:', err);
+    }
+  }
+
+  async function cargarUsuarios() {
+    try {
+      const response = await fetch(`${API_URL}/usuarios/`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const usuarios = data.results || data;
+        usuarios.forEach((user: any) => {
+          const nombre = user.first_name
+            ? `${user.first_name} ${user.last_name || ''}`
+            : user.username;
+          const optDueno = document.createElement('option');
+          optDueno.value = user.id;
+          optDueno.textContent = nombre;
+          duenoSelect?.appendChild(optDueno);
+
+          const optBenef = document.createElement('option');
+          optBenef.value = user.id;
+          optBenef.textContent = nombre;
+          beneficiarioSelect?.appendChild(optBenef);
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar los usuarios:', err);
+    }
+  }
+
+  cargarUbicaciones();
+  cargarUsuarios();
+
+  ubicacionSelect?.addEventListener('change', () => {
+    cargarContenedores(ubicacionSelect.value);
+  });
+
+  // ===========================================================================
+  // ENVÍO DEL FORMULARIO
+  // ===========================================================================
+
+  const form = document.getElementById('objetoForm') as HTMLFormElement;
+  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+  const submitText = document.getElementById('submitText')!;
+  const submitSpinner = document.getElementById('submitSpinner')!;
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const token = getToken();
+    if (!token) {
+      (window as any).showToast?.('Debes iniciar sesión para guardar objetos.', 'error');
+      setTimeout(() => { window.location.href = '/login'; }, 1500);
+      return;
+    }
+
+    // Validar campos obligatorios de legado
+    const duenoValue = duenoSelect?.value;
+    const beneficiarioValue = beneficiarioSelect?.value;
+    if (!duenoValue) {
+      (window as any).showToast?.('Debes seleccionar un Dueño Original.', 'error');
+      duenoSelect?.focus();
+      return;
+    }
+    if (!beneficiarioValue) {
+      (window as any).showToast?.('Debes seleccionar un Beneficiario.', 'error');
+      beneficiarioSelect?.focus();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitText.classList.add('hidden');
+    submitSpinner.classList.remove('hidden');
+
+    try {
+      const formData = new FormData(form);
+      const payload: Record<string, any> = {};
+
+      formData.forEach((value, key) => {
+        if (value && value !== '') {
+          payload[key] = value;
+        }
+      });
+
+      payload.estado_carga = 'completo';
+      delete payload.imagen_base64;
+
+      const response = await fetch(`${API_URL}/objetos/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const objeto = await response.json();
+        const objetoId = objeto.id || objeto.data?.id;
+
+        // Si hay imagen Base64, subirla como foto usando multipart/form-data
+        if (imagenBase64.value && objetoId) {
+          try {
+            const base64Data = imagenBase64.value;
+            const blob = await fetch(base64Data).then(r => r.blob());
+            const file = new File([blob], 'foto.jpg', { type: 'image/jpeg' });
+
+            const fotoFormData = new FormData();
+            fotoFormData.append('imagen', file);
+            fotoFormData.append('es_principal', 'true');
+
+            await fetch(`${API_URL}/objetos/${objetoId}/subir_foto/`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              body: fotoFormData,
+            });
+          } catch (fotoErr) {
+            console.warn('La foto no se pudo subir, pero el objeto se guardó:', fotoErr);
+          }
+        }
+
+        (window as any).showToast?.('✅ Objeto guardado correctamente', 'success');
+        setTimeout(() => { window.location.href = '/objetos'; }, 1000);
+      } else {
+        const error = await response.json();
+        const errorMsg = error.detail || error.error || Object.values(error).flat().join(', ');
+        (window as any).showToast?.(`❌ Error: ${errorMsg}`, 'error');
+        submitBtn.disabled = false;
+        submitText.classList.remove('hidden');
+        submitSpinner.classList.add('hidden');
+      }
+    } catch (err) {
+      (window as any).showToast?.('❌ Error de conexión. Verifica que el servidor esté corriendo.', 'error');
+      console.error(err);
+      submitBtn.disabled = false;
+      submitText.classList.remove('hidden');
+      submitSpinner.classList.add('hidden');
+    }
+  });
+</script>

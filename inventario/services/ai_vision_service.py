@@ -1,0 +1,519 @@
+"""
+Servicio de Visión por IA Local (LM Studio + Qwen2-VL-7B).
+
+Conecta con la API local de LM Studio en http://localhost:1234/v1
+usando la librería `openai` (compatible con OpenAI API) para procesar
+imágenes de objetos y extraer información estructurada.
+
+Optimizado para GPU AMD Radeon RX 9060 XT con 8GB VRAM.
+
+Flujo:
+  1. Recibe una imagen (path, bytes o Base64)
+  2. La envía al modelo local solicitando un JSON estructurado
+  3. Analiza la respuesta y determina campos con baja confianza
+  4. Retorna datos estructurados + lista de campos pendientes
+  5. Alimenta el Historial de Precios para reportes de valoración
+"""
+
+import json
+import logging
+import base64
+from pathlib import Path
+from typing import Optional, Dict, Any, List, Tuple
+from dataclasses import dataclass, field, asdict
+from decimal import Decimal
+
+from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# CONFIGURACIÓN (desde variables de entorno de Django)
+# =============================================================================
+from django.conf import settings
+
+LM_STUDIO_URL = getattr(settings, 'AI_API_ENDPOINT', "http://localhost:1234/v1")
+LM_STUDIO_TIMEOUT = getattr(settings, 'AI_API_TIMEOUT', 120)
+LM_STUDIO_TIMEOUT_ALTA_RES = getattr(settings, 'AI_HIGH_RES_TIMEOUT', 180)
+CONFIANZA_MINIMA = 0.6  # umbral mínimo de confianza para considerar un campo válido
+MODEL_NAME = "Qwen2-VL-7B"  # modelo desplegado en LM Studio
+MAX_IMAGE_SIZE_MB = 10  # tamaño máximo de imagen en MB
+
+
+
+
+# =============================================================================
+# ESTRUCTURAS DE DATOS
+# =============================================================================
+@dataclass
+class VisionResult:
+    """Resultado del análisis de visión por IA."""
+    nombre: str = ""
+    marca: str = ""
+    autor: str = ""
+    anio: Optional[int] = None
+    estado_conservacion: str = ""
+    precio_estimado_mercado: Optional[float] = None
+    descripcion: str = ""
+    color: str = ""
+    categoria: str = ""  # libro, tecnologia, mueble, ropa, otro
+    confianza_general: float = 0.0
+    campos_pendientes: List[str] = field(default_factory=list)
+    raw_response: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {k: v for k, v in asdict(self).items() if k != 'raw_response'}
+
+
+# =============================================================================
+# CLIENTE LM STUDIO (usando librería openai)
+# =============================================================================
+class LMStudioClient:
+    """
+    Cliente para conectar con la API local de LM Studio.
+    Utiliza la librería `openai` que es compatible con la API de OpenAI
+    y funciona con servidores locales como LM Studio.
+
+    Optimizado para GPU AMD Radeon RX 9060 XT con 8GB VRAM.
+    """
+
+    def __init__(self, base_url: str = LM_STUDIO_URL, timeout: int = LM_STUDIO_TIMEOUT):
+        self.base_url = base_url
+        self.timeout = timeout
+        # Cliente OpenAI apuntando al servidor local de LM Studio
+        self.client = OpenAI(
+            base_url=base_url,
+            api_key="not-needed",  # LM Studio no requiere API key
+            timeout=timeout,
+            max_retries=2,
+        )
+
+    def _check_health(self) -> bool:
+        """Verifica que el servidor de LM Studio esté corriendo."""
+        try:
+            models = self.client.models.list()
+            return True
+        except Exception as e:
+            logger.warning("LM Studio no está disponible en %s: %s", self.base_url, e)
+            return False
+
+    def _encode_image(self, image_path: str) -> str:
+        """Codifica una imagen a base64."""
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+
+    def analyze_image(self, image_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Envía una imagen al modelo local para análisis.
+
+        Args:
+            image_path: Ruta absoluta o relativa a la imagen.
+
+        Returns:
+            Diccionario con la respuesta JSON del modelo, o None si falla.
+        """
+        if not self._check_health():
+            logger.error("LM Studio no está disponible")
+            return None
+
+        # Codificar imagen
+        try:
+            image_b64 = self._encode_image(image_path)
+        except FileNotFoundError:
+            logger.error("Imagen no encontrada: %s", image_path)
+            return None
+        except Exception as e:
+            logger.error("Error al codificar imagen: %s", e)
+            return None
+
+        return self._analyze_base64(image_b64)
+
+    def analyze_base64(self, image_base64: str) -> Optional[Dict[str, Any]]:
+        """
+        Envía una imagen en formato Base64 al modelo local para análisis.
+
+        Args:
+            image_base64: Imagen codificada en Base64.
+
+        Returns:
+            Diccionario con la respuesta JSON del modelo, o None si falla.
+        """
+        if not self._check_health():
+            logger.error("LM Studio no está disponible")
+            return None
+
+        return self._analyze_base64(image_base64)
+
+    def _detect_high_resolution(self, image_b64: str) -> bool:
+        """
+        Detecta si una imagen es de alta resolución (>4K) basado en el tamaño del Base64.
+        Una imagen 4K JPEG (~8-10MB) produce ~11-13MB en Base64.
+        """
+        try:
+            # Estimar tamaño original: Base64 es ~37% más grande que el binario
+            estimated_bytes = len(image_b64) * 0.73
+            estimated_mb = estimated_bytes / (1024 * 1024)
+            return estimated_mb > 5  # >5MB estimado = probable alta resolución
+        except:
+            return False
+
+    def _analyze_base64(self, image_b64: str) -> Optional[Dict[str, Any]]:
+        """
+        Lógica interna para analizar una imagen en Base64.
+        Maneja timeouts dinámicos según la resolución estimada de la imagen.
+
+        Args:
+            image_b64: Imagen codificada en Base64.
+
+        Returns:
+            Diccionario con la respuesta JSON del modelo, o None si falla.
+        """
+        # Detectar si es alta resolución y ajustar timeout
+        is_high_res = self._detect_high_resolution(image_b64)
+        if is_high_res:
+            logger.info("Imagen de alta resolución detectada. Usando timeout extendido (%ds)", LM_STUDIO_TIMEOUT_ALTA_RES)
+            self.client.timeout = LM_STUDIO_TIMEOUT_ALTA_RES
+
+        # Prompt del sistema - instrucciones para el modelo
+
+        # Optimizado para reconocimiento de patrones: formas rectangulares → libro,
+        # brillos metálicos → mueble/arte con material específico
+        system_prompt = (
+            "Eres un asistente experto en tasación e identificación de objetos. "
+            "Analiza la imagen proporcionada y extrae la mayor cantidad de información posible. "
+            "Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, "
+            "sin bloques de código. El JSON debe tener esta estructura exacta:\n\n"
+            "{\n"
+            '  "nombre": "Nombre descriptivo del objeto",\n'
+            '  "marca": "Marca o fabricante (si aplica)",\n'
+            '  "autor": "Autor, artista o diseñador (si aplica)",\n'
+            '  "anio": 2020,\n'
+            '  "isbn_issn": "ISBN o ISSN si es libro/revista",\n'
+            '  "edicion": "Edición si es libro",\n'
+            '  "material": "Material predominante (ej: Plata, Metal, Madera, Cuero, Plástico, Vidrio, Cerámica, Tela)",\n'
+            '  "numero_serie": "Número de serie si es tecnología",\n'
+            '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
+            '  "precio_estimado_mercado": 150.00,\n'
+            '  "descripcion": "Descripción detallada del objeto",\n'
+            '  "color": "Color predominante",\n'
+            '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
+            '  "confianza_general": 0.85\n'
+            "}\n\n"
+            "REGLAS DE RECONOCIMIENTO DE PATRONES:\n"
+            "1. FORMA RECTANGULAR CON TEXTO: Si el objeto tiene forma rectangular, parece un libro, "
+            "revista o documento con texto visible, clasifícalo como 'libro' y extrae autor, ISBN/ISSN, "
+            "edición y año de publicación si son legibles.\n"
+            "2. BRILLOS METÁLICOS: Si el objeto tiene brillos metálicos, textura de metal precioso "
+            "(plata, oro, bronce) o parece una joya/artículo de lujo, clasifica el material como "
+            "'Plata', 'Oro', 'Bronce', 'Metal' según corresponda. Si es una obra de arte o mueble "
+            "con estos materiales, sugiere categoría 'mueble'.\n"
+            "3. TECNOLOGÍA: Si ves pantallas, circuitos, cables o formas de dispositivos electrónicos, "
+            "clasifica como 'tecnologia' y extrae marca, modelo y número de serie.\n"
+            "4. TEXTILES: Si ves prendas de vestir, telas o accesorios de moda, clasifica como 'ropa'.\n\n"
+            "IMPORTANTE:\n"
+            "- Si no puedes determinar un campo, déjalo como string vacío o null.\n"
+            "- confianza_general debe ser un número entre 0 y 1.\n"
+            "- precio_estimado_mercado debe ser un número en USD.\n"
+            "- estado_conservacion debe ser uno de los valores exactos listados.\n"
+            "- El campo 'material' es especialmente importante para objetos de valor (plata, oro, etc.)."
+        )
+
+        try:
+            logger.info("Enviando imagen a LM Studio para análisis (modelo: %s)...", MODEL_NAME)
+
+            response = self.client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_b64}"
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": "Analiza este objeto y devuelve la información en formato JSON."
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.1,  # Baja temperatura para respuestas más deterministas
+                max_tokens=1024,
+                response_format={"type": "json_object"}
+            )
+
+            # Extraer el contenido del mensaje
+            content = response.choices[0].message.content
+            logger.debug("Respuesta cruda de LM Studio: %s", content[:200])
+
+            # Intentar parsear como JSON
+            try:
+                result = json.loads(content)
+                return result
+            except json.JSONDecodeError:
+                # Intentar extraer JSON de un bloque de código
+                import re
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    return json.loads(json_match.group())
+                logger.error("No se pudo parsear la respuesta como JSON: %s", content[:500])
+                return None
+
+        except Exception as e:
+            logger.error("Error al comunicarse con LM Studio: %s", e)
+            return None
+
+
+# =============================================================================
+# SERVICIO DE VISIÓN
+# =============================================================================
+class AIVisionService:
+    """
+    Servicio principal de visión por IA.
+    Orquesta el análisis de imágenes y la lógica de campos pendientes.
+    """
+
+    def __init__(self):
+        self.client = LMStudioClient()
+
+    def _determinar_campos_pendientes(self, result: Dict[str, Any]) -> List[str]:
+        """
+        Analiza el resultado de la IA y determina qué campos
+        tienen baja confianza o están vacíos.
+
+        Retorna una lista de nombres de campos que requieren input del usuario.
+        """
+        campos_pendientes = []
+        confianza = result.get("confianza_general", 0)
+
+        # Campos obligatorios que siempre deben estar presentes
+        campos_obligatorios = ["nombre", "estado_conservacion", "categoria"]
+        for campo in campos_obligatorios:
+            valor = result.get(campo, "")
+            if not valor or (isinstance(valor, str) and valor.strip() == ""):
+                campos_pendientes.append(campo)
+
+        # Si la confianza es baja, marcar campos específicos como pendientes
+        if confianza < CONFIANZA_MINIMA:
+            campos_a_revisar = ["marca", "autor", "anio", "precio_estimado_mercado", "color"]
+            for campo in campos_a_revisar:
+                valor = result.get(campo)
+                if not valor or (isinstance(valor, str) and valor.strip() == "") or valor is None:
+                    campos_pendientes.append(campo)
+
+        # Para libros, el autor y año son críticos
+        if result.get("categoria") == "libro":
+            if not result.get("autor"):
+                campos_pendientes.append("autor")
+            if not result.get("anio"):
+                campos_pendientes.append("anio")
+
+        # Para tecnología, la marca es crítica
+        if result.get("categoria") == "tecnologia":
+            if not result.get("marca"):
+                campos_pendientes.append("marca")
+
+        return list(set(campos_pendientes))  # eliminar duplicados
+
+    def _mapear_resultado(self, raw_result: Dict[str, Any]) -> VisionResult:
+        """
+        Mapea el resultado crudo de la IA a un VisionResult estructurado.
+
+        Args:
+            raw_result: Diccionario con la respuesta JSON del modelo.
+
+        Returns:
+            VisionResult con los datos mapeados.
+        """
+        result = VisionResult(
+            nombre=raw_result.get("nombre", ""),
+            marca=raw_result.get("marca", ""),
+            autor=raw_result.get("autor", ""),
+            anio=raw_result.get("anio"),
+            estado_conservacion=raw_result.get("estado_conservacion", ""),
+            precio_estimado_mercado=raw_result.get("precio_estimado_mercado"),
+            descripcion=raw_result.get("descripcion", ""),
+            color=raw_result.get("color", ""),
+            categoria=raw_result.get("categoria", "otro"),
+            confianza_general=raw_result.get("confianza_general", 0.0),
+            raw_response=json.dumps(raw_result)
+        )
+
+        # Determinar campos pendientes
+        result.campos_pendientes = self._determinar_campos_pendientes(raw_result)
+
+        return result
+
+    def procesar_imagen(self, image_path: str) -> VisionResult:
+        """
+        Procesa una imagen desde una ruta de archivo y retorna un VisionResult.
+
+        Args:
+            image_path: Ruta a la imagen a analizar.
+
+        Returns:
+            VisionResult con los datos extraídos y campos pendientes.
+        """
+        raw_result = self.client.analyze_image(image_path)
+
+        if raw_result is None:
+            return VisionResult(
+                confianza_general=0.0,
+                campos_pendientes=[
+                    "nombre", "marca", "autor", "anio",
+                    "estado_conservacion", "precio_estimado_mercado",
+                    "descripcion", "color", "categoria"
+                ],
+                raw_response="LM Studio no disponible"
+            )
+
+        return self._mapear_resultado(raw_result)
+
+    def procesar_imagen_desde_bytes(self, image_bytes: bytes, filename: str = "temp.jpg") -> VisionResult:
+        """
+        Procesa una imagen desde bytes (útil para uploads).
+
+        Args:
+            image_bytes: Contenido binario de la imagen.
+            filename: Nombre temporal para guardar la imagen.
+
+        Returns:
+            VisionResult con los datos extraídos.
+        """
+        temp_path = Path(f"/tmp/{filename}")
+        temp_path.write_bytes(image_bytes)
+        try:
+            return self.procesar_imagen(str(temp_path))
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def procesar_imagen_desde_base64(self, image_base64: str) -> VisionResult:
+        """
+        Procesa una imagen desde una cadena Base64.
+
+        Args:
+            image_base64: Imagen codificada en Base64.
+
+        Returns:
+            VisionResult con los datos extraídos y campos pendientes.
+        """
+        raw_result = self.client.analyze_base64(image_base64)
+
+        if raw_result is None:
+            return VisionResult(
+                confianza_general=0.0,
+                campos_pendientes=[
+                    "nombre", "marca", "autor", "anio",
+                    "estado_conservacion", "precio_estimado_mercado",
+                    "descripcion", "color", "categoria"
+                ],
+                raw_response="LM Studio no disponible"
+            )
+
+        return self._mapear_resultado(raw_result)
+
+    def crear_objeto_desde_vision(
+        self,
+        vision_result: VisionResult,
+        user=None,
+        ubicacion=None,
+        contenedor=None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Crea un objeto en la base de datos a partir de un resultado de visión.
+        Registra automáticamente el precio en el Historial de Precios.
+
+        Args:
+            vision_result: Resultado del análisis de visión.
+            user: Usuario que realiza la carga (opcional).
+            ubicacion: Ubicación del objeto (opcional).
+            contenedor: Contenedor del objeto (opcional).
+
+        Returns:
+            Dict con el objeto creado y metadatos, o None si falla.
+        """
+        from ..models import Objeto, HistorialPrecio
+
+        try:
+            from django.db import transaction
+
+            with transaction.atomic():
+                # Determinar el estado de carga
+                estado_carga = 'completo'
+                if vision_result.campos_pendientes:
+                    estado_carga = 'incompleto'
+
+                # Crear el objeto base
+                objeto = Objeto.objects.create(
+                    nombre=vision_result.nombre or "Objeto sin nombre",
+                    descripcion=vision_result.descripcion,
+                    ubicacion=ubicacion,
+                    contenedor=contenedor,
+                    estado_conservacion=vision_result.estado_conservacion or 'bueno',
+                    valor_estimado=(
+                        Decimal(str(vision_result.precio_estimado_mercado))
+                        if vision_result.precio_estimado_mercado else None
+                    ),
+                    color=vision_result.color,
+                    estado_carga=estado_carga,
+                    campos_pendientes=vision_result.campos_pendientes,
+                )
+
+                # Crear modelo hijo según categoría
+                if vision_result.categoria == 'libro':
+                    from ..models import LibroRevista
+                    LibroRevista.objects.create(
+                        objeto_ptr=objeto,
+                        autor=vision_result.autor,
+                        anio=vision_result.anio,
+                    )
+                elif vision_result.categoria == 'tecnologia':
+                    from ..models import Tecnologia
+                    Tecnologia.objects.create(
+                        objeto_ptr=objeto,
+                        marca=vision_result.marca,
+                    )
+                elif vision_result.categoria == 'mueble':
+                    from ..models import MuebleArte
+                    MuebleArte.objects.create(
+                        objeto_ptr=objeto,
+                        artista_fabricante=vision_result.autor,
+                    )
+                elif vision_result.categoria == 'ropa':
+                    from ..models import Ropa
+                    Ropa.objects.create(objeto_ptr=objeto)
+
+                # Registrar en el historial de precios si hay valor estimado
+                if vision_result.precio_estimado_mercado:
+                    HistorialPrecio.objects.create(
+                        objeto=objeto,
+                        valor_anterior=None,
+                        valor_nuevo=Decimal(str(vision_result.precio_estimado_mercado)),
+                        motivo="Valoración inicial por IA",
+                        registrado_por=user,
+                    )
+
+                logger.info(
+                    "Objeto creado desde visión: '%s' (categoría: %s, estado: %s)",
+                    objeto.nombre, vision_result.categoria, estado_carga
+                )
+
+                return {
+                    "id": str(objeto.id),
+                    "nombre": objeto.nombre,
+                    "categoria": vision_result.categoria,
+                    "estado_carga": estado_carga,
+                    "campos_pendientes": vision_result.campos_pendientes,
+                    "valor_estimado": float(vision_result.precio_estimado_mercado)
+                    if vision_result.precio_estimado_mercado else None,
+                }
+
+        except Exception as e:
+            logger.error("Error al crear objeto desde visión: %s", e)
+            return None

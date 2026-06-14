@@ -1,0 +1,250 @@
+---
+// =============================================================================
+// PÁGINA DE INICIO DE SESIÓN
+// Maneja autenticación JWT con validación y manejo de errores
+// =============================================================================
+
+import AuthLayout from '../layouts/AuthLayout.astro';
+---
+
+<AuthLayout title="Estok - Iniciar Sesión">
+  <div class="space-y-6">
+    <div class="text-center">
+      <h2 class="text-2xl font-bold text-gray-900">Iniciar Sesión</h2>
+      <p class="mt-1 text-sm text-gray-500">
+        Ingresa tus credenciales para acceder al sistema
+      </p>
+    </div>
+
+    <!-- Mensaje de error -->
+    <div
+      id="errorMessage"
+      class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
+      role="alert"
+    >
+    </div>
+
+    <form id="loginForm" class="space-y-5">
+      <!-- Usuario -->
+      <div>
+        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+          Usuario
+        </label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          required
+          autocomplete="username"
+          placeholder="Nombre de usuario"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+        />
+      </div>
+
+      <!-- Contraseña -->
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+          Contraseña
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          required
+          autocomplete="current-password"
+          placeholder="••••••••"
+          class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+        />
+      </div>
+
+      <!-- Botón de envío -->
+      <button
+        id="submitBtn"
+        type="submit"
+        class="w-full py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        <span id="submitText">Ingresar</span>
+        <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </button>
+
+      <!-- Enlace de registro -->
+      <p class="text-center text-sm text-gray-500">
+        ¿No tienes cuenta?
+        <a href="/register" class="text-blue-700 hover:text-blue-800 font-medium">
+          Registrarse
+        </a>
+      </p>
+
+      <!-- Acceso rápido para Ignacio Borghi -->
+      <div class="mt-6 pt-4 border-t border-gray-100">
+        <button
+          id="quickLoginBtn"
+          type="button"
+          class="w-full py-2 px-4 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base flex items-center justify-center gap-2"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          Acceder como Ignacio Borghi
+        </button>
+      </div>
+    </form>
+  </div>
+</AuthLayout>
+
+<script>
+  // ===========================================================================
+  // MANEJO DEL FORMULARIO DE LOGIN
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
+  const form = document.getElementById('loginForm') as HTMLFormElement;
+  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+  const submitText = document.getElementById('submitText')!;
+  const submitSpinner = document.getElementById('submitSpinner')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+
+  function showError(message: string) {
+    errorMessage.textContent = message;
+    errorMessage.classList.remove('hidden');
+  }
+
+  function hideError() {
+    errorMessage.classList.add('hidden');
+  }
+
+  function setLoading(loading: boolean) {
+    submitBtn.disabled = loading;
+    if (loading) {
+      submitText.classList.add('hidden');
+      submitSpinner.classList.remove('hidden');
+    } else {
+      submitText.classList.remove('hidden');
+      submitSpinner.classList.add('hidden');
+    }
+  }
+
+  // ===========================================================================
+  // ACCESO RÁPIDO: IGNACIO BORGHI
+  // ===========================================================================
+
+  const quickLoginBtn = document.getElementById('quickLoginBtn');
+
+  quickLoginBtn?.addEventListener('click', async () => {
+    hideError();
+    setLoading(true);
+
+    try {
+      const tokenResponse = await fetch(`${API_URL}/token/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'ignacio_borghi', password: 'S0l3d4d' }),
+      });
+
+      if (!tokenResponse.ok) {
+        showError('❌ No se pudo acceder automáticamente. Ingresa manualmente.');
+        setLoading(false);
+        return;
+      }
+
+      const tokens = await tokenResponse.json();
+      localStorage.setItem('estok_access_token', tokens.access);
+      localStorage.setItem('estok_refresh_token', tokens.refresh);
+
+      const userResponse = await fetch(`${API_URL}/usuarios/me/`, {
+        headers: { 'Authorization': `Bearer ${tokens.access}` },
+      });
+
+      if (userResponse.ok) {
+        const user = await userResponse.json();
+        localStorage.setItem('estok_user', JSON.stringify(user));
+      }
+
+      window.location.href = '/';
+    } catch (err) {
+      showError('❌ Error de conexión. Verifica que el servidor esté corriendo.');
+      console.error('Quick login error:', err);
+      setLoading(false);
+    }
+  });
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError();
+
+    const username = (document.getElementById('username') as HTMLInputElement).value.trim();
+    const password = (document.getElementById('password') as HTMLInputElement).value;
+
+    // Validación básica
+    if (!username) {
+      showError('Por favor, ingresa tu nombre de usuario.');
+      return;
+    }
+
+    if (!password) {
+      showError('Por favor, ingresa tu contraseña.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Paso 1: Obtener tokens JWT
+      const tokenResponse = await fetch(`${API_URL}/token/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!tokenResponse.ok) {
+        let errorMsg = 'Credenciales inválidas. Verifica tu usuario y contraseña.';
+        try {
+          const errorData = await tokenResponse.json();
+          errorMsg = errorData.detail || errorData.error || errorMsg;
+        } catch {
+          // Usar mensaje por defecto
+        }
+
+        if (tokenResponse.status === 401) {
+          showError('❌ ' + errorMsg);
+        } else {
+          showError('❌ Error del servidor. Intenta nuevamente.');
+        }
+        setLoading(false);
+        return;
+      }
+
+      const tokens = await tokenResponse.json();
+
+      // Guardar tokens
+      localStorage.setItem('estok_access_token', tokens.access);
+      localStorage.setItem('estok_refresh_token', tokens.refresh);
+
+      // Paso 2: Obtener datos del usuario
+      const userResponse = await fetch(`${API_URL}/usuarios/me/`, {
+        headers: {
+          'Authorization': `Bearer ${tokens.access}`,
+        },
+      });
+
+      if (userResponse.ok) {
+        const user = await userResponse.json();
+        localStorage.setItem('estok_user', JSON.stringify(user));
+      }
+
+      // Paso 3: Redirigir al dashboard
+      window.location.href = '/';
+    } catch (err) {
+      showError('❌ Error de conexión. Verifica que el servidor esté corriendo en ' + API_URL);
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>

@@ -1,0 +1,373 @@
+---
+// =============================================================================
+// PÁGINA DE CONTENEDORES (Dinámico con API)
+// =============================================================================
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AuthGuard from '../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Contenedores | Inventario">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Contenedores</h1>
+        <p class="mt-1 text-gray-500">Gestiona cajas, estantes y contenedores con códigos QR</p>
+      </div>
+      <button id="nuevoContenedorBtn"
+        class="inline-flex items-center px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
+      >
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Nuevo Contenedor
+      </button>
+    </div>
+
+    <!-- Filtro por ubicación -->
+    <div class="mb-8">
+      <label for="filtroUbicacion" class="block text-sm font-medium text-gray-700 mb-2">Filtrar por ubicación</label>
+      <select id="filtroUbicacion"
+        class="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+        <option value="">Todas las ubicaciones</option>
+      </select>
+    </div>
+
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-12 hidden">
+      <svg class="animate-spin h-10 w-10 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando contenedores...</p>
+    </div>
+
+    <!-- Estado vacío -->
+    <div id="emptyState" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+      <svg class="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+      <p class="text-xl font-medium text-gray-400 mb-2">No hay contenedores registrados</p>
+      <p class="text-gray-400 mb-6">Crea tu primer contenedor para organizar objetos dentro de una ubicación.</p>
+      <button id="emptyCreateBtn" class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Crear Primer Contenedor
+      </button>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+      <p id="errorMessage" class="font-medium">Error al cargar contenedores.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Grid de contenedores -->
+    <div id="contenedoresGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+
+    <!-- Modal de creación -->
+    <div id="createModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Nuevo Contenedor</h3>
+          <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <form id="createForm" class="space-y-4">
+          <div>
+            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
+            <input id="nombre" name="nombre" type="text" required placeholder="Ej: Caja 4, Estante A, Cajón 3"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <textarea id="descripcion" name="descripcion" rows={2} placeholder="Descripción opcional"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
+          </div>
+          <div>
+            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación <span class="text-red-500">*</span></label>
+            <select id="ubicacion" name="ubicacion" required
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Seleccionar ubicación...</option>
+            </select>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="submit" id="saveBtn"
+              class="flex-1 px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50">
+              <span id="saveText">Guardar</span>
+              <span id="saveSpinner" class="hidden">
+                <svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </span>
+            </button>
+            <button type="button" id="cancelBtn" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+              Cancelar
+            </button>
+          </div>
+        </form>
+        <p id="formError" class="hidden mt-3 text-sm text-red-600"></p>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // LISTADO DINÁMICO DE CONTENEDORES
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
+  const loadingState = document.getElementById('loadingState')!;
+  const emptyState = document.getElementById('emptyState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const contenedoresGrid = document.getElementById('contenedoresGrid')!;
+  const filtroUbicacion = document.getElementById('filtroUbicacion') as HTMLSelectElement;
+  const createModal = document.getElementById('createModal')!;
+  const createForm = document.getElementById('createForm') as HTMLFormElement;
+  const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+  const saveText = document.getElementById('saveText')!;
+  const saveSpinner = document.getElementById('saveSpinner')!;
+  const formError = document.getElementById('formError')!;
+  const modalUbicacion = document.getElementById('ubicacion') as HTMLSelectElement;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  function showLoading() {
+    loadingState.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    contenedoresGrid.classList.add('hidden');
+  }
+
+  function showError(msg: string) {
+    loadingState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.remove('hidden');
+    contenedoresGrid.classList.add('hidden');
+    errorMessage.textContent = msg;
+  }
+
+  async function cargarUbicaciones(selectEl: HTMLSelectElement) {
+    try {
+      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const ubicaciones = data.results || data;
+        selectEl.innerHTML = '<option value="">Seleccionar ubicación...</option>';
+        ubicaciones.forEach((u: any) => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.nombre;
+          selectEl.appendChild(opt);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  function renderContenedores(contenedores: any[]) {
+    if (contenedores.length === 0) {
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      contenedoresGrid.classList.add('hidden');
+      emptyState.classList.remove('hidden');
+      return;
+    }
+
+    loadingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    contenedoresGrid.classList.remove('hidden');
+
+    contenedoresGrid.innerHTML = contenedores.map((c) => `
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-base cursor-pointer" data-id="${c.id}">
+        <div class="flex items-start gap-3 mb-3">
+          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-semibold text-gray-900">${c.nombre}</h3>
+            ${c.descripcion ? `<p class="text-sm text-gray-500 mt-1 line-clamp-2">${c.descripcion}</p>` : ''}
+            <p class="text-xs text-gray-400 mt-1">📍 ${c.ubicacion_nombre || 'Sin ubicación'}</p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+          <span class="text-sm text-gray-500">
+            📦 <strong>${c.objetos_count || 0}</strong> objetos
+          </span>
+          <div class="flex gap-2">
+            ${c.qr_code_url
+              ? `<a href="${c.qr_code_url}" target="_blank" class="text-blue-500 hover:text-blue-700 p-1" title="Ver QR">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                  </svg>
+                </a>`
+              : ''
+            }
+            <button class="delete-contenedor text-red-400 hover:text-red-600 transition-base p-1" data-id="${c.id}" data-nombre="${c.nombre}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Click en card para ir al detalle
+    contenedoresGrid.querySelectorAll('[data-id]').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('.delete-contenedor') || target.closest('a')) return;
+        const id = card.getAttribute('data-id');
+        if (id) window.location.href = `/contenedores/${id}`;
+      });
+    });
+
+    contenedoresGrid.querySelectorAll('.delete-contenedor').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const nombre = btn.getAttribute('data-nombre');
+        if (!id || !confirm(`¿Eliminar contenedor "${nombre}"?`)) return;
+        try {
+          const res = await fetch(`${API_URL}/contenedores/${id}/`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+          });
+          if (res.ok || res.status === 204) {
+            cargarContenedores();
+          } else {
+            alert('Error al eliminar el contenedor.');
+          }
+        } catch {
+          alert('Error de conexión.');
+        }
+      });
+    });
+  }
+
+  async function cargarContenedores(ubicacionId?: string) {
+    showLoading();
+    try {
+      let url = `${API_URL}/contenedores/`;
+      if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
+      const response = await fetch(url, { headers: getAuthHeaders() });
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) { showError(`Error del servidor (${response.status})`); return; }
+      const data = await response.json();
+      renderContenedores(data.results || data);
+    } catch {
+      showError('Error de conexión. Verifica que el servidor esté corriendo.');
+    }
+  }
+
+  // Filtro por ubicación
+  filtroUbicacion?.addEventListener('change', () => {
+    cargarContenedores(filtroUbicacion.value);
+  });
+
+  // Modal
+  function openModal() {
+    createModal.classList.remove('hidden');
+    formError.classList.add('hidden');
+    cargarUbicaciones(modalUbicacion);
+  }
+  function closeModal() { createModal.classList.add('hidden'); createForm.reset(); }
+
+  document.getElementById('nuevoContenedorBtn')?.addEventListener('click', openModal);
+  document.getElementById('emptyCreateBtn')?.addEventListener('click', openModal);
+  document.getElementById('closeModalBtn')?.addEventListener('click', closeModal);
+  document.getElementById('cancelBtn')?.addEventListener('click', closeModal);
+  createModal?.addEventListener('click', (e) => { if (e.target === createModal) closeModal(); });
+
+  createForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.classList.add('hidden');
+    saveBtn.disabled = true;
+    saveText.classList.add('hidden');
+    saveSpinner.classList.remove('hidden');
+
+    const nombre = (document.getElementById('nombre') as HTMLInputElement).value.trim();
+    const descripcion = (document.getElementById('descripcion') as HTMLTextAreaElement).value.trim();
+    const ubicacion = modalUbicacion.value;
+
+    if (!nombre || !ubicacion) {
+      formError.textContent = 'Nombre y ubicación son obligatorios.';
+      formError.classList.remove('hidden');
+      saveBtn.disabled = false;
+      saveText.classList.remove('hidden');
+      saveSpinner.classList.add('hidden');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/contenedores/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ nombre, descripcion, ubicacion }),
+      });
+      if (res.ok) {
+        closeModal();
+        cargarContenedores(filtroUbicacion.value);
+      } else {
+        const err = await res.json();
+        formError.textContent = Object.values(err).flat().join(', ');
+        formError.classList.remove('hidden');
+      }
+    } catch {
+      formError.textContent = 'Error de conexión.';
+      formError.classList.remove('hidden');
+    } finally {
+      saveBtn.disabled = false;
+      saveText.classList.remove('hidden');
+      saveSpinner.classList.add('hidden');
+    }
+  });
+
+  retryBtn?.addEventListener('click', () => cargarContenedores(filtroUbicacion.value));
+
+  // Cargar ubicaciones para el filtro
+  async function cargarFiltroUbicaciones() {
+    try {
+      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        const ubicaciones = data.results || data;
+        ubicaciones.forEach((u: any) => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.nombre;
+          filtroUbicacion.appendChild(opt);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  cargarFiltroUbicaciones();
+  cargarContenedores();
+</script>

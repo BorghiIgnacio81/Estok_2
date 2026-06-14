@@ -1,0 +1,339 @@
+---
+// =============================================================================
+// PÁGINA DE DETALLE DE CONTENEDOR
+// Muestra QR del contenedor y lista de objetos dentro
+// =============================================================================
+
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AuthGuard from '../../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Detalle del Contenedor | Inventario">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-20">
+      <svg class="animate-spin h-12 w-12 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando contenedor...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+      <p id="errorMessage" class="font-medium">Error al cargar el contenedor.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Contenido -->
+    <div id="detailContent" class="hidden space-y-6">
+      <!-- Encabezado -->
+      <div class="flex items-center justify-between">
+        <a href="/contenedores" class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Volver a contenedores
+        </a>
+        <button id="regenerarQrBtn" class="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-base">
+          🔄 Regenerar QR
+        </button>
+      </div>
+
+      <!-- Card principal: Info + QR -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-0">
+          <!-- Info del contenedor -->
+          <div class="p-6 space-y-4">
+            <div class="flex items-start gap-3">
+              <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <div>
+                <h1 id="nombreContenedor" class="text-2xl font-bold text-gray-900"></h1>
+                <p id="descripcionContenedor" class="text-gray-500 text-sm mt-1"></p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Ubicación</p>
+                <p id="ubicacionContenedor" class="font-semibold text-gray-800 text-sm"></p>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-3">
+                <p class="text-xs text-gray-500 mb-0.5">Objetos</p>
+                <p id="objetosCount" class="font-semibold text-gray-800 text-sm"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- QR Code -->
+          <div class="bg-gray-50 p-6 flex flex-col items-center justify-center">
+            <div id="qrContainer" class="bg-white p-4 rounded-xl shadow-sm">
+              <img id="qrImage" class="hidden w-48 h-48" alt="Código QR del contenedor" />
+              <div id="qrPlaceholder" class="w-48 h-48 flex items-center justify-center text-gray-300">
+                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                </svg>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Escanea este QR para ver el contenido</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de objetos dentro del contenedor -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+          Objetos en este contenedor
+        </h2>
+
+        <div id="objetosLoading" class="text-center py-8">
+          <svg class="animate-spin h-8 w-8 mx-auto text-blue-700 mb-2" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p class="text-sm text-gray-500">Cargando objetos...</p>
+        </div>
+
+        <div id="objetosEmpty" class="hidden text-center py-8 text-gray-400">
+          <p class="text-lg font-medium">No hay objetos en este contenedor</p>
+          <p class="text-sm mt-1">Agrega objetos desde el formulario de creación.</p>
+        </div>
+
+        <div id="objetosGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // DETALLE DE CONTENEDOR CON QR Y OBJETOS
+  // ===========================================================================
+
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  const contenedorId = window.location.pathname.split('/').filter(Boolean).pop();
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const detailContent = document.getElementById('detailContent')!;
+
+  function getToken(): string | null {
+    return localStorage.getItem('estok_access_token');
+  }
+
+  function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
+
+  function getEstadoBadge(estado: string): string {
+    const map: Record<string, string> = {
+      excelente: 'bg-green-100 text-green-700',
+      bueno: 'bg-blue-100 text-blue-700',
+      regular: 'bg-yellow-100 text-yellow-700',
+      malo: 'bg-orange-100 text-orange-700',
+      muy_malo: 'bg-red-100 text-red-700',
+    };
+    const color = map[estado] || 'bg-gray-100 text-gray-700';
+    return `<span class="text-xs px-2 py-0.5 rounded-full font-medium ${color}">${estado}</span>`;
+  }
+
+  function getTipoIcon(tipo: string): string {
+    const map: Record<string, string> = {
+      libro: '📚', tecnologia: '💻', mueble: '🖼️', ropa: '👕', objeto: '📦',
+    };
+    return map[tipo] || '📦';
+  }
+
+  // ===========================================================================
+  // CARGA DEL CONTENEDOR
+  // ===========================================================================
+
+  async function cargarContenedor() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    detailContent.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/contenedores/${contenedorId}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) throw new Error(`Error del servidor (${response.status})`);
+
+      const contenedor = await response.json();
+
+      // === Info básica ===
+      document.getElementById('nombreContenedor')!.textContent = contenedor.nombre;
+      document.getElementById('descripcionContenedor')!.textContent = contenedor.descripcion || 'Sin descripción';
+      document.getElementById('ubicacionContenedor')!.textContent = contenedor.ubicacion_nombre || 'Sin ubicación';
+      document.getElementById('objetosCount')!.textContent = `${contenedor.objetos_count || 0} objetos`;
+
+      // === QR ===
+      const qrImage = document.getElementById('qrImage') as HTMLImageElement;
+      const qrPlaceholder = document.getElementById('qrPlaceholder')!;
+      if (contenedor.qr_code_url) {
+        qrImage.src = contenedor.qr_code_url;
+        qrImage.classList.remove('hidden');
+        qrPlaceholder.classList.add('hidden');
+      } else {
+        qrImage.classList.add('hidden');
+        qrPlaceholder.classList.remove('hidden');
+      }
+
+      // === Mostrar contenido ===
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      detailContent.classList.remove('hidden');
+
+      // === Cargar objetos del contenedor ===
+      cargarObjetos();
+
+    } catch (err: any) {
+      console.error('Error al cargar contenedor:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión.';
+    }
+  }
+
+  // ===========================================================================
+  // CARGA DE OBJETOS DEL CONTENEDOR
+  // ===========================================================================
+
+  async function cargarObjetos() {
+    const loading = document.getElementById('objetosLoading')!;
+    const empty = document.getElementById('objetosEmpty')!;
+    const grid = document.getElementById('objetosGrid')!;
+
+    loading.classList.remove('hidden');
+    empty.classList.add('hidden');
+    grid.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_URL}/objetos/?contenedor=${contenedorId}&page_size=50`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) throw new Error('Error al cargar objetos');
+
+      const data = await response.json();
+      const objetos = data.results || data;
+
+      loading.classList.add('hidden');
+
+      if (objetos.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      grid.innerHTML = objetos.map((obj: any) => {
+        const fotoUrl = obj.foto_principal || '';
+        const tipoIcon = getTipoIcon(obj.tipo);
+        const estadoBadge = getEstadoBadge(obj.estado_conservacion);
+        const valor = obj.valor_estimado
+          ? `$${parseFloat(obj.valor_estimado).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+          : '—';
+
+        return `
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-base cursor-pointer" data-id="${obj.id}">
+            <div class="h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
+              ${fotoUrl
+                ? `<img src="${fotoUrl}" alt="${obj.nombre}" class="w-full h-full object-cover" />`
+                : `<span class="text-3xl">${tipoIcon}</span>`
+              }
+            </div>
+            <div class="p-3">
+              <h3 class="font-semibold text-gray-900 text-sm line-clamp-2">${obj.nombre}</h3>
+              <div class="flex items-center justify-between mt-2">
+                ${estadoBadge}
+                <span class="text-xs font-medium text-gray-700">${valor}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      grid.classList.remove('hidden');
+
+      // Click para ver detalle
+      grid.querySelectorAll('[data-id]').forEach((card) => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-id');
+          if (id) window.location.href = `/objetos/${id}`;
+        });
+      });
+
+    } catch (err) {
+      console.error('Error al cargar objetos:', err);
+      loading.classList.add('hidden');
+      empty.classList.remove('hidden');
+      empty.innerHTML = '<p class="text-red-500">Error al cargar objetos.</p>';
+    }
+  }
+
+  // ===========================================================================
+  // REGENERAR QR
+  // ===========================================================================
+
+  document.getElementById('regenerarQrBtn')?.addEventListener('click', async () => {
+    if (!confirm('¿Regenerar el código QR del contenedor?')) return;
+
+    try {
+      const res = await fetch(`${API_URL}/contenedores/${contenedorId}/regenerar_qr/`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const qrImage = document.getElementById('qrImage') as HTMLImageElement;
+        const qrPlaceholder = document.getElementById('qrPlaceholder')!;
+        if (data.qr_code_url) {
+          qrImage.src = data.qr_code_url;
+          qrImage.classList.remove('hidden');
+          qrPlaceholder.classList.add('hidden');
+        }
+        alert('✅ QR regenerado correctamente.');
+      } else {
+        alert('❌ Error al regenerar el QR.');
+      }
+    } catch {
+      alert('❌ Error de conexión.');
+    }
+  });
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+  retryBtn?.addEventListener('click', cargarContenedor);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  if (contenedorId) {
+    cargarContenedor();
+  } else {
+    errorMessage.textContent = 'ID de contenedor no válido.';
+    errorState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
+  }
+</script>
