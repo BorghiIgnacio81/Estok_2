@@ -30,7 +30,7 @@ if not os.environ.get('DEBUG'):
 
 ALLOWED_HOSTS = os.environ.get(
     'DJANGO_ALLOWED_HOSTS',
-    '127.0.0.1,localhost'
+    '127.0.0.1,localhost,eeestok.duckdns.org,sq641axhkdx4oz4oss522ht9.178.156.224.212.sslip.io'
 ).split(',')
 
 # =============================================================================
