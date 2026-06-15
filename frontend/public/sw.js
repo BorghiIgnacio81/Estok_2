@@ -1,7 +1,7 @@
 // =============================================================================
 // Service Worker - Estok PWA
-// Cachea recursos estáticos para funcionamiento offline parcial
-// Soporta notificaciones push
+// Caches static assets for offline support
+// Handles push notifications
 // =============================================================================
 
 const CACHE_NAME = 'estok-cache-v3';
@@ -15,7 +15,7 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png',
 ];
 
-// Estrategia: Cache First para assets estáticos, Network First para API
+// Strategy: Cache First for static assets, Network First for API
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -47,9 +47,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const clone = response.clone();
+          const clonedResponse = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clone);
+            cache.put(request, clonedResponse);
           });
           return response;
         })
@@ -62,11 +62,11 @@ self.addEventListener('fetch', (event) => {
 
   // Static assets - Cache First
   event.respondWith(
-    caches.match(request).then((cached) => {
-      return cached || fetch(request).then((response) => {
-        const clone = response.clone();
+    caches.match(request).then((cachedResponse) => {
+      return cachedResponse || fetch(request).then((response) => {
+        const clonedResponse = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clone);
+          cache.put(request, clonedResponse);
         });
         return response;
       });
@@ -75,16 +75,16 @@ self.addEventListener('fetch', (event) => {
 });
 
 // =============================================================================
-// NOTIFICACIONES PUSH
+// PUSH NOTIFICATIONS
 // =============================================================================
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Estok', body: 'Notificación del sistema', icon: '/icons/icon-192x192.png' };
+  let data = { title: 'Estok', body: 'System notification', icon: '/icons/icon-192x192.png' };
 
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };
-    } catch {
+    } catch (error) {
       data.body = event.data.text();
     }
   }
