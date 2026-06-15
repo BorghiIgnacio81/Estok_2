@@ -34,6 +34,14 @@ ALLOWED_HOSTS = os.environ.get(
 ).split(',')
 
 # =============================================================================
+# CSRF TRUSTED ORIGINS (para /admin y formularios POST)
+# =============================================================================
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'DJANGO_CSRF_TRUSTED_ORIGINS',
+    'https://eeestok.duckdns.org,https://sq641axhkdx4oz4oss522ht9.178.156.224.212.sslip.io'
+).split(',')
+
+# =============================================================================
 # CORS CONFIGURATION
 # En producción (Coolify/Hetzner) se permite todo origen para que Astro
 # (servido por Nginx en otro contenedor/dominio) pueda comunicarse con la API.
