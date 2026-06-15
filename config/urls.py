@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.utils.safestring import mark_safe
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -25,7 +26,7 @@ from rest_framework_simplejwt.views import (
 )
 
 # Personalización del Admin de Django
-admin.site.site_header = '<span style="color: green; font-weight: bold;">Administración de Estok</span>'
+admin.site.site_header = mark_safe('<span style="color: green; font-weight: bold;">Administración de Estok</span>')
 admin.site.site_title = 'Estok'
 admin.site.index_title = 'Panel de Administración'
 
