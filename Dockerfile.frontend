@@ -4,6 +4,7 @@
 # =============================================================================
 
 # ---- Etapa 1: Build ----
+# Cache invalidation: 2026-06-15-v2
 FROM node:22-alpine AS builder
 
 WORKDIR /app
