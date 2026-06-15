@@ -4,9 +4,11 @@
 // Soporta notificaciones push
 // =============================================================================
 
-const CACHE_NAME = 'estok-cache-v2';
+const CACHE_NAME = 'estok-cache-v3';
 const STATIC_ASSETS = [
   '/',
+  '/favicon.ico',
+  '/favicon.svg',
   '/manifest.json',
   '/icons/icon-192x192.svg',
   '/icons/icon-512x512.svg',
