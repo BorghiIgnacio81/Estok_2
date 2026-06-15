@@ -291,49 +291,12 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   }
 
   // ===========================================================================
-  // PWA: BOTÓN DE INSTALACIÓN
-  // ===========================================================================
-
-  let deferredPrompt: any = null;
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    // Disparar evento personalizado para que el Dashboard muestre el botón
-    window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
-  });
-
-  window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
-    console.log('✅ Estok instalada como PWA');
-  });
-
-  // Exponer función de instalación globalmente
-  (window as any).installPWA = async function installPWA(): Promise<boolean> {
-    if (!deferredPrompt) {
-      (window as any).showInfo?.('Estok ya está instalada o no es compatible.');
-      return false;
-    }
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    if (result.outcome === 'accepted') {
-      (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
-      return true;
-    } else {
-      (window as any).showInfo?.('Instalación cancelada');
-      return false;
-    }
-  };
-
-  // ===========================================================================
   // PWA: BOTÓN DE INSTALACIÓN EN EL NAVBAR
   // ===========================================================================
 
   const installAppBtn = document.getElementById('installAppBtn') as HTMLButtonElement;
 
-  // Mostrar botón cuando la PWA esté lista para instalar
+  // Mostrar botón cuando la PWA esté lista para instalar (evento disparado desde dashboard)
   window.addEventListener('estok-pwa-ready', () => {
     installAppBtn?.classList.remove('hidden');
   });
@@ -348,7 +311,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     installAppBtn?.classList.add('hidden');
   }
 
-  // Click para instalar
+  // Click para instalar (usa la función global expuesta desde el dashboard)
   installAppBtn?.addEventListener('click', () => {
     (window as any).installPWA?.();
   });

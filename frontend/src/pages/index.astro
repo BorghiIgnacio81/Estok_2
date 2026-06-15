@@ -28,8 +28,8 @@ import AuthGuard from '../components/AuthGuard.astro';
           <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
           <span id="aiStatusText">Verificando IA...</span>
         </span>
-        <!-- PWA Install Button -->
-        <button id="installPwaBtn" class="hidden items-center gap-1.5 px-3 py-1.5 bg-blue-700 text-white text-xs font-medium rounded-full hover:bg-blue-800 transition-base shadow-sm">
+        <!-- PWA Install Button (hero) -->
+        <button id="installPwaBtn" class="hidden items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-full hover:bg-green-700 transition-base shadow-sm">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
@@ -198,7 +198,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       </div>
 
       <!-- ================================================================ -->
-      <!-- CTA + PWA Install -->
+      <!-- CTA + PWA Install (botón verde grande) -->
       <!-- ================================================================ -->
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
         <a href="/objetos/nuevo" class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
@@ -207,11 +207,12 @@ import AuthGuard from '../components/AuthGuard.astro';
           </svg>
           Agregar Nuevo Objeto
         </a>
-        <button id="installPwaBtn2" class="hidden inline-flex items-center px-6 py-3 bg-gray-800 text-white font-medium rounded-lg hover:bg-gray-900 transition-base shadow-sm">
+        <!-- Botón PWA verde brillante -->
+        <button id="installPwaBtn2" class="hidden inline-flex items-center px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 active:bg-green-800 transition-base shadow-lg shadow-green-600/30">
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          Instalar App
+          Descargar App de Inventario
         </button>
       </div>
     </div>
@@ -283,24 +284,66 @@ import AuthGuard from '../components/AuthGuard.astro';
   setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
-  // PWA INSTALL BUTTON
+  // PWA INSTALL - Captura del evento beforeinstallprompt
   // ===========================================================================
 
+  let deferredPrompt: any = null;
+
+  // Escuchar el evento beforeinstallprompt
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Mostrar los botones de instalación
+    installPwaBtn.classList.remove('hidden');
+    installPwaBtn2.classList.remove('hidden');
+    // Disparar evento personalizado para otros componentes (navbar)
+    window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
+  });
+
+  // Escuchar cuando se instala la app
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    // Ocultar botones de instalación
+    installPwaBtn.classList.add('hidden');
+    installPwaBtn2.classList.add('hidden');
+    window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
+    console.log('✅ Estok instalada como PWA');
+  });
+
+  // Función de instalación
+  async function installPWA(): Promise<boolean> {
+    if (!deferredPrompt) {
+      (window as any).showInfo?.('Estok ya está instalada o no es compatible.');
+      return false;
+    }
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (result.outcome === 'accepted') {
+      (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
+      return true;
+    } else {
+      (window as any).showInfo?.('Instalación cancelada');
+      return false;
+    }
+  }
+
+  // Exponer globalmente para otros componentes
+  (window as any).installPWA = installPWA;
+
+  // Referencias a los botones
   const installPwaBtn = document.getElementById('installPwaBtn')!;
   const installPwaBtn2 = document.getElementById('installPwaBtn2')!;
 
-  window.addEventListener('estok-pwa-ready', () => {
-    installPwaBtn.classList.remove('hidden');
-    installPwaBtn2.classList.remove('hidden');
-  });
+  // Click handlers
+  installPwaBtn?.addEventListener('click', () => installPWA());
+  installPwaBtn2?.addEventListener('click', () => installPWA());
 
-  window.addEventListener('estok-pwa-installed', () => {
-    installPwaBtn.classList.add('hidden');
-    installPwaBtn2.classList.add('hidden');
-  });
-
-  installPwaBtn?.addEventListener('click', () => (window as any).installPWA?.());
-  installPwaBtn2?.addEventListener('click', () => (window as any).installPWA?.());
+  // Si ya está instalada (display-mode: standalone), ocultar botones
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    installPwaBtn?.classList.add('hidden');
+    installPwaBtn2?.classList.add('hidden');
+  }
 
   // ===========================================================================
   // MAPEOS
