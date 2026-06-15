@@ -24,6 +24,11 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+# Personalización del Admin de Django
+admin.site.site_header = '<span style="color: green; font-weight: bold;">Administración de Estok</span>'
+admin.site.site_title = 'Estok'
+admin.site.index_title = 'Panel de Administración'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),

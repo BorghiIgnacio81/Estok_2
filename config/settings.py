@@ -232,3 +232,10 @@ AI_API_ENDPOINT = os.environ.get(
 )
 AI_API_TIMEOUT = int(os.environ.get('AI_API_TIMEOUT', '180'))
 AI_HIGH_RES_TIMEOUT = int(os.environ.get('AI_HIGH_RES_TIMEOUT', '240'))
+
+# =============================================================================
+# DJANGO ADMIN - Personalización
+# =============================================================================
+ADMIN_SITE_HEADER = 'Administración de Estok'
+ADMIN_SITE_TITLE = 'Estok'
+ADMIN_INDEX_TITLE = 'Panel de Administración'
