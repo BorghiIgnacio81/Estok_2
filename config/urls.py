@@ -26,7 +26,7 @@ from rest_framework_simplejwt.views import (
 )
 
 # Personalización del Admin de Django
-admin.site.site_header = mark_safe('<span style="color: green; font-weight: bold;">Administración de Estok</span>')
+admin.site.site_header = mark_safe('<span style="color: white; font-weight: bold;">Administración de Estok</span>')
 admin.site.site_title = 'Estok'
 admin.site.index_title = 'Panel de Administración'
 
