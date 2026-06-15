@@ -284,18 +284,30 @@ import AuthGuard from '../components/AuthGuard.astro';
   setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
-  // PWA INSTALL - Captura del evento beforeinstallprompt
+  // PWA INSTALL - Botón de instalación con y sin beforeinstallprompt
   // ===========================================================================
 
   let deferredPrompt: any = null;
 
-  // Escuchar el evento beforeinstallprompt
+  // Referencias a los botones
+  const installPwaBtn = document.getElementById('installPwaBtn')!;
+  const installPwaBtn2 = document.getElementById('installPwaBtn2')!;
+
+  // Si ya está instalada (display-mode: standalone), NO mostrar botones
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    installPwaBtn?.classList.add('hidden');
+    installPwaBtn2?.classList.add('hidden');
+  } else {
+    // Mostrar botones SIEMPRE (no esperar beforeinstallprompt)
+    installPwaBtn?.classList.remove('hidden');
+    installPwaBtn2?.classList.remove('hidden');
+  }
+
+  // Escuchar el evento beforeinstallprompt (si el navegador lo soporta)
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     e.preventDefault();
     deferredPrompt = e;
-    // Mostrar los botones de instalación
-    installPwaBtn.classList.remove('hidden');
-    installPwaBtn2.classList.remove('hidden');
+    console.log('📲 beforeinstallprompt capturado');
     // Disparar evento personalizado para otros componentes (navbar)
     window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
   });
@@ -304,46 +316,52 @@ import AuthGuard from '../components/AuthGuard.astro';
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     // Ocultar botones de instalación
-    installPwaBtn.classList.add('hidden');
-    installPwaBtn2.classList.add('hidden');
+    installPwaBtn?.classList.add('hidden');
+    installPwaBtn2?.classList.add('hidden');
     window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
     console.log('✅ Estok instalada como PWA');
   });
 
   // Función de instalación
   async function installPWA(): Promise<boolean> {
-    if (!deferredPrompt) {
-      (window as any).showInfo?.('Estok ya está instalada o no es compatible.');
-      return false;
-    }
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    if (result.outcome === 'accepted') {
-      (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
-      return true;
+    if (deferredPrompt) {
+      // Modo moderno: beforeinstallprompt disponible
+      deferredPrompt.prompt();
+      const result = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      if (result.outcome === 'accepted') {
+        (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
+        return true;
+      } else {
+        (window as any).showInfo?.('Instalación cancelada');
+        return false;
+      }
+    } else if (navigator['share'] && window.matchMedia('(display-mode: browser)').matches) {
+      // Fallback: compartir enlace para agregar a pantalla de inicio (Android)
+      try {
+        await navigator['share']({
+          title: 'Estok - Inventario Personal',
+          text: 'Gestiona tu inventario con Estok',
+          url: window.location.origin,
+        });
+        return true;
+      } catch {
+        (window as any).showInfo?.('Puedes instalar Estok desde el menú del navegador: Compartir > Agregar a pantalla de inicio');
+        return false;
+      }
     } else {
-      (window as any).showInfo?.('Instalación cancelada');
+      // Sin beforeinstallprompt ni share API
+      (window as any).showInfo?.('Para instalar Estok, usa el menú del navegador: "Agregar a pantalla de inicio" o "Instalar app"');
       return false;
     }
   }
 
-  // Exponer globalmente para otros componentes
+  // Exponer globalmente para otros componentes (navbar)
   (window as any).installPWA = installPWA;
-
-  // Referencias a los botones
-  const installPwaBtn = document.getElementById('installPwaBtn')!;
-  const installPwaBtn2 = document.getElementById('installPwaBtn2')!;
 
   // Click handlers
   installPwaBtn?.addEventListener('click', () => installPWA());
   installPwaBtn2?.addEventListener('click', () => installPWA());
-
-  // Si ya está instalada (display-mode: standalone), ocultar botones
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    installPwaBtn?.classList.add('hidden');
-    installPwaBtn2?.classList.add('hidden');
-  }
 
   // ===========================================================================
   // MAPEOS

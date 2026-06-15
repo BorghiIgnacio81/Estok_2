@@ -296,20 +296,18 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   const installAppBtn = document.getElementById('installAppBtn') as HTMLButtonElement;
 
-  // Mostrar botón cuando la PWA esté lista para instalar (evento disparado desde dashboard)
-  window.addEventListener('estok-pwa-ready', () => {
+  // Si ya está instalada (display-mode: standalone), ocultar botón
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    installAppBtn?.classList.add('hidden');
+  } else {
+    // Mostrar botón siempre (no esperar beforeinstallprompt)
     installAppBtn?.classList.remove('hidden');
-  });
+  }
 
   // Ocultar botón cuando se instale
   window.addEventListener('estok-pwa-installed', () => {
     installAppBtn?.classList.add('hidden');
   });
-
-  // Si ya está instalada (display-mode: standalone), ocultar botón
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    installAppBtn?.classList.add('hidden');
-  }
 
   // Click para instalar (usa la función global expuesta desde el dashboard)
   installAppBtn?.addEventListener('click', () => {
