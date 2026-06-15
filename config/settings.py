@@ -209,9 +209,14 @@ USE_TZ = True
 # =============================================================================
 # STATIC & MEDIA FILES
 # =============================================================================
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# WhiteNoise: servir archivos estáticos en producción sin necesidad de Nginx
+WHITENOISE_AUTOREFRESH = False
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MANIFEST_STRICT = False
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
