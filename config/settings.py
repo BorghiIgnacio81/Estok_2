@@ -218,6 +218,14 @@ WHITENOISE_AUTOREFRESH = False
 WHITENOISE_USE_FINDERS = True
 WHITENOISE_MANIFEST_STRICT = False
 
+# WhiteNoise: servir archivos de la raíz (manifest.json, sw.js, favicon.ico)
+# para que el navegador los encuentre en /manifest.json, /sw.js, /favicon.ico
+# WhiteNoise sirve estos archivos desde STATIC_ROOT en la URL raíz (/)
+WHITENOISE_ROOT = BASE_DIR / 'staticfiles'
+
+# Extensiones de índice para WhiteNoise (permite servir archivos sin prefijo /static/)
+WHITENOISE_INDEX_FILE_EXTENSIONS = ['json', 'js', 'ico', 'png', 'svg']
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')

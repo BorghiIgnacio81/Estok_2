@@ -40,6 +40,15 @@ COPY . .
 # Recopilar archivos estáticos durante el build
 RUN python manage.py collectstatic --noinput
 
+# Copiar archivos PWA (manifest.json, sw.js, favicon, icons) a staticfiles/raíz
+# para que WhiteNoise los sirva en /manifest.json, /sw.js, /favicon.ico
+COPY frontend/public/manifest.json /app/staticfiles/manifest.json
+COPY frontend/public/sw.js /app/staticfiles/sw.js
+COPY frontend/public/favicon.ico /app/staticfiles/favicon.ico
+COPY frontend/public/favicon.png /app/staticfiles/favicon.png
+COPY frontend/public/favicon.svg /app/staticfiles/favicon.svg
+COPY frontend/public/icons /app/staticfiles/icons/
+
 # Crear directorio para media (fotos subidas)
 RUN mkdir -p /app/media/qrcodes
 
