@@ -8,10 +8,11 @@ const CACHE_NAME = 'estok-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
-  '/favicon.svg',
+  '/favicon.png',
   '/manifest.json',
-  '/icons/icon-192x192.svg',
-  '/icons/icon-512x512.svg',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+  '/icons/apple-touch-icon.png',
 ];
 
 // Estrategia: Cache First para assets estáticos, Network First para API
@@ -78,7 +79,7 @@ self.addEventListener('fetch', (event) => {
 // =============================================================================
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'Estok', body: 'Notificación del sistema', icon: '/icons/icon-192x192.svg' };
+  let data = { title: 'Estok', body: 'Notificación del sistema', icon: '/icons/icon-192x192.png' };
 
   if (event.data) {
     try {
@@ -90,8 +91,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/icons/icon-192x192.svg',
-    badge: '/icons/icon-192x192.svg',
+    icon: data.icon || '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
     data: {
       url: data.url || '/',
