@@ -19,7 +19,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.utils.safestring import mark_safe
-from django.views.generic.base import RedirectView
+from django.http import FileResponse
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -31,6 +31,10 @@ admin.site.site_header = mark_safe('<span style="color: white; font-weight: bold
 admin.site.site_title = 'Estok'
 admin.site.index_title = 'Panel de Administración'
 
+# Ruta al favicon en el sistema de archivos
+import os
+FAVICON_PATH = os.path.join(settings.BASE_DIR, 'frontend', 'public', 'icons', 'archivador.png')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),
@@ -38,9 +42,9 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
-    # Favicon: redirigir al frontend
-    re_path(r'^favicon\.ico$', RedirectView.as_view(url='https://eeestok.duckdns.org/favicon.png', permanent=True)),
-    re_path(r'^favicon\.png$', RedirectView.as_view(url='https://eeestok.duckdns.org/favicon.png', permanent=True)),
+    # Favicon: servir directamente desde Django
+    re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
+    re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
 ]
 
 # Servir archivos multimedia en desarrollo
