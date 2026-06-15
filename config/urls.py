@@ -33,7 +33,7 @@ admin.site.index_title = 'Panel de Administración'
 
 # Ruta al favicon en el sistema de archivos
 import os
-FAVICON_PATH = os.path.join(settings.BASE_DIR, 'frontend', 'public', 'icons', 'archivador.png')
+FAVICON_PATH = os.path.join(settings.BASE_DIR, 'archivador.png')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
