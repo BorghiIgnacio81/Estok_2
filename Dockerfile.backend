@@ -37,6 +37,9 @@ ENV PATH=/root/.local/bin:$PATH
 # Copiar código de la aplicación
 COPY . .
 
+# Recopilar archivos estáticos durante el build
+RUN python manage.py collectstatic --noinput
+
 # Crear directorio para media (fotos subidas)
 RUN mkdir -p /app/media/qrcodes
 
@@ -46,7 +49,6 @@ EXPOSE 8000
 # Comando de inicio: migraciones + Gunicorn
 CMD ["sh", "-c", "\
     python manage.py migrate --noinput && \
-    python manage.py collectstatic --noinput && \
     gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers 4 \
