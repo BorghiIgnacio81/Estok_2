@@ -4,7 +4,7 @@
 // Handles push notifications
 // =============================================================================
 
-const CACHE_NAME = 'estok-cache-v3';
+const CACHE_NAME = 'estok-cache-v4';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',

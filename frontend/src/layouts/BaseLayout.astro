@@ -280,14 +280,25 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').then(
-        (registration) => {
-          console.log('✅ SW registrado:', registration.scope);
-        },
-        (err) => {
-          console.warn('❌ SW falló:', err);
+      // Desregistrar cualquier SW previo para evitar conflictos
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
         }
-      );
+        // Registrar el nuevo SW
+        navigator.serviceWorker.register('/sw.js').then(
+          (registration) => {
+            console.log('✅ SW registrado:', registration.scope);
+            // Si hay un SW esperando (nueva version), recargar
+            if (registration.waiting) {
+              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+          },
+          (err) => {
+            console.warn('❌ SW falló:', err);
+          }
+        );
+      });
     });
   }
 
