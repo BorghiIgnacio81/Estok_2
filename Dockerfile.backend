@@ -1,10 +1,10 @@
 # =============================================================================
-# Dockerfile - Backend Django (Estok)
-# Multi-etapa: builder + producción con Gunicorn
+# Dockerfile - Backend Django + Frontend Astro (Estok)
+# Multi-etapa: builder Python + builder Node + producción con Gunicorn
 # =============================================================================
 
-# ---- Etapa 1: Builder ----
-FROM python:3.12-slim AS builder
+# ---- Etapa 1: Builder Python ----
+FROM python:3.12-slim AS python-builder
 
 WORKDIR /app
 
@@ -18,7 +18,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# ---- Etapa 2: Producción ----
+# ---- Etapa 2: Builder Node (Frontend Astro) ----
+FROM node:22-alpine AS node-builder
+
+WORKDIR /app
+
+# Copiar package.json y lock del frontend
+COPY frontend/package.json frontend/package-lock.json ./
+
+# Instalar dependencias
+RUN npm ci
+
+# Copiar código fuente del frontend
+COPY frontend/ .
+
+# Construir sitio estático
+RUN npm run build
+
+# ---- Etapa 3: Producción ----
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -28,17 +45,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar dependencias desde builder
-COPY --from=builder /root/.local /root/.local
+# Copiar dependencias Python desde builder
+COPY --from=python-builder /root/.local /root/.local
 
 # Asegurar que los binarios locales estén en PATH
 ENV PATH=/root/.local/bin:$PATH
 
-# Copiar código de la aplicación
+# Copiar código de la aplicación (backend)
 COPY . .
 
-# Recopilar archivos estáticos durante el build
+# Recopilar archivos estáticos del backend (Django admin, etc.)
 RUN python manage.py collectstatic --noinput
+
+# Copiar el build del frontend Astro a staticfiles/ para que Django los sirva
+COPY --from=node-builder /app/dist /app/staticfiles/
 
 # Copiar archivos PWA (manifest.json, sw.js, favicon, icons) a staticfiles/raíz
 # para que WhiteNoise los sirva en /manifest.json, /sw.js, /favicon.ico

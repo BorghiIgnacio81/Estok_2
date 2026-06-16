@@ -35,6 +35,16 @@ admin.site.index_title = 'Panel de Administración'
 import os
 FAVICON_PATH = os.path.join(settings.BASE_DIR, 'archivador.png')
 
+# Ruta al index.html del frontend Astro (build estático)
+FRONTEND_INDEX_PATH = os.path.join(settings.STATIC_ROOT, 'index.html')
+
+def serve_frontend(request):
+    """Sirve el index.html del frontend Astro para SPA routing."""
+    from django.http import FileResponse
+    import mimetypes
+    mimetypes.add_type('text/html', '.html')
+    return FileResponse(open(FRONTEND_INDEX_PATH, 'rb'), content_type='text/html')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),
@@ -45,7 +55,10 @@ urlpatterns = [
     # Favicon: servir directamente desde Django
     re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
     re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
+    # Frontend Astro: servir index.html para todas las rutas que no sean API/admin
+    re_path(r'^(?!api/|admin/|static/|media/).*$', serve_frontend, name='frontend'),
 ]
+
 
 # Servir archivos multimedia en desarrollo
 if settings.DEBUG:
