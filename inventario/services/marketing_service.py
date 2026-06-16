@@ -162,6 +162,23 @@ class MarketingService:
         if estado:
             partes_desc.append(f"📋 Estado: {self._estado_a_texto(estado)}")
 
+        # Campos específicos para cómics
+        nombre_serie = objeto_data.get("nombre_serie", "")
+        titulo_tomo = objeto_data.get("titulo_tomo", "")
+        numero_tomo = objeto_data.get("numero_tomo", "")
+        editorial = objeto_data.get("editorial", "")
+        idioma = objeto_data.get("idioma", "")
+        if nombre_serie:
+            partes_desc.append(f"📚 Serie: {nombre_serie}")
+        if titulo_tomo:
+            partes_desc.append(f"📖 Tomo: {titulo_tomo}")
+        if numero_tomo:
+            partes_desc.append(f"🔢 N°: {numero_tomo}")
+        if editorial:
+            partes_desc.append(f"🏢 Editorial: {editorial}")
+        if idioma:
+            partes_desc.append(f"🌐 Idioma: {idioma}")
+
         partes_desc.append("")
         partes_desc.append(f"💰 Precio: {precio}")
         partes_desc.append("")
@@ -285,6 +302,23 @@ class MarketingService:
             partes_desc.append(f"• Color: {color}")
         if estado:
             partes_desc.append(f"• Estado: {self._estado_a_texto(estado)}")
+
+        # Campos específicos para cómics
+        nombre_serie = objeto_data.get("nombre_serie", "")
+        titulo_tomo = objeto_data.get("titulo_tomo", "")
+        numero_tomo = objeto_data.get("numero_tomo", "")
+        editorial = objeto_data.get("editorial", "")
+        idioma = objeto_data.get("idioma", "")
+        if nombre_serie:
+            partes_desc.append(f"• Serie: {nombre_serie}")
+        if titulo_tomo:
+            partes_desc.append(f"• Tomo: {titulo_tomo}")
+        if numero_tomo:
+            partes_desc.append(f"• N°: {numero_tomo}")
+        if editorial:
+            partes_desc.append(f"• Editorial: {editorial}")
+        if idioma:
+            partes_desc.append(f"• Idioma: {idioma}")
 
         partes_desc.append("")
         partes_desc.append("🔹 CONDICIONES DE VENTA")

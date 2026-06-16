@@ -450,6 +450,11 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             objeto_data["categoria"] = "libro"
             objeto_data["autor"] = objeto.librorevista.autor
             objeto_data["anio"] = objeto.librorevista.anio
+            objeto_data["nombre_serie"] = objeto.librorevista.nombre_serie
+            objeto_data["titulo_tomo"] = objeto.librorevista.titulo_tomo
+            objeto_data["numero_tomo"] = objeto.librorevista.numero_tomo
+            objeto_data["editorial"] = objeto.librorevista.editorial
+            objeto_data["idioma"] = objeto.librorevista.idioma
         elif hasattr(objeto, 'mueblearte'):
             objeto_data["categoria"] = "mueble"
         elif hasattr(objeto, 'ropa'):
