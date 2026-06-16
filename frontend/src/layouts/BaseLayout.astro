@@ -274,30 +274,19 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   });
 
   // ===========================================================================
-  // PWA: REGISTRO DE SERVICE WORKER
+  // PWA: DESREGISTRAR SERVICE WORKER (temporalmente desactivado)
+  // El SW causaba flasheo/recarga constante. Lo desactivamos hasta
+  // que la app este estable, luego lo reintroduciremos.
   // ===========================================================================
-
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      // Desregistrar cualquier SW previo para evitar conflictos
+      // Solo desregistrar cualquier SW existente, sin registrar uno nuevo
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
           registration.unregister();
+          console.log('🗑️ SW desregistrado:', registration.scope);
         }
-        // Registrar el nuevo SW
-        navigator.serviceWorker.register('/sw.js').then(
-          (registration) => {
-            console.log('✅ SW registrado:', registration.scope);
-            // Si hay un SW esperando (nueva version), recargar
-            if (registration.waiting) {
-              registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-            }
-          },
-          (err) => {
-            console.warn('❌ SW falló:', err);
-          }
-        );
       });
     });
   }
