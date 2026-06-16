@@ -49,10 +49,20 @@ urlpatterns = [
     # Favicon: servir directamente desde Django
     re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
     re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
-    # Frontend Astro Static: servir index.html para todas las rutas que no son API/admin/media/static
-    # Esto permite que el frontend SPA maneje el routing del lado del cliente
-    re_path(r'^(?!api/|admin/|static/|media/|assets/|icons/|favicon|manifest\.json|sw\.js).*$',
-        lambda request: serve(request, 'index.html', document_root=FRONTEND_DIR),
+    # Frontend Astro Static: servir el HTML correcto según la ruta
+    # Astro genera HTMLs separados para cada página:
+    #   /login  -> login/index.html
+    #   /register -> register/index.html
+    #   /objetos -> objetos/index.html
+    #   / -> index.html
+    # Si el archivo no existe, servir index.html (para SPA routing)
+    re_path(r'^(?!api/|admin/|static/|media/|assets/|icons/|favicon|manifest\.json|sw\.js)(.+)?$',
+        lambda request, path='': serve(
+            request,
+            f'{path}/index.html' if path else 'index.html',
+            document_root=FRONTEND_DIR
+        ) if os.path.exists(os.path.join(FRONTEND_DIR, f'{path}/index.html' if path else 'index.html'))
+        else serve(request, 'index.html', document_root=FRONTEND_DIR),
         name='frontend_spa'),
 ]
 
