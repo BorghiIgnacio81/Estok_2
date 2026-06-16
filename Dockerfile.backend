@@ -26,6 +26,9 @@ FROM node:22-alpine AS node-builder
 # Coolify debe pasar este ARG en la configuracion del build
 ARG CACHE_BUST=20260616-02
 
+# URL de la API para produccion (relativa al mismo dominio)
+ARG PUBLIC_API_URL=/api
+
 WORKDIR /app
 
 # Copiar package.json y lock del frontend
@@ -36,6 +39,9 @@ RUN npm ci
 
 # Copiar código fuente del frontend
 COPY frontend/ .
+
+# Crear .env con la URL de la API para produccion
+RUN echo "PUBLIC_API_URL=${PUBLIC_API_URL}" > .env
 
 # Construir sitio estático
 RUN npm run build
