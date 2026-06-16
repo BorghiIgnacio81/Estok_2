@@ -17,7 +17,7 @@ const { redirectTo = '/login' } = Astro.props;
   // VERIFICACIÓN DE AUTENTICACIÓN
   // ===========================================================================
 
-  const REDIRECT_TO = '${redirectTo}';
+  const REDIRECT_TO = '/login';
 
   function isAuthenticated(): boolean {
     const token = localStorage.getItem('estok_access_token');

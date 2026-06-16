@@ -56,8 +56,10 @@ COPY . .
 # Recopilar archivos estáticos del backend (Django admin, etc.)
 RUN python manage.py collectstatic --noinput
 
-# Copiar el build estático de Astro a staticfiles/frontend/
-COPY --from=node-builder /app/dist /app/staticfiles/frontend/
+# Copiar el build estático de Astro a staticfiles/
+# Los assets (CSS/JS con hash) van a staticfiles/assets/
+# El index.html va a staticfiles/ (raíz para WhiteNoise)
+COPY --from=node-builder /app/dist /app/staticfiles/
 
 # Copiar archivos PWA (manifest.json, sw.js, favicon, icons) a staticfiles/raíz
 # para que WhiteNoise los sirva en /manifest.json, /sw.js, /favicon.ico

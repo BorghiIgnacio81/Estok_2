@@ -36,8 +36,8 @@ admin.site.index_title = 'Panel de Administración'
 import os
 FAVICON_PATH = os.path.join(settings.BASE_DIR, 'archivador.png')
 
-# Ruta al frontend estático de Astro
-FRONTEND_DIR = settings.STATIC_ROOT / 'frontend'
+# Ruta al frontend estático de Astro (index.html en la raíz de staticfiles)
+FRONTEND_DIR = settings.STATIC_ROOT
 
 urlpatterns = [
     path('admin/', admin.site.urls),
