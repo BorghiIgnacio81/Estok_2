@@ -1,6 +1,6 @@
 // =============================================================================
 // Astro Configuration - Estok Frontend
-// SSG (Static Site Generation) para producción en Coolify
+// Hybrid: rutas estáticas + dinámicas (sin getStaticPaths)
 // =============================================================================
 
 import { defineConfig } from 'astro/config';
@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite';
 // https://astro.build/config
 export default defineConfig({
   site: process.env.PUBLIC_SITE_URL || 'http://localhost:4321',
-  output: 'static',
+  output: 'hybrid',
   build: {
     // Assets con hash para cacheo perpetuo
     assets: 'assets',
