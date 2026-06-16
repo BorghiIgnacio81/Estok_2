@@ -84,10 +84,17 @@ RUN mkdir -p /app/media/qrcodes
 EXPOSE 8000
 EXPOSE 4321
 
+# Variables de entorno para Node SSR (Astro)
+ENV HOST=0.0.0.0
+ENV PORT=4321
+ENV NODE_ENV=production
+
 # Comando de inicio: migraciones + Node SSR (background) + Gunicorn (foreground)
 CMD ["sh", "-c", "\
     python manage.py migrate --noinput && \
+    echo 'Starting Node SSR server on port 4321...' && \
     node /app/dist/server/entry.mjs & \
+    echo 'Starting Gunicorn on port 8000...' && \
     gunicorn config.wsgi:application \
     --bind 0.0.0.0:8000 \
     --workers 4 \
