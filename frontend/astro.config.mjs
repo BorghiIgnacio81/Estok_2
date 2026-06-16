@@ -1,6 +1,6 @@
 // =============================================================================
 // Astro Configuration - Estok Frontend
-// Hybrid: rutas estáticas + dinámicas (sin getStaticPaths)
+// Static: todas las rutas se renderizan como HTML estático
 // =============================================================================
 
 import { defineConfig } from 'astro/config';

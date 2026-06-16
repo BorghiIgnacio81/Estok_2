@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM node:22-alpine AS node-builder
 
 # Cache buster: cambia este valor para forzar rebuild del frontend
-ARG CACHE_BUST=20260615-01
+ARG CACHE_BUST=20260615-02
 
 WORKDIR /app
 

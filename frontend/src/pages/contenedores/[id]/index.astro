@@ -1,5 +1,7 @@
 ---
-export async function getStaticPaths() { return []; }
+export async function getStaticPaths() {
+  return [{ params: { id: 'placeholder' } }];
+}
 // =============================================================================
 // PÁGINA DE DETALLE DE CONTENEDOR
 // Muestra QR del contenedor y lista de objetos dentro

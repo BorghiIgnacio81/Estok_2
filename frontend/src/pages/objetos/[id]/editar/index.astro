@@ -1,5 +1,7 @@
 ---
-export async function getStaticPaths() { return []; }
+export async function getStaticPaths() {
+  return [{ params: { id: 'placeholder' } }];
+}
 // =============================================================================
 // PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
 // Formulario dinámico con CategoryFields para herencia multi-tabla

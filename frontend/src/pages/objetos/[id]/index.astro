@@ -1,5 +1,7 @@
 ---
-export async function getStaticPaths() { return []; }
+export async function getStaticPaths() {
+  return [{ params: { id: 'placeholder' } }];
+}
 // =============================================================================
 // PÁGINA DE DETALLE DE OBJETO (Soporta herencia multi-tabla)
 // =============================================================================
