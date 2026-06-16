@@ -7,12 +7,11 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
 
-// Ruta dinámica: no prerenderizar, se carga vía API desde el cliente
-export const prerender = false;
+// Ruta dinámica: se genera HTML placeholder, datos se cargan vía API desde el cliente
+export async function getStaticPaths() {
+  return [{ params: { id: 'placeholder' } }];
+}
 ---
-
-<AuthGuard />
-
 <BaseLayout title="Estok - Detalle de Ubicación | Inventario">
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Estado de carga -->
