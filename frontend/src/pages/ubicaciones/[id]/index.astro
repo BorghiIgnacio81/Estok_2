@@ -1,8 +1,8 @@
 ---
-export const prerender = false;
+export async function getStaticPaths() { return []; }
 // =============================================================================
 // PÁGINA DE DETALLE DE UBICACIÓN
-// Muestra los contenedores dentro de una ubicación y objetos totales
+// Muestra info de la ubicación y contenedores dentro
 // =============================================================================
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
@@ -42,25 +42,27 @@ import AuthGuard from '../../../components/AuthGuard.astro';
       </div>
 
       <!-- Card principal -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="flex items-start gap-4">
-          <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-            <svg class="w-7 h-7 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </div>
-          <div class="flex-1">
-            <h1 id="nombreUbicacion" class="text-2xl font-bold text-gray-900"></h1>
-            <p id="descripcionUbicacion" class="text-gray-500 text-sm mt-1"></p>
-            <div class="flex gap-4 mt-3">
-              <div class="bg-blue-50 rounded-lg px-4 py-2">
-                <p class="text-xs text-blue-600 font-medium">Contenedores</p>
-                <p id="contenedoresCount" class="text-lg font-bold text-blue-700"></p>
-              </div>
-              <div class="bg-green-50 rounded-lg px-4 py-2">
-                <p class="text-xs text-green-600 font-medium">Objetos totales</p>
-                <p id="objetosTotalCount" class="text-lg font-bold text-green-700"></p>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg class="w-7 h-7 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div class="flex-1">
+              <h1 id="nombreUbicacion" class="text-2xl font-bold text-gray-900"></h1>
+              <p id="descripcionUbicacion" class="text-gray-500 text-sm mt-1"></p>
+              <div class="flex gap-4 mt-3">
+                <div class="bg-gray-50 rounded-lg px-4 py-2">
+                  <p class="text-xs text-gray-500">Contenedores</p>
+                  <p id="contenedoresCount" class="font-semibold text-gray-800"></p>
+                </div>
+                <div class="bg-gray-50 rounded-lg px-4 py-2">
+                  <p class="text-xs text-gray-500">Objetos totales</p>
+                  <p id="objetosCount" class="font-semibold text-gray-800"></p>
+                </div>
               </div>
             </div>
           </div>
@@ -86,7 +88,7 @@ import AuthGuard from '../../../components/AuthGuard.astro';
 
         <div id="contenedoresEmpty" class="hidden text-center py-8 text-gray-400">
           <p class="text-lg font-medium">No hay contenedores en esta ubicación</p>
-          <p class="text-sm mt-1">Crea contenedores desde la sección de contenedores.</p>
+          <p class="text-sm mt-1">Crea un contenedor y asígnalo a esta ubicación.</p>
         </div>
 
         <div id="contenedoresGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -141,13 +143,13 @@ import AuthGuard from '../../../components/AuthGuard.astro';
 
       document.getElementById('nombreUbicacion')!.textContent = ubicacion.nombre;
       document.getElementById('descripcionUbicacion')!.textContent = ubicacion.descripcion || 'Sin descripción';
-      document.getElementById('objetosTotalCount')!.textContent = `${ubicacion.objetos_count || 0}`;
+      document.getElementById('contenedoresCount')!.textContent = `${ubicacion.contenedores_count || 0} contenedores`;
+      document.getElementById('objetosCount')!.textContent = `${ubicacion.objetos_count || 0} objetos`;
 
       loadingState.classList.add('hidden');
       errorState.classList.add('hidden');
       detailContent.classList.remove('hidden');
 
-      // Cargar contenedores
       cargarContenedores();
 
     } catch (err: any) {
@@ -159,7 +161,7 @@ import AuthGuard from '../../../components/AuthGuard.astro';
   }
 
   // ===========================================================================
-  // CARGA DE CONTENEDORES DE LA UBICACIÓN
+  // CARGA DE CONTENEDORES
   // ===========================================================================
 
   async function cargarContenedores() {
@@ -172,7 +174,7 @@ import AuthGuard from '../../../components/AuthGuard.astro';
     grid.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/contenedores/?ubicacion=${ubicacionId}`, {
+      const response = await fetch(`${API_URL}/contenedores/?ubicacion=${ubicacionId}&page_size=50`, {
         headers: getAuthHeaders(),
       });
 
@@ -183,41 +185,32 @@ import AuthGuard from '../../../components/AuthGuard.astro';
 
       loading.classList.add('hidden');
 
-      document.getElementById('contenedoresCount')!.textContent = `${contenedores.length}`;
-
       if (contenedores.length === 0) {
         empty.classList.remove('hidden');
         return;
       }
 
       grid.innerHTML = contenedores.map((c: any) => `
-        <div class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-base cursor-pointer" data-id="${c.id}">
-          <div class="flex items-start gap-3">
-            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-base cursor-pointer" data-id="${c.id}">
+          <div class="p-4">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-900">${c.nombre}</h3>
+                <p class="text-xs text-gray-500">${c.objetos_count || 0} objetos</p>
+              </div>
             </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="font-semibold text-gray-900 text-sm">${c.nombre}</h3>
-              ${c.descripcion ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${c.descripcion}</p>` : ''}
-              <p class="text-xs text-gray-400 mt-1">📦 ${c.objetos_count || 0} objetos</p>
-            </div>
-            ${c.qr_code_url
-              ? `<a href="${c.qr_code_url}" target="_blank" class="text-blue-500 hover:text-blue-700 flex-shrink-0" title="Ver QR">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                </a>`
-              : ''
-            }
+            ${c.descripcion ? `<p class="text-sm text-gray-500 line-clamp-2">${c.descripcion}</p>` : ''}
           </div>
         </div>
       `).join('');
 
       grid.classList.remove('hidden');
 
-      // Click para ver detalle del contenedor
       grid.querySelectorAll('[data-id]').forEach((card) => {
         card.addEventListener('click', () => {
           const id = card.getAttribute('data-id');
