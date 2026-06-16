@@ -16,12 +16,10 @@ const STATIC_ASSETS = [
 ];
 
 // Strategy: Cache First for static assets, Network First for API
+// IMPORTANT: Do NOT cache navigation requests (HTML pages) to avoid flashing/reload loops
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
+  // Don't use cache.addAll() - it can fail if any resource is unavailable
+  // Just skip waiting and let the activate handler clean up
   self.skipWaiting();
 });
 
@@ -35,39 +33,38 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  self.clients.claim();
+  // Do NOT call clients.claim() - let pages reload naturally to avoid flashing
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API calls - Network First (fallback to cache)
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clonedResponse = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clonedResponse);
-          });
-          return response;
-        })
-        .catch(() => {
-          return caches.match(request);
-        })
-    );
-    return;
-  }
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin) return;
+
+  // Do NOT intercept navigation requests (HTML pages) - let them load from network
+  // This prevents flashing/reload loops when the SW takes control
+  if (request.mode === 'navigate') return;
+
+  // Do NOT intercept API calls - let them go to network normally
+  if (url.pathname.startsWith('/api/')) return;
+
+  // Only cache static assets (CSS, JS, images, fonts, icons)
+  const isStaticAsset = /\.(css|js|json|ico|png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot)$/i.test(url.pathname);
+  if (!isStaticAsset) return;
 
   // Static assets - Cache First
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       return cachedResponse || fetch(request).then((response) => {
-        const clonedResponse = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, clonedResponse);
-        });
+        // Only cache successful responses
+        if (response.ok) {
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clonedResponse);
+          });
+        }
         return response;
       });
     })
