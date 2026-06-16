@@ -1,13 +1,11 @@
 ---
-export async function getStaticPaths() {
-  return [{ params: { id: 'placeholder' } }];
-}
 // =============================================================================
 // PÁGINA DE DETALLE DE OBJETO (Soporta herencia multi-tabla)
 // =============================================================================
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
+---
 
 <AuthGuard />
 

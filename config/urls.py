@@ -19,7 +19,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.utils.safestring import mark_safe
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseRedirect
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -35,16 +35,6 @@ admin.site.index_title = 'Panel de Administración'
 import os
 FAVICON_PATH = os.path.join(settings.BASE_DIR, 'archivador.png')
 
-# Ruta al index.html del frontend Astro (build estático)
-FRONTEND_INDEX_PATH = os.path.join(settings.STATIC_ROOT, 'index.html')
-
-def serve_frontend(request):
-    """Sirve el index.html del frontend Astro para SPA routing."""
-    from django.http import FileResponse
-    import mimetypes
-    mimetypes.add_type('text/html', '.html')
-    return FileResponse(open(FRONTEND_INDEX_PATH, 'rb'), content_type='text/html')
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),
@@ -55,8 +45,11 @@ urlpatterns = [
     # Favicon: servir directamente desde Django
     re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
     re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
-    # Frontend Astro: servir index.html para todas las rutas que no sean API/admin
-    re_path(r'^(?!api/|admin/|static/|media/).*$', serve_frontend, name='frontend'),
+    # Frontend Astro SSR: redirigir al servidor Node (puerto 4321)
+    # Si el servidor Node no está disponible, Django devuelve 404
+    re_path(r'^(?!api/|admin/|static/|media/).*$', lambda request: HttpResponseRedirect(
+        f'http://localhost:4321{request.path}'
+    ), name='frontend_ssr'),
 ]
 
 

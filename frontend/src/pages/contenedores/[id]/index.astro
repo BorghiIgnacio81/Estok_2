@@ -1,7 +1,4 @@
 ---
-export async function getStaticPaths() {
-  return [{ params: { id: 'placeholder' } }];
-}
 // =============================================================================
 // PÁGINA DE DETALLE DE CONTENEDOR
 // Muestra QR del contenedor y lista de objetos dentro
@@ -9,6 +6,7 @@ export async function getStaticPaths() {
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
+---
 
 <AuthGuard />
 

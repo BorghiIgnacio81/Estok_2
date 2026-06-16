@@ -1,24 +1,26 @@
 // =============================================================================
 // Astro Configuration - Estok Frontend
-// Static: todas las rutas se renderizan como HTML estático
+// SSR con @astrojs/node: rutas dinámicas se renderizan en servidor
 // =============================================================================
 
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import node from '@astrojs/node';
 
 // https://astro.build/config
 export default defineConfig({
   site: process.env.PUBLIC_SITE_URL || 'http://localhost:4321',
-  output: 'static',
+  output: 'server',
+  adapter: node({
+    mode: 'standalone',
+  }),
   build: {
-    // Assets con hash para cacheo perpetuo
     assets: 'assets',
     inlineStylesheets: 'auto',
   },
   vite: {
     plugins: [tailwindcss()],
     build: {
-      // Optimización para producción
       cssMinify: true,
       minify: 'esbuild',
     },

@@ -1,7 +1,4 @@
 ---
-export async function getStaticPaths() {
-  return [{ params: { id: 'placeholder' } }];
-}
 // =============================================================================
 // PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
 // Formulario dinámico con CategoryFields para herencia multi-tabla
@@ -10,6 +7,7 @@ export async function getStaticPaths() {
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CategoryFields from '../../../../components/CategoryFields.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
+---
 
 <AuthGuard />
 
