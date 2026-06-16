@@ -4,6 +4,9 @@
 // Estructura HTML principal con Tailwind CSS y meta tags
 // =============================================================================
 
+// Importar estilos globales (Astro los procesa y los pone en /assets/ con hash)
+import '../styles/global.css';
+
 export interface Props {
   title?: string;
   description?: string;
@@ -40,8 +43,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <meta name="apple-mobile-web-app-title" content="Estok" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-    <!-- Estilos globales -->
-    <link rel="stylesheet" href="/src/styles/global.css" />
   </head>
   <body>
     <!-- Barra de navegación -->
