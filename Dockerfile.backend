@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # ---- Etapa 2: Builder Node (Frontend Astro) ----
 FROM node:22-alpine AS node-builder
 
+# Cache buster: cambia este valor para forzar rebuild del frontend
+ARG CACHE_BUST=20260615-01
+
 WORKDIR /app
 
 # Copiar package.json y lock del frontend
