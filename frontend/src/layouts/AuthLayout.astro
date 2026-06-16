@@ -50,3 +50,20 @@ const { title = 'Estok - Autenticación' } = Astro.props;
     </div>
   </body>
 </html>
+
+<script>
+  // ===========================================================================
+  // DESREGISTRAR SERVICE WORKER (temporalmente desactivado)
+  // El SW causaba recarga constante de la pagina.
+  // ===========================================================================
+
+  if ('serviceWorker' in navigator) {
+    // Ejecutar inmediatamente, no en load, para desregistrar antes de que el SW actue
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+        console.log('🗑️ SW desregistrado desde AuthLayout:', registration.scope);
+      }
+    });
+  }
+</script>

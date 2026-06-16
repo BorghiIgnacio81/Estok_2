@@ -280,14 +280,12 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   // ===========================================================================
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      // Solo desregistrar cualquier SW existente, sin registrar uno nuevo
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-          registration.unregister();
-          console.log('🗑️ SW desregistrado:', registration.scope);
-        }
-      });
+    // Ejecutar inmediatamente para desregistrar el SW antes de que tome control
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+        console.log('🗑️ SW desregistrado desde BaseLayout:', registration.scope);
+      }
     });
   }
 
