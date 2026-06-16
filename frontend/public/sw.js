@@ -15,6 +15,14 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png',
 ];
 
+// Listen for SKIP_WAITING message from the client (BaseLayout.astro)
+// This allows the new SW to activate immediately when a new version is detected
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 // Strategy: Cache First for static assets, Network First for API
 // IMPORTANT: Do NOT cache navigation requests (HTML pages) to avoid flashing/reload loops
 self.addEventListener('install', (event) => {
@@ -33,7 +41,9 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Do NOT call clients.claim() - let pages reload naturally to avoid flashing
+  // Take control of all pages immediately so the new SW is active
+  // This is safe now because we don't intercept navigation requests
+  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
