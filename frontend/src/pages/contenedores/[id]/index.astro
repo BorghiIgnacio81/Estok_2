@@ -6,6 +6,9 @@
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
+
+// Ruta dinámica: no prerenderizar, se carga vía API desde el cliente
+export const prerender = false;
 ---
 
 <AuthGuard />

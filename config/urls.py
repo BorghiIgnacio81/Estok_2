@@ -19,7 +19,8 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from django.utils.safestring import mark_safe
-from django.http import FileResponse, HttpResponseRedirect
+from django.http import FileResponse
+from django.views.static import serve
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -35,6 +36,9 @@ admin.site.index_title = 'Panel de Administración'
 import os
 FAVICON_PATH = os.path.join(settings.BASE_DIR, 'archivador.png')
 
+# Ruta al frontend estático de Astro
+FRONTEND_DIR = settings.STATIC_ROOT / 'frontend'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),
@@ -45,11 +49,11 @@ urlpatterns = [
     # Favicon: servir directamente desde Django
     re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
     re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
-    # Frontend Astro SSR: redirigir al servidor Node (puerto 4321)
-    # Si el servidor Node no está disponible, Django devuelve 404
-    re_path(r'^(?!api/|admin/|static/|media/).*$', lambda request: HttpResponseRedirect(
-        f'http://localhost:4321{request.path}'
-    ), name='frontend_ssr'),
+    # Frontend Astro Static: servir index.html para todas las rutas que no son API/admin/media/static
+    # Esto permite que el frontend SPA maneje el routing del lado del cliente
+    re_path(r'^(?!api/|admin/|static/|media/|assets/|icons/|favicon|manifest\.json|sw\.js).*$',
+        lambda request: serve(request, 'index.html', document_root=FRONTEND_DIR),
+        name='frontend_spa'),
 ]
 
 
