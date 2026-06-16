@@ -1,4 +1,5 @@
 ---
+export const prerender = false;
 // =============================================================================
 // PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
 // Formulario dinámico con CategoryFields para herencia multi-tabla
@@ -7,7 +8,6 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CategoryFields from '../../../../components/CategoryFields.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
----
 
 <AuthGuard />
 
