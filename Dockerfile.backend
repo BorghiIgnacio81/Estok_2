@@ -23,7 +23,8 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM node:22-alpine AS node-builder
 
 # Cache buster: cambia este valor para forzar rebuild del frontend
-ARG CACHE_BUST=20260616-01
+# Coolify debe pasar este ARG en la configuracion del build
+ARG CACHE_BUST=20260616-02
 
 WORKDIR /app
 
