@@ -42,8 +42,12 @@ CONFIANZA_MINIMA = 0.6  # umbral mínimo de confianza para considerar un campo v
 # Si cambiás de modelo en LM Studio, actualizá este valor
 MODEL_NAME = "qwen2.5-vl-7b-instruct"  # modelo desplegado en LM Studio
 MAX_IMAGE_SIZE_MB = 10  # tamaño máximo de imagen en MB
-MAX_IMAGE_SIZE_FOR_GPU_MB = 5  # tamaño máximo para enviar a GPU (comprimir si excede)
-COMPRESS_QUALITY = 85  # calidad JPEG para compresión (0-100)
+# El modelo qwen2.5-vl-7b-instruct tiene contexto de solo 4096 tokens.
+# La imagen en Base64 + prompt no debe exceder ese límite.
+# Con calidad 30 y resolución 640px, una imagen ocupa ~200-400 tokens.
+MAX_IMAGE_SIZE_FOR_GPU_MB = 1  # tamaño máximo para enviar a GPU (comprimir si excede)
+COMPRESS_QUALITY = 30  # calidad JPEG para compresión (0-100) - baja para no exceder 4096 tokens
+MAX_IMAGE_DIMENSION = 640  # resolución máxima para no exceder contexto del modelo
 
 
 
@@ -346,14 +350,15 @@ class AIVisionService:
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
 
-            # Redimensionar si es muy grande (máximo 1920px en cualquier lado)
-            max_dimension = 1920
+            # Redimensionar si es muy grande (máximo MAX_IMAGE_DIMENSION px en cualquier lado)
+            # Usamos 640px para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct
+            max_dimension = MAX_IMAGE_DIMENSION
             if max(img.width, img.height) > max_dimension:
                 ratio = max_dimension / max(img.width, img.height)
                 new_width = int(img.width * ratio)
                 new_height = int(img.height * ratio)
                 img = img.resize((new_width, new_height), Image.LANCZOS)
-                logger.info("Imagen redimensionada a %dx%d", new_width, new_height)
+                logger.info("Imagen redimensionada a %dx%d (máx %dpx para contexto 4096 tokens)", new_width, new_height, max_dimension)
 
             # Comprimir con calidad ajustable
             output = io.BytesIO()
@@ -364,8 +369,8 @@ class AIVisionService:
             compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
 
             # Si aún excede, reducir calidad progresivamente
-            while compressed_size_mb > max_size_mb and quality > 30:
-                quality -= 10
+            while compressed_size_mb > max_size_mb and quality > 10:
+                quality -= 5
                 output = io.BytesIO()
                 img.save(output, format='JPEG', quality=quality, optimize=True)
                 compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
@@ -464,6 +469,7 @@ class AIVisionService:
     def procesar_imagen(self, image_path: str) -> VisionResult:
         """
         Procesa una imagen desde una ruta de archivo y retorna un VisionResult.
+        Comprime la imagen automáticamente antes de enviarla al modelo.
 
         Args:
             image_path: Ruta a la imagen a analizar.
@@ -471,7 +477,12 @@ class AIVisionService:
         Returns:
             VisionResult con los datos extraídos y campos pendientes.
         """
-        raw_result = self.client.analyze_image(image_path)
+        # Leer la imagen y comprimirla antes de enviar
+        import base64 as b64_module
+        with open(image_path, "rb") as f:
+            image_b64 = b64_module.b64encode(f.read()).decode("utf-8")
+        image_b64_comprimida = self._comprimir_imagen_base64(image_b64)
+        raw_result = self.client.analyze_base64(image_b64_comprimida)
 
         if raw_result is None:
             return VisionResult(
@@ -508,6 +519,8 @@ class AIVisionService:
     def procesar_imagen_desde_base64(self, image_base64: str) -> VisionResult:
         """
         Procesa una imagen desde una cadena Base64.
+        Comprime la imagen automáticamente antes de enviarla al modelo
+        para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct.
 
         Args:
             image_base64: Imagen codificada en Base64.
@@ -515,7 +528,10 @@ class AIVisionService:
         Returns:
             VisionResult con los datos extraídos y campos pendientes.
         """
-        raw_result = self.client.analyze_base64(image_base64)
+        # Comprimir la imagen antes de enviarla al modelo
+        # Esto es crítico para no exceder el contexto de 4096 tokens
+        image_base64_comprimida = self._comprimir_imagen_base64(image_base64)
+        raw_result = self.client.analyze_base64(image_base64_comprimida)
 
         if raw_result is None:
             return VisionResult(
