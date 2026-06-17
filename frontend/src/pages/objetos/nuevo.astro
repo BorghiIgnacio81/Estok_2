@@ -41,8 +41,6 @@ import AuthGuard from '../../components/AuthGuard.astro';
     <form
       id="objetoForm"
       class="space-y-6"
-      method="POST"
-      enctype="multipart/form-data"
     >
       <!-- ================================================================ -->
       <!-- SECCIÓN: CAPTURA DE FOTO (Mobile-First con cámara) -->
@@ -110,9 +108,9 @@ import AuthGuard from '../../components/AuthGuard.astro';
       </div>
 
       <!-- ================================================================ -->
-      <!-- BOTÓN: ANALIZAR CON IA (se activa cuando hay foto) -->
+      <!-- BOTÓN: ANALIZAR CON IA (siempre visible, se habilita con foto) -->
       <!-- ================================================================ -->
-      <div id="iaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div id="iaSection" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -120,11 +118,12 @@ import AuthGuard from '../../components/AuthGuard.astro';
           Análisis con Inteligencia Artificial
         </h2>
         <p class="text-sm text-gray-500 mb-4">
-          La IA analizará la foto y autocompletará los campos del formulario automáticamente.
+          Toma o selecciona una foto y luego presiona "Analizar con IA" para autocompletar los campos automáticamente.
         </p>
         <button
           type="button"
           id="analizarIaBtn"
+          disabled
           class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span id="iaBtnText">
@@ -249,6 +248,23 @@ import AuthGuard from '../../components/AuthGuard.astro';
                 class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
               />
             </div>
+            <button
+              type="button"
+              id="estimarPrecioBtn"
+              class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-base disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span id="estimarPrecioText">Buscar precio de referencia</span>
+              <span id="estimarPrecioSpinner" class="hidden">
+                <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </span>
+            </button>
+            <div id="precioReferencia" class="mt-2 text-xs hidden"></div>
           </div>
         </div>
       </div>
@@ -422,7 +438,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
   setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
-  // MANEJO DE CAPTURA DE FOTO (Cámara + Galería)
+  // MANEJO DE CAPTURA DE FOTO (Cámara + Galería) - Preview directa sin Cropper
   // ===========================================================================
 
   const cameraInput = document.getElementById('cameraInput') as HTMLInputElement;
@@ -431,29 +447,40 @@ import AuthGuard from '../../components/AuthGuard.astro';
   const photoPlaceholder = document.getElementById('photoPlaceholder')!;
   const photoImage = document.getElementById('photoImage') as HTMLImageElement;
   const imagenBase64 = document.getElementById('imagenBase64') as HTMLInputElement;
+  const iaBtnText = document.getElementById('iaBtnText')!;
+  const iaBtnSpinner = document.getElementById('iaBtnSpinner')!;
+  const iaStatus = document.getElementById('iaStatus')!;
 
-  function handleFile(file: File) {
+  // --- Manejo unificado de archivos ---
+  function handleFileSelected(file: File) {
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
+      // Mostrar preview directa
       photoImage.src = result;
       photoImage.classList.remove('hidden');
       photoPlaceholder.classList.add('hidden');
       imagenBase64.value = result;
+      // Habilitar botón IA
+      analizarIaBtn.disabled = false;
+      iaStatus.classList.add('hidden');
     };
     reader.readAsDataURL(file);
   }
 
+  // Un solo listener por input (sin duplicados)
   cameraInput?.addEventListener('change', (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) handleFile(file);
+    if (file) handleFileSelected(file);
+    // Resetear el input para permitir seleccionar el mismo archivo de nuevo
+    (e.target as HTMLInputElement).value = '';
   });
 
   galleryInput?.addEventListener('change', (e) => {
     const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) handleFile(file);
+    if (file) handleFileSelected(file);
+    (e.target as HTMLInputElement).value = '';
   });
 
   photoPreview?.addEventListener('click', () => {
@@ -461,38 +488,103 @@ import AuthGuard from '../../components/AuthGuard.astro';
   });
 
   // ===========================================================================
-  // FLUJO DE IA: Mostrar sección cuando hay foto
+  // ESTIMAR PRECIO - Buscar precio de referencia por nombre del objeto
   // ===========================================================================
 
-  const iaBtnText = document.getElementById('iaBtnText')!;
-  const iaBtnSpinner = document.getElementById('iaBtnSpinner')!;
-  const iaStatus = document.getElementById('iaStatus')!;
+  const estimarPrecioBtn = document.getElementById('estimarPrecioBtn') as HTMLButtonElement;
+  const estimarPrecioText = document.getElementById('estimarPrecioText')!;
+  const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner')!;
+  const precioReferencia = document.getElementById('precioReferencia')!;
+  const nombreInput = document.getElementById('nombre') as HTMLInputElement;
 
-  function onPhotoLoaded() {
-    // Solo mostrar sección IA si está conectada
-    checkAIAvailability().then(connected => {
-      if (connected) {
-        iaSection.classList.remove('hidden');
-        iaStatus.classList.add('hidden');
-        analizarIaBtn.disabled = false;
+  estimarPrecioBtn?.addEventListener('click', async () => {
+    const nombre = nombreInput?.value?.trim();
+    if (!nombre) {
+      (window as any).showToast?.('Primero escribe el nombre del objeto.', 'error');
+      nombreInput?.focus();
+      return;
+    }
+
+    estimarPrecioBtn.disabled = true;
+    estimarPrecioText.classList.add('hidden');
+    estimarPrecioSpinner.classList.remove('hidden');
+    precioReferencia.classList.add('hidden');
+
+    try {
+      // Buscar objetos similares en el inventario para estimar precio
+      const token = getToken();
+      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const objetos = data.results || data;
+
+        // Filtrar objetos que tengan valor estimado
+        const conPrecio = objetos.filter((o: any) => o.valor_estimado && Number(o.valor_estimado) > 0);
+
+        if (conPrecio.length > 0) {
+          // Calcular precio promedio
+          const precios = conPrecio.map((o: any) => Number(o.valor_estimado));
+          const promedio = precios.reduce((a: number, b: number) => a + b, 0) / precios.length;
+          const maxPrecio = Math.max(...precios);
+          const minPrecio = Math.min(...precios);
+
+          // Sugerir el precio promedio
+          const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+          if (valorEstimado) {
+            valorEstimado.value = promedio.toFixed(2);
+            valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+
+          precioReferencia.className = 'mt-2 text-xs text-green-600';
+          precioReferencia.innerHTML = `
+            💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong>
+            (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)})
+            basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.
+          `;
+          (window as any).showToast?.(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
+        } else {
+          // Si no hay objetos similares, sugerir un valor por defecto según categoría
+          const tipo = (document.getElementById('tipo') as HTMLSelectElement)?.value;
+          let sugerencia = 0;
+          switch (tipo) {
+            case 'tecnologia': sugerencia = 150; break;
+            case 'libro': sugerencia = 20; break;
+            case 'mueble': sugerencia = 200; break;
+            case 'ropa': sugerencia = 30; break;
+            default: sugerencia = 50;
+          }
+
+          precioReferencia.className = 'mt-2 text-xs text-amber-600';
+          precioReferencia.innerHTML = `
+            💡 No se encontraron objetos similares con precio.
+            Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong>
+            (basado en la categoría seleccionada).
+          `;
+
+          const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+          if (valorEstimado && !valorEstimado.value) {
+            valorEstimado.value = sugerencia.toFixed(2);
+          }
+        }
+        precioReferencia.classList.remove('hidden');
+      } else {
+        precioReferencia.className = 'mt-2 text-xs text-red-600';
+        precioReferencia.textContent = '❌ No se pudo consultar el inventario.';
+        precioReferencia.classList.remove('hidden');
       }
-    });
-  }
-
-  const originalHandleFile = handleFile;
-  function handleFileWithIA(file: File) {
-    originalHandleFile(file);
-    if (file) onPhotoLoaded();
-  }
-
-  cameraInput?.addEventListener('change', (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) handleFileWithIA(file);
-  });
-
-  galleryInput?.addEventListener('change', (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
-    if (file) handleFileWithIA(file);
+    } catch (err) {
+      console.warn('Error al estimar precio:', err);
+      precioReferencia.className = 'mt-2 text-xs text-red-600';
+      precioReferencia.textContent = '❌ Error de conexión al buscar precios de referencia.';
+      precioReferencia.classList.remove('hidden');
+    } finally {
+      estimarPrecioBtn.disabled = false;
+      estimarPrecioText.classList.remove('hidden');
+      estimarPrecioSpinner.classList.add('hidden');
+    }
   });
 
   // ===========================================================================
@@ -674,6 +766,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
     }
 
     const camposCategoria = ['autor', 'edicion', 'anio', 'isbn_issn',
+      'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
       'marca', 'modelo', 'numero_serie', 'peso',
       'material', 'artista_fabricante', 'largo', 'ancho', 'alto',
       'tamano'];
@@ -820,20 +913,6 @@ import AuthGuard from '../../components/AuthGuard.astro';
     if (!token) {
       (window as any).showToast?.('Debes iniciar sesión para guardar objetos.', 'error');
       setTimeout(() => { window.location.href = '/login'; }, 1500);
-      return;
-    }
-
-    // Validar campos obligatorios de legado
-    const duenoValue = duenoSelect?.value;
-    const beneficiarioValue = beneficiarioSelect?.value;
-    if (!duenoValue) {
-      (window as any).showToast?.('Debes seleccionar un Dueño Original.', 'error');
-      duenoSelect?.focus();
-      return;
-    }
-    if (!beneficiarioValue) {
-      (window as any).showToast?.('Debes seleccionar un Beneficiario.', 'error');
-      beneficiarioSelect?.focus();
       return;
     }
 
