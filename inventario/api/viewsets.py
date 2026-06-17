@@ -381,11 +381,13 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             "imagen_base64": "data:image/jpeg;base64,...",
             "solo_analisis": true,  (default: true - no crea objeto)
             "ubicacion_id": "uuid-opcional",
-            "contenedor_id": "uuid-opcional"
+            "contenedor_id": "uuid-opcional",
+            "es_segunda_foto": false  (si es la segunda foto de la parte trasera del libro)
         }
 
         Retorna los datos analizados por IA + campos pendientes.
         Si solo_analisis=false, también retorna el objeto creado.
+        Si detecta un libro sin ISBN, sugiere tomar segunda foto de la parte trasera.
         """
         imagen_base64 = request.data.get('imagen_base64')
         if not imagen_base64:
@@ -402,6 +404,10 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         # Convertir string "true"/"false" a booleano si viene como string
         if isinstance(solo_analisis, str):
             solo_analisis = solo_analisis.lower() == 'true'
+
+        es_segunda_foto = request.data.get('es_segunda_foto', False)
+        if isinstance(es_segunda_foto, str):
+            es_segunda_foto = es_segunda_foto.lower() == 'true'
 
         ubicacion_id = request.data.get('ubicacion_id')
         contenedor_id = request.data.get('contenedor_id')
@@ -437,6 +443,33 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 "datos_ia": resultado.to_dict(),
                 "campos_pendientes": resultado.campos_pendientes,
             }
+
+            # Si es un libro y NO es la segunda foto, verificar si necesita segunda foto
+            # para obtener el ISBN de la parte trasera
+            if resultado.categoria == 'libro' and not es_segunda_foto:
+                necesita_segunda_foto = False
+                motivo_segunda_foto = None
+                
+                # Si no se detectó ISBN, sugerir segunda foto de la parte trasera
+                if not resultado.isbn_issn:
+                    necesita_segunda_foto = True
+                    motivo_segunda_foto = "No se detectó código ISBN en la portada. " \
+                        "Toma una foto de la PARTE TRASERA del libro para capturar el código de barras/ISBN."
+                
+                # Si la confianza es baja en el título o autor, también sugerir
+                if resultado.confianza_general < 0.5:
+                    necesita_segunda_foto = True
+                    motivo_segunda_foto = (motivo_segunda_foto or "") + \
+                        " La confianza en la identificación es baja. " \
+                        "Toma una foto más clara de la portada o la parte trasera."
+                
+                response_data["necesita_segunda_foto"] = necesita_segunda_foto
+                response_data["motivo_segunda_foto"] = motivo_segunda_foto
+
+            # Si es la segunda foto (parte trasera), priorizar la extracción del ISBN
+            if es_segunda_foto and resultado.isbn_issn:
+                logger.info("✅ Segunda foto: ISBN detectado: %s", resultado.isbn_issn)
+                response_data["isbn_detectado"] = resultado.isbn_issn
 
             # Si no es solo análisis, crear el objeto en la base de datos
             if not solo_analisis:

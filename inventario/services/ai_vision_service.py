@@ -191,79 +191,38 @@ class LMStudioClient:
             self.client.timeout = LM_STUDIO_TIMEOUT_ALTA_RES
 
         # Prompt del sistema - instrucciones para el modelo
-        # VERSIÓN MEJORADA: enfoque específico en reconocimiento de libros,
-        # con instrucciones detalladas para extraer título, autor, editorial, ISBN
+        # VERSIÓN OPTIMIZADA: reducida para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct
         system_prompt = (
-            "Eres un asistente experto en identificación y catalogación de objetos, "
-            "CON ESPECIALIZACIÓN EN LIBROS, CÓMICS Y REVISTAS. "
-            "Analiza la imagen proporcionada y extrae la mayor cantidad de información posible. "
-            "Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, "
-            "sin bloques de código. El JSON debe tener esta estructura exacta:\n\n"
+            "Eres un experto en catalogación de objetos. Responde ÚNICAMENTE con JSON válido, "
+            "sin texto adicional, sin markdown. Usa esta estructura:\n\n"
             "{\n"
-            '  "nombre": "Título completo del libro/objeto (ej: Cien años de soledad, Harry Potter y la piedra filosofal)",\n'
-            '  "marca": "Marca o fabricante (si aplica, ej: Sony, Apple, Samsung)",\n'
-            '  "autor": "Nombre completo del autor (ej: Gabriel García Márquez, J.K. Rowling)",\n'
+            '  "nombre": "Nombre del objeto",\n'
+            '  "marca": "Marca o fabricante",\n'
+            '  "autor": "Autor del libro",\n'
             '  "anio": 2020,\n'
-            '  "isbn_issn": "ISBN de 13 dígitos o ISSN si es revista (ej: 978-84-376-0494-7)",\n'
-            '  "edicion": "Número de edición o información de edición (ej: 1ra edición, Edición de lujo)",\n'
-            '  "material": "Material predominante (ej: Papel, Cartón, Tela, Cuero, Metal, Plástico, Vidrio, Cerámica)",\n'
-            '  "numero_serie": "Número de serie si es tecnología",\n'
+            '  "isbn_issn": "ISBN o ISSN si visible",\n'
+            '  "edicion": "Edición",\n'
             '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
             '  "precio_estimado_mercado": 150.00,\n'
-            '  "descripcion": "Descripción detallada del objeto incluyendo formato, tamaño aproximado, estado físico",\n'
-            '  "color": "Color predominante de la portada/cubierta",\n'
+            '  "descripcion": "Descripción breve del objeto",\n'
+            '  "color": "Color predominante",\n'
             '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
             '  "confianza_general": 0.85,\n'
-            '  "nombre_serie": "Nombre de la serie si es cómic/saga (ej: Harry Potter, Batman, One Piece, Fundación)",\n'
-            '  "titulo_tomo": "Título específico del tomo (ej: La cámara secreta, El caballero de la noche)",\n'
-            '  "numero_tomo": 15,\n'
-            '  "editorial": "Editorial (ej: Penguin Random House, Planeta, DC Comics, Marvel, Panini, Norma Editorial)",\n'
-            '  "idioma": "Idioma del contenido (ej: Español, Inglés, Francés, Alemán)"\n'
+            '  "nombre_serie": "Serie si es cómic",\n'
+            '  "titulo_tomo": "Título del tomo",\n'
+            '  "numero_tomo": 1,\n'
+            '  "editorial": "Editorial",\n'
+            '  "idioma": "Idioma"\n'
             "}\n\n"
-            "INSTRUCCIONES ESPECÍFICAS PARA LIBROS:\n"
-            "1. IDENTIFICACIÓN DE LIBROS: Si ves un objeto con forma de libro (rectangular, con lomo, "
-            "cubierta con texto), DEBES:\n"
-            "   a) Poner en 'nombre' el TÍTULO EXACTO del libro que aparece en la portada o lomo.\n"
-            "   b) Poner en 'autor' el nombre del autor tal como aparece en la portada.\n"
-            "   c) Poner en 'editorial' el nombre de la editorial (suele aparecer en la portada o el lomo).\n"
-            "   d) Poner en 'anio' el año de publicación si es visible.\n"
-            "   e) Poner en 'isbn_issn' el código ISBN si es visible (generalmente en la contraportada "
-            "o en las primeras páginas, formato de 13 dígitos).\n"
-            "   f) Poner en 'categoria' el valor 'libro'.\n"
-            "   g) Poner en 'color' el color predominante de la portada.\n"
-            "   h) Poner en 'descripcion' una descripción que incluya: tipo de encuadernación "
-            "(tapa dura/blanda), tamaño aparente, estado de las páginas si es visible.\n\n"
-            "2. CÓMICS Y NOVELAS GRÁFICAS: Si identificas un cómic o novela gráfica:\n"
-            "   a) 'nombre_serie': nombre de la serie (ej: Batman, Mortadelo y Filemón, One Piece).\n"
-            "   b) 'titulo_tomo': título específico de ese ejemplar.\n"
-            "   c) 'numero_tomo': número del ejemplar en la serie.\n"
-            "   d) 'editorial': editorial que publica el cómic.\n"
-            "   e) 'idioma': idioma en que está escrito.\n\n"
-            "3. REVISTAS: Si es una revista:\n"
-            "   a) 'nombre': nombre de la revista.\n"
-            "   b) 'anio': año de publicación.\n"
-            "   c) 'isbn_issn': código ISSN si es visible.\n"
-            "   d) 'categoria': 'libro' (las revistas se catalogan como libros en este sistema).\n\n"
-            "REGLAS GENERALES DE RECONOCIMIENTO:\n"
-            "1. FORMA RECTANGULAR CON TEXTO: Prioridad #1 - identificar si es un libro. "
-            "Busca en la portada, lomo y contraportada cualquier texto legible.\n"
-            "2. BRILLOS METÁLICOS: Si el objeto tiene brillos metálicos, textura de metal precioso "
-            "(plata, oro, bronce) o parece una joya/artículo de lujo, clasifica el material como "
-            "'Plata', 'Oro', 'Bronce', 'Metal' según corresponda.\n"
-            "3. TECNOLOGÍA: Si ves pantallas, circuitos, cables o formas de dispositivos electrónicos, "
-            "clasifica como 'tecnologia' y extrae marca, modelo y número de serie.\n"
-            "4. TEXTILES: Si ves prendas de vestir, telas o accesorios de moda, clasifica como 'ropa'.\n\n"
-            "IMPORTANTE:\n"
-            "- Si no puedes determinar un campo, déjalo como string vacío o null.\n"
-            "- confianza_general debe ser un número entre 0 y 1. Sé conservador: 0.9+ solo si estás "
-            "muy seguro del título y autor.\n"
-            "- precio_estimado_mercado debe ser un número en USD. Para libros, investiga mentalmente "
-            "el valor de mercado aproximado basado en rareza, edición y estado.\n"
-            "- estado_conservacion debe ser uno de los valores exactos listados.\n"
-            "- Para libros, el campo 'nombre' DEBE contener el título del libro, no un nombre genérico.\n"
-            "- Si ves texto en la imagen, LÉELO. Especialmente títulos, autores y editoriales.\n"
-            "- No inventes información. Si no puedes leer el título, pon 'Libro sin título visible' "
-            "y baja la confianza_general a 0.3 o menos."
+            "REGLAS:\n"
+            "- Si es un LIBRO: pon el título en 'nombre', autor en 'autor', editorial en 'editorial', "
+            "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
+            "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
+            "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia'.\n"
+            "- Si no puedes determinar un campo, déjalo vacío o null.\n"
+            "- confianza_general: 0-1. Sé conservador.\n"
+            "- Lee el texto visible en la imagen (títulos, autores).\n"
+            "- No inventes información."
         )
 
 

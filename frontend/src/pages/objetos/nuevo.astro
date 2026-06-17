@@ -112,7 +112,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
           Análisis con Inteligencia Artificial
         </h2>
         <p class="text-sm text-gray-500 mb-4">
-          Toma o selecciona una foto, edítala si lo deseas, guarda el objeto y luego presiona "Autocompletar con IA" para llenar los campos automáticamente.
+          Toma o selecciona una foto, edítala si lo deseas, y presiona "Analizar con IA" para llenar los campos automáticamente.
         </p>
 
         <!-- Indicador de progreso / Heartbeat -->
@@ -155,6 +155,30 @@ import ImageEditor from '../../components/ImageEditor.astro';
             Analizando...
           </span>
         </button>
+
+        <!-- Sección de segunda foto para libros (oculta inicialmente) -->
+        <div id="segundaFotoSection" class="hidden mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div class="flex items-start gap-3">
+            <div class="text-2xl">📖</div>
+            <div>
+              <h3 class="font-semibold text-amber-800 text-sm">¡Libro detectado!</h3>
+              <p id="segundaFotoMotivo" class="text-sm text-amber-700 mt-1"></p>
+              <div class="mt-3 flex flex-col sm:flex-row gap-2">
+                <label class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-base cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  </svg>
+                  Tomar foto de la parte trasera
+                  <input id="segundaFotoInput" type="file" accept="image/*" capture="environment" class="hidden" />
+                </label>
+                <button type="button" id="saltarSegundaFotoBtn"
+                  class="px-4 py-2 text-sm text-amber-700 font-medium hover:text-amber-900 transition-base">
+                  Saltar, ya tengo el ISBN
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div id="iaStatus" class="mt-3 text-sm hidden"></div>
       </div>
@@ -784,6 +808,31 @@ import ImageEditor from '../../components/ImageEditor.astro';
       }
       iaStatus.classList.remove('hidden');
 
+      // Verificar si la IA detectó que es un libro y necesita segunda foto
+      if (result.necesita_segunda_foto) {
+        const segundaFotoSection = document.getElementById('segundaFotoSection');
+        const segundaFotoMotivo = document.getElementById('segundaFotoMotivo');
+        if (segundaFotoSection && segundaFotoMotivo) {
+          segundaFotoMotivo.textContent = result.motivo_segunda_foto || 'Toma una foto de la parte trasera para capturar el código ISBN.';
+          segundaFotoSection.classList.remove('hidden');
+          window.showToast?.('📖 Libro detectado. Toma una foto de la parte trasera para obtener el ISBN.', 'info');
+        }
+      }
+
+      // Si es la segunda foto y se detectó ISBN, mostrarlo
+      if (result.isbn_detectado) {
+        const isbnInput = document.querySelector('[name="isbn_issn"]');
+        if (isbnInput) {
+          isbnInput.value = result.isbn_detectado;
+          window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
+        }
+        // Ocultar la sección de segunda foto
+        const segundaFotoSection = document.getElementById('segundaFotoSection');
+        if (segundaFotoSection) {
+          segundaFotoSection.classList.add('hidden');
+        }
+      }
+
       window.showToast?.('🤖 Campos autocompletados por IA correctamente. Revisa y guarda.', 'success');
 
     } catch (err) {
@@ -801,6 +850,114 @@ import ImageEditor from '../../components/ImageEditor.astro';
         iaBtnSpinner.classList.add('hidden');
       }, 3000);
     }
+  });
+
+  // ===========================================================================
+  // SEGUNDA FOTO PARA LIBROS - Manejar captura de parte trasera
+  // ===========================================================================
+  const segundaFotoInput = document.getElementById('segundaFotoInput');
+  const saltarSegundaFotoBtn = document.getElementById('saltarSegundaFotoBtn');
+  const segundaFotoSection = document.getElementById('segundaFotoSection');
+
+  segundaFotoInput?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Mostrar progreso
+    analizarIaBtn.disabled = true;
+    iaBtnText.classList.add('hidden');
+    iaBtnSpinner.classList.remove('hidden');
+    iaProgressContainer.classList.remove('hidden');
+    iaProgressText.textContent = '📖 Analizando parte trasera del libro...';
+    iaProgressSubtext.textContent = 'Buscando código ISBN...';
+    iaProgressBar.style.width = '10%';
+    iaProgressPercent.textContent = '10%';
+    iaStatus.classList.add('hidden');
+
+    try {
+      const reader = new FileReader();
+      const base64Image = await new Promise((resolve) => {
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.readAsDataURL(file);
+      });
+
+      const token = getToken();
+      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imagen_base64: base64Image,
+          solo_analisis: true,
+          es_segunda_foto: true,
+        }),
+      });
+
+      iaProgressBar.style.width = '100%';
+      iaProgressPercent.textContent = '100%';
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al analizar la segunda foto');
+      }
+
+      const result = await response.json();
+
+      // Si se detectó ISBN, actualizar el campo
+      if (result.isbn_detectado) {
+        const isbnInput = document.querySelector('[name="isbn_issn"]');
+        if (isbnInput) {
+          isbnInput.value = result.isbn_detectado;
+          window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
+        }
+        // Ocultar la sección de segunda foto
+        if (segundaFotoSection) {
+          segundaFotoSection.classList.add('hidden');
+        }
+        iaProgressText.textContent = '✅ ISBN capturado correctamente';
+      } else {
+        // Si no se detectó ISBN, intentar con los datos generales
+        const datos = result.datos_ia || result;
+        if (datos.isbn_issn) {
+          const isbnInput = document.querySelector('[name="isbn_issn"]');
+          if (isbnInput) {
+            isbnInput.value = datos.isbn_issn;
+            window.showToast?.(`✅ ISBN detectado: ${datos.isbn_issn}`, 'success');
+          }
+          if (segundaFotoSection) {
+            segundaFotoSection.classList.add('hidden');
+          }
+          iaProgressText.textContent = '✅ ISBN capturado correctamente';
+        } else {
+          iaProgressText.textContent = '⚠️ No se pudo detectar el ISBN. Puedes ingresarlo manualmente.';
+          window.showToast?.('⚠️ No se detectó ISBN en la parte trasera. Intenta de nuevo o ingrésalo manualmente.', 'warning');
+        }
+      }
+    } catch (err) {
+      iaProgressBar.style.width = '0%';
+      iaProgressPercent.textContent = 'Error';
+      iaProgressText.textContent = '❌ Error al analizar segunda foto';
+      iaProgressSubtext.textContent = err.message;
+      window.showToast?.(`❌ ${err.message}`, 'error');
+    } finally {
+      setTimeout(() => {
+        iaProgressContainer.classList.add('hidden');
+        analizarIaBtn.disabled = false;
+        iaBtnText.classList.remove('hidden');
+        iaBtnSpinner.classList.add('hidden');
+      }, 3000);
+    }
+
+    e.target.value = '';
+  });
+
+  saltarSegundaFotoBtn?.addEventListener('click', () => {
+    if (segundaFotoSection) {
+      segundaFotoSection.classList.add('hidden');
+    }
+    window.showToast?.('👍 Puedes ingresar el ISBN manualmente en el campo correspondiente.', 'info');
   });
 
   // ===========================================================================
