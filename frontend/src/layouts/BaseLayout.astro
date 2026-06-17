@@ -36,6 +36,10 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
+    <!-- Cropper.js CSS + JS (para editor de fotos) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js" defer></script>
+
     <!-- PWA: Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -274,18 +278,97 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   });
 
   // ===========================================================================
-  // PWA: DESREGISTRAR SERVICE WORKER (temporalmente desactivado)
-  // El SW causaba flasheo/recarga constante. Lo desactivamos hasta
-  // que la app este estable, luego lo reintroduciremos.
+  // PWA: SERVICE WORKER + DETECCIÓN DE NUEVA VERSIÓN
   // ===========================================================================
 
   if ('serviceWorker' in navigator) {
-    // Ejecutar inmediatamente para desregistrar el SW antes de que tome control
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
-        console.log('🗑️ SW desregistrado desde BaseLayout:', registration.scope);
+    // Registrar el Service Worker
+    navigator.serviceWorker.register('/sw.js').then((registration) => {
+      console.log('✅ SW registrado:', registration.scope);
+
+      // Detectar cuando hay un nuevo SW esperando (nuevo deploy)
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Hay una nueva versión disponible
+              mostrarBannerActualizacion(registration);
+            }
+          });
+        }
+      });
+
+      // Verificar si ya hay un SW esperando (por si la página se cargó mientras se actualizaba)
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        mostrarBannerActualizacion(registration);
       }
+    }).catch((err) => {
+      console.warn('❌ Error registrando SW:', err);
+    });
+
+    // Escuchar mensajes del SW (como NEW_VERSION_AVAILABLE)
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'NEW_VERSION_AVAILABLE') {
+        // Ya detectado por updatefound, pero por si acaso
+      }
+    });
+  }
+
+  // ===========================================================================
+  // BANNER DE ACTUALIZACIÓN DISPONIBLE
+  // ===========================================================================
+
+  function mostrarBannerActualizacion(registration: ServiceWorkerRegistration) {
+    // Evitar duplicados
+    if (document.getElementById('updateBanner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'updateBanner';
+    banner.className = 'fixed bottom-0 left-0 right-0 z-[9999] bg-blue-700 text-white px-4 py-3 shadow-2xl transform translate-y-full transition-transform duration-500 ease-out';
+    banner.innerHTML = `
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <div>
+            <p class="text-sm font-semibold">🆕 Nueva versión disponible</p>
+            <p class="text-xs text-blue-200">Hay una actualización de Estok lista para instalar.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="updateLaterBtn" class="text-xs text-blue-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
+            Ahora no
+          </button>
+          <button id="updateNowBtn" class="text-xs font-semibold bg-white text-blue-700 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-base shadow-sm">
+            🔄 Actualizar ahora
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    // Animar entrada
+    requestAnimationFrame(() => {
+      banner.classList.remove('translate-y-full');
+    });
+
+    // Botón "Actualizar ahora"
+    document.getElementById('updateNowBtn')?.addEventListener('click', () => {
+      // Enviar mensaje al SW para que skipWaiting()
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      // Recargar la página para usar la nueva versión
+      window.location.reload();
+    });
+
+    // Botón "Ahora no"
+    document.getElementById('updateLaterBtn')?.addEventListener('click', () => {
+      banner.classList.add('translate-y-full');
+      setTimeout(() => banner.remove(), 500);
     });
   }
 
