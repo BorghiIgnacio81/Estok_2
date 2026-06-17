@@ -1,4 +1,4 @@
-"""
+quiero aumentar """
 Servicio de Visión por IA Local (LM Studio + Qwen2-VL-7B).
 
 Conecta con la API local de LM Studio en http://localhost:1234/v1
@@ -148,12 +148,13 @@ class LMStudioClient:
 
         return self._analyze_base64(image_b64)
 
-    def analyze_base64(self, image_base64: str) -> Optional[Dict[str, Any]]:
+    def analyze_base64(self, image_base64: str, rag_context: str = "") -> Optional[Dict[str, Any]]:
         """
         Envía una imagen en formato Base64 al modelo local para análisis.
 
         Args:
             image_base64: Imagen codificada en Base64.
+            rag_context: Contexto de objetos similares ya catalogados (opcional).
 
         Returns:
             Diccionario con la respuesta JSON del modelo, o None si falla.
@@ -162,7 +163,7 @@ class LMStudioClient:
             logger.error("LM Studio no está disponible")
             return None
 
-        return self._analyze_base64(image_base64)
+        return self._analyze_base64(image_base64, rag_context=rag_context)
 
     def _detect_high_resolution(self, image_b64: str) -> bool:
         """
@@ -177,13 +178,16 @@ class LMStudioClient:
         except:
             return False
 
-    def _analyze_base64(self, image_b64: str) -> Optional[Dict[str, Any]]:
+    def _analyze_base64(self, image_b64: str, rag_context: str = "") -> Optional[Dict[str, Any]]:
         """
         Lógica interna para analizar una imagen en Base64.
         Maneja timeouts dinámicos según la resolución estimada de la imagen.
+        Si se proporciona rag_context, lo incluye en el prompt del sistema
+        para mejorar la precisión basándose en objetos ya catalogados.
 
         Args:
             image_b64: Imagen codificada en Base64.
+            rag_context: Contexto de objetos similares ya catalogados (opcional).
 
         Returns:
             Diccionario con la respuesta JSON del modelo, o None si falla.
@@ -228,6 +232,10 @@ class LMStudioClient:
             "- Lee el texto visible en la imagen (títulos, autores).\n"
             "- No inventes información."
         )
+
+        # Agregar contexto RAG si existe
+        if rag_context:
+            system_prompt += "\n\n" + rag_context
 
 
         import time as time_module
@@ -305,6 +313,86 @@ class AIVisionService:
 
     def __init__(self):
         self.client = LMStudioClient()
+
+    def _buscar_objetos_similares(self, max_resultados: int = 5) -> str:
+        """
+        Busca objetos ya catalogados en la BD para usarlos como contexto (RAG).
+        Ayuda al modelo a ser más preciso basándose en objetos similares ya registrados.
+
+        Args:
+            max_resultados: Máximo de objetos a incluir como contexto.
+
+        Returns:
+            String con la lista de objetos similares formateada para el prompt,
+            o string vacío si no hay objetos en la BD.
+        """
+        try:
+            from ..models import Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa
+            from django.db.models import Q
+
+            # Obtener objetos no eliminados, ordenados por fecha descendente
+            objetos = Objeto.objects.filter(
+                deleted_at__isnull=True
+            ).exclude(
+                Q(nombre__isnull=True) | Q(nombre__exact='') | Q(nombre__exact='Objeto sin nombre')
+            ).order_by('-fecha_registro')[:max_resultados]
+
+            if not objetos:
+                return ""
+
+            contexto = "OBJETOS YA CATALOGADOS EN TU INVENTARIO (usa como referencia):\n"
+            for obj in objetos:
+                try:
+                    # Intentar obtener datos del modelo hijo
+                    libro = None
+                    tecnologia = None
+                    mueble = None
+                    try:
+                        libro = obj.librorevista
+                    except:
+                        pass
+                    try:
+                        tecnologia = obj.tecnologia
+                    except:
+                        pass
+                    try:
+                        mueble = obj.mueblearte
+                    except:
+                        pass
+                    try:
+                        ropa = obj.ropa
+                    except:
+                        pass
+
+                    detalles = f"- '{obj.nombre}'"
+                    if libro:
+                        detalles += f" [LIBRO] autor:{libro.autor or '?'} editorial:{libro.editorial or '?'}"
+                        if libro.isbn_issn:
+                            detalles += f" ISBN:{libro.isbn_issn}"
+                    elif tecnologia:
+                        detalles += f" [TECNOLOGIA] marca:{tecnologia.marca or '?'} modelo:{tecnologia.modelo or '?'}"
+                    elif mueble:
+                        detalles += f" [MUEBLE] material:{mueble.material or '?'} artista:{mueble.artista_fabricante or '?'}"
+                    elif ropa:
+                        detalles += f" [ROPA] talla:{ropa.tamano or '?'}"
+                    else:
+                        detalles += f" [OTRO]"
+
+                    if obj.estado_conservacion:
+                        detalles += f" estado:{obj.estado_conservacion}"
+                    if obj.valor_estimado:
+                        detalles += f" valor:${float(obj.valor_estimado):.2f}"
+
+                    contexto += detalles + "\n"
+                except:
+                    continue
+
+            contexto += "\nUSA ESTOS OBJETOS COMO REFERENCIA para identificar el nuevo objeto.\n"
+            return contexto
+
+        except Exception as e:
+            logger.warning("Error al buscar objetos similares para RAG: %s", e)
+            return ""
 
     def _comprimir_imagen_base64(self, image_base64: str, max_size_mb: float = MAX_IMAGE_SIZE_FOR_GPU_MB) -> str:
         """
@@ -522,16 +610,24 @@ class AIVisionService:
         Comprime la imagen automáticamente antes de enviarla al modelo
         para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct.
 
+        Incluye contexto RAG: busca objetos similares ya catalogados en la BD
+        y los pasa como referencia al modelo para mejorar la precisión.
+
         Args:
             image_base64: Imagen codificada en Base64.
 
         Returns:
             VisionResult con los datos extraídos y campos pendientes.
         """
+        # Buscar objetos similares ya catalogados (RAG) para mejorar precisión
+        rag_context = self._buscar_objetos_similares()
+        if rag_context:
+            logger.info("📚 RAG: incluyendo %d objetos similares como contexto", rag_context.count("\n- '"))
+
         # Comprimir la imagen antes de enviarla al modelo
         # Esto es crítico para no exceder el contexto de 4096 tokens
         image_base64_comprimida = self._comprimir_imagen_base64(image_base64)
-        raw_result = self.client.analyze_base64(image_base64_comprimida)
+        raw_result = self.client.analyze_base64(image_base64_comprimida, rag_context=rag_context)
 
         if raw_result is None:
             return VisionResult(
