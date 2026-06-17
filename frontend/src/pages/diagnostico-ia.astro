@@ -1,0 +1,330 @@
+---
+// =============================================================================
+// PÁGINA DE DIAGNÓSTICO DE IA
+// Permite probar la conexión con LM Studio y ver la respuesta cruda
+// =============================================================================
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AuthGuard from '../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Diagnóstico de IA">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <a href="/objetos" class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base mb-4">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a objetos
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">🔍 Diagnóstico de IA</h1>
+      <p class="mt-1 text-gray-500">
+        Verificá la conexión con LM Studio y probá el análisis de imágenes.
+      </p>
+    </div>
+
+    <!-- Estado de conexión -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">1. Estado de Conexión</h2>
+      <div id="connectionStatus" class="p-4 bg-gray-50 rounded-lg">
+        <div class="flex items-center gap-3">
+          <div id="statusDot" class="w-4 h-4 rounded-full bg-gray-400"></div>
+          <div>
+            <p id="statusText" class="font-medium text-gray-700">Verificando conexión...</p>
+            <p id="statusDetail" class="text-sm text-gray-500"></p>
+          </div>
+        </div>
+      </div>
+      <button id="checkConnectionBtn" class="mt-4 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-base text-sm">
+        🔄 Verificar de nuevo
+      </button>
+    </div>
+
+    <!-- Probar análisis -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">2. Probar Análisis de Imagen</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        Seleccioná una imagen (de un libro, objeto, etc.) y enviála a la IA para ver qué responde.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-4 mb-4">
+        <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+          📸 Seleccionar Imagen
+          <input id="testImageInput" type="file" accept="image/*" class="hidden" />
+        </label>
+      </div>
+
+      <!-- Preview -->
+      <div id="testPreview" class="hidden mb-4">
+        <img id="testImagePreview" class="max-h-64 rounded-lg mx-auto" alt="Preview" />
+      </div>
+
+      <!-- Botón de análisis -->
+      <button id="analyzeTestBtn" disabled
+        class="w-full sm:w-auto px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base disabled:opacity-50 disabled:cursor-not-allowed">
+        <span id="analyzeBtnText">🧠 Analizar con IA</span>
+        <span id="analyzeBtnSpinner" class="hidden">
+          <svg class="animate-spin h-5 w-5 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Analizando...
+        </span>
+      </button>
+    </div>
+
+    <!-- Resultado -->
+    <div id="resultSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">3. Resultado del Análisis</h2>
+      
+      <!-- Tiempo -->
+      <div id="resultTime" class="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-700"></div>
+
+      <!-- Datos parseados -->
+      <div id="resultData" class="mb-4">
+        <h3 class="font-medium text-gray-700 mb-2">📊 Datos Extraídos:</h3>
+        <div id="resultFields" class="space-y-2"></div>
+      </div>
+
+      <!-- Campos pendientes -->
+      <div id="resultPending" class="mb-4 hidden">
+        <h3 class="font-medium text-amber-700 mb-2">⚠️ Campos Pendientes:</h3>
+        <div id="pendingFields" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Respuesta cruda -->
+      <div>
+        <h3 class="font-medium text-gray-700 mb-2">📜 Respuesta Cruda del Modelo:</h3>
+        <pre id="rawResponse" class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto text-xs max-h-96 overflow-y-auto"></pre>
+      </div>
+    </div>
+
+    <!-- Guía rápida -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">📖 ¿Qué puede hacer la IA?</h2>
+      <div class="prose prose-sm max-w-none text-gray-600">
+        <h3 class="text-gray-800">📚 Libros</h3>
+        <ul>
+          <li><strong>Reconocer el título</strong> del libro en la portada o lomo</li>
+          <li><strong>Identificar el autor</strong> tal como aparece en la portada</li>
+          <li><strong>Detectar la editorial</strong> (Penguin, Planeta, etc.)</li>
+          <li><strong>Leer el ISBN</strong> si está visible (generalmente en la contraportada)</li>
+          <li><strong>Determinar el año</strong> de publicación</li>
+          <li><strong>Identificar el idioma</strong> del contenido</li>
+        </ul>
+
+        <h3 class="text-gray-800 mt-4">💻 Tecnología</h3>
+        <ul>
+          <li><strong>Marca y modelo</strong> de dispositivos electrónicos</li>
+          <li><strong>Estado físico</strong> (rayones, golpes, desgaste)</li>
+        </ul>
+
+        <h3 class="text-gray-800 mt-4">🎨 General</h3>
+        <ul>
+          <li><strong>Color predominante</strong> del objeto</li>
+          <li><strong>Estado de conservación</strong> (excelente a muy malo)</li>
+          <li><strong>Valor de mercado estimado</strong> en USD</li>
+          <li><strong>Descripción detallada</strong> del objeto</li>
+        </ul>
+
+        <h3 class="text-gray-800 mt-4">💡 Tips para mejorar resultados</h3>
+        <ul>
+          <li><strong>Buena iluminación:</strong> evitá sombras y reflejos</li>
+          <li><strong>Acercate:</strong> que el objeto ocupe la mayor parte de la foto</li>
+          <li><strong>Texto legible:</strong> asegurate que el título y autor se vean claros</li>
+          <li><strong>Fondo simple:</strong> fondo liso ayuda a la IA a enfocarse en el objeto</li>
+          <li><strong>Varios ángulos:</strong> si no funciona, probá desde otro ángulo</li>
+          <li><strong>Usá el recorte:</strong> recortá la imagen para aislar el objeto del fondo</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
+    function getToken() {
+      try {
+        return localStorage.getItem('estok_access_token');
+      } catch { return null; }
+    }
+
+    // =====================================================================
+    // 1. VERIFICAR CONEXIÓN
+    // =====================================================================
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const statusDetail = document.getElementById('statusDetail');
+
+    async function checkConnection() {
+      statusDot.className = 'w-4 h-4 rounded-full bg-yellow-400 animate-pulse';
+      statusText.textContent = 'Verificando conexión con LM Studio...';
+      
+      try {
+        const token = getToken();
+        const start = Date.now();
+        const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        const elapsed = Date.now() - start;
+        const data = await response.json();
+
+        if (response.ok && data.status === 'ok') {
+          statusDot.className = 'w-4 h-4 rounded-full bg-green-500';
+          statusText.textContent = '✅ IA Conectada';
+          statusDetail.textContent = `Latencia: ${data.latency_ms}ms | Timeout alta res: ${data.high_res_timeout}s`;
+          document.getElementById('analyzeTestBtn').disabled = false;
+        } else {
+          statusDot.className = 'w-4 h-4 rounded-full bg-red-500';
+          statusText.textContent = '❌ IA No Disponible';
+          statusDetail.textContent = data.message || 'Error de conexión';
+        }
+      } catch (err) {
+        statusDot.className = 'w-4 h-4 rounded-full bg-red-500';
+        statusText.textContent = '❌ Error de Conexión';
+        statusDetail.textContent = `No se pudo conectar con el backend: ${err.message}`;
+      }
+    }
+
+    checkConnection();
+    document.getElementById('checkConnectionBtn').addEventListener('click', checkConnection);
+
+    // =====================================================================
+    // 2. SELECCIONAR IMAGEN
+    // =====================================================================
+    const testImageInput = document.getElementById('testImageInput');
+    const testPreview = document.getElementById('testPreview');
+    const testImagePreview = document.getElementById('testImagePreview');
+    const analyzeTestBtn = document.getElementById('analyzeTestBtn');
+    let selectedBase64 = '';
+
+    testImageInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        selectedBase64 = ev.target.result;
+        testImagePreview.src = selectedBase64;
+        testPreview.classList.remove('hidden');
+        analyzeTestBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // =====================================================================
+    // 3. ANALIZAR
+    // =====================================================================
+    const analyzeBtnText = document.getElementById('analyzeBtnText');
+    const analyzeBtnSpinner = document.getElementById('analyzeBtnSpinner');
+    const resultSection = document.getElementById('resultSection');
+    const resultTime = document.getElementById('resultTime');
+    const resultFields = document.getElementById('resultFields');
+    const resultPending = document.getElementById('resultPending');
+    const pendingFields = document.getElementById('pendingFields');
+    const rawResponse = document.getElementById('rawResponse');
+
+    analyzeTestBtn.addEventListener('click', async () => {
+      if (!selectedBase64) return;
+
+      analyzeTestBtn.disabled = true;
+      analyzeBtnText.classList.add('hidden');
+      analyzeBtnSpinner.classList.remove('hidden');
+      resultSection.classList.add('hidden');
+
+      const startTime = Date.now();
+
+      try {
+        const token = getToken();
+        const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            imagen_base64: selectedBase64,
+            solo_analisis: true,
+          }),
+        });
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        const data = await response.json();
+
+        resultSection.classList.remove('hidden');
+
+        if (!response.ok) {
+          resultTime.innerHTML = `❌ <strong>Error</strong> (${elapsed}s): ${data.error || 'Error desconocido'}`;
+          rawResponse.textContent = JSON.stringify(data, null, 2);
+          return;
+        }
+
+        const datos = data.datos_ia || data;
+
+        resultTime.innerHTML = `⏱️ <strong>Tiempo de respuesta:</strong> ${elapsed}s`;
+
+        // Mostrar campos
+        resultFields.innerHTML = '';
+        const fieldLabels = {
+          nombre: '📝 Nombre',
+          autor: '✍️ Autor',
+          marca: '🏷️ Marca',
+          editorial: '📚 Editorial',
+          isbn_issn: '🔢 ISBN/ISSN',
+          edicion: '📖 Edición',
+          anio: '📅 Año',
+          categoria: '🏷️ Categoría',
+          estado_conservacion: '✅ Estado',
+          color: '🎨 Color',
+          precio_estimado_mercado: '💰 Precio',
+          descripcion: '📄 Descripción',
+          nombre_serie: '📚 Serie',
+          titulo_tomo: '📖 Tomo',
+          numero_tomo: '🔢 N° Tomo',
+          idioma: '🌐 Idioma',
+          confianza_general: '📊 Confianza',
+        };
+
+        for (const [key, label] of Object.entries(fieldLabels)) {
+          let value = datos[key];
+          if (value === undefined || value === null || value === '') continue;
+          if (key === 'confianza_general') {
+            value = (value * 100).toFixed(0) + '%';
+          }
+          if (key === 'precio_estimado_mercado') {
+            value = '$' + parseFloat(value).toFixed(2);
+          }
+          const div = document.createElement('div');
+          div.className = 'flex justify-between items-center p-2 bg-gray-50 rounded';
+          div.innerHTML = `<span class="text-sm text-gray-600">${label}</span><span class="text-sm font-medium text-gray-900">${value}</span>`;
+          resultFields.appendChild(div);
+        }
+
+        // Campos pendientes
+        const pendientes = data.campos_pendientes || datos.campos_pendientes || [];
+        if (pendientes.length > 0) {
+          resultPending.classList.remove('hidden');
+          pendingFields.innerHTML = pendientes.map(c => 
+            `<span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">${c}</span>`
+          ).join('');
+        } else {
+          resultPending.classList.add('hidden');
+        }
+
+        // Respuesta cruda
+        rawResponse.textContent = JSON.stringify(datos, null, 2);
+
+      } catch (err) {
+        resultSection.classList.remove('hidden');
+        resultTime.innerHTML = `❌ <strong>Error:</strong> ${err.message}`;
+        rawResponse.textContent = err.stack || err.message;
+      } finally {
+        analyzeTestBtn.disabled = false;
+        analyzeBtnText.classList.remove('hidden');
+        analyzeBtnSpinner.classList.add('hidden');
+      }
+    });
+  </script>
+</BaseLayout>

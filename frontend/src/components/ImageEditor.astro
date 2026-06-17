@@ -1,7 +1,8 @@
 ---
 // =============================================================================
-// COMPONENTE ImageEditor - Editor de imagen ligero con Canvas API
-// Permite rotar, recortar y ajustar brillo antes de enviar la foto
+// COMPONENTE ImageEditor - Editor de imagen con Canvas API
+// Permite rotar, ajustar brillo y recortar con rectángulo libre
+// (selección manual con arrastre + manijas de redimensionamiento)
 // =============================================================================
 
 export interface Props {
@@ -12,7 +13,7 @@ const { imageSrc } = Astro.props;
 ---
 
 <div id="imageEditor" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+  <div class="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
     <!-- Encabezado -->
     <div class="flex items-center justify-between p-4 border-b border-gray-200">
       <h3 class="text-lg font-semibold text-gray-900">✏️ Editar Imagen</h3>
@@ -24,8 +25,12 @@ const { imageSrc } = Astro.props;
     </div>
 
     <!-- Canvas de edición -->
-    <div class="p-4 bg-gray-100 flex items-center justify-center min-h-[300px]">
-      <canvas id="editorCanvas" class="max-w-full max-h-[50vh] rounded-lg shadow-inner"></canvas>
+    <div class="p-4 bg-gray-100 flex items-center justify-center min-h-[300px] relative">
+      <canvas id="editorCanvas" class="max-w-full max-h-[55vh] rounded-lg shadow-inner" style="cursor: crosshair;"></canvas>
+      <!-- Instrucciones flotantes -->
+      <div id="cropInstructions" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none opacity-0 transition-opacity duration-300">
+        Arrastrá para seleccionar área de recorte · Usá las manijas para ajustar
+      </div>
     </div>
 
     <!-- Controles de edición -->
@@ -68,23 +73,38 @@ const { imageSrc } = Astro.props;
         </div>
       </div>
 
-      <!-- Recorte (Aspect Ratio) -->
+      <!-- Recorte Libre -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Recorte (relación de aspecto)</label>
+        <label class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Recorte
+        </label>
         <div class="flex flex-wrap gap-2">
-          <button data-ratio="free" class="crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base">Libre</button>
-          <button data-ratio="1:1" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">1:1</button>
-          <button data-ratio="4:3" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">4:3</button>
-          <button data-ratio="3:4" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">3:4</button>
-          <button data-ratio="16:9" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">16:9</button>
+          <button id="cropToggleBtn" type="button"
+            class="px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span id="cropBtnText">Activar Recorte</span>
+          </button>
+          <button id="resetCropBtn" type="button" disabled
+            class="px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg transition-base disabled:opacity-50 disabled:cursor-not-allowed">
+            ↺ Quitar Recorte
+          </button>
         </div>
+        <p class="text-xs text-gray-400 mt-2">
+          💡 Arrastrá sobre la imagen para crear un rectángulo de recorte.
+          Después podés moverlo y redimensionarlo con las manijas en las esquinas.
+        </p>
       </div>
 
       <!-- Botones de acción -->
       <div class="flex gap-3 pt-2 border-t border-gray-200">
         <button id="resetEditorBtn" type="button"
           class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
-          ↺ Restablecer
+          ↺ Restablecer todo
         </button>
         <button id="applyEditorBtn" type="button"
           class="flex-1 px-4 py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
@@ -97,27 +117,41 @@ const { imageSrc } = Astro.props;
 
 <script>
   // ===========================================================================
-  // IMAGE EDITOR - Canvas API (Rotar, Brillo, Recorte)
+  // IMAGE EDITOR - Canvas API (Rotar, Brillo, Recorte Libre con manijas)
   // ===========================================================================
 
-  const editor = document.getElementById('imageEditor')!;
+  const editor = document.getElementById('imageEditor') as HTMLElement;
   const canvas = document.getElementById('editorCanvas') as HTMLCanvasElement;
   const ctx = canvas.getContext('2d')!;
   const brightnessSlider = document.getElementById('brightnessSlider') as HTMLInputElement;
-  const brightnessValue = document.getElementById('brightnessValue')!;
-  const rotateLeftBtn = document.getElementById('rotateLeftBtn')!;
-  const rotateRightBtn = document.getElementById('rotateRightBtn')!;
-  const resetBtn = document.getElementById('resetEditorBtn')!;
-  const applyBtn = document.getElementById('applyEditorBtn')!;
-  const closeBtn = document.getElementById('closeEditorBtn')!;
+  const brightnessValue = document.getElementById('brightnessValue') as HTMLElement;
+  const rotateLeftBtn = document.getElementById('rotateLeftBtn') as HTMLElement;
+  const rotateRightBtn = document.getElementById('rotateRightBtn') as HTMLElement;
+  const resetBtn = document.getElementById('resetEditorBtn') as HTMLElement;
+  const applyBtn = document.getElementById('applyEditorBtn') as HTMLElement;
+  const closeBtn = document.getElementById('closeEditorBtn') as HTMLElement;
+  const cropToggleBtn = document.getElementById('cropToggleBtn') as HTMLElement;
+  const cropBtnText = document.getElementById('cropBtnText') as HTMLElement;
+  const resetCropBtn = document.getElementById('resetCropBtn') as HTMLButtonElement;
+  const cropInstructions = document.getElementById('cropInstructions') as HTMLElement;
 
   let originalImage: HTMLImageElement | null = null;
   let currentRotation = 0;
   let currentBrightness = 0;
-  let currentCropRatio: string | null = null;
-  let isCropping = false;
-  let cropStartX = 0, cropStartY = 0, cropEndX = 0, cropEndY = 0;
-  let isDragging = false;
+  let isCropping = false; // modo recorte activo
+
+  // Estado del rectángulo de recorte (en coordenadas del canvas)
+  let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+  let hasCrop = false;
+
+  // Estados de interacción
+  type DragMode = 'none' | 'creating' | 'moving' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br';
+  let dragMode: DragMode = 'none';
+  let dragStartX = 0, dragStartY = 0;
+  let dragOrigRect = { x: 0, y: 0, w: 0, h: 0 };
+
+  const HANDLE_SIZE = 10;
+  const MIN_CROP_SIZE = 20;
 
   // ===========================================================================
   // ABRIR EDITOR
@@ -125,28 +159,22 @@ const { imageSrc } = Astro.props;
 
   async function openEditor(imageSrc: string): Promise<string | null> {
     return new Promise<string | null>((resolve) => {
-      // Guardar resolve para usarlo después
       (window as any)._editorResolve = resolve;
 
-      // Cargar imagen
       const img = new Image();
       img.onload = () => {
         originalImage = img;
         currentRotation = 0;
         currentBrightness = 0;
-        currentCropRatio = null;
         isCropping = false;
+        hasCrop = false;
+        cropRect = { x: 0, y: 0, w: 0, h: 0 };
         brightnessSlider.value = '0';
         brightnessValue.textContent = '0';
-
-        // Resetear botones de recorte
-        document.querySelectorAll('.crop-ratio-btn').forEach((btn) => {
-          btn.className = 'crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base';
-        });
-        const freeBtn = document.querySelector('[data-ratio="free"]') as HTMLElement;
-        if (freeBtn) {
-          freeBtn.className = 'crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base';
-        }
+        cropBtnText.textContent = 'Activar Recorte';
+        cropToggleBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition-base flex items-center gap-2';
+        resetCropBtn.disabled = true;
+        cropInstructions.classList.add('opacity-0');
 
         renderImage();
         editor.classList.remove('hidden');
@@ -166,17 +194,15 @@ const { imageSrc } = Astro.props;
   function renderImage() {
     if (!originalImage) return;
 
-    const maxWidth = 600;
-    const maxHeight = 500;
+    const maxWidth = 700;
+    const maxHeight = 550;
     let imgW = originalImage.width;
     let imgH = originalImage.height;
 
-    // Aplicar rotación para dimensiones
     const isRotated = currentRotation % 180 !== 0;
     const displayW = isRotated ? imgH : imgW;
     const displayH = isRotated ? imgW : imgH;
 
-    // Escalar para que entre en el canvas
     let scale = 1;
     if (displayW > maxWidth) scale = maxWidth / displayW;
     if (displayH * scale > maxHeight) scale = maxHeight / displayH;
@@ -197,29 +223,371 @@ const { imageSrc } = Astro.props;
     ctx.rotate((currentRotation * Math.PI) / 180);
     ctx.drawImage(originalImage, -imgW / 2 * scale, -imgH / 2 * scale, imgW * scale, imgH * scale);
     ctx.restore();
-
     ctx.filter = 'none';
 
     // Dibujar overlay de recorte si está activo
-    if (isCropping) {
-      const x = Math.min(cropStartX, cropEndX);
-      const y = Math.min(cropStartY, cropEndY);
-      const w = Math.abs(cropEndX - cropStartX);
-      const h = Math.abs(cropEndY - cropStartY);
-
-      // Oscurecer fuera del recorte
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvasW, canvasH);
-      ctx.clearRect(x, y, w, h);
-
-      // Borde del recorte
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(x, y, w, h);
-      ctx.setLineDash([]);
+    if (isCropping && hasCrop && cropRect.w > 0 && cropRect.h > 0) {
+      drawCropOverlay();
     }
   }
+
+  function drawCropOverlay() {
+    const { x, y, w, h } = cropRect;
+
+    // Oscurecer fuera del recorte
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // "Recortar" el área seleccionada (limpiar el rectángulo)
+    ctx.clearRect(x, y, w, h);
+
+    // Volver a dibujar SOLO la parte de la imagen dentro del recorte
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+
+    ctx.filter = `brightness(${1 + currentBrightness / 100})`;
+    const isRotated = currentRotation % 180 !== 0;
+    const imgW = originalImage!.width;
+    const imgH = originalImage!.height;
+    const displayW = isRotated ? imgH : imgW;
+    const displayH = isRotated ? imgW : imgH;
+    const maxWidth = 700, maxHeight = 550;
+    let scale = 1;
+    if (displayW > maxWidth) scale = maxWidth / displayW;
+    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
+    const canvasW = Math.round(displayW * scale);
+    const canvasH = Math.round(displayH * scale);
+
+    ctx.save();
+    ctx.translate(canvasW / 2, canvasH / 2);
+    ctx.rotate((currentRotation * Math.PI) / 180);
+    ctx.drawImage(originalImage!, -imgW / 2 * scale, -imgH / 2 * scale, imgW * scale, imgH * scale);
+    ctx.restore();
+    ctx.filter = 'none';
+    ctx.restore();
+
+    // Borde del recorte
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([]);
+    ctx.strokeRect(x, y, w, h);
+
+    // Líneas de guía (regla de tercios)
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    // Verticales
+    ctx.beginPath();
+    ctx.moveTo(x + w / 3, y);
+    ctx.lineTo(x + w / 3, y + h);
+    ctx.moveTo(x + 2 * w / 3, y);
+    ctx.lineTo(x + 2 * w / 3, y + h);
+    // Horizontales
+    ctx.moveTo(x, y + h / 3);
+    ctx.lineTo(x + w, y + h / 3);
+    ctx.moveTo(x, y + 2 * h / 3);
+    ctx.lineTo(x + w, y + 2 * h / 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Manijas en las esquinas
+    drawHandle(x, y, 'tl');
+    drawHandle(x + w, y, 'tr');
+    drawHandle(x, y + h, 'bl');
+    drawHandle(x + w, y + h, 'br');
+  }
+
+  function drawHandle(hx: number, hy: number, _pos: string) {
+    const s = HANDLE_SIZE;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 4;
+    ctx.fillRect(hx - s / 2, hy - s / 2, s, s);
+    ctx.shadowBlur = 0;
+    ctx.strokeRect(hx - s / 2, hy - s / 2, s, s);
+  }
+
+  // ===========================================================================
+  // UTILIDAD: Obtener posición del mouse/touch en coordenadas del canvas
+  // ===========================================================================
+
+  function getCanvasPos(e: MouseEvent | Touch): { x: number; y: number } {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }
+
+  // ===========================================================================
+  // DETECTAR MODO DE INTERACCIÓN SEGÚN POSICIÓN
+  // ===========================================================================
+
+  function getInteractionMode(pos: { x: number; y: number }): DragMode {
+    if (!isCropping || !hasCrop || cropRect.w === 0) return 'none';
+
+    const { x, y, w, h } = cropRect;
+    const s = HANDLE_SIZE + 4; // zona de tolerancia
+
+    // Esquinas (prioridad más alta)
+    if (Math.abs(pos.x - x) < s && Math.abs(pos.y - y) < s) return 'resize-tl';
+    if (Math.abs(pos.x - (x + w)) < s && Math.abs(pos.y - y) < s) return 'resize-tr';
+    if (Math.abs(pos.x - x) < s && Math.abs(pos.y - (y + h)) < s) return 'resize-bl';
+    if (Math.abs(pos.x - (x + w)) < s && Math.abs(pos.y - (y + h)) < s) return 'resize-br';
+
+    // Dentro del rectángulo → mover
+    if (pos.x >= x && pos.x <= x + w && pos.y >= y && pos.y <= y + h) {
+      return 'moving';
+    }
+
+    return 'none';
+  }
+
+  // ===========================================================================
+  // MOUSE EVENTS
+  // ===========================================================================
+
+  canvas.addEventListener('mousedown', (e) => {
+    const pos = getCanvasPos(e);
+
+    if (isCropping && hasCrop) {
+      const mode = getInteractionMode(pos);
+      if (mode !== 'none') {
+        dragMode = mode;
+        dragStartX = pos.x;
+        dragStartY = pos.y;
+        dragOrigRect = { ...cropRect };
+        return;
+      }
+    }
+
+    if (isCropping) {
+      // Iniciar creación de nuevo rectángulo
+      dragMode = 'creating';
+      dragStartX = pos.x;
+      dragStartY = pos.y;
+      cropRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
+      hasCrop = true;
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const pos = getCanvasPos(e);
+
+    if (dragMode === 'none' && isCropping) {
+      // Cambiar cursor según contexto
+      const mode = getInteractionMode(pos);
+      switch (mode) {
+        case 'resize-tl': case 'resize-br': canvas.style.cursor = 'nwse-resize'; break;
+        case 'resize-tr': case 'resize-bl': canvas.style.cursor = 'nesw-resize'; break;
+        case 'moving': canvas.style.cursor = 'move'; break;
+        default: canvas.style.cursor = isCropping ? 'crosshair' : 'default';
+      }
+      return;
+    }
+
+    if (dragMode === 'creating') {
+      let nx = Math.min(dragStartX, pos.x);
+      let ny = Math.min(dragStartY, pos.y);
+      let nw = Math.abs(pos.x - dragStartX);
+      let nh = Math.abs(pos.y - dragStartY);
+      if (nw < MIN_CROP_SIZE) nw = MIN_CROP_SIZE;
+      if (nh < MIN_CROP_SIZE) nh = MIN_CROP_SIZE;
+      cropRect = { x: nx, y: ny, w: nw, h: nh };
+      hasCrop = true;
+      renderImage();
+      return;
+    }
+
+    if (dragMode === 'moving') {
+      const dx = pos.x - dragStartX;
+      const dy = pos.y - dragStartY;
+      let nx = dragOrigRect.x + dx;
+      let ny = dragOrigRect.y + dy;
+      // Limitar dentro del canvas
+      nx = Math.max(0, Math.min(nx, canvas.width - cropRect.w));
+      ny = Math.max(0, Math.min(ny, canvas.height - cropRect.h));
+      cropRect.x = nx;
+      cropRect.y = ny;
+      renderImage();
+      return;
+    }
+
+    // Redimensionar desde esquinas
+    if (dragMode.startsWith('resize-')) {
+      const dx = pos.x - dragStartX;
+      const dy = pos.y - dragStartY;
+      let { x, y, w, h } = dragOrigRect;
+
+      switch (dragMode) {
+        case 'resize-tl':
+          x = dragOrigRect.x + dx;
+          y = dragOrigRect.y + dy;
+          w = dragOrigRect.w - dx;
+          h = dragOrigRect.h - dy;
+          break;
+        case 'resize-tr':
+          y = dragOrigRect.y + dy;
+          w = dragOrigRect.w + dx;
+          h = dragOrigRect.h - dy;
+          break;
+        case 'resize-bl':
+          x = dragOrigRect.x + dx;
+          w = dragOrigRect.w - dx;
+          h = dragOrigRect.h + dy;
+          break;
+        case 'resize-br':
+          w = dragOrigRect.w + dx;
+          h = dragOrigRect.h + dy;
+          break;
+      }
+
+      // Asegurar tamaño mínimo
+      if (w < MIN_CROP_SIZE) w = MIN_CROP_SIZE;
+      if (h < MIN_CROP_SIZE) h = MIN_CROP_SIZE;
+
+      // Ajustar posición si se invierte
+      if (w < 0) { x = x + w; w = Math.abs(w); }
+      if (h < 0) { y = y + h; h = Math.abs(h); }
+
+      // Limitar dentro del canvas
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      if (x + w > canvas.width) w = canvas.width - x;
+      if (y + h > canvas.height) h = canvas.height - y;
+
+      cropRect = { x, y, w, h };
+      renderImage();
+    }
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    if (dragMode === 'creating' && cropRect.w < MIN_CROP_SIZE && cropRect.h < MIN_CROP_SIZE) {
+      hasCrop = false;
+      cropRect = { x: 0, y: 0, w: 0, h: 0 };
+      renderImage();
+    }
+    dragMode = 'none';
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    if (dragMode !== 'none') {
+      dragMode = 'none';
+      renderImage();
+    }
+  });
+
+  // ===========================================================================
+  // TOUCH EVENTS (móvil)
+  // ===========================================================================
+
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const pos = getCanvasPos(touch);
+
+    if (isCropping && hasCrop) {
+      const mode = getInteractionMode(pos);
+      if (mode !== 'none') {
+        dragMode = mode;
+        dragStartX = pos.x;
+        dragStartY = pos.y;
+        dragOrigRect = { ...cropRect };
+        return;
+      }
+    }
+
+    if (isCropping) {
+      dragMode = 'creating';
+      dragStartX = pos.x;
+      dragStartY = pos.y;
+      cropRect = { x: pos.x, y: pos.y, w: 0, h: 0 };
+      hasCrop = true;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const pos = getCanvasPos(touch);
+
+    if (dragMode === 'creating') {
+      let nx = Math.min(dragStartX, pos.x);
+      let ny = Math.min(dragStartY, pos.y);
+      let nw = Math.abs(pos.x - dragStartX);
+      let nh = Math.abs(pos.y - dragStartY);
+      if (nw < MIN_CROP_SIZE) nw = MIN_CROP_SIZE;
+      if (nh < MIN_CROP_SIZE) nh = MIN_CROP_SIZE;
+      cropRect = { x: nx, y: ny, w: nw, h: nh };
+      hasCrop = true;
+      renderImage();
+      return;
+    }
+
+    if (dragMode === 'moving') {
+      const dx = pos.x - dragStartX;
+      const dy = pos.y - dragStartY;
+      let nx = dragOrigRect.x + dx;
+      let ny = dragOrigRect.y + dy;
+      nx = Math.max(0, Math.min(nx, canvas.width - cropRect.w));
+      ny = Math.max(0, Math.min(ny, canvas.height - cropRect.h));
+      cropRect.x = nx;
+      cropRect.y = ny;
+      renderImage();
+      return;
+    }
+
+    if (dragMode.startsWith('resize-')) {
+      const dx = pos.x - dragStartX;
+      const dy = pos.y - dragStartY;
+      let { x, y, w, h } = dragOrigRect;
+
+      switch (dragMode) {
+        case 'resize-tl':
+          x = dragOrigRect.x + dx; y = dragOrigRect.y + dy;
+          w = dragOrigRect.w - dx; h = dragOrigRect.h - dy;
+          break;
+        case 'resize-tr':
+          y = dragOrigRect.y + dy;
+          w = dragOrigRect.w + dx; h = dragOrigRect.h - dy;
+          break;
+        case 'resize-bl':
+          x = dragOrigRect.x + dx;
+          w = dragOrigRect.w - dx; h = dragOrigRect.h + dy;
+          break;
+        case 'resize-br':
+          w = dragOrigRect.w + dx; h = dragOrigRect.h + dy;
+          break;
+      }
+
+      if (w < MIN_CROP_SIZE) w = MIN_CROP_SIZE;
+      if (h < MIN_CROP_SIZE) h = MIN_CROP_SIZE;
+      if (w < 0) { x = x + w; w = Math.abs(w); }
+      if (h < 0) { y = y + h; h = Math.abs(h); }
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      if (x + w > canvas.width) w = canvas.width - x;
+      if (y + h > canvas.height) h = canvas.height - y;
+
+      cropRect = { x, y, w, h };
+      renderImage();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', () => {
+    if (dragMode === 'creating' && cropRect.w < MIN_CROP_SIZE && cropRect.h < MIN_CROP_SIZE) {
+      hasCrop = false;
+      cropRect = { x: 0, y: 0, w: 0, h: 0 };
+      renderImage();
+    }
+    dragMode = 'none';
+  });
 
   // ===========================================================================
   // CONTROLES: BRILLO
@@ -237,11 +605,16 @@ const { imageSrc } = Astro.props;
 
   rotateLeftBtn?.addEventListener('click', () => {
     currentRotation = (currentRotation - 90) % 360;
+    // Resetear recorte al rotar (las coordenadas cambian)
+    hasCrop = false;
+    cropRect = { x: 0, y: 0, w: 0, h: 0 };
     renderImage();
   });
 
   rotateRightBtn?.addEventListener('click', () => {
     currentRotation = (currentRotation + 90) % 360;
+    hasCrop = false;
+    cropRect = { x: 0, y: 0, w: 0, h: 0 };
     renderImage();
   });
 
@@ -249,201 +622,133 @@ const { imageSrc } = Astro.props;
   // CONTROLES: RECORTE
   // ===========================================================================
 
-  document.querySelectorAll('.crop-ratio-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.crop-ratio-btn').forEach((b) => {
-        b.className = 'crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base';
-      });
-      btn.className = 'crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base';
-
-      const ratio = btn.getAttribute('data-ratio')!;
-      if (ratio === 'free') {
-        isCropping = false;
-        renderImage();
-        return;
-      }
-      currentCropRatio = ratio;
-      isCropping = true;
-
-      // Inicializar recorte al centro
-      const [rw, rh] = ratio.split(':').map(Number);
-      const aspect = rw / rh;
-      let cw = canvas.width * 0.8;
-      let ch = cw / aspect;
-      if (ch > canvas.height * 0.8) {
-        ch = canvas.height * 0.8;
-        cw = ch * aspect;
-      }
-      cropStartX = (canvas.width - cw) / 2;
-      cropStartY = (canvas.height - ch) / 2;
-      cropEndX = cropStartX + cw;
-      cropEndY = cropStartY + ch;
-      renderImage();
-    });
-  });
-
-  // ===========================================================================
-  // MOUSE EVENTS PARA RECORTE
-  // ===========================================================================
-
-  canvas.addEventListener('mousedown', (e) => {
-    if (!isCropping) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    cropStartX = (e.clientX - rect.left) * scaleX;
-    cropStartY = (e.clientY - rect.top) * scaleY;
-    cropEndX = cropStartX;
-    cropEndY = cropStartY;
-    isDragging = true;
-  });
-
-  canvas.addEventListener('mousemove', (e) => {
-    if (!isDragging || !isCropping) return;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    cropEndX = Math.min(Math.max((e.clientX - rect.left) * scaleX, 0), canvas.width);
-    cropEndY = Math.min(Math.max((e.clientY - rect.top) * scaleY, 0), canvas.height);
-
-    // Mantener relación de aspecto si está definida
-    if (currentCropRatio && currentCropRatio !== 'free') {
-      const [rw, rh] = currentCropRatio.split(':').map(Number);
-      const aspect = rw / rh;
-      const w = Math.abs(cropEndX - cropStartX);
-      const h = w / aspect;
-      cropEndY = cropStartY + (cropEndY > cropStartY ? h : -h);
+  cropToggleBtn?.addEventListener('click', () => {
+    isCropping = !isCropping;
+    if (isCropping) {
+      cropBtnText.textContent = '✕ Desactivar Recorte';
+      cropToggleBtn.className = 'px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg transition-base flex items-center gap-2';
+      resetCropBtn.disabled = false;
+      // Mostrar instrucciones temporalmente
+      cropInstructions.classList.remove('opacity-0');
+      setTimeout(() => cropInstructions.classList.add('opacity-0'), 4000);
+    } else {
+      cropBtnText.textContent = 'Activar Recorte';
+      cropToggleBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition-base flex items-center gap-2';
+      hasCrop = false;
+      cropRect = { x: 0, y: 0, w: 0, h: 0 };
+      resetCropBtn.disabled = true;
     }
-
     renderImage();
   });
 
-  canvas.addEventListener('mouseup', () => {
-    isDragging = false;
-  });
-
-  canvas.addEventListener('mouseleave', () => {
-    isDragging = false;
-  });
-
-  // Touch events para móvil
-  canvas.addEventListener('touchstart', (e) => {
-    if (!isCropping) return;
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    cropStartX = (touch.clientX - rect.left) * scaleX;
-    cropStartY = (touch.clientY - rect.top) * scaleY;
-    cropEndX = cropStartX;
-    cropEndY = cropStartY;
-    isDragging = true;
-  });
-
-  canvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (!isDragging || !isCropping) return;
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    cropEndX = Math.min(Math.max((touch.clientX - rect.left) * scaleX, 0), canvas.width);
-    cropEndY = Math.min(Math.max((touch.clientY - rect.top) * scaleY, 0), canvas.height);
-
-    if (currentCropRatio && currentCropRatio !== 'free') {
-      const [rw, rh] = currentCropRatio.split(':').map(Number);
-      const aspect = rw / rh;
-      const w = Math.abs(cropEndX - cropStartX);
-      const h = w / aspect;
-      cropEndY = cropStartY + (cropEndY > cropStartY ? h : -h);
-    }
-
+  resetCropBtn?.addEventListener('click', () => {
+    hasCrop = false;
+    cropRect = { x: 0, y: 0, w: 0, h: 0 };
+    resetCropBtn.disabled = true;
     renderImage();
   });
 
-  canvas.addEventListener('touchend', () => {
-    isDragging = false;
-  });
-
   // ===========================================================================
-  // RESTABLECER
+  // RESTABLECER TODO
   // ===========================================================================
 
   resetBtn?.addEventListener('click', () => {
     currentRotation = 0;
     currentBrightness = 0;
     isCropping = false;
+    hasCrop = false;
+    cropRect = { x: 0, y: 0, w: 0, h: 0 };
     brightnessSlider.value = '0';
     brightnessValue.textContent = '0';
+    cropBtnText.textContent = 'Activar Recorte';
+    cropToggleBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition-base flex items-center gap-2';
+    resetCropBtn.disabled = true;
     renderImage();
   });
 
   // ===========================================================================
-  // APLICAR CAMBIOS - Exportar imagen editada como Base64 comprimida
+  // APLICAR CAMBIOS - Exportar imagen editada como Base64
   // ===========================================================================
 
   applyBtn?.addEventListener('click', () => {
     if (!originalImage) return;
 
-    // Crear un canvas temporal para la imagen final
     const finalCanvas = document.createElement('canvas');
     const finalCtx = finalCanvas.getContext('2d')!;
 
-    // Calcular dimensiones finales
     let finalW = originalImage.width;
     let finalH = originalImage.height;
 
-    // Aplicar rotación
     const isRotated = currentRotation % 180 !== 0;
     if (isRotated) {
       [finalW, finalH] = [finalH, finalW];
     }
 
-    // Aplicar recorte
-    if (isCropping) {
-      const scaleX = canvas.width / (isRotated ? originalImage.height : originalImage.width);
-      const scaleY = canvas.height / (isRotated ? originalImage.width : originalImage.height);
-      const scale = Math.min(scaleX, scaleY);
+    // Calcular escala del canvas de edición respecto a la imagen original
+    const maxWidth = 700, maxHeight = 550;
+    const displayW = isRotated ? originalImage.height : originalImage.width;
+    const displayH = isRotated ? originalImage.width : originalImage.height;
+    let scale = 1;
+    if (displayW > maxWidth) scale = maxWidth / displayW;
+    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
 
-      const cropX = Math.min(cropStartX, cropEndX) / scale;
-      const cropY = Math.min(cropStartY, cropEndY) / scale;
-      const cropW = Math.abs(cropEndX - cropStartX) / scale;
-      const cropH = Math.abs(cropEndY - cropStartY) / scale;
+    if (isCropping && hasCrop && cropRect.w > 0 && cropRect.h > 0) {
+      // Convertir coordenadas del recorte del canvas a la imagen original
+      const cropX = cropRect.x / scale;
+      const cropY = cropRect.y / scale;
+      const cropW = cropRect.w / scale;
+      const cropH = cropRect.h / scale;
 
       finalCanvas.width = cropW;
       finalCanvas.height = cropH;
+
+      // Dibujar la porción recortada con rotación
+      finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
+      finalCtx.save();
+
+      // Aplicar rotación centrada en el área recortada
+      finalCtx.translate(cropW / 2, cropH / 2);
+      finalCtx.rotate((currentRotation * Math.PI) / 180);
+
+      // Dibujar la parte correspondiente de la imagen original
+      // Necesitamos mapear las coordenadas del recorte rotado
+      if (isRotated) {
+        // Cuando está rotado, el origen del recorte en canvas se mapea diferente
+        finalCtx.drawImage(
+          originalImage,
+          -originalImage.width / 2 + cropY,  // ajuste por rotación
+          -originalImage.height / 2 + cropX,
+          cropH, cropW  // invertido por rotación
+        );
+      } else {
+        finalCtx.drawImage(
+          originalImage,
+          cropX, cropY, cropW, cropH,
+          -cropW / 2, -cropH / 2, cropW, cropH
+        );
+      }
+
+      finalCtx.restore();
+      finalCtx.filter = 'none';
     } else {
+      // Sin recorte: imagen completa con rotación y brillo
       finalCanvas.width = finalW;
       finalCanvas.height = finalH;
+
+      finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
+      finalCtx.save();
+      finalCtx.translate(finalW / 2, finalH / 2);
+      finalCtx.rotate((currentRotation * Math.PI) / 180);
+      finalCtx.drawImage(originalImage, -originalImage.width / 2, -originalImage.height / 2);
+      finalCtx.restore();
+      finalCtx.filter = 'none';
     }
 
-    // Dibujar con rotación y brillo
-    finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
-    finalCtx.save();
-
-    if (isCropping) {
-      const scaleX = canvas.width / (isRotated ? originalImage.height : originalImage.width);
-      const scaleY = canvas.height / (isRotated ? originalImage.width : originalImage.height);
-      const scale = Math.min(scaleX, scaleY);
-      const cropX = Math.min(cropStartX, cropEndX) / scale;
-      const cropY = Math.min(cropStartY, cropEndY) / scale;
-
-      finalCtx.translate(-cropX, -cropY);
-    }
-
-    finalCtx.translate(finalW / 2, finalH / 2);
-    finalCtx.rotate((currentRotation * Math.PI) / 180);
-    finalCtx.drawImage(originalImage, -originalImage.width / 2, -originalImage.height / 2);
-    finalCtx.restore();
-    finalCtx.filter = 'none';
-
-    // Exportar como JPEG comprimido (calidad 0.85 para balance calidad/tamaño)
-    const compressedBase64 = finalCanvas.toDataURL('image/jpeg', 0.85);
+    // Exportar como JPEG comprimido
+    const compressedBase64 = finalCanvas.toDataURL('image/jpeg', 0.9);
 
     // Cerrar editor
     editor.classList.add('hidden');
-
-    // Resolver promesa con la imagen editada
     const resolve = (window as any)._editorResolve;
     if (resolve) {
       resolve(compressedBase64);
@@ -473,4 +778,4 @@ const { imageSrc } = Astro.props;
 
   // Exponer función globalmente
   (window as any).openImageEditor = openEditor;
-</script>
+   

@@ -764,6 +764,14 @@ import ImageEditor from '../../components/ImageEditor.astro';
         const idiomaInput = document.querySelector('[name="idioma"]');
         if (idiomaInput) idiomaInput.value = datos.idioma;
       }
+      if (datos.isbn_issn) {
+        const isbnInput = document.querySelector('[name="isbn_issn"]');
+        if (isbnInput) isbnInput.value = datos.isbn_issn;
+      }
+      if (datos.edicion) {
+        const edicionInput = document.querySelector('[name="edicion"]');
+        if (edicionInput) edicionInput.value = datos.edicion;
+      }
 
       // Mostrar campos pendientes
       const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];

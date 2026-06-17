@@ -40,7 +40,10 @@ services:
       - JWT_REFRESH_TOKEN_LIFETIME=${JWT_REFRESH_TOKEN_LIFETIME:-604800}
 
       # IA Híbrida: apunta a tu PC local con la RX 9060 XT
-      - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.1.100:1234/v1}
+      # IMPORTANTE: Cambiá esta IP por la IP local de tu PC (ej: 192.168.0.101)
+      # LM Studio debe estar corriendo en tu PC en http://localhost:1234
+      # Desde Docker, necesitás usar la IP de tu PC en la red local
+      - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.0.101:1234/v1}
       - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
       - AI_HIGH_RES_TIMEOUT=${AI_HIGH_RES_TIMEOUT:-240}
 

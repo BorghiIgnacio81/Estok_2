@@ -37,7 +37,10 @@ LM_STUDIO_URL = getattr(settings, 'AI_API_ENDPOINT', "http://localhost:1234/v1")
 LM_STUDIO_TIMEOUT = getattr(settings, 'AI_API_TIMEOUT', 120)
 LM_STUDIO_TIMEOUT_ALTA_RES = getattr(settings, 'AI_HIGH_RES_TIMEOUT', 180)
 CONFIANZA_MINIMA = 0.6  # umbral mínimo de confianza para considerar un campo válido
-MODEL_NAME = "Qwen2-VL-7B"  # modelo desplegado en LM Studio
+# Nombre del modelo desplegado en LM Studio
+# Podés ver los modelos disponibles en http://localhost:1234/v1/models
+# Si cambiás de modelo en LM Studio, actualizá este valor
+MODEL_NAME = "qwen2.5-vl-7b-instruct"  # modelo desplegado en LM Studio
 MAX_IMAGE_SIZE_MB = 10  # tamaño máximo de imagen en MB
 MAX_IMAGE_SIZE_FOR_GPU_MB = 5  # tamaño máximo para enviar a GPU (comprimir si excede)
 COMPRESS_QUALITY = 85  # calidad JPEG para compresión (0-100)
@@ -64,6 +67,9 @@ class VisionResult:
     confianza_general: float = 0.0
     campos_pendientes: List[str] = field(default_factory=list)
     raw_response: str = ""
+    # Campos específicos para libros
+    isbn_issn: str = ""
+    edicion: str = ""
     # Campos específicos para cómics
     nombre_serie: str = ""
     titulo_tomo: str = ""
@@ -185,59 +191,90 @@ class LMStudioClient:
             self.client.timeout = LM_STUDIO_TIMEOUT_ALTA_RES
 
         # Prompt del sistema - instrucciones para el modelo
-
-        # Optimizado para reconocimiento de patrones: formas rectangulares → libro,
-        # brillos metálicos → mueble/arte con material específico
+        # VERSIÓN MEJORADA: enfoque específico en reconocimiento de libros,
+        # con instrucciones detalladas para extraer título, autor, editorial, ISBN
         system_prompt = (
-            "Eres un asistente experto en tasación e identificación de objetos. "
+            "Eres un asistente experto en identificación y catalogación de objetos, "
+            "CON ESPECIALIZACIÓN EN LIBROS, CÓMICS Y REVISTAS. "
             "Analiza la imagen proporcionada y extrae la mayor cantidad de información posible. "
             "Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, "
             "sin bloques de código. El JSON debe tener esta estructura exacta:\n\n"
             "{\n"
-            '  "nombre": "Nombre descriptivo del objeto",\n'
-            '  "marca": "Marca o fabricante (si aplica)",\n'
-            '  "autor": "Autor, artista o diseñador (si aplica)",\n'
+            '  "nombre": "Título completo del libro/objeto (ej: Cien años de soledad, Harry Potter y la piedra filosofal)",\n'
+            '  "marca": "Marca o fabricante (si aplica, ej: Sony, Apple, Samsung)",\n'
+            '  "autor": "Nombre completo del autor (ej: Gabriel García Márquez, J.K. Rowling)",\n'
             '  "anio": 2020,\n'
-            '  "isbn_issn": "ISBN o ISSN si es libro/revista",\n'
-            '  "edicion": "Edición si es libro",\n'
-            '  "material": "Material predominante (ej: Plata, Metal, Madera, Cuero, Plástico, Vidrio, Cerámica, Tela)",\n'
+            '  "isbn_issn": "ISBN de 13 dígitos o ISSN si es revista (ej: 978-84-376-0494-7)",\n'
+            '  "edicion": "Número de edición o información de edición (ej: 1ra edición, Edición de lujo)",\n'
+            '  "material": "Material predominante (ej: Papel, Cartón, Tela, Cuero, Metal, Plástico, Vidrio, Cerámica)",\n'
             '  "numero_serie": "Número de serie si es tecnología",\n'
             '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
             '  "precio_estimado_mercado": 150.00,\n'
-            '  "descripcion": "Descripción detallada del objeto",\n'
-            '  "color": "Color predominante",\n'
+            '  "descripcion": "Descripción detallada del objeto incluyendo formato, tamaño aproximado, estado físico",\n'
+            '  "color": "Color predominante de la portada/cubierta",\n'
             '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
             '  "confianza_general": 0.85,\n'
-            '  "nombre_serie": "Nombre de la serie si es cómic (ej: Garfield, Batman)",\n'
-            '  "titulo_tomo": "Título específico del tomo (ej: Se queda con la torta)",\n'
+            '  "nombre_serie": "Nombre de la serie si es cómic/saga (ej: Harry Potter, Batman, One Piece, Fundación)",\n'
+            '  "titulo_tomo": "Título específico del tomo (ej: La cámara secreta, El caballero de la noche)",\n'
             '  "numero_tomo": 15,\n'
-            '  "editorial": "Editorial (ej: Planeta DeAgostini, DC Comics, Marvel)",\n'
-            '  "idioma": "Idioma del contenido (ej: Español, Inglés)"\n'
+            '  "editorial": "Editorial (ej: Penguin Random House, Planeta, DC Comics, Marvel, Panini, Norma Editorial)",\n'
+            '  "idioma": "Idioma del contenido (ej: Español, Inglés, Francés, Alemán)"\n'
             "}\n\n"
-            "REGLAS DE RECONOCIMIENTO DE PATRONES:\n"
-            "1. FORMA RECTANGULAR CON TEXTO: Si el objeto tiene forma rectangular, parece un libro, "
-            "revista o documento con texto visible, clasifícalo como 'libro' y extrae autor, ISBN/ISSN, "
-            "edición y año de publicación si son legibles. Si además ves que es parte de una serie "
-            "(ej: números en el lomo, nombre de serie), extrae también nombre_serie, titulo_tomo, "
-            "numero_tomo, editorial e idioma.\n"
+            "INSTRUCCIONES ESPECÍFICAS PARA LIBROS:\n"
+            "1. IDENTIFICACIÓN DE LIBROS: Si ves un objeto con forma de libro (rectangular, con lomo, "
+            "cubierta con texto), DEBES:\n"
+            "   a) Poner en 'nombre' el TÍTULO EXACTO del libro que aparece en la portada o lomo.\n"
+            "   b) Poner en 'autor' el nombre del autor tal como aparece en la portada.\n"
+            "   c) Poner en 'editorial' el nombre de la editorial (suele aparecer en la portada o el lomo).\n"
+            "   d) Poner en 'anio' el año de publicación si es visible.\n"
+            "   e) Poner en 'isbn_issn' el código ISBN si es visible (generalmente en la contraportada "
+            "o en las primeras páginas, formato de 13 dígitos).\n"
+            "   f) Poner en 'categoria' el valor 'libro'.\n"
+            "   g) Poner en 'color' el color predominante de la portada.\n"
+            "   h) Poner en 'descripcion' una descripción que incluya: tipo de encuadernación "
+            "(tapa dura/blanda), tamaño aparente, estado de las páginas si es visible.\n\n"
+            "2. CÓMICS Y NOVELAS GRÁFICAS: Si identificas un cómic o novela gráfica:\n"
+            "   a) 'nombre_serie': nombre de la serie (ej: Batman, Mortadelo y Filemón, One Piece).\n"
+            "   b) 'titulo_tomo': título específico de ese ejemplar.\n"
+            "   c) 'numero_tomo': número del ejemplar en la serie.\n"
+            "   d) 'editorial': editorial que publica el cómic.\n"
+            "   e) 'idioma': idioma en que está escrito.\n\n"
+            "3. REVISTAS: Si es una revista:\n"
+            "   a) 'nombre': nombre de la revista.\n"
+            "   b) 'anio': año de publicación.\n"
+            "   c) 'isbn_issn': código ISSN si es visible.\n"
+            "   d) 'categoria': 'libro' (las revistas se catalogan como libros en este sistema).\n\n"
+            "REGLAS GENERALES DE RECONOCIMIENTO:\n"
+            "1. FORMA RECTANGULAR CON TEXTO: Prioridad #1 - identificar si es un libro. "
+            "Busca en la portada, lomo y contraportada cualquier texto legible.\n"
             "2. BRILLOS METÁLICOS: Si el objeto tiene brillos metálicos, textura de metal precioso "
             "(plata, oro, bronce) o parece una joya/artículo de lujo, clasifica el material como "
-            "'Plata', 'Oro', 'Bronce', 'Metal' según corresponda. Si es una obra de arte o mueble "
-            "con estos materiales, sugiere categoría 'mueble'.\n"
+            "'Plata', 'Oro', 'Bronce', 'Metal' según corresponda.\n"
             "3. TECNOLOGÍA: Si ves pantallas, circuitos, cables o formas de dispositivos electrónicos, "
             "clasifica como 'tecnologia' y extrae marca, modelo y número de serie.\n"
             "4. TEXTILES: Si ves prendas de vestir, telas o accesorios de moda, clasifica como 'ropa'.\n\n"
             "IMPORTANTE:\n"
             "- Si no puedes determinar un campo, déjalo como string vacío o null.\n"
-            "- confianza_general debe ser un número entre 0 y 1.\n"
-            "- precio_estimado_mercado debe ser un número en USD.\n"
+            "- confianza_general debe ser un número entre 0 y 1. Sé conservador: 0.9+ solo si estás "
+            "muy seguro del título y autor.\n"
+            "- precio_estimado_mercado debe ser un número en USD. Para libros, investiga mentalmente "
+            "el valor de mercado aproximado basado en rareza, edición y estado.\n"
             "- estado_conservacion debe ser uno de los valores exactos listados.\n"
-            "- El campo 'material' es especialmente importante para objetos de valor (plata, oro, etc.)."
+            "- Para libros, el campo 'nombre' DEBE contener el título del libro, no un nombre genérico.\n"
+            "- Si ves texto en la imagen, LÉELO. Especialmente títulos, autores y editoriales.\n"
+            "- No inventes información. Si no puedes leer el título, pon 'Libro sin título visible' "
+            "y baja la confianza_general a 0.3 o menos."
         )
 
-        try:
-            logger.info("Enviando imagen a LM Studio para análisis (modelo: %s)...", MODEL_NAME)
 
+        import time as time_module
+        start_time = time_module.time()
+        
+        # Log del tamaño de la imagen
+        img_size_mb = len(image_b64) * 0.73 / (1024 * 1024)
+        logger.info("Enviando imagen a LM Studio para análisis (modelo: %s, tamaño: %.2fMB)...", MODEL_NAME, img_size_mb)
+
+        try:
             response = self.client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
@@ -260,28 +297,37 @@ class LMStudioClient:
                 ],
                 temperature=0.1,  # Baja temperatura para respuestas más deterministas
                 max_tokens=1024,
-                response_format={"type": "json_object"}
+                # NOTA: qwen2.5-vl-7b-instruct NO soporta response_format json_object
+                # Así que pedimos JSON explícitamente en el prompt del sistema
             )
 
+            elapsed = time_module.time() - start_time
             # Extraer el contenido del mensaje
             content = response.choices[0].message.content
-            logger.debug("Respuesta cruda de LM Studio: %s", content[:200])
+            logger.info("✅ LM Studio respondió en %.1fs. Respuesta: %s", elapsed, content[:300])
 
             # Intentar parsear como JSON
             try:
                 result = json.loads(content)
+                logger.info("✅ JSON parseado correctamente. Campos: %s", list(result.keys()))
                 return result
             except json.JSONDecodeError:
                 # Intentar extraer JSON de un bloque de código
                 import re
                 json_match = re.search(r'\{.*\}', content, re.DOTALL)
                 if json_match:
-                    return json.loads(json_match.group())
-                logger.error("No se pudo parsear la respuesta como JSON: %s", content[:500])
+                    try:
+                        result = json.loads(json_match.group())
+                        logger.info("✅ JSON extraído de bloque de código. Campos: %s", list(result.keys()))
+                        return result
+                    except:
+                        pass
+                logger.error("❌ No se pudo parsear la respuesta como JSON: %s", content[:500])
                 return None
 
         except Exception as e:
-            logger.error("Error al comunicarse con LM Studio: %s", e)
+            elapsed = time_module.time() - start_time
+            logger.error("❌ Error al comunicarse con LM Studio después de %.1fs: %s", elapsed, e)
             return None
 
 
@@ -442,6 +488,8 @@ class AIVisionService:
             categoria=raw_result.get("categoria", "otro"),
             confianza_general=raw_result.get("confianza_general", 0.0),
             raw_response=json.dumps(raw_result),
+            isbn_issn=raw_result.get("isbn_issn", ""),
+            edicion=raw_result.get("edicion", ""),
             nombre_serie=raw_result.get("nombre_serie", ""),
             titulo_tomo=raw_result.get("titulo_tomo", ""),
             numero_tomo=raw_result.get("numero_tomo"),

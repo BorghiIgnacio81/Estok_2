@@ -688,7 +688,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 return Response({
                     "status": "ok",
                     "latency_ms": latency,
-                    "model": "Qwen2-VL-7B (LM Studio)",
+                    "model": "qwen2.5-vl-7b-instruct (LM Studio)",
                     "high_res_timeout": LM_STUDIO_TIMEOUT_ALTA_RES,
                     "message": f"IA conectada en {latency}ms. Timeout para alta resolución: {LM_STUDIO_TIMEOUT_ALTA_RES}s",
                 })

@@ -4,8 +4,8 @@
   "description": "Sistema de gestión de inventario personal con análisis por IA y herencia multi-tabla",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#8B4513",
-  "theme_color": "#8B4513",
+  "background_color": "#1e293b",
+  "theme_color": "#1e293b",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -25,3 +25,5 @@
   "lang": "es-AR",
   "scope": "/"
 }
+
+
