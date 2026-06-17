@@ -330,7 +330,6 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // CONSTANTES
   // ===========================================================================
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-  const LM_STUDIO_URL = 'http://localhost:1234/v1';
 
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad de LM Studio
@@ -347,8 +346,11 @@ import ImageEditor from '../../components/ImageEditor.astro';
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${LM_STUDIO_URL}/models`, {
+      // Verificar disponibilidad de IA a través del backend (evita CORS)
+      const token = getToken();
+      const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
         method: 'GET',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -908,13 +910,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // FUNCIÓN AUXILIAR: getToken
   // ===========================================================================
   function getToken() {
-    // Intentar obtener token de sessionStorage o localStorage
+    // Intentar obtener token de localStorage (donde lo guarda login.astro y auth.ts)
     try {
-      const authData = sessionStorage.getItem('auth_tokens') || localStorage.getItem('auth_tokens');
-      if (authData) {
-        const parsed = JSON.parse(authData);
-        return parsed.access || null;
-      }
+      const token = localStorage.getItem('estok_access_token');
+      if (token) return token;
     } catch {}
     return null;
   }
