@@ -1,4 +1,4 @@
-quiero aumentar """
+"""
 Servicio de Visión por IA Local (LM Studio + Qwen2-VL-7B).
 
 Conecta con la API local de LM Studio en http://localhost:1234/v1
