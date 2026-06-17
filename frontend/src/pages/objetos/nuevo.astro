@@ -424,12 +424,21 @@ import AuthGuard from '../../components/AuthGuard.astro';
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
       aiStatusText.textContent = 'IA Conectada';
+      // Mostrar sección IA y habilitar botón si hay foto
+      iaSection.classList.remove('hidden');
+      if (imagenBase64.value) {
+        analizarIaBtn.disabled = false;
+      }
     } else {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
       aiStatusText.textContent = 'Modo Manual';
-      // Ocultar sección de IA si está offline
-      iaSection.classList.add('hidden');
+      // NO ocultar la sección IA, solo mostrar que está en modo manual
+      iaSection.classList.remove('hidden');
+      analizarIaBtn.disabled = true;
+      iaStatus.className = 'mt-3 text-sm text-amber-600';
+      iaStatus.textContent = '💡 La IA no está disponible. Puedes completar los campos manualmente.';
+      iaStatus.classList.remove('hidden');
     }
   }
 
