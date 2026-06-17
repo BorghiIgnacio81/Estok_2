@@ -342,11 +342,12 @@ import ImageEditor from '../../components/ImageEditor.astro';
   const autocompletarIaBtn = document.getElementById('autocompletarIaBtn');
   const iaStatus = document.getElementById('iaStatus');
 
+  let iaAvailable = false;
+
   async function checkAIAvailability() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      // Verificar disponibilidad de IA a través del backend (evita CORS)
       const token = getToken();
       const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
         method: 'GET',
@@ -362,6 +363,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   async function updateAIStatus() {
     const connected = await checkAIAvailability();
+    iaAvailable = connected;
     if (connected) {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
@@ -383,7 +385,18 @@ import ImageEditor from '../../components/ImageEditor.astro';
   }
 
   updateAIStatus();
-  setInterval(updateAIStatus, 30000);
+  // Solo hacer polling si la IA está disponible; si no, verificar cada 2 minutos
+  setInterval(async () => {
+    if (!iaAvailable) {
+      const connected = await checkAIAvailability();
+      if (connected) {
+        iaAvailable = true;
+        updateAIStatus();
+      }
+    } else {
+      updateAIStatus();
+    }
+  }, iaAvailable ? 30000 : 120000);
 
   // ===========================================================================
   // MANEJO DE CAPTURA DE FOTO + Editor de imagen
