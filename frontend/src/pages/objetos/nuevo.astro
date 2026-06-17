@@ -2,11 +2,13 @@
 // =============================================================================
 // PÁGINA DE CARGA MANUAL DE OBJETO (Mobile-First)
 // Formulario de emergencia para carga manual completa con captura de foto
+// Incluye: Editor de imagen (rotar, recortar, brillo) + Botón "Autocompletar con IA"
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CategoryFields from '../../components/CategoryFields.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
+import ImageEditor from '../../components/ImageEditor.astro';
 ---
 
 <AuthGuard />
@@ -38,12 +40,9 @@ import AuthGuard from '../../components/AuthGuard.astro';
     </div>
 
     <!-- Formulario -->
-    <form
-      id="objetoForm"
-      class="space-y-6"
-    >
+    <form id="objetoForm" class="space-y-6">
       <!-- ================================================================ -->
-      <!-- SECCIÓN: CAPTURA DE FOTO (Mobile-First con cámara) -->
+      <!-- SECCIÓN: CAPTURA DE FOTO (Mobile-First con cámara + Editor) -->
       <!-- ================================================================ -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -52,20 +51,21 @@ import AuthGuard from '../../components/AuthGuard.astro';
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Foto del Objeto
+          <span class="text-xs text-gray-400 font-normal">(toca para editar)</span>
         </h2>
 
         <!-- Preview de la foto -->
         <div class="mb-4">
           <div
             id="photoPreview"
-            class="w-full h-48 sm:h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden"
+            class="w-full h-48 sm:h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden cursor-pointer"
           >
             <div id="photoPlaceholder" class="text-center text-gray-400">
               <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <p class="text-sm">Toca para tomar o seleccionar foto</p>
-              <p class="text-xs mt-1">La foto se usará para análisis por IA</p>
+              <p class="text-xs mt-1">Podrás editarla antes de guardar</p>
             </div>
             <img id="photoImage" class="hidden w-full h-full object-cover" alt="Preview" />
           </div>
@@ -73,42 +73,36 @@ import AuthGuard from '../../components/AuthGuard.astro';
 
         <!-- Botones de cámara / galería -->
         <div class="flex flex-col sm:flex-row gap-3">
-          <!-- Botón: Cámara (prioritario en mobile) -->
           <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             </svg>
             Tomar Foto
-            <input
-              id="cameraInput"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              class="hidden"
-            />
+            <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
           </label>
-
-          <!-- Botón: Galería -->
           <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             Seleccionar de Galería
-            <input
-              id="galleryInput"
-              type="file"
-              accept="image/*"
-              class="hidden"
-            />
+            <input id="galleryInput" type="file" accept="image/*" class="hidden" />
           </label>
         </div>
 
-        <!-- Input oculto para la imagen en Base64 -->
+        <!-- Botón para editar foto (visible solo cuando hay foto) -->
+        <button type="button" id="editPhotoBtn"
+          class="mt-3 hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          ✏️ Editar Foto
+        </button>
+
         <input type="hidden" name="imagen_base64" id="imagenBase64" />
       </div>
 
       <!-- ================================================================ -->
-      <!-- BOTÓN: ANALIZAR CON IA (siempre visible, se habilita con foto) -->
+      <!-- SECCIÓN: IA - Analizar / Autocompletar -->
       <!-- ================================================================ -->
       <div id="iaSection" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -118,14 +112,35 @@ import AuthGuard from '../../components/AuthGuard.astro';
           Análisis con Inteligencia Artificial
         </h2>
         <p class="text-sm text-gray-500 mb-4">
-          Toma o selecciona una foto y luego presiona "Analizar con IA" para autocompletar los campos automáticamente.
+          Toma o selecciona una foto, edítala si lo deseas, guarda el objeto y luego presiona "Autocompletar con IA" para llenar los campos automáticamente.
         </p>
-        <button
-          type="button"
-          id="analizarIaBtn"
-          disabled
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+
+        <!-- Indicador de progreso / Heartbeat -->
+        <div id="iaProgressContainer" class="hidden mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="relative">
+              <div class="w-8 h-8 border-4 border-purple-200 border-t-purple-700 rounded-full animate-spin"></div>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-2 h-2 bg-purple-700 rounded-full animate-pulse"></div>
+              </div>
+            </div>
+            <div>
+              <p id="iaProgressText" class="text-sm font-medium text-purple-800">Analizando imagen con IA...</p>
+              <p id="iaProgressSubtext" class="text-xs text-purple-600">Procesando en GPU Radeon RX 9060 XT</p>
+            </div>
+          </div>
+          <div class="w-full bg-purple-200 rounded-full h-2 overflow-hidden">
+            <div id="iaProgressBar" class="bg-purple-700 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+          <div class="flex justify-between text-xs text-purple-500 mt-1">
+            <span>Iniciando...</span>
+            <span id="iaProgressPercent">0%</span>
+          </div>
+        </div>
+
+        <!-- Botón: Analizar con IA (antes de guardar) -->
+        <button type="button" id="analizarIaBtn" disabled
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
           <span id="iaBtnText">
             <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -140,6 +155,16 @@ import AuthGuard from '../../components/AuthGuard.astro';
             Analizando...
           </span>
         </button>
+
+        <!-- Botón: Autocompletar con IA (después de guardar) -->
+        <button type="button" id="autocompletarIaBtn"
+          class="hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          🤖 Autocompletar con IA
+        </button>
+
         <div id="iaStatus" class="mt-3 text-sm hidden"></div>
       </div>
 
@@ -148,48 +173,21 @@ import AuthGuard from '../../components/AuthGuard.astro';
       <!-- ================================================================ -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Datos Básicos</h2>
-
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <!-- Nombre -->
           <div class="sm:col-span-2">
-            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
-              Nombre del objeto <span class="text-red-500">*</span>
-            </label>
-            <input
-              id="nombre"
-              name="nombre"
-              type="text"
-              required
-              placeholder="Ej: iPhone 14 Pro, El Principito, Sillón de cuero"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-            />
+            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre del objeto <span class="text-red-500">*</span></label>
+            <input id="nombre" name="nombre" type="text" required placeholder="Ej: iPhone 14 Pro, El Principito, Sillón de cuero"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
           </div>
-
-          <!-- Descripción -->
           <div class="sm:col-span-2">
-            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">
-              Descripción
-            </label>
-            <textarea
-              id="descripcion"
-              name="descripcion"
-              rows={3}
-              placeholder="Describe el objeto, su estado, historia o cualquier detalle relevante..."
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-            ></textarea>
+            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <textarea id="descripcion" name="descripcion" rows={3} placeholder="Describe el objeto, su estado, historia o cualquier detalle relevante..."
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
           </div>
-
-          <!-- Categoría (Tipo) -->
           <div>
-            <label for="tipo" class="block text-sm font-medium text-gray-700 mb-1">
-              Categoría <span class="text-red-500">*</span>
-            </label>
-            <select
-              id="tipo"
-              name="tipo"
-              required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="tipo" class="block text-sm font-medium text-gray-700 mb-1">Categoría <span class="text-red-500">*</span></label>
+            <select id="tipo" name="tipo" required
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="">Seleccionar categoría...</option>
               <option value="libro">📚 Libro / Revista</option>
               <option value="tecnologia">💻 Tecnología</option>
@@ -198,17 +196,10 @@ import AuthGuard from '../../components/AuthGuard.astro';
               <option value="objeto">📦 Otro / Genérico</option>
             </select>
           </div>
-
-          <!-- Estado de conservación -->
           <div>
-            <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">
-              Estado de conservación
-            </label>
-            <select
-              id="estado_conservacion"
-              name="estado_conservacion"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">Estado de conservación</label>
+            <select id="estado_conservacion" name="estado_conservacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="excelente">Excelente</option>
               <option value="bueno" selected>Bueno</option>
               <option value="regular">Regular</option>
@@ -216,43 +207,20 @@ import AuthGuard from '../../components/AuthGuard.astro';
               <option value="muy_malo">Muy malo</option>
             </select>
           </div>
-
-          <!-- Color -->
           <div>
-            <label for="color" class="block text-sm font-medium text-gray-700 mb-1">
-              Color
-            </label>
-            <input
-              id="color"
-              name="color"
-              type="text"
-              placeholder="Ej: Rojo, Negro, Plateado"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-            />
+            <label for="color" class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <input id="color" name="color" type="text" placeholder="Ej: Rojo, Negro, Plateado"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
           </div>
-
-          <!-- Valor estimado -->
           <div>
-            <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">
-              Valor estimado (USD)
-            </label>
+            <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">Valor estimado (USD)</label>
             <div class="relative">
               <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-              <input
-                id="valor_estimado"
-                name="valor_estimado"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-              />
+              <input id="valor_estimado" name="valor_estimado" type="number" step="0.01" min="0" placeholder="0.00"
+                class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
             </div>
-            <button
-              type="button"
-              id="estimarPrecioBtn"
-              class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-base disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button type="button" id="estimarPrecioBtn"
+              class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-base disabled:opacity-50 disabled:cursor-not-allowed">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -281,33 +249,19 @@ import AuthGuard from '../../components/AuthGuard.astro';
       <!-- ================================================================ -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Ubicación</h2>
-
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">
-              Ubicación
-            </label>
-            <select
-              id="ubicacion"
-              name="ubicacion"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+            <select id="ubicacion" name="ubicacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="">Sin ubicación</option>
-              <!-- Poblado dinámicamente por JS -->
             </select>
           </div>
-
           <div>
-            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">
-              Contenedor
-            </label>
-            <select
-              id="contenedor"
-              name="contenedor"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">Contenedor</label>
+            <select id="contenedor" name="contenedor"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="">Sin contenedor</option>
-              <!-- Poblado dinámicamente por JS -->
             </select>
           </div>
         </div>
@@ -327,33 +281,19 @@ import AuthGuard from '../../components/AuthGuard.astro';
           Estos campos son fundamentales para el sistema de planificación sucesoria familiar.
           Definen quién fue el dueño original del objeto y quién es el beneficiario designado.
         </p>
-
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="dueno_original" class="block text-sm font-medium text-gray-700 mb-1">
-              Dueño original
-            </label>
-            <select
-              id="dueno_original"
-              name="dueno_original"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="dueno_original" class="block text-sm font-medium text-gray-700 mb-1">Dueño original</label>
+            <select id="dueno_original" name="dueno_original"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="">Seleccionar dueño original...</option>
-              <!-- Poblado dinámicamente por JS -->
             </select>
           </div>
-
           <div>
-            <label for="beneficiario" class="block text-sm font-medium text-gray-700 mb-1">
-              Beneficiario
-            </label>
-            <select
-              id="beneficiario"
-              name="beneficiario"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white"
-            >
+            <label for="beneficiario" class="block text-sm font-medium text-gray-700 mb-1">Beneficiario</label>
+            <select id="beneficiario" name="beneficiario"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
               <option value="">Seleccionar beneficiario...</option>
-              <!-- Poblado dinámicamente por JS -->
             </select>
           </div>
         </div>
@@ -363,11 +303,8 @@ import AuthGuard from '../../components/AuthGuard.astro';
       <!-- BOTÓN DE ENVÍO -->
       <!-- ================================================================ -->
       <div class="flex flex-col sm:flex-row gap-4 pt-4">
-        <button
-          type="submit"
-          id="submitBtn"
-          class="flex-1 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <button type="submit" id="submitBtn"
+          class="flex-1 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
           <span id="submitText">Guardar Objeto</span>
           <span id="submitSpinner" class="hidden">
             <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -376,15 +313,16 @@ import AuthGuard from '../../components/AuthGuard.astro';
             </svg>
           </span>
         </button>
-        <a
-          href="/objetos"
-          class="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base text-center"
-        >
+        <a href="/objetos"
+          class="flex-1 px-6 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base text-center">
           Cancelar
         </a>
       </div>
     </form>
   </div>
+
+  <!-- Image Editor Component (Modal) -->
+  <ImageEditor imageSrc="" />
 </BaseLayout>
 
 <script>
@@ -397,13 +335,15 @@ import AuthGuard from '../../components/AuthGuard.astro';
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad de LM Studio
   // ===========================================================================
-  const aiStatusBadge = document.getElementById('aiStatusBadge')!;
-  const aiStatusDot = document.getElementById('aiStatusDot')!;
-  const aiStatusText = document.getElementById('aiStatusText')!;
-  const iaSection = document.getElementById('iaSection')!;
-  const analizarIaBtn = document.getElementById('analizarIaBtn') as HTMLButtonElement;
+  const aiStatusBadge = document.getElementById('aiStatusBadge');
+  const aiStatusDot = document.getElementById('aiStatusDot');
+  const aiStatusText = document.getElementById('aiStatusText');
+  const iaSection = document.getElementById('iaSection');
+  const analizarIaBtn = document.getElementById('analizarIaBtn');
+  const autocompletarIaBtn = document.getElementById('autocompletarIaBtn');
+  const iaStatus = document.getElementById('iaStatus');
 
-  async function checkAIAvailability(): Promise<boolean> {
+  async function checkAIAvailability() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -424,7 +364,6 @@ import AuthGuard from '../../components/AuthGuard.astro';
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
       aiStatusText.textContent = 'IA Conectada';
-      // Mostrar sección IA y habilitar botón si hay foto
       iaSection.classList.remove('hidden');
       if (imagenBase64.value) {
         analizarIaBtn.disabled = false;
@@ -433,7 +372,6 @@ import AuthGuard from '../../components/AuthGuard.astro';
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
       aiStatusText.textContent = 'Modo Manual';
-      // NO ocultar la sección IA, solo mostrar que está en modo manual
       iaSection.classList.remove('hidden');
       analizarIaBtn.disabled = true;
       iaStatus.className = 'mt-3 text-sm text-amber-600';
@@ -442,121 +380,121 @@ import AuthGuard from '../../components/AuthGuard.astro';
     }
   }
 
-  // Verificar cada 30 segundos
   updateAIStatus();
   setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
-  // MANEJO DE CAPTURA DE FOTO (Cámara + Galería) - Preview directa sin Cropper
+  // MANEJO DE CAPTURA DE FOTO + Editor de imagen
   // ===========================================================================
+  const cameraInput = document.getElementById('cameraInput');
+  const galleryInput = document.getElementById('galleryInput');
+  const photoPreview = document.getElementById('photoPreview');
+  const photoPlaceholder = document.getElementById('photoPlaceholder');
+  const photoImage = document.getElementById('photoImage');
+  const imagenBase64 = document.getElementById('imagenBase64');
+  const editPhotoBtn = document.getElementById('editPhotoBtn');
+  const iaBtnText = document.getElementById('iaBtnText');
+  const iaBtnSpinner = document.getElementById('iaBtnSpinner');
 
-  const cameraInput = document.getElementById('cameraInput') as HTMLInputElement;
-  const galleryInput = document.getElementById('galleryInput') as HTMLInputElement;
-  const photoPreview = document.getElementById('photoPreview')!;
-  const photoPlaceholder = document.getElementById('photoPlaceholder')!;
-  const photoImage = document.getElementById('photoImage') as HTMLImageElement;
-  const imagenBase64 = document.getElementById('imagenBase64') as HTMLInputElement;
-  const iaBtnText = document.getElementById('iaBtnText')!;
-  const iaBtnSpinner = document.getElementById('iaBtnSpinner')!;
-  const iaStatus = document.getElementById('iaStatus')!;
+  let savedObjectId = null;
 
-  // --- Manejo unificado de archivos ---
-  function handleFileSelected(file: File) {
+  function handleFileSelected(file) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      // Mostrar preview directa
+    reader.onload = async (e) => {
+      const result = e.target.result;
       photoImage.src = result;
       photoImage.classList.remove('hidden');
       photoPlaceholder.classList.add('hidden');
       imagenBase64.value = result;
-      // Habilitar botón IA
+      editPhotoBtn.classList.remove('hidden');
       analizarIaBtn.disabled = false;
       iaStatus.classList.add('hidden');
+      setTimeout(() => openEditor(), 300);
     };
     reader.readAsDataURL(file);
   }
 
-  // Un solo listener por input (sin duplicados)
-  cameraInput?.addEventListener('change', (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
+  cameraInput.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
     if (file) handleFileSelected(file);
-    // Resetear el input para permitir seleccionar el mismo archivo de nuevo
-    (e.target as HTMLInputElement).value = '';
+    e.target.value = '';
   });
 
-  galleryInput?.addEventListener('change', (e) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
+  galleryInput.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
     if (file) handleFileSelected(file);
-    (e.target as HTMLInputElement).value = '';
+    e.target.value = '';
   });
 
-  photoPreview?.addEventListener('click', () => {
-    cameraInput?.click();
+  photoPreview.addEventListener('click', () => {
+    cameraInput.click();
   });
 
   // ===========================================================================
-  // ESTIMAR PRECIO - Buscar precio de referencia por nombre del objeto
+  // EDITOR DE IMAGEN
   // ===========================================================================
+  async function openEditor() {
+    if (!imagenBase64.value) return;
+    const editorFn = window.openImageEditor;
+    if (!editorFn) {
+      console.warn('ImageEditor no disponible');
+      return;
+    }
+    const editedImage = await editorFn(imagenBase64.value);
+    if (editedImage) {
+      imagenBase64.value = editedImage;
+      photoImage.src = editedImage;
+      window.showToast?.('✅ Imagen editada correctamente', 'success');
+    }
+  }
 
-  const estimarPrecioBtn = document.getElementById('estimarPrecioBtn') as HTMLButtonElement;
-  const estimarPrecioText = document.getElementById('estimarPrecioText')!;
-  const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner')!;
-  const precioReferencia = document.getElementById('precioReferencia')!;
-  const nombreInput = document.getElementById('nombre') as HTMLInputElement;
+  editPhotoBtn.addEventListener('click', openEditor);
 
-  estimarPrecioBtn?.addEventListener('click', async () => {
+  // ===========================================================================
+  // ESTIMAR PRECIO
+  // ===========================================================================
+  const estimarPrecioBtn = document.getElementById('estimarPrecioBtn');
+  const estimarPrecioText = document.getElementById('estimarPrecioText');
+  const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner');
+  const precioReferencia = document.getElementById('precioReferencia');
+  const nombreInput = document.getElementById('nombre');
+
+  estimarPrecioBtn.addEventListener('click', async () => {
     const nombre = nombreInput?.value?.trim();
     if (!nombre) {
-      (window as any).showToast?.('Primero escribe el nombre del objeto.', 'error');
+      window.showToast?.('Primero escribe el nombre del objeto.', 'error');
       nombreInput?.focus();
       return;
     }
-
     estimarPrecioBtn.disabled = true;
     estimarPrecioText.classList.add('hidden');
     estimarPrecioSpinner.classList.remove('hidden');
     precioReferencia.classList.add('hidden');
-
     try {
-      // Buscar objetos similares en el inventario para estimar precio
       const token = getToken();
       const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
         const objetos = data.results || data;
-
-        // Filtrar objetos que tengan valor estimado
-        const conPrecio = objetos.filter((o: any) => o.valor_estimado && Number(o.valor_estimado) > 0);
-
+        const conPrecio = objetos.filter((o) => o.valor_estimado && Number(o.valor_estimado) > 0);
         if (conPrecio.length > 0) {
-          // Calcular precio promedio
-          const precios = conPrecio.map((o: any) => Number(o.valor_estimado));
-          const promedio = precios.reduce((a: number, b: number) => a + b, 0) / precios.length;
+          const precios = conPrecio.map((o) => Number(o.valor_estimado));
+          const promedio = precios.reduce((a, b) => a + b, 0) / precios.length;
           const maxPrecio = Math.max(...precios);
           const minPrecio = Math.min(...precios);
-
-          // Sugerir el precio promedio
-          const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+          const valorEstimado = document.getElementById('valor_estimado');
           if (valorEstimado) {
             valorEstimado.value = promedio.toFixed(2);
             valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
           }
-
           precioReferencia.className = 'mt-2 text-xs text-green-600';
-          precioReferencia.innerHTML = `
-            💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong>
-            (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)})
-            basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.
-          `;
-          (window as any).showToast?.(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
+          precioReferencia.innerHTML = `💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong> (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)}) basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.`;
+          window.showToast?.(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
         } else {
-          // Si no hay objetos similares, sugerir un valor por defecto según categoría
-          const tipo = (document.getElementById('tipo') as HTMLSelectElement)?.value;
+          const tipo = document.getElementById('tipo')?.value;
           let sugerencia = 0;
           switch (tipo) {
             case 'tecnologia': sugerencia = 150; break;
@@ -565,29 +503,22 @@ import AuthGuard from '../../components/AuthGuard.astro';
             case 'ropa': sugerencia = 30; break;
             default: sugerencia = 50;
           }
-
           precioReferencia.className = 'mt-2 text-xs text-amber-600';
-          precioReferencia.innerHTML = `
-            💡 No se encontraron objetos similares con precio.
-            Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong>
-            (basado en la categoría seleccionada).
-          `;
-
-          const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+          precioReferencia.innerHTML = `💡 No se encontraron objetos similares con precio. Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong> (basado en la categoría seleccionada).`;
+          const valorEstimado = document.getElementById('valor_estimado');
           if (valorEstimado && !valorEstimado.value) {
             valorEstimado.value = sugerencia.toFixed(2);
           }
+          precioReferencia.classList.remove('hidden');
         }
-        precioReferencia.classList.remove('hidden');
       } else {
         precioReferencia.className = 'mt-2 text-xs text-red-600';
-        precioReferencia.textContent = '❌ No se pudo consultar el inventario.';
+        precioReferencia.textContent = '❌ Error al buscar precios de referencia.';
         precioReferencia.classList.remove('hidden');
       }
     } catch (err) {
-      console.warn('Error al estimar precio:', err);
       precioReferencia.className = 'mt-2 text-xs text-red-600';
-      precioReferencia.textContent = '❌ Error de conexión al buscar precios de referencia.';
+      precioReferencia.textContent = '❌ Error de conexión al buscar precios.';
       precioReferencia.classList.remove('hidden');
     } finally {
       estimarPrecioBtn.disabled = false;
@@ -597,352 +528,162 @@ import AuthGuard from '../../components/AuthGuard.astro';
   });
 
   // ===========================================================================
-  // MEMORIA VISUAL - Buscar coincidencias con objetos existentes
+  // CARGAR DATOS INICIALES (Ubicaciones, Contenedores, Usuarios)
   // ===========================================================================
-
-  const coincidenciaContainer = document.createElement('div');
-  coincidenciaContainer.id = 'coincidenciaContainer';
-  coincidenciaContainer.className = 'hidden';
-
-  async function buscarCoincidencias(data: any) {
-    const nombre = data.nombre || data.objeto?.nombre;
-    const descripcion = data.descripcion || data.objeto?.descripcion;
-    if (!nombre && !descripcion) return;
-
-    try {
-      const token = getToken();
-      const searchTerm = (nombre || descripcion).substring(0, 50);
-      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(searchTerm)}&incluir_eliminados=false`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (!response.ok) return;
-      const result = await response.json();
-      const objetos = result.results || result;
-
-      // Filtrar coincidencias relevantes (excluir el objeto recién creado si tiene ID)
-      const coincidencias = objetos.filter((o: any) => {
-        if (data.objeto?.id && o.id === data.objeto.id) return false;
-        const similitud = calcularSimilitud(nombre, o.nombre);
-        return similitud > 0.5;
-      });
-
-      if (coincidencias.length > 0) {
-        mostrarCoincidencias(coincidencias);
-      }
-    } catch (err) {
-      console.warn('Error al buscar coincidencias:', err);
-    }
-  }
-
-  function calcularSimilitud(a: string, b: string): number {
-    if (!a || !b) return 0;
-    const aLower = a.toLowerCase();
-    const bLower = b.toLowerCase();
-    if (aLower === bLower) return 1;
-    if (aLower.includes(bLower) || bLower.includes(aLower)) return 0.8;
-
-    // Contar palabras en común
-    const palabrasA = new Set(aLower.split(/\s+/));
-    const palabrasB = new Set(bLower.split(/\s+/));
-    let comunes = 0;
-    palabrasA.forEach(p => { if (palabrasB.has(p)) comunes++; });
-    const total = Math.max(palabrasA.size, palabrasB.size);
-    return total > 0 ? comunes / total : 0;
-  }
-
-  function mostrarCoincidencias(coincidencias: any[]) {
-    const section = document.getElementById('legacySection') || document.querySelector('.bg-white.rounded-xl.shadow-sm.border.border-gray-200.p-6:last-of-type');
-    if (!section) return;
-
-    coincidenciaContainer.className = 'bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4';
-    coincidenciaContainer.innerHTML = `
-      <div class="flex items-start gap-3">
-        <span class="text-amber-500 text-lg">🔍</span>
-        <div class="flex-1">
-          <p class="text-sm font-medium text-amber-800">
-            Se encontraron ${coincidencias.length} objeto(s) similar(es) en el inventario
-          </p>
-          <p class="text-xs text-amber-600 mt-1">
-            Sugerencia: Podrías asignar el mismo dueño/beneficiario para mantener la trazabilidad.
-          </p>
-          <div class="mt-2 space-y-1">
-            ${coincidencias.slice(0, 3).map((o: any) => `
-              <a href="/objetos/${o.id}" target="_blank" class="block text-xs text-amber-700 hover:text-amber-900 underline">
-                📌 ${o.nombre} ${o.valor_estimado ? `- $${Number(o.valor_estimado).toLocaleString('es-AR')}` : ''}
-              </a>
-            `).join('')}
-          </div>
-        </div>
-        <button onclick="this.parentElement.parentElement.remove()" class="text-amber-400 hover:text-amber-600">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    `;
-
-    // Insertar antes de la sección de legado
-    const legacySection = document.querySelector('.bg-white.rounded-xl.shadow-sm.border.border-gray-200.p-6:last-of-type');
-    if (legacySection && !document.getElementById('coincidenciaContainer')) {
-      legacySection.parentNode?.insertBefore(coincidenciaContainer, legacySection);
-    }
-  }
-
-  // ===========================================================================
-  // ANÁLISIS CON IA
-  // ===========================================================================
-
-  analizarIaBtn?.addEventListener('click', async () => {
-    const token = getToken();
-    if (!token) {
-      (window as any).showToast?.('Debes iniciar sesión para usar la IA.', 'error');
-      setTimeout(() => { window.location.href = '/login'; }, 1500);
-      return;
-    }
-
-    if (!imagenBase64.value) {
-      (window as any).showToast?.('Primero debes tomar o seleccionar una foto.', 'error');
-      return;
-    }
-
-    analizarIaBtn.disabled = true;
-    iaBtnText.classList.add('hidden');
-    iaBtnSpinner.classList.remove('hidden');
-    iaStatus.classList.remove('hidden');
-    iaStatus.className = 'mt-3 text-sm text-blue-600';
-    iaStatus.textContent = '⏳ Analizando imagen con IA...';
-
-    try {
-      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          imagen_base64: imagenBase64.value,
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || err.error || 'Error al analizar la imagen');
-      }
-
-      const data = await response.json();
-      const objeto = data.objeto || data;
-
-      // Autocompletar formulario
-      autocompletarFormulario(objeto);
-
-      // Buscar coincidencias en el inventario (Memoria Visual)
-      buscarCoincidencias(data);
-
-      iaStatus.className = 'mt-3 text-sm text-green-600';
-      iaStatus.textContent = '✅ Análisis completado. Los campos se han autocompletado.';
-      (window as any).showToast?.('✅ Campos autocompletados por IA', 'success');
-    } catch (err: any) {
-      console.error('Error en análisis IA:', err);
-      iaStatus.className = 'mt-3 text-sm text-red-600';
-      iaStatus.textContent = `❌ Error: ${err.message}`;
-      (window as any).showToast?.(`❌ Error de IA: ${err.message}`, 'error');
-    } finally {
-      analizarIaBtn.disabled = false;
-      iaBtnText.classList.remove('hidden');
-      iaBtnSpinner.classList.add('hidden');
-    }
-  });
-
-  // ===========================================================================
-  // AUTOCOMPLETAR FORMULARIO CON DATOS DE LA IA
-  // ===========================================================================
-
-  function autocompletarFormulario(data: any) {
-    setFieldValue('nombre', data.nombre);
-    setFieldValue('descripcion', data.descripcion);
-    setFieldValue('color', data.color);
-    setFieldValue('valor_estimado', data.valor_estimado);
-
-    if (data.tipo && data.tipo !== 'objeto') {
-      tipoSelect.value = data.tipo;
-      tipoSelect.dispatchEvent(new Event('change'));
-    }
-
-    if (data.estado_conservacion) {
-      const estadoSelect = document.getElementById('estado_conservacion') as HTMLSelectElement;
-      if (estadoSelect) estadoSelect.value = data.estado_conservacion;
-    }
-
-    const camposCategoria = ['autor', 'edicion', 'anio', 'isbn_issn',
-      'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
-      'marca', 'modelo', 'numero_serie', 'peso',
-      'material', 'artista_fabricante', 'largo', 'ancho', 'alto',
-      'tamano'];
-
-    camposCategoria.forEach((campo) => {
-      if (data[campo]) {
-        setFieldValue(campo, data[campo]);
-      }
-    });
-  }
-
-  function setFieldValue(fieldName: string, value: any) {
-    if (!value && value !== 0) return;
-
-    const el = document.getElementById(fieldName) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-    if (!el) return;
-
-    const elByName = document.querySelector(`[name="${fieldName}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-    const target = el || elByName;
-    if (!target) return;
-
-    target.value = value;
-    target.dispatchEvent(new Event('input', { bubbles: true }));
-    target.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // ===========================================================================
-  // MANEJO DE CATEGORÍAS
-  // ===========================================================================
-
-  const tipoSelect = document.getElementById('tipo') as HTMLSelectElement;
-
-  tipoSelect?.addEventListener('change', () => {
-    const tipo = tipoSelect.value;
-    if ((window as any).updateCategoryFields) {
-      (window as any).updateCategoryFields(tipo);
-    }
-  });
-
-  // ===========================================================================
-  // CARGA DE UBICACIONES, CONTENEDORES Y USUARIOS
-  // ===========================================================================
-
-  const ubicacionSelect = document.getElementById('ubicacion') as HTMLSelectElement;
-  const contenedorSelect = document.getElementById('contenedor') as HTMLSelectElement;
-  const duenoSelect = document.getElementById('dueno_original') as HTMLSelectElement;
-  const beneficiarioSelect = document.getElementById('beneficiario') as HTMLSelectElement;
-
-  function getToken(): string | null {
-    return localStorage.getItem('estok_access_token');
-  }
-
   async function cargarUbicaciones() {
     try {
+      const token = getToken();
       const response = await fetch(`${API_URL}/ubicaciones/`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
         const ubicaciones = data.results || data;
-        ubicaciones.forEach((ubicacion: any) => {
-          const option = document.createElement('option');
-          option.value = ubicacion.id;
-          option.textContent = ubicacion.nombre;
-          ubicacionSelect?.appendChild(option);
+        const select = document.getElementById('ubicacion');
+        ubicaciones.forEach((u) => {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.nombre;
+          select.appendChild(opt);
         });
       }
     } catch (err) {
-      console.warn('No se pudieron cargar las ubicaciones:', err);
+      console.error('Error cargando ubicaciones:', err);
     }
   }
 
-  async function cargarContenedores(ubicacionId?: string) {
-    contenedorSelect.innerHTML = '<option value="">Sin contenedor</option>';
+  async function cargarContenedores() {
     try {
-      let url = `${API_URL}/contenedores/`;
-      if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+      const token = getToken();
+      const response = await fetch(`${API_URL}/contenedores/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
         const contenedores = data.results || data;
-        contenedores.forEach((contenedor: any) => {
-          const option = document.createElement('option');
-          option.value = contenedor.id;
-          option.textContent = `${contenedor.nombre} (${contenedor.ubicacion_nombre || 'Sin ubicación'})`;
-          contenedorSelect?.appendChild(option);
+        const select = document.getElementById('contenedor');
+        contenedores.forEach((c) => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.nombre} (${c.ubicacion_nombre || ''})`;
+          select.appendChild(opt);
         });
       }
     } catch (err) {
-      console.warn('No se pudieron cargar los contenedores:', err);
+      console.error('Error cargando contenedores:', err);
     }
   }
 
   async function cargarUsuarios() {
     try {
+      const token = getToken();
       const response = await fetch(`${API_URL}/usuarios/`, {
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
         const usuarios = data.results || data;
-        usuarios.forEach((user: any) => {
-          const nombre = user.first_name
-            ? `${user.first_name} ${user.last_name || ''}`
-            : user.username;
-          const optDueno = document.createElement('option');
-          optDueno.value = user.id;
-          optDueno.textContent = nombre;
-          duenoSelect?.appendChild(optDueno);
-
-          const optBenef = document.createElement('option');
-          optBenef.value = user.id;
-          optBenef.textContent = nombre;
-          beneficiarioSelect?.appendChild(optBenef);
+        const duenoSelect = document.getElementById('dueno_original');
+        const benSelect = document.getElementById('beneficiario');
+        usuarios.forEach((u) => {
+          const opt1 = document.createElement('option');
+          opt1.value = u.id;
+          opt1.textContent = u.full_name || u.username || u.email;
+          duenoSelect.appendChild(opt1);
+          const opt2 = document.createElement('option');
+          opt2.value = u.id;
+          opt2.textContent = u.full_name || u.username || u.email;
+          benSelect.appendChild(opt2);
         });
       }
     } catch (err) {
-      console.warn('No se pudieron cargar los usuarios:', err);
+      console.error('Error cargando usuarios:', err);
     }
   }
 
   cargarUbicaciones();
+  cargarContenedores();
   cargarUsuarios();
 
-  ubicacionSelect?.addEventListener('change', () => {
-    cargarContenedores(ubicacionSelect.value);
+  // ===========================================================================
+  // CAMBIAR CATEGORÍA - Actualizar campos específicos
+  // ===========================================================================
+  const tipoSelect = document.getElementById('tipo');
+  const categoryContainer = document.getElementById('categoryFieldsContainer');
+
+  tipoSelect.addEventListener('change', () => {
+    const tipo = tipoSelect.value || 'objeto';
+    // Recargar CategoryFields con fetch interno
+    fetch(`/api/category-fields?tipo=${tipo}`)
+      .then(r => r.text())
+      .then(html => {
+        categoryContainer.innerHTML = html;
+      })
+      .catch(() => {
+        // Fallback: mantener el actual
+      });
   });
 
   // ===========================================================================
-  // ENVÍO DEL FORMULARIO
+  // ENVÍO DEL FORMULARIO - Guardar objeto + subir foto
   // ===========================================================================
+  const submitBtn = document.getElementById('submitBtn');
+  const submitText = document.getElementById('submitText');
+  const submitSpinner = document.getElementById('submitSpinner');
 
-  const form = document.getElementById('objetoForm') as HTMLFormElement;
-  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-  const submitText = document.getElementById('submitText')!;
-  const submitSpinner = document.getElementById('submitSpinner')!;
-
-  form?.addEventListener('submit', async (e) => {
+  document.getElementById('objetoForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-
-    const token = getToken();
-    if (!token) {
-      (window as any).showToast?.('Debes iniciar sesión para guardar objetos.', 'error');
-      setTimeout(() => { window.location.href = '/login'; }, 1500);
-      return;
-    }
-
     submitBtn.disabled = true;
     submitText.classList.add('hidden');
     submitSpinner.classList.remove('hidden');
 
     try {
-      const formData = new FormData(form);
-      const payload: Record<string, any> = {};
+      const token = getToken();
+      const formData = new FormData(e.target);
 
-      formData.forEach((value, key) => {
-        if (value && value !== '') {
-          payload[key] = value;
-        }
-      });
+      // Construir payload del objeto
+      const payload = {
+        nombre: formData.get('nombre'),
+        descripcion: formData.get('descripcion') || '',
+        tipo: formData.get('tipo') || 'objeto',
+        estado_conservacion: formData.get('estado_conservacion') || 'bueno',
+        color: formData.get('color') || '',
+        valor_estimado: formData.get('valor_estimado') || null,
+        ubicacion: formData.get('ubicacion') || null,
+        contenedor: formData.get('contenedor') || null,
+        dueno_original: formData.get('dueno_original') || null,
+        beneficiario: formData.get('beneficiario') || null,
+      };
 
-      payload.estado_carga = 'completo';
-      delete payload.imagen_base64;
+      // Agregar campos específicos según categoría
+      const tipo = payload.tipo;
+      if (tipo === 'libro') {
+        payload.autor = formData.get('autor') || '';
+        payload.anio = formData.get('anio') || null;
+        payload.isbn_issn = formData.get('isbn_issn') || '';
+        payload.edicion = formData.get('edicion') || '';
+        payload.nombre_serie = formData.get('nombre_serie') || '';
+        payload.titulo_tomo = formData.get('titulo_tomo') || '';
+        payload.numero_tomo = formData.get('numero_tomo') || null;
+        payload.editorial = formData.get('editorial') || '';
+        payload.idioma = formData.get('idioma') || '';
+      } else if (tipo === 'tecnologia') {
+        payload.marca = formData.get('marca') || '';
+        payload.modelo = formData.get('modelo') || '';
+        payload.numero_serie = formData.get('numero_serie') || '';
+        payload.peso = formData.get('peso') || null;
+      } else if (tipo === 'mueble') {
+        payload.material = formData.get('material') || '';
+        payload.artista_fabricante = formData.get('artista_fabricante') || '';
+        payload.largo = formData.get('largo') || null;
+        payload.ancho = formData.get('ancho') || null;
+        payload.alto = formData.get('alto') || null;
+      } else if (tipo === 'ropa') {
+        payload.tamano = formData.get('tamano') || '';
+      }
 
-      const response = await fetch(`${API_URL}/objetos/`, {
+      // 1. Crear el objeto
+      const createResponse = await fetch(`${API_URL}/objetos/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -951,49 +692,230 @@ import AuthGuard from '../../components/AuthGuard.astro';
         body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        const objeto = await response.json();
-        const objetoId = objeto.id || objeto.data?.id;
-
-        // Si hay imagen Base64, subirla como foto usando multipart/form-data
-        if (imagenBase64.value && objetoId) {
-          try {
-            const base64Data = imagenBase64.value;
-            const blob = await fetch(base64Data).then(r => r.blob());
-            const file = new File([blob], 'foto.jpg', { type: 'image/jpeg' });
-
-            const fotoFormData = new FormData();
-            fotoFormData.append('imagen', file);
-            fotoFormData.append('es_principal', 'true');
-
-            await fetch(`${API_URL}/objetos/${objetoId}/subir_foto/`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-              body: fotoFormData,
-            });
-          } catch (fotoErr) {
-            console.warn('La foto no se pudo subir, pero el objeto se guardó:', fotoErr);
-          }
-        }
-
-        (window as any).showToast?.('✅ Objeto guardado correctamente', 'success');
-        setTimeout(() => { window.location.href = '/objetos'; }, 1000);
-      } else {
-        const error = await response.json();
-        const errorMsg = error.detail || error.error || Object.values(error).flat().join(', ');
-        (window as any).showToast?.(`❌ Error: ${errorMsg}`, 'error');
-        submitBtn.disabled = false;
-        submitText.classList.remove('hidden');
-        submitSpinner.classList.add('hidden');
+      if (!createResponse.ok) {
+        const errData = await createResponse.json();
+        throw new Error(errData.detail || errData.error || 'Error al crear el objeto');
       }
+
+      const createdObject = await createResponse.json();
+      savedObjectId = createdObject.id || createdObject.data?.id;
+
+      // 2. Subir foto si existe
+      const base64Image = imagenBase64.value;
+      if (base64Image && savedObjectId) {
+        // Convertir Base64 a Blob para subir como multipart
+        const blob = await (await fetch(base64Image)).blob();
+        const formDataUpload = new FormData();
+        formDataUpload.append('imagen', blob, 'foto.jpg');
+        formDataUpload.append('es_principal', 'true');
+        formDataUpload.append('descripcion', 'Foto principal');
+
+        const uploadResponse = await fetch(`${API_URL}/objetos/${savedObjectId}/subir_foto/`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formDataUpload,
+        });
+
+        if (!uploadResponse.ok) {
+          console.warn('Foto subida con advertencia:', await uploadResponse.text());
+        }
+      }
+
+      // 3. Mostrar botón de Autocompletar con IA
+      if (savedObjectId) {
+        autocompletarIaBtn.classList.remove('hidden');
+        autocompletarIaBtn.dataset.objetoId = savedObjectId;
+        window.showToast?.('✅ Objeto guardado correctamente. Ahora puedes usar "Autocompletar con IA".', 'success');
+      }
+
+      // Resetear formulario
+      e.target.reset();
+      photoImage.classList.add('hidden');
+      photoPlaceholder.classList.remove('hidden');
+      imagenBase64.value = '';
+      editPhotoBtn.classList.add('hidden');
+      submitBtn.disabled = false;
+      submitText.classList.remove('hidden');
+      submitSpinner.classList.add('hidden');
+
     } catch (err) {
-      (window as any).showToast?.('❌ Error de conexión. Verifica que el servidor esté corriendo.', 'error');
-      console.error(err);
+      window.showToast?.(`❌ ${err.message}`, 'error');
       submitBtn.disabled = false;
       submitText.classList.remove('hidden');
       submitSpinner.classList.add('hidden');
     }
   });
+
+  // ===========================================================================
+  // AUTOCOMPLETAR CON IA - Llamar al endpoint analizar_con_ia
+  // ===========================================================================
+  const iaProgressContainer = document.getElementById('iaProgressContainer');
+  const iaProgressText = document.getElementById('iaProgressText');
+  const iaProgressSubtext = document.getElementById('iaProgressSubtext');
+  const iaProgressBar = document.getElementById('iaProgressBar');
+  const iaProgressPercent = document.getElementById('iaProgressPercent');
+
+  autocompletarIaBtn.addEventListener('click', async () => {
+    const objetoId = autocompletarIaBtn.dataset.objetoId;
+    if (!objetoId) {
+      window.showToast?.('❌ No hay objeto guardado para analizar.', 'error');
+      return;
+    }
+
+    // Mostrar progreso
+    autocompletarIaBtn.disabled = true;
+    iaProgressContainer.classList.remove('hidden');
+    iaProgressText.textContent = '🤖 Analizando imagen con IA...';
+    iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
+    iaProgressBar.style.width = '10%';
+    iaProgressPercent.textContent = '10%';
+    iaStatus.classList.add('hidden');
+
+    // Simular progreso mientras se procesa
+    let progress = 10;
+    const progressInterval = setInterval(() => {
+      if (progress < 90) {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        iaProgressBar.style.width = `${Math.round(progress)}%`;
+        iaProgressPercent.textContent = `${Math.round(progress)}%`;
+        if (progress > 30) {
+          iaProgressText.textContent = '🧠 Extrayendo información del objeto...';
+        }
+        if (progress > 60) {
+          iaProgressText.textContent = '📝 Analizando campos (marca, modelo, autor)...';
+        }
+      }
+    }, 800);
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/objetos/${objetoId}/analizar_con_ia/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      clearInterval(progressInterval);
+      iaProgressBar.style.width = '100%';
+      iaProgressPercent.textContent = '100%';
+      iaProgressText.textContent = '✅ Análisis completado';
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al analizar con IA');
+      }
+
+      const result = await response.json();
+      const datos = result.datos || result;
+
+      // Autocompletar campos en el formulario
+      if (datos.nombre) {
+        document.getElementById('nombre').value = datos.nombre;
+      }
+      if (datos.descripcion) {
+        document.getElementById('descripcion').value = datos.descripcion;
+      }
+      if (datos.estado_conservacion) {
+        const estadoSelect = document.getElementById('estado_conservacion');
+        if ([...estadoSelect.options].some(o => o.value === datos.estado_conservacion)) {
+          estadoSelect.value = datos.estado_conservacion;
+        }
+      }
+      if (datos.color) {
+        document.getElementById('color').value = datos.color;
+      }
+      if (datos.categoria) {
+        const tipoMap = { libro: 'libro', tecnologia: 'tecnologia', mueble: 'mueble', ropa: 'ropa' };
+        const tipoVal = tipoMap[datos.categoria];
+        if (tipoVal && tipoSelect) {
+          tipoSelect.value = tipoVal;
+          tipoSelect.dispatchEvent(new Event('change'));
+        }
+      }
+      if (datos.precio_estimado_mercado) {
+        document.getElementById('valor_estimado').value = datos.precio_estimado_mercado;
+      }
+
+      // Campos específicos
+      if (datos.autor) {
+        const autorInput = document.querySelector('[name="autor"]');
+        if (autorInput) autorInput.value = datos.autor;
+      }
+      if (datos.marca) {
+        const marcaInput = document.querySelector('[name="marca"]');
+        if (marcaInput) marcaInput.value = datos.marca;
+      }
+      if (datos.nombre_serie) {
+        const serieInput = document.querySelector('[name="nombre_serie"]');
+        if (serieInput) serieInput.value = datos.nombre_serie;
+      }
+      if (datos.titulo_tomo) {
+        const tomoInput = document.querySelector('[name="titulo_tomo"]');
+        if (tomoInput) tomoInput.value = datos.titulo_tomo;
+      }
+      if (datos.numero_tomo) {
+        const numInput = document.querySelector('[name="numero_tomo"]');
+        if (numInput) numInput.value = datos.numero_tomo;
+      }
+      if (datos.editorial) {
+        const editInput = document.querySelector('[name="editorial"]');
+        if (editInput) editInput.value = datos.editorial;
+      }
+      if (datos.idioma) {
+        const idiomaInput = document.querySelector('[name="idioma"]');
+        if (idiomaInput) idiomaInput.value = datos.idioma;
+      }
+
+      // Mostrar campos pendientes
+      const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];
+      if (camposPendientes.length > 0) {
+        iaStatus.className = 'mt-3 text-sm text-amber-600';
+        iaStatus.innerHTML = `⚠️ La IA no pudo determinar: <strong>${camposPendientes.join(', ')}</strong>. Revisa estos campos manualmente.`;
+      } else {
+        iaStatus.className = 'mt-3 text-sm text-green-600';
+        iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
+      }
+      iaStatus.classList.remove('hidden');
+
+      window.showToast?.('🤖 Campos autocompletados por IA correctamente', 'success');
+
+      // Ocultar botón de autocompletar
+      setTimeout(() => {
+        autocompletarIaBtn.classList.add('hidden');
+      }, 2000);
+
+    } catch (err) {
+      clearInterval(progressInterval);
+      iaProgressBar.style.width = '0%';
+      iaProgressPercent.textContent = 'Error';
+      iaProgressText.textContent = '❌ Error en el análisis';
+      iaProgressSubtext.textContent = err.message;
+      window.showToast?.(`❌ ${err.message}`, 'error');
+    } finally {
+      setTimeout(() => {
+        iaProgressContainer.classList.add('hidden');
+        autocompletarIaBtn.disabled = false;
+      }, 3000);
+    }
+  });
+
+  // ===========================================================================
+  // FUNCIÓN AUXILIAR: getToken
+  // ===========================================================================
+  function getToken() {
+    // Intentar obtener token de sessionStorage o localStorage
+    try {
+      const authData = sessionStorage.getItem('auth_tokens') || localStorage.getItem('auth_tokens');
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        return parsed.access || null;
+      }
+    } catch {}
+    return null;
+  }
 </script>

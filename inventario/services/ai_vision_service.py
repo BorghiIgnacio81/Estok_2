@@ -39,6 +39,9 @@ LM_STUDIO_TIMEOUT_ALTA_RES = getattr(settings, 'AI_HIGH_RES_TIMEOUT', 180)
 CONFIANZA_MINIMA = 0.6  # umbral mínimo de confianza para considerar un campo válido
 MODEL_NAME = "Qwen2-VL-7B"  # modelo desplegado en LM Studio
 MAX_IMAGE_SIZE_MB = 10  # tamaño máximo de imagen en MB
+MAX_IMAGE_SIZE_FOR_GPU_MB = 5  # tamaño máximo para enviar a GPU (comprimir si excede)
+COMPRESS_QUALITY = 85  # calidad JPEG para compresión (0-100)
+
 
 
 
@@ -61,6 +64,12 @@ class VisionResult:
     confianza_general: float = 0.0
     campos_pendientes: List[str] = field(default_factory=list)
     raw_response: str = ""
+    # Campos específicos para cómics
+    nombre_serie: str = ""
+    titulo_tomo: str = ""
+    numero_tomo: Optional[int] = None
+    editorial: str = ""
+    idioma: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if k != 'raw_response'}
@@ -198,12 +207,19 @@ class LMStudioClient:
             '  "descripcion": "Descripción detallada del objeto",\n'
             '  "color": "Color predominante",\n'
             '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
-            '  "confianza_general": 0.85\n'
+            '  "confianza_general": 0.85,\n'
+            '  "nombre_serie": "Nombre de la serie si es cómic (ej: Garfield, Batman)",\n'
+            '  "titulo_tomo": "Título específico del tomo (ej: Se queda con la torta)",\n'
+            '  "numero_tomo": 15,\n'
+            '  "editorial": "Editorial (ej: Planeta DeAgostini, DC Comics, Marvel)",\n'
+            '  "idioma": "Idioma del contenido (ej: Español, Inglés)"\n'
             "}\n\n"
             "REGLAS DE RECONOCIMIENTO DE PATRONES:\n"
             "1. FORMA RECTANGULAR CON TEXTO: Si el objeto tiene forma rectangular, parece un libro, "
             "revista o documento con texto visible, clasifícalo como 'libro' y extrae autor, ISBN/ISSN, "
-            "edición y año de publicación si son legibles.\n"
+            "edición y año de publicación si son legibles. Si además ves que es parte de una serie "
+            "(ej: números en el lomo, nombre de serie), extrae también nombre_serie, titulo_tomo, "
+            "numero_tomo, editorial e idioma.\n"
             "2. BRILLOS METÁLICOS: Si el objeto tiene brillos metálicos, textura de metal precioso "
             "(plata, oro, bronce) o parece una joya/artículo de lujo, clasifica el material como "
             "'Plata', 'Oro', 'Bronce', 'Metal' según corresponda. Si es una obra de arte o mueble "
@@ -281,6 +297,90 @@ class AIVisionService:
     def __init__(self):
         self.client = LMStudioClient()
 
+    def _comprimir_imagen_base64(self, image_base64: str, max_size_mb: float = MAX_IMAGE_SIZE_FOR_GPU_MB) -> str:
+        """
+        Comprime una imagen en Base64 si excede el tamaño máximo para GPU.
+        Usa PIL/Pillow para redimensionar y comprimir la imagen antes de enviarla
+        al modelo, evitando saturar la VRAM de la GPU Radeon RX 9060 XT (8GB).
+
+        Args:
+            image_base64: Imagen en formato Base64 (con o sin prefijo data:image).
+            max_size_mb: Tamaño máximo en MB para la imagen comprimida.
+
+        Returns:
+            Imagen Base64 comprimida (sin prefijo data:image).
+        """
+        # Limpiar prefijo si existe
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',', 1)[1]
+
+        # Estimar tamaño actual
+        estimated_bytes = len(image_base64) * 0.73
+        estimated_mb = estimated_bytes / (1024 * 1024)
+
+        # Si ya está dentro del límite, devolver sin cambios
+        if estimated_mb <= max_size_mb:
+            return image_base64
+
+        logger.info(
+            "Comprimiendo imagen para GPU: %.2fMB -> objetivo <%.2fMB",
+            estimated_mb, max_size_mb
+        )
+
+        try:
+            from PIL import Image
+            import io
+
+            # Decodificar Base64 a bytes
+            image_bytes = base64.b64decode(image_base64)
+
+            # Abrir con PIL
+            img = Image.open(io.BytesIO(image_bytes))
+
+            # Convertir a RGB si es necesario (RGBA -> RGB)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+
+            # Redimensionar si es muy grande (máximo 1920px en cualquier lado)
+            max_dimension = 1920
+            if max(img.width, img.height) > max_dimension:
+                ratio = max_dimension / max(img.width, img.height)
+                new_width = int(img.width * ratio)
+                new_height = int(img.height * ratio)
+                img = img.resize((new_width, new_height), Image.LANCZOS)
+                logger.info("Imagen redimensionada a %dx%d", new_width, new_height)
+
+            # Comprimir con calidad ajustable
+            output = io.BytesIO()
+            quality = COMPRESS_QUALITY
+            img.save(output, format='JPEG', quality=quality, optimize=True)
+
+            # Verificar tamaño resultante
+            compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
+
+            # Si aún excede, reducir calidad progresivamente
+            while compressed_size_mb > max_size_mb and quality > 30:
+                quality -= 10
+                output = io.BytesIO()
+                img.save(output, format='JPEG', quality=quality, optimize=True)
+                compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
+
+            compressed_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
+            logger.info(
+                "Imagen comprimida: %.2fMB -> %.2fMB (calidad: %d%%)",
+                estimated_mb, compressed_size_mb, quality
+            )
+
+            return compressed_b64
+
+        except ImportError:
+            logger.warning("Pillow no instalado. Enviando imagen sin comprimir.")
+            return image_base64
+        except Exception as e:
+            logger.error("Error al comprimir imagen: %s", e)
+            return image_base64
+
+
     def _determinar_campos_pendientes(self, result: Dict[str, Any]) -> List[str]:
         """
         Analiza el resultado de la IA y determina qué campos
@@ -341,7 +441,12 @@ class AIVisionService:
             color=raw_result.get("color", ""),
             categoria=raw_result.get("categoria", "otro"),
             confianza_general=raw_result.get("confianza_general", 0.0),
-            raw_response=json.dumps(raw_result)
+            raw_response=json.dumps(raw_result),
+            nombre_serie=raw_result.get("nombre_serie", ""),
+            titulo_tomo=raw_result.get("titulo_tomo", ""),
+            numero_tomo=raw_result.get("numero_tomo"),
+            editorial=raw_result.get("editorial", ""),
+            idioma=raw_result.get("idioma", ""),
         )
 
         # Determinar campos pendientes
@@ -472,6 +577,11 @@ class AIVisionService:
                         objeto_ptr=objeto,
                         autor=vision_result.autor,
                         anio=vision_result.anio,
+                        nombre_serie=vision_result.nombre_serie,
+                        titulo_tomo=vision_result.titulo_tomo,
+                        numero_tomo=vision_result.numero_tomo,
+                        editorial=vision_result.editorial,
+                        idioma=vision_result.idioma,
                     )
                 elif vision_result.categoria == 'tecnologia':
                     from ..models import Tecnologia

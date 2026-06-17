@@ -33,7 +33,7 @@ const fieldCategories: Record<string, {
   }>;
 }> = {
   libro: {
-    label: 'Libro / Revista',
+    label: 'Libro / Revista / Cómic',
     icon: '📚',
     color: 'blue',
     fields: [
@@ -62,6 +62,42 @@ const fieldCategories: Record<string, {
         type: 'text',
         placeholder: 'Ej: 978-3-16-148410-0',
         helpText: 'Código ISBN para libros o ISSN para revistas',
+      },
+      // Campos específicos para cómics
+      {
+        name: 'nombre_serie',
+        label: 'Nombre de la serie',
+        type: 'text',
+        placeholder: 'Ej: Garfield, Batman, Los Simpsons',
+        helpText: 'Nombre de la serie del cómic',
+      },
+      {
+        name: 'titulo_tomo',
+        label: 'Título del tomo',
+        type: 'text',
+        placeholder: 'Ej: Se queda con la torta, El caballero oscuro',
+        helpText: 'Título específico de este tomo',
+      },
+      {
+        name: 'numero_tomo',
+        label: 'Número del tomo',
+        type: 'number',
+        placeholder: 'Ej: 2, 15, 100',
+        helpText: 'Número de este tomo en la serie',
+      },
+      {
+        name: 'editorial',
+        label: 'Editorial',
+        type: 'text',
+        placeholder: 'Ej: Planeta DeAgostini, DC Comics, Marvel',
+        helpText: 'Editorial que publicó este ejemplar',
+      },
+      {
+        name: 'idioma',
+        label: 'Idioma',
+        type: 'text',
+        placeholder: 'Ej: Español, Inglés, Portugués',
+        helpText: 'Idioma del contenido',
       },
     ],
   },
@@ -249,7 +285,7 @@ const colorMap: Record<string, string> = {
   // Script para manejar la visibilidad de los campos cuando se usa en cliente
   // (para formularios interactivos con JavaScript)
   const categoryFields = {
-    libro: ['autor', 'edicion', 'anio', 'isbn_issn'],
+    libro: ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma'],
     tecnologia: ['marca', 'modelo', 'numero_serie', 'peso'],
     mueble: ['material', 'largo', 'ancho', 'alto', 'artista_fabricante'],
     ropa: ['tamano'],

@@ -1,152 +1,164 @@
-# 🚀 Estok - Sistema de Inventario Inteligente
+# Estok 2 - Estado del Proyecto
 
-## 📊 Estado Actual: ~90% del Core Operativo
+## 📋 Resumen General
 
----
-
-## ✅ LO COMPLETADO (Triángulo de Valor)
-
-### 1. 📸 Captura (Frontend Mobile-First)
-- [x] **Página `/objetos/nuevo`**: Formulario completo con captura de foto (cámara + galería)
-- [x] **Input `capture="environment"`**: Prioriza cámara trasera en dispositivos móviles
-- [x] **Preview en tiempo real**: Muestra la foto antes de enviar
-- [x] **Sección IA contextual**: Solo aparece cuando hay foto Y LM Studio conectado
-- [x] **Carga de ubicaciones/contenedores/usuarios**: Selectores poblados dinámicamente
-- [x] **Validación de legado**: Dueño original y beneficiario obligatorios
-- [x] **Subida de foto post-creación**: Envío multipart/form-data con verificación de integridad en disco
-
-### 2. 🧠 IA (LM Studio + Qwen2-VL-7B)
-- [x] **`AIVisionService`**: Servicio completo de visión por IA local
-- [x] **Detección de patrones**: Formas rectangulares → libro, brillos metálicos → mueble/arte
-- [x] **Timeout dinámico**: 120s normal, 180s para imágenes de alta resolución (>4K)
-- [x] **Campos pendientes**: Determina qué campos requieren input manual del usuario
-- [x] **Creación automática de objetos**: Desde análisis de imagen Base64
-- [x] **Historial de precios**: Registro automático de valoración inicial por IA
-- [x] **AI Heartbeat**: Verificación periódica de disponibilidad de LM Studio
-- [x] **Badge de estado IA**: Indicador visual en Dashboard y formulario
-- [x] **Test de estrés**: Endpoint `GET /api/objetos/test_ia_stress/` para diagnóstico
-
-### 3. 📦 Registro (Backend + API)
-- [x] **Modelo `Objeto`**: Herencia multi-tabla (LibroRevista, Tecnologia, MuebleArte, Ropa)
-- [x] **Soft Delete**: `deleted_at` en lugar de borrado físico
-- [x] **`FotoObjeto`**: Múltiples fotos por objeto, una principal
-- [x] **`HistorialPrecio`**: Trazabilidad completa de cambios de valor
-- [x] **`AlertaStock`**: Alertas de reposición con niveles mínimos
-- [x] **API REST completa**: CRUD + filtros (tipo, ubicación, estado, búsqueda)
-- [x] **Exportación CSV**: Inventario completo descargable
-- [x] **Estadísticas**: Endpoint con KPIs, distribución, valor por tipo
-- [x] **Roles y permisos**: Sistema de roles con permisos CRUD granulares
-
-### 4. 🏠 Dashboard Pro
-- [x] **KPIs en tiempo real**: Total objetos, valor total, valor promedio, ubicaciones
-- [x] **Chart.js**: Gráfico de torta (distribución por categoría) + barras (valor por categoría)
-- [x] **Valor de mercado real**: `valor_por_tipo` suma `valor_estimado` de cada categoría
-- [x] **Barras de progreso**: Estado de conservación con porcentajes
-- [x] **Últimos objetos**: Lista con valores y enlaces
-- [x] **Cards de categorías**: Contadores por tipo
-- [x] **AI Heartbeat**: Badge de estado de IA
-- [x] **PWA Install**: Botón de instalación de app
-
-### 5. 📱 PWA (Progressive Web App)
-- [x] **`manifest.json`**: Iconos, tema, nombre, display standalone
-- [x] **`sw.js`**: Service Worker con caché de assets estáticos
-- [x] **Registro en `BaseLayout.astro`**: Detección de soporte y registro automático
-- [x] **Botón de instalación**: En Dashboard con evento `beforeinstallprompt`
-- [x] **Estados**: `estok-pwa-ready` y `estok-pwa-installed` para UI reactiva
-
-### 6. 🔐 Autenticación
-- [x] **Login/Register**: Páginas con JWT (access + refresh)
-- [x] **`AuthGuard.astro`**: Componente de protección de rutas
-- [x] **Token management**: `localStorage` con renovación automática
-- [x] **Redirección**: 401 → `/login` en todas las páginas protegidas
-
-### 7. 📋 Escáner QR
-- [x] **Página `/escanear`**: Cámara en vivo con marco de escaneo
-- [x] **jsQR**: Decodificación de QR desde el navegador
-- [x] **Pre-carga de contenedores**: Caché para redirección instantánea
-- [x] **Redirección instantánea**: Sin `setTimeout` cuando está en caché
-- [x] **Fallback**: Endpoint `escanear/` para QR no identificados
-- [x] **Timeouts**: AbortController con 3s para verificación, 5s para escaneo
-
-### 8. 🗺️ Organización Espacial
-- [x] **Ubicaciones**: CRUD completo
-- [x] **Contenedores**: CRUD con filtro por ubicación
-- [x] **QR por contenedor**: Generación y regeneración de códigos QR
-- [x] **Páginas de detalle**: `/contenedores/[id]`, `/ubicaciones/[id]`
-
-### 9. 📄 Páginas de Listado
-- [x] **`/objetos`**: Lista con filtros y búsqueda
-- [x] **`/contenedores`**: Grid de contenedores
-- [x] **`/ubicaciones`**: Grid de ubicaciones
-- [x] **Detalle de objeto**: `/objetos/[id]` con fotos, historial, acciones
-
-### 10. 🧪 Servicios Auxiliares
-- [x] **`MarketingService`**: Generación de copys para Facebook, Instagram, MercadoLibre
-- [x] **`StockValuationService`**: Valoración, plusvalía, alertas de stock
-- [x] **`QRService`**: Generación y decodificación de QR
-- [x] **Seed data**: Comando `seed_data.py` para datos de prueba
+**Estok** es un sistema de inventario familiar con planificación sucesoria, diseñado para gestionar objetos personales con valor sentimental o económico. La app permite catalogar objetos, asignar dueños originales y beneficiarios, escanear códigos QR, y usar IA local (LM Studio + Qwen2-VL-7B) para reconocimiento automático de objetos.
 
 ---
 
-## ❌ LO QUE FALTA (Priorizado)
+## ✅ LO QUE ESTÁ HECHO
 
-### 🔴 CRÍTICO (Para sesión actual)
+### Backend (Django + DRF)
 
-- [ ] **Validación de foto en móvil**: Asegurar que `capture="environment"` funciona correctamente en iOS Safari y Android Chrome
-- [ ] **Test de estrés IA en RX 9060 XT**: Ejecutar `GET /api/objetos/test_ia_stress/` en el hardware real y verificar latencia
-- [ ] **Verificación de integridad de fotos**: Probar que `subir_foto` guarda correctamente en disco con multipart/form-data
-- [ ] **Prueba de escáner QR en móvil**: Escanear QR de un contenedor real y verificar redirección instantánea
-- [ ] **Dashboard con datos reales**: Verificar que `valor_por_tipo` refleje valores correctos
+#### Modelos (`inventario/models.py`)
+- ✅ **Role** - Roles con permisos booleanos (can_read, can_write, can_edit, can_delete)
+- ✅ **CustomUser** - Usuario extendido con relación a Role
+- ✅ **Ubicacion** - Lugares físicos (ej: "Casa", "Departamento")
+- ✅ **Contenedor** - Cajas, muebles, etc. con QR code
+- ✅ **Objeto** - Modelo principal con herencia multi-tabla:
+  - Campos: nombre, descripción, tipo, estado_conservación, color, valor_estimado
+  - Soft delete (deleted_at), estado_carga, campos_pendientes
+  - Dueño original y beneficiario (para planificación sucesoria)
+- ✅ **LibroRevista** - Autor, año, ISBN/ISSN, edición, serie, tomo, editorial, idioma
+- ✅ **Tecnologia** - Marca, modelo, número de serie, peso
+- ✅ **MuebleArte** - Material, artista/fabricante, dimensiones (largo, ancho, alto)
+- ✅ **Ropa** - Talle/tamaño
+- ✅ **FotoObjeto** - Múltiples fotos por objeto, es_principal
+- ✅ **HistorialPrecio** - Trazabilidad de cambios de valor
+- ✅ **AlertaStock** - Alertas de reposición
 
-### 🟡 ALTA PRIORIDAD
+#### API REST (`inventario/api/`)
+- ✅ **ViewSets completos** para todos los modelos
+- ✅ **Permisos basados en roles** (HasRolePermission)
+- ✅ **Filtros**: por tipo, ubicación, contenedor, estado, búsqueda textual
+- ✅ **Endpoints especializados**:
+  - `analizar_con_ia` - Analiza objeto existente con IA
+  - `analizar_imagen` - Crea objeto desde imagen Base64 + IA
+  - `generar_anuncios` - Copys para Facebook, Instagram, MercadoLibre
+  - `publicar_en` / `estado_publicacion` - Gestión de publicaciones
+  - `actualizar_precio` / `historial_precios` / `plusvalia` - Valoración
+  - `crear_alerta_stock` - Alertas de inventario
+  - `subir_foto` - Upload con verificación de integridad
+  - `soft_delete` / `restaurar` - Eliminación lógica
+  - `exportar_csv` - Exportación del inventario
+  - `test_ia_stress` - Test de conectividad con LM Studio
+  - `estadisticas` - Dashboard con valor_por_tipo para gráficos
+- ✅ **Serializers** con validación y campos anidados
 
-- [ ] **Modo offline**: Cachear formulario de nuevo objeto para funcionar sin conexión
-- [ ] **Sincronización**: Cola de objetos pendientes de subir cuando se recupere la conexión
-- [ ] **Compresión de imágenes**: Reducir tamaño antes de enviar a IA (ahora se envía Base64 completo)
-- [ ] **Notificaciones push**: Alertar cuando un objeto necesita reposición de stock
-- [ ] **Búsqueda por QR en lista de objetos**: Escanear QR para filtrar objetos
+#### Servicios (`inventario/services/`)
+- ✅ **AIVisionService** - Conexión con LM Studio local
+  - Cliente OpenAI apuntando a http://localhost:1234/v1
+  - Modelo: Qwen2-VL-7B
+  - Timeout dinámico según resolución de imagen
+  - Compresión de imágenes para GPU (Pillow, max 5MB para GPU)
+  - Detección de campos pendientes por confianza
+  - Creación automática de objetos desde visión
+  - Registro en HistorialPrecio
+- ✅ **QRService** - Generación y decodificación de QR
+- ✅ **MarketingService** - Generación de copys publicitarios con IA
+- ✅ **StockValuationService** - Valoración, plusvalía, alertas de stock
 
-### 🟢 MEDIA PRIORIDAD
+#### Management Commands
+- ✅ `seed_data.py` - Datos de prueba
+- ✅ `seed_ignacio.py` - Datos específicos
+- ✅ `seed_ygumy.py` - Datos específicos
 
-- [ ] **Tema oscuro**: Modo dark para toda la app
-- [ ] **Internacionalización**: Soporte multi-idioma (ES/EN)
-- [ ] **Estadísticas avanzadas**: Gráfico de evolución de valor en el tiempo
-- [ ] **Comparación de objetos**: Seleccionar múltiples objetos y comparar valores
-- [ ] **Importación desde CSV**: Subir inventario desde archivo
-- [ ] **Auditoría completa**: Log de todas las acciones de usuarios
-- [ ] **Backup automático**: Exportación programada del inventario
+### Frontend (Astro + Tailwind CSS)
 
-### 🔵 BAJA PRIORIDAD (Futuras iteraciones)
+#### Páginas
+- ✅ **Login** (`/login`) - Autenticación JWT
+- ✅ **Register** (`/register`) - Registro de usuarios
+- ✅ **Dashboard** (`/`) - Estadísticas, gráficos, últimos objetos
+- ✅ **Objetos** (`/objetos`) - Listado con filtros y búsqueda
+- ✅ **Objeto Detalle** (`/objetos/[id]`) - Vista completa con fotos, QR, historial
+- ✅ **Objeto Editar** (`/objetos/[id]/editar`) - Edición de objeto
+- ✅ **Objeto Nuevo** (`/objetos/nuevo`) - **Carga manual completa**:
+  - Captura de foto (cámara + galería)
+  - Editor de imagen (rotar, recortar, brillo)
+  - Botón "Autocompletar con IA" (después de guardar)
+  - Campos por categoría (libro, tecnología, mueble, ropa)
+  - Estimación de precio basada en objetos similares
+  - Dueño original y beneficiario
+  - Heartbeat de IA (verifica LM Studio cada 30s)
+- ✅ **Ubicaciones** (`/ubicaciones`) - CRUD de ubicaciones
+- ✅ **Ubicación Detalle** (`/ubicaciones/[id]`) - Objetos en ubicación
+- ✅ **Contenedores** (`/contenedores`) - CRUD con QR
+- ✅ **Contenedor Detalle** (`/contenedores/[id]`) - Objetos en contenedor
+- ✅ **Escanear QR** (`/escanear`) - Escaneo con cámara
 
-- [ ] **Realidad aumentada**: Ver objetos en su ubicación real con AR
-- [ ] **Reconocimiento de voz**: Agregar objetos por comando de voz
-- [ ] **Integración con MercadoLibre API**: Publicar objetos directamente
-- [ ] **App nativa**: Versión React Native o Flutter
-- [ ] **Blockchain**: Certificación de autenticidad de objetos valiosos
-- [ ] **Multi-tenant**: Soporte para múltiples familias/organizaciones
+#### Componentes
+- ✅ **BaseLayout** - Layout principal con navegación responsive
+- ✅ **AuthLayout** - Layout para login/register
+- ✅ **AuthGuard** - Protección de rutas
+- ✅ **Card** - Componente de tarjeta para objetos
+- ✅ **Toast** - Notificaciones toast
+- ✅ **CategoryFields** - Campos dinámicos por categoría
+- ✅ **ImageEditor** - Editor de imagen (modal con cropper, rotación, brillo)
+
+#### Servicios Frontend
+- ✅ `api.ts` - Cliente HTTP con JWT
+- ✅ `auth.ts` - Manejo de autenticación
+- ✅ `aiHeartbeat.ts` - Heartbeat para verificar IA
+
+### Infraestructura
+- ✅ **Docker Compose** - Backend + Frontend + Nginx + PostgreSQL
+- ✅ **Dockerfile.backend** - Python/Django
+- ✅ **Dockerfile.frontend** - Node/Astro
+- ✅ **nginx.conf** - Proxy inverso
+- ✅ **PWA** - Service Worker + Manifest (instalable como app)
 
 ---
 
-## 📈 KPIs del Proyecto
+## ❌ LO QUE FALTA / PENDIENTE
 
-| Métrica | Valor |
-|---------|-------|
-| **Backend** | Django REST Framework + SQLite |
-| **Frontend** | Astro + TypeScript + Tailwind |
-| **IA Local** | LM Studio + Qwen2-VL-7B (RX 9060 XT) |
-| **PWA** | Service Worker + Manifest |
-| **API Endpoints** | 30+ (CRUD + acciones especializadas) |
-| **Modelos** | 12 (incluyendo herencia multi-tabla) |
-| **Páginas Frontend** | 15+ (dashboard, listas, detalle, formularios) |
-| **Servicios** | 4 (IA Visión, QR, Marketing, Stock) |
-| **Completitud Core** | ~90% |
+### Funcionalidades Críticas
+- [ ] **Escaneo QR desde la app móvil** - La página `/escanear` existe pero el flujo completo de escanear un QR de contenedor y listar sus objetos necesita pruebas en dispositivo real
+- [ ] **Subida de foto desde el formulario de nuevo objeto** - El flujo Base64 -> Blob -> multipart upload necesita pruebas de integración
+- [ ] **Autocompletar con IA** - El endpoint `analizar_con_ia` está implementado pero requiere LM Studio corriendo localmente con el modelo Qwen2-VL-7B cargado
+
+### Mejoras Pendientes
+- [ ] **Pruebas unitarias** - No hay tests escritos para los servicios ni endpoints
+- [ ] **Manejo de errores en frontend** - Algunos catch blocks son genéricos, falta feedback visual más específico
+- [ ] **Paginación en listados** - La página de objetos no tiene paginación visual (aunque la API sí la soporta)
+- [ ] **Modo offline** - Aunque hay Service Worker, no hay estrategia de caché implementada
+- [ ] **Internacionalización** - Todo está en español, no hay soporte multi-idioma
+- [ ] **Notificaciones push** - El Service Worker está configurado pero no hay lógica de push
+
+### Bugs Conocidos
+- [ ] **TypeScript errors en frontend** - Archivos `.astro` tienen errores de tipo por uso de `document.getElementById` sin type assertions (no afectan runtime)
+- [ ] **Doble llamado a openEditor** - En `nuevo.astro` se llama a `openEditor()` con setTimeout después de seleccionar foto, lo que puede causar que el editor se abra inesperadamente
+
+### Deuda Técnica
+- [ ] **Refactorizar payload del formulario** - El objeto `payload` en `nuevo.astro` se construye con asignaciones dinámicas que TypeScript no puede tipar correctamente
+- [ ] **Centralizar configuración de IA** - Las URLs de LM Studio están hardcodeadas tanto en backend (settings) como en frontend (import.meta.env)
+- [ ] **Migraciones pendientes** - Verificar que todas las migraciones estén al día
 
 ---
 
-## 🎯 Próximo Hito: Validación en Hardware Real
+## 📊 Estado por Área
 
-1. Probar captura de foto en iPhone/Android
-2. Ejecutar test de estrés de IA
-3. Verificar integridad de subida de fotos
-4. Probar escáner QR con contenedor real
-5. Confirmar KPIs del Dashboard con datos cargados
+| Área | Estado | Notas |
+|------|--------|-------|
+| **Modelos** | ✅ 100% | Todos los modelos con herencia multi-tabla |
+| **API REST** | ✅ 95% | Todos los endpoints CRUD + acciones especializadas |
+| **Servicios** | ✅ 90% | IA, QR, Marketing, Stock - falta test coverage |
+| **Frontend Páginas** | ✅ 85% | Faltan pulir detalles de UX/UI |
+| **Frontend Componentes** | ✅ 80% | ImageEditor funcional, CategoryFields dinámico |
+| **Autenticación** | ✅ 100% | JWT + Roles + Permisos |
+| **IA Local** | ✅ 85% | Integración con LM Studio, compresión GPU, falta testing real |
+| **QR** | ✅ 80% | Generación funciona, escaneo necesita pruebas |
+| **Marketing** | ✅ 75% | Generación de copys, falta integración real con APIs |
+| **Infraestructura** | ✅ 90% | Docker, Nginx, PWA configurados |
+| **Tests** | ❌ 0% | No hay tests automatizados |
+| **Documentación** | ⚠️ 50% | Este README + comentarios en código |
+
+---
+
+## 🚀 Próximos Pasos Recomendados
+
+1. **Escribir tests** para servicios (especialmente AIVisionService y StockValuationService)
+2. **Probar el flujo completo** de carga manual + foto + IA en dispositivo real
+3. **Agregar paginación visual** en el listado de objetos
+4. **Implementar modo offline** con estrategia de caché en Service Worker
+5. **Corregir TypeScript errors** en archivos .astro
+6. **Agregar documentación de API** con drf-spectacular o similar

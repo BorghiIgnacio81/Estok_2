@@ -206,6 +206,11 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
                 "edicion": lr.edicion,
                 "anio": lr.anio,
                 "isbn_issn": lr.isbn_issn,
+                "nombre_serie": lr.nombre_serie,
+                "titulo_tomo": lr.titulo_tomo,
+                "numero_tomo": lr.numero_tomo,
+                "editorial": lr.editorial,
+                "idioma": lr.idioma,
             }
         elif hasattr(obj, 'tecnologia'):
             t = obj.tecnologia
@@ -291,6 +296,11 @@ class ObjetoCreateSerializer(serializers.Serializer):
     edicion = serializers.CharField(required=False, allow_blank=True)
     anio = serializers.IntegerField(required=False, allow_null=True)
     isbn_issn = serializers.CharField(required=False, allow_blank=True)
+    nombre_serie = serializers.CharField(required=False, allow_blank=True)
+    titulo_tomo = serializers.CharField(required=False, allow_blank=True)
+    numero_tomo = serializers.IntegerField(required=False, allow_null=True)
+    editorial = serializers.CharField(required=False, allow_blank=True)
+    idioma = serializers.CharField(required=False, allow_blank=True)
 
     # Tecnologia
     marca = serializers.CharField(required=False, allow_blank=True)
@@ -314,7 +324,7 @@ class ObjetoCreateSerializer(serializers.Serializer):
 
         # Extraer campos específicos
         campos_especificos = {}
-        campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn']
+        campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']
         campos_tecno = ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']
         campos_mueble = ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']
         campos_ropa = ['tamano']

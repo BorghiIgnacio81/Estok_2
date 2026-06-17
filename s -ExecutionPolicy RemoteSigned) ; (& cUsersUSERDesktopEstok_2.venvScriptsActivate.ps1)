@@ -1,0 +1,71 @@
+[1mdiff --git a/frontend/public/sw.js b/frontend/public/sw.js[m
+[1mindex 996f8a1..36139ce 100644[m
+[1m--- a/frontend/public/sw.js[m
+[1m+++ b/frontend/public/sw.js[m
+[36m@@ -1,7 +1,7 @@[m
+ // =============================================================================[m
+ // Service Worker - Estok PWA[m
+[31m-// Cachea recursos estáticos para funcionamiento offline parcial[m
+[31m-// Soporta notificaciones push[m
+[32m+[m[32m// Caches static assets for offline support[m
+[32m+[m[32m// Handles push notifications[m
+ // =============================================================================[m
+ [m
+ const CACHE_NAME = 'estok-cache-v3';[m
+[36m@@ -15,7 +15,7 @@[m [mconst STATIC_ASSETS = [[m
+   '/icons/apple-touch-icon.png',[m
+ ];[m
+ [m
+[31m-// Estrategia: Cache First para assets estáticos, Network First para API[m
+[32m+[m[32m// Strategy: Cache First for static assets, Network First for API[m
+ self.addEventListener('install', (event) => {[m
+   event.waitUntil([m
+     caches.open(CACHE_NAME).then((cache) => {[m
+[36m@@ -47,9 +47,9 @@[m [mself.addEventListener('fetch', (event) => {[m
+     event.respondWith([m
+       fetch(request)[m
+         .then((response) => {[m
+[31m-          const clone = response.clone();[m
+[32m+[m[32m          const clonedResponse = response.clone();[m
+           caches.open(CACHE_NAME).then((cache) => {[m
+[31m-            cache.put(request, clone);[m
+[32m+[m[32m            cache.put(request, clonedResponse);[m
+           });[m
+           return response;[m
+         })[m
+[36m@@ -62,11 +62,11 @@[m [mself.addEventListener('fetch', (event) => {[m
+ [m
+   // Static assets - Cache First[m
+   event.respondWith([m
+[31m-    caches.match(request).then((cached) => {[m
+[31m-      return cached || fetch(request).then((response) => {[m
+[31m-        const clone = response.clone();[m
+[32m+[m[32m    caches.match(request).then((cachedResponse) => {[m
+[32m+[m[32m      return cachedResponse || fetch(request).then((response) => {[m
+[32m+[m[32m        const clonedResponse = response.clone();[m
+         caches.open(CACHE_NAME).then((cache) => {[m
+[31m-          cache.put(request, clone);[m
+[32m+[m[32m          cache.put(request, clonedResponse);[m
+         });[m
+         return response;[m
+       });[m
+[36m@@ -75,16 +75,16 @@[m [mself.addEventListener('fetch', (event) => {[m
+ });[m
+ [m
+ // =============================================================================[m
+[31m-// NOTIFICACIONES PUSH[m
+[32m+[m[32m// PUSH NOTIFICATIONS[m
+ // =============================================================================[m
+ [m
+ self.addEventListener('push', (event) => {[m
+[31m-  let data = { title: 'Estok', body: 'Notificación del sistema', icon: '/icons/icon-192x192.png' };[m
+[32m+[m[32m  let data = { title: 'Estok', body: 'System notification', icon: '/icons/icon-192x192.png' };[m
+ [m
+   if (event.data) {[m
+     try {[m
+       data = { ...data, ...event.data.json() };[m
+[31m-    } catch {[m
+[32m+[m[32m    } catch (error) {[m
+       data.body = event.data.text();[m
+     }[m
+   }[m

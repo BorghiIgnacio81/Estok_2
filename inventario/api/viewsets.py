@@ -293,6 +293,11 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         """
         Analiza un objeto usando IA local (LM Studio).
         Requiere que el objeto tenga al menos una foto.
+
+        Optimizado para GPU Radeon RX 9060 XT:
+        - Comprime la imagen antes de enviarla a la GPU
+        - Maneja timeouts dinámicos según resolución
+        - Retorna datos estructurados + campos pendientes
         """
         objeto = self.get_object()
         foto_principal = objeto.fotos.filter(es_principal=True).first()
@@ -307,7 +312,27 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
         try:
             service = AIVisionService()
-            resultado = service.procesar_imagen(foto_principal.imagen.path)
+
+            # Leer la imagen y comprimirla antes de enviar a GPU
+            from pathlib import Path
+            import base64
+
+            image_path = Path(foto_principal.imagen.path)
+            if not image_path.exists():
+                return Response(
+                    {"error": "El archivo de imagen no existe en el servidor"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Leer y codificar la imagen a Base64
+            image_bytes = image_path.read_bytes()
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+            # Comprimir para GPU (reduce VRAM usage en Radeon RX 9060 XT)
+            image_b64_comprimida = service._comprimir_imagen_base64(image_b64)
+
+            # Analizar con la imagen comprimida
+            resultado = service.procesar_imagen_desde_base64(image_b64_comprimida)
 
             # Actualizar campos del objeto con los datos de IA
             if resultado.nombre:
@@ -342,6 +367,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 {"error": f"Error al analizar con IA: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
     @action(detail=False, methods=['post'])
     def analizar_imagen(self, request):

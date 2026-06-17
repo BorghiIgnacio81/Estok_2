@@ -277,7 +277,8 @@ class Objeto(models.Model):
 # =============================================================================
 class LibroRevista(Objeto):
     """
-    Objeto específico: Libro o Revista.
+    Objeto específico: Libro, Revista o Cómic.
+    Incluye campos específicos para cómics (serie, tomo, número, editorial).
     """
     autor = models.CharField(max_length=300, blank=True, verbose_name="Autor")
     edicion = models.CharField(max_length=100, blank=True, verbose_name="Edición")
@@ -289,11 +290,46 @@ class LibroRevista(Objeto):
         help_text="Código ISBN para libros o ISSN para revistas"
     )
 
+    # Campos específicos para cómics / revistas
+    nombre_serie = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Nombre de la serie",
+        help_text="Ej: Garfield, Batman, Los Simpsons"
+    )
+    titulo_tomo = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Título del tomo",
+        help_text="Ej: Se queda con la torta, El caballero oscuro"
+    )
+    numero_tomo = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Número del tomo",
+        help_text="Ej: 2, 15, 100"
+    )
+    editorial = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Editorial",
+        help_text="Ej: Planeta DeAgostini, DC Comics, Marvel"
+    )
+    idioma = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Idioma",
+        help_text="Ej: Español, Inglés, Portugués"
+    )
+
     class Meta:
-        verbose_name = "Libro / Revista"
-        verbose_name_plural = "Libros / Revistas"
+        verbose_name = "Libro / Revista / Cómic"
+        verbose_name_plural = "Libros / Revistas / Cómics"
 
     def __str__(self):
+        if self.nombre_serie:
+            tomo = f" #{self.numero_tomo}" if self.numero_tomo else ""
+            return f"{self.nombre_serie}{tomo} - {self.titulo_tomo or self.nombre}"
         return f"{self.nombre} - {self.autor or 'Sin autor'}"
 
 

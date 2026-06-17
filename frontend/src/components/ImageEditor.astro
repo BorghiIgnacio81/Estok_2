@@ -1,0 +1,472 @@
+---
+// =============================================================================
+// COMPONENTE ImageEditor - Editor de imagen ligero con Canvas API
+// Permite rotar, recortar y ajustar brillo antes de enviar la foto
+// =============================================================================
+
+export interface Props {
+  imageSrc: string;
+}
+
+const { imageSrc } = Astro.props;
+---
+
+<div id="imageEditor" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <!-- Encabezado -->
+    <div class="flex items-center justify-between p-4 border-b border-gray-200">
+      <h3 class="text-lg font-semibold text-gray-900">✏️ Editar Imagen</h3>
+      <button id="closeEditorBtn" class="text-gray-400 hover:text-gray-600 p-1">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Canvas de edición -->
+    <div class="p-4 bg-gray-100 flex items-center justify-center min-h-[300px]">
+      <canvas id="editorCanvas" class="max-w-full max-h-[50vh] rounded-lg shadow-inner"></canvas>
+    </div>
+
+    <!-- Controles de edición -->
+    <div class="p-4 space-y-4">
+      <!-- Brillo -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          Brillo
+        </label>
+        <input id="brightnessSlider" type="range" min="-100" max="100" value="0"
+          class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-700" />
+        <div class="flex justify-between text-xs text-gray-400 mt-1">
+          <span>-100</span>
+          <span id="brightnessValue" class="font-medium text-gray-600">0</span>
+          <span>+100</span>
+        </div>
+      </div>
+
+      <!-- Rotación -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Rotar</label>
+        <div class="flex gap-2">
+          <button id="rotateLeftBtn" type="button"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            ↺ Rotar Izquierda
+          </button>
+          <button id="rotateRightBtn" type="button"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            ↻ Rotar Derecha
+          </button>
+        </div>
+      </div>
+
+      <!-- Recorte (Aspect Ratio) -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">Recorte (relación de aspecto)</label>
+        <div class="flex flex-wrap gap-2">
+          <button data-ratio="free" class="crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base">Libre</button>
+          <button data-ratio="1:1" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">1:1</button>
+          <button data-ratio="4:3" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">4:3</button>
+          <button data-ratio="3:4" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">3:4</button>
+          <button data-ratio="16:9" class="crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base">16:9</button>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="flex gap-3 pt-2 border-t border-gray-200">
+        <button id="resetEditorBtn" type="button"
+          class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+          ↺ Restablecer
+        </button>
+        <button id="applyEditorBtn" type="button"
+          class="flex-1 px-4 py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+          ✅ Aplicar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===========================================================================
+  // IMAGE EDITOR - Canvas API (Rotar, Brillo, Recorte)
+  // ===========================================================================
+
+  const editor = document.getElementById('imageEditor')!;
+  const canvas = document.getElementById('editorCanvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d')!;
+  const brightnessSlider = document.getElementById('brightnessSlider') as HTMLInputElement;
+  const brightnessValue = document.getElementById('brightnessValue')!;
+  const rotateLeftBtn = document.getElementById('rotateLeftBtn')!;
+  const rotateRightBtn = document.getElementById('rotateRightBtn')!;
+  const resetBtn = document.getElementById('resetEditorBtn')!;
+  const applyBtn = document.getElementById('applyEditorBtn')!;
+  const closeBtn = document.getElementById('closeEditorBtn')!;
+
+  let originalImage: HTMLImageElement | null = null;
+  let currentRotation = 0;
+  let currentBrightness = 0;
+  let currentCropRatio: string | null = null;
+  let isCropping = false;
+  let cropStartX = 0, cropStartY = 0, cropEndX = 0, cropEndY = 0;
+  let isDragging = false;
+
+  // ===========================================================================
+  // ABRIR EDITOR
+  // ===========================================================================
+
+  export function openEditor(imageSrc: string): Promise<string> {
+    return new Promise((resolve) => {
+      // Guardar resolve para usarlo después
+      (window as any)._editorResolve = resolve;
+
+      // Cargar imagen
+      const img = new Image();
+      img.onload = () => {
+        originalImage = img;
+        currentRotation = 0;
+        currentBrightness = 0;
+        currentCropRatio = null;
+        isCropping = false;
+        brightnessSlider.value = '0';
+        brightnessValue.textContent = '0';
+
+        // Resetear botones de recorte
+        document.querySelectorAll('.crop-ratio-btn').forEach((btn) => {
+          btn.className = 'crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base';
+        });
+        const freeBtn = document.querySelector('[data-ratio="free"]') as HTMLElement;
+        if (freeBtn) {
+          freeBtn.className = 'crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base';
+        }
+
+        renderImage();
+        editor.classList.remove('hidden');
+      };
+      img.src = imageSrc;
+    });
+  }
+
+  // ===========================================================================
+  // RENDERIZAR IMAGEN EN CANVAS
+  // ===========================================================================
+
+  function renderImage() {
+    if (!originalImage) return;
+
+    const maxWidth = 600;
+    const maxHeight = 500;
+    let imgW = originalImage.width;
+    let imgH = originalImage.height;
+
+    // Aplicar rotación para dimensiones
+    const isRotated = currentRotation % 180 !== 0;
+    const displayW = isRotated ? imgH : imgW;
+    const displayH = isRotated ? imgW : imgH;
+
+    // Escalar para que entre en el canvas
+    let scale = 1;
+    if (displayW > maxWidth) scale = maxWidth / displayW;
+    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
+
+    const canvasW = Math.round(displayW * scale);
+    const canvasH = Math.round(displayH * scale);
+
+    canvas.width = canvasW;
+    canvas.height = canvasH;
+
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    // Aplicar brillo
+    ctx.filter = `brightness(${1 + currentBrightness / 100})`;
+
+    ctx.save();
+    ctx.translate(canvasW / 2, canvasH / 2);
+    ctx.rotate((currentRotation * Math.PI) / 180);
+    ctx.drawImage(originalImage, -imgW / 2 * scale, -imgH / 2 * scale, imgW * scale, imgH * scale);
+    ctx.restore();
+
+    ctx.filter = 'none';
+
+    // Dibujar overlay de recorte si está activo
+    if (isCropping) {
+      const x = Math.min(cropStartX, cropEndX);
+      const y = Math.min(cropStartY, cropEndY);
+      const w = Math.abs(cropEndX - cropStartX);
+      const h = Math.abs(cropEndY - cropStartY);
+
+      // Oscurecer fuera del recorte
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.clearRect(x, y, w, h);
+
+      // Borde del recorte
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+    }
+  }
+
+  // ===========================================================================
+  // CONTROLES: BRILLO
+  // ===========================================================================
+
+  brightnessSlider?.addEventListener('input', () => {
+    currentBrightness = parseInt(brightnessSlider.value);
+    brightnessValue.textContent = currentBrightness.toString();
+    renderImage();
+  });
+
+  // ===========================================================================
+  // CONTROLES: ROTACIÓN
+  // ===========================================================================
+
+  rotateLeftBtn?.addEventListener('click', () => {
+    currentRotation = (currentRotation - 90) % 360;
+    renderImage();
+  });
+
+  rotateRightBtn?.addEventListener('click', () => {
+    currentRotation = (currentRotation + 90) % 360;
+    renderImage();
+  });
+
+  // ===========================================================================
+  // CONTROLES: RECORTE
+  // ===========================================================================
+
+  document.querySelectorAll('.crop-ratio-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.crop-ratio-btn').forEach((b) => {
+        b.className = 'crop-ratio-btn px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base';
+      });
+      btn.className = 'crop-ratio-btn px-3 py-1.5 bg-blue-700 text-white text-sm font-medium rounded-lg transition-base';
+
+      const ratio = btn.getAttribute('data-ratio')!;
+      if (ratio === 'free') {
+        isCropping = false;
+        renderImage();
+        return;
+      }
+      currentCropRatio = ratio;
+      isCropping = true;
+
+      // Inicializar recorte al centro
+      const [rw, rh] = ratio.split(':').map(Number);
+      const aspect = rw / rh;
+      let cw = canvas.width * 0.8;
+      let ch = cw / aspect;
+      if (ch > canvas.height * 0.8) {
+        ch = canvas.height * 0.8;
+        cw = ch * aspect;
+      }
+      cropStartX = (canvas.width - cw) / 2;
+      cropStartY = (canvas.height - ch) / 2;
+      cropEndX = cropStartX + cw;
+      cropEndY = cropStartY + ch;
+      renderImage();
+    });
+  });
+
+  // ===========================================================================
+  // MOUSE EVENTS PARA RECORTE
+  // ===========================================================================
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (!isCropping) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    cropStartX = (e.clientX - rect.left) * scaleX;
+    cropStartY = (e.clientY - rect.top) * scaleY;
+    cropEndX = cropStartX;
+    cropEndY = cropStartY;
+    isDragging = true;
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || !isCropping) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    cropEndX = Math.min(Math.max((e.clientX - rect.left) * scaleX, 0), canvas.width);
+    cropEndY = Math.min(Math.max((e.clientY - rect.top) * scaleY, 0), canvas.height);
+
+    // Mantener relación de aspecto si está definida
+    if (currentCropRatio && currentCropRatio !== 'free') {
+      const [rw, rh] = currentCropRatio.split(':').map(Number);
+      const aspect = rw / rh;
+      const w = Math.abs(cropEndX - cropStartX);
+      const h = w / aspect;
+      cropEndY = cropStartY + (cropEndY > cropStartY ? h : -h);
+    }
+
+    renderImage();
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    isDragging = false;
+  });
+
+  // Touch events para móvil
+  canvas.addEventListener('touchstart', (e) => {
+    if (!isCropping) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    cropStartX = (touch.clientX - rect.left) * scaleX;
+    cropStartY = (touch.clientY - rect.top) * scaleY;
+    cropEndX = cropStartX;
+    cropEndY = cropStartY;
+    isDragging = true;
+  });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!isDragging || !isCropping) return;
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    cropEndX = Math.min(Math.max((touch.clientX - rect.left) * scaleX, 0), canvas.width);
+    cropEndY = Math.min(Math.max((touch.clientY - rect.top) * scaleY, 0), canvas.height);
+
+    if (currentCropRatio && currentCropRatio !== 'free') {
+      const [rw, rh] = currentCropRatio.split(':').map(Number);
+      const aspect = rw / rh;
+      const w = Math.abs(cropEndX - cropStartX);
+      const h = w / aspect;
+      cropEndY = cropStartY + (cropEndY > cropStartY ? h : -h);
+    }
+
+    renderImage();
+  });
+
+  canvas.addEventListener('touchend', () => {
+    isDragging = false;
+  });
+
+  // ===========================================================================
+  // RESTABLECER
+  // ===========================================================================
+
+  resetBtn?.addEventListener('click', () => {
+    currentRotation = 0;
+    currentBrightness = 0;
+    isCropping = false;
+    brightnessSlider.value = '0';
+    brightnessValue.textContent = '0';
+    renderImage();
+  });
+
+  // ===========================================================================
+  // APLICAR CAMBIOS - Exportar imagen editada como Base64 comprimida
+  // ===========================================================================
+
+  applyBtn?.addEventListener('click', () => {
+    if (!originalImage) return;
+
+    // Crear un canvas temporal para la imagen final
+    const finalCanvas = document.createElement('canvas');
+    const finalCtx = finalCanvas.getContext('2d')!;
+
+    // Calcular dimensiones finales
+    let finalW = originalImage.width;
+    let finalH = originalImage.height;
+
+    // Aplicar rotación
+    const isRotated = currentRotation % 180 !== 0;
+    if (isRotated) {
+      [finalW, finalH] = [finalH, finalW];
+    }
+
+    // Aplicar recorte
+    if (isCropping) {
+      const scaleX = canvas.width / (isRotated ? originalImage.height : originalImage.width);
+      const scaleY = canvas.height / (isRotated ? originalImage.width : originalImage.height);
+      const scale = Math.min(scaleX, scaleY);
+
+      const cropX = Math.min(cropStartX, cropEndX) / scale;
+      const cropY = Math.min(cropStartY, cropEndY) / scale;
+      const cropW = Math.abs(cropEndX - cropStartX) / scale;
+      const cropH = Math.abs(cropEndY - cropStartY) / scale;
+
+      finalCanvas.width = cropW;
+      finalCanvas.height = cropH;
+    } else {
+      finalCanvas.width = finalW;
+      finalCanvas.height = finalH;
+    }
+
+    // Dibujar con rotación y brillo
+    finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
+    finalCtx.save();
+
+    if (isCropping) {
+      const scaleX = canvas.width / (isRotated ? originalImage.height : originalImage.width);
+      const scaleY = canvas.height / (isRotated ? originalImage.width : originalImage.height);
+      const scale = Math.min(scaleX, scaleY);
+      const cropX = Math.min(cropStartX, cropEndX) / scale;
+      const cropY = Math.min(cropStartY, cropEndY) / scale;
+
+      finalCtx.translate(-cropX, -cropY);
+    }
+
+    finalCtx.translate(finalW / 2, finalH / 2);
+    finalCtx.rotate((currentRotation * Math.PI) / 180);
+    finalCtx.drawImage(originalImage, -originalImage.width / 2, -originalImage.height / 2);
+    finalCtx.restore();
+    finalCtx.filter = 'none';
+
+    // Exportar como JPEG comprimido (calidad 0.85 para balance calidad/tamaño)
+    const compressedBase64 = finalCanvas.toDataURL('image/jpeg', 0.85);
+
+    // Cerrar editor
+    editor.classList.add('hidden');
+
+    // Resolver promesa con la imagen editada
+    const resolve = (window as any)._editorResolve;
+    if (resolve) {
+      resolve(compressedBase64);
+      (window as any)._editorResolve = null;
+    }
+  });
+
+  // ===========================================================================
+  // CERRAR SIN APLICAR
+  // ===========================================================================
+
+  closeBtn?.addEventListener('click', () => {
+    editor.classList.add('hidden');
+    const resolve = (window as any)._editorResolve;
+    if (resolve) {
+      resolve(null); // null = cancelado
+      (window as any)._editorResolve = null;
+    }
+  });
+
+  // Cerrar con Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !editor.classList.contains('hidden')) {
+      closeBtn?.click();
+    }
+  });
+
+  // Exponer función globalmente
+  (window as any).openImageEditor = openEditor;
+</script>
