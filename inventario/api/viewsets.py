@@ -373,16 +373,19 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     def analizar_imagen(self, request):
         """
         Analiza una imagen recibida en Base64 usando IA local (LM Studio).
-        Crea automáticamente un objeto con los datos extraídos.
+        Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
+        Si se envía `crear_objeto: true`, también crea el objeto en BD.
 
         Body (JSON):
         {
             "imagen_base64": "data:image/jpeg;base64,...",
+            "solo_analisis": true,  (default: true - no crea objeto)
             "ubicacion_id": "uuid-opcional",
             "contenedor_id": "uuid-opcional"
         }
 
-        Retorna el objeto creado con los datos de IA y campos pendientes.
+        Retorna los datos analizados por IA + campos pendientes.
+        Si solo_analisis=false, también retorna el objeto creado.
         """
         imagen_base64 = request.data.get('imagen_base64')
         if not imagen_base64:
@@ -394,6 +397,11 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         # Limpiar el prefijo data:image/...;base64, si existe
         if ',' in imagen_base64:
             imagen_base64 = imagen_base64.split(',', 1)[1]
+
+        solo_analisis = request.data.get('solo_analisis', True)
+        # Convertir string "true"/"false" a booleano si viene como string
+        if isinstance(solo_analisis, str):
+            solo_analisis = solo_analisis.lower() == 'true'
 
         ubicacion_id = request.data.get('ubicacion_id')
         contenedor_id = request.data.get('contenedor_id')
@@ -423,26 +431,32 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             service = AIVisionService()
             resultado = service.procesar_imagen_desde_base64(imagen_base64)
 
-            # Crear el objeto en la base de datos
-            objeto_creado = service.crear_objeto_desde_vision(
-                vision_result=resultado,
-                user=request.user if request.user.is_authenticated else None,
-                ubicacion=ubicacion,
-                contenedor=contenedor,
-            )
-
-            if not objeto_creado:
-                return Response(
-                    {"error": "Error al crear el objeto desde el análisis de IA"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-            return Response({
-                "mensaje": "Objeto creado desde análisis de IA",
-                "objeto": objeto_creado,
+            # Preparar respuesta base con los datos de IA
+            response_data = {
+                "mensaje": "Imagen analizada correctamente",
                 "datos_ia": resultado.to_dict(),
                 "campos_pendientes": resultado.campos_pendientes,
-            }, status=status.HTTP_201_CREATED)
+            }
+
+            # Si no es solo análisis, crear el objeto en la base de datos
+            if not solo_analisis:
+                objeto_creado = service.crear_objeto_desde_vision(
+                    vision_result=resultado,
+                    user=request.user if request.user.is_authenticated else None,
+                    ubicacion=ubicacion,
+                    contenedor=contenedor,
+                )
+
+                if not objeto_creado:
+                    return Response(
+                        {"error": "Error al crear el objeto desde el análisis de IA"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+                response_data["mensaje"] = "Objeto creado desde análisis de IA"
+                response_data["objeto"] = objeto_creado
+
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error("Error al analizar imagen Base64: %s", e)

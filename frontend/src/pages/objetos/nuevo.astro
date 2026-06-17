@@ -156,15 +156,6 @@ import ImageEditor from '../../components/ImageEditor.astro';
           </span>
         </button>
 
-        <!-- Botón: Autocompletar con IA (después de guardar) -->
-        <button type="button" id="autocompletarIaBtn"
-          class="hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          🤖 Autocompletar con IA
-        </button>
-
         <div id="iaStatus" class="mt-3 text-sm hidden"></div>
       </div>
 
@@ -339,7 +330,6 @@ import ImageEditor from '../../components/ImageEditor.astro';
   const aiStatusText = document.getElementById('aiStatusText');
   const iaSection = document.getElementById('iaSection');
   const analizarIaBtn = document.getElementById('analizarIaBtn');
-  const autocompletarIaBtn = document.getElementById('autocompletarIaBtn');
   const iaStatus = document.getElementById('iaStatus');
 
   let iaAvailable = false;
@@ -647,6 +637,165 @@ import ImageEditor from '../../components/ImageEditor.astro';
   });
 
   // ===========================================================================
+  // ANALIZAR CON IA - Enviar imagen Base64 al backend para análisis ANTES de guardar
+  // ===========================================================================
+  const iaProgressContainer = document.getElementById('iaProgressContainer');
+  const iaProgressText = document.getElementById('iaProgressText');
+  const iaProgressSubtext = document.getElementById('iaProgressSubtext');
+  const iaProgressBar = document.getElementById('iaProgressBar');
+  const iaProgressPercent = document.getElementById('iaProgressPercent');
+
+  analizarIaBtn.addEventListener('click', async () => {
+    const base64Image = imagenBase64.value;
+    if (!base64Image) {
+      window.showToast?.('❌ Primero toma o selecciona una foto.', 'error');
+      return;
+    }
+
+    // Mostrar progreso
+    analizarIaBtn.disabled = true;
+    iaBtnText.classList.add('hidden');
+    iaBtnSpinner.classList.remove('hidden');
+    iaProgressContainer.classList.remove('hidden');
+    iaProgressText.textContent = '🤖 Analizando imagen con IA...';
+    iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
+    iaProgressBar.style.width = '10%';
+    iaProgressPercent.textContent = '10%';
+    iaStatus.classList.add('hidden');
+
+    // Simular progreso mientras se procesa
+    let progress = 10;
+    const progressInterval = setInterval(() => {
+      if (progress < 90) {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        iaProgressBar.style.width = `${Math.round(progress)}%`;
+        iaProgressPercent.textContent = `${Math.round(progress)}%`;
+        if (progress > 30) {
+          iaProgressText.textContent = '🧠 Extrayendo información del objeto...';
+        }
+        if (progress > 60) {
+          iaProgressText.textContent = '📝 Analizando campos (marca, modelo, autor)...';
+        }
+      }
+    }, 800);
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imagen_base64: base64Image,
+          solo_analisis: true,
+        }),
+      });
+
+      clearInterval(progressInterval);
+      iaProgressBar.style.width = '100%';
+      iaProgressPercent.textContent = '100%';
+      iaProgressText.textContent = '✅ Análisis completado';
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al analizar con IA');
+      }
+
+      const result = await response.json();
+      const datos = result.datos_ia || result;
+
+      // Autocompletar campos en el formulario
+      if (datos.nombre) {
+        document.getElementById('nombre').value = datos.nombre;
+      }
+      if (datos.descripcion) {
+        document.getElementById('descripcion').value = datos.descripcion;
+      }
+      if (datos.estado_conservacion) {
+        const estadoSelect = document.getElementById('estado_conservacion');
+        if ([...estadoSelect.options].some(o => o.value === datos.estado_conservacion)) {
+          estadoSelect.value = datos.estado_conservacion;
+        }
+      }
+      if (datos.color) {
+        document.getElementById('color').value = datos.color;
+      }
+      if (datos.categoria) {
+        const tipoMap = { libro: 'libro', tecnologia: 'tecnologia', mueble: 'mueble', ropa: 'ropa' };
+        const tipoVal = tipoMap[datos.categoria];
+        if (tipoVal && tipoSelect) {
+          tipoSelect.value = tipoVal;
+          tipoSelect.dispatchEvent(new Event('change'));
+        }
+      }
+      if (datos.precio_estimado_mercado) {
+        document.getElementById('valor_estimado').value = datos.precio_estimado_mercado;
+      }
+
+      // Campos específicos
+      if (datos.autor) {
+        const autorInput = document.querySelector('[name="autor"]');
+        if (autorInput) autorInput.value = datos.autor;
+      }
+      if (datos.marca) {
+        const marcaInput = document.querySelector('[name="marca"]');
+        if (marcaInput) marcaInput.value = datos.marca;
+      }
+      if (datos.nombre_serie) {
+        const serieInput = document.querySelector('[name="nombre_serie"]');
+        if (serieInput) serieInput.value = datos.nombre_serie;
+      }
+      if (datos.titulo_tomo) {
+        const tomoInput = document.querySelector('[name="titulo_tomo"]');
+        if (tomoInput) tomoInput.value = datos.titulo_tomo;
+      }
+      if (datos.numero_tomo) {
+        const numInput = document.querySelector('[name="numero_tomo"]');
+        if (numInput) numInput.value = datos.numero_tomo;
+      }
+      if (datos.editorial) {
+        const editInput = document.querySelector('[name="editorial"]');
+        if (editInput) editInput.value = datos.editorial;
+      }
+      if (datos.idioma) {
+        const idiomaInput = document.querySelector('[name="idioma"]');
+        if (idiomaInput) idiomaInput.value = datos.idioma;
+      }
+
+      // Mostrar campos pendientes
+      const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];
+      if (camposPendientes.length > 0) {
+        iaStatus.className = 'mt-3 text-sm text-amber-600';
+        iaStatus.innerHTML = `⚠️ La IA no pudo determinar: <strong>${camposPendientes.join(', ')}</strong>. Revisa estos campos manualmente.`;
+      } else {
+        iaStatus.className = 'mt-3 text-sm text-green-600';
+        iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
+      }
+      iaStatus.classList.remove('hidden');
+
+      window.showToast?.('🤖 Campos autocompletados por IA correctamente. Revisa y guarda.', 'success');
+
+    } catch (err) {
+      clearInterval(progressInterval);
+      iaProgressBar.style.width = '0%';
+      iaProgressPercent.textContent = 'Error';
+      iaProgressText.textContent = '❌ Error en el análisis';
+      iaProgressSubtext.textContent = err.message;
+      window.showToast?.(`❌ ${err.message}`, 'error');
+    } finally {
+      setTimeout(() => {
+        iaProgressContainer.classList.add('hidden');
+        analizarIaBtn.disabled = false;
+        iaBtnText.classList.remove('hidden');
+        iaBtnSpinner.classList.add('hidden');
+      }, 3000);
+    }
+  });
+
+  // ===========================================================================
   // ENVÍO DEL FORMULARIO - Guardar objeto + subir foto
   // ===========================================================================
   const submitBtn = document.getElementById('submitBtn');
@@ -745,184 +894,17 @@ import ImageEditor from '../../components/ImageEditor.astro';
         }
       }
 
-      // 3. Mostrar botón de Autocompletar con IA
-      if (savedObjectId) {
-        autocompletarIaBtn.classList.remove('hidden');
-        autocompletarIaBtn.dataset.objetoId = savedObjectId;
-        window.showToast?.('✅ Objeto guardado correctamente. Ahora puedes usar "Autocompletar con IA".', 'success');
-      }
-
-      // Resetear formulario
-      e.target.reset();
-      photoImage.classList.add('hidden');
-      photoPlaceholder.classList.remove('hidden');
-      imagenBase64.value = '';
-      editPhotoBtn.classList.add('hidden');
-      submitBtn.disabled = false;
-      submitText.classList.remove('hidden');
-      submitSpinner.classList.add('hidden');
+      // 3. Redirigir al detalle del objeto creado
+      window.showToast?.('✅ Objeto guardado correctamente', 'success');
+      setTimeout(() => {
+        window.location.href = `/objetos/${savedObjectId}`;
+      }, 1000);
 
     } catch (err) {
       window.showToast?.(`❌ ${err.message}`, 'error');
       submitBtn.disabled = false;
       submitText.classList.remove('hidden');
       submitSpinner.classList.add('hidden');
-    }
-  });
-
-  // ===========================================================================
-  // AUTOCOMPLETAR CON IA - Llamar al endpoint analizar_con_ia
-  // ===========================================================================
-  const iaProgressContainer = document.getElementById('iaProgressContainer');
-  const iaProgressText = document.getElementById('iaProgressText');
-  const iaProgressSubtext = document.getElementById('iaProgressSubtext');
-  const iaProgressBar = document.getElementById('iaProgressBar');
-  const iaProgressPercent = document.getElementById('iaProgressPercent');
-
-  autocompletarIaBtn.addEventListener('click', async () => {
-    const objetoId = autocompletarIaBtn.dataset.objetoId;
-    if (!objetoId) {
-      window.showToast?.('❌ No hay objeto guardado para analizar.', 'error');
-      return;
-    }
-
-    // Mostrar progreso
-    autocompletarIaBtn.disabled = true;
-    iaProgressContainer.classList.remove('hidden');
-    iaProgressText.textContent = '🤖 Analizando imagen con IA...';
-    iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
-    iaProgressBar.style.width = '10%';
-    iaProgressPercent.textContent = '10%';
-    iaStatus.classList.add('hidden');
-
-    // Simular progreso mientras se procesa
-    let progress = 10;
-    const progressInterval = setInterval(() => {
-      if (progress < 90) {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-        iaProgressBar.style.width = `${Math.round(progress)}%`;
-        iaProgressPercent.textContent = `${Math.round(progress)}%`;
-        if (progress > 30) {
-          iaProgressText.textContent = '🧠 Extrayendo información del objeto...';
-        }
-        if (progress > 60) {
-          iaProgressText.textContent = '📝 Analizando campos (marca, modelo, autor)...';
-        }
-      }
-    }, 800);
-
-    try {
-      const token = getToken();
-      const response = await fetch(`${API_URL}/objetos/${objetoId}/analizar_con_ia/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      clearInterval(progressInterval);
-      iaProgressBar.style.width = '100%';
-      iaProgressPercent.textContent = '100%';
-      iaProgressText.textContent = '✅ Análisis completado';
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Error al analizar con IA');
-      }
-
-      const result = await response.json();
-      const datos = result.datos || result;
-
-      // Autocompletar campos en el formulario
-      if (datos.nombre) {
-        document.getElementById('nombre').value = datos.nombre;
-      }
-      if (datos.descripcion) {
-        document.getElementById('descripcion').value = datos.descripcion;
-      }
-      if (datos.estado_conservacion) {
-        const estadoSelect = document.getElementById('estado_conservacion');
-        if ([...estadoSelect.options].some(o => o.value === datos.estado_conservacion)) {
-          estadoSelect.value = datos.estado_conservacion;
-        }
-      }
-      if (datos.color) {
-        document.getElementById('color').value = datos.color;
-      }
-      if (datos.categoria) {
-        const tipoMap = { libro: 'libro', tecnologia: 'tecnologia', mueble: 'mueble', ropa: 'ropa' };
-        const tipoVal = tipoMap[datos.categoria];
-        if (tipoVal && tipoSelect) {
-          tipoSelect.value = tipoVal;
-          tipoSelect.dispatchEvent(new Event('change'));
-        }
-      }
-      if (datos.precio_estimado_mercado) {
-        document.getElementById('valor_estimado').value = datos.precio_estimado_mercado;
-      }
-
-      // Campos específicos
-      if (datos.autor) {
-        const autorInput = document.querySelector('[name="autor"]');
-        if (autorInput) autorInput.value = datos.autor;
-      }
-      if (datos.marca) {
-        const marcaInput = document.querySelector('[name="marca"]');
-        if (marcaInput) marcaInput.value = datos.marca;
-      }
-      if (datos.nombre_serie) {
-        const serieInput = document.querySelector('[name="nombre_serie"]');
-        if (serieInput) serieInput.value = datos.nombre_serie;
-      }
-      if (datos.titulo_tomo) {
-        const tomoInput = document.querySelector('[name="titulo_tomo"]');
-        if (tomoInput) tomoInput.value = datos.titulo_tomo;
-      }
-      if (datos.numero_tomo) {
-        const numInput = document.querySelector('[name="numero_tomo"]');
-        if (numInput) numInput.value = datos.numero_tomo;
-      }
-      if (datos.editorial) {
-        const editInput = document.querySelector('[name="editorial"]');
-        if (editInput) editInput.value = datos.editorial;
-      }
-      if (datos.idioma) {
-        const idiomaInput = document.querySelector('[name="idioma"]');
-        if (idiomaInput) idiomaInput.value = datos.idioma;
-      }
-
-      // Mostrar campos pendientes
-      const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];
-      if (camposPendientes.length > 0) {
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.innerHTML = `⚠️ La IA no pudo determinar: <strong>${camposPendientes.join(', ')}</strong>. Revisa estos campos manualmente.`;
-      } else {
-        iaStatus.className = 'mt-3 text-sm text-green-600';
-        iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
-      }
-      iaStatus.classList.remove('hidden');
-
-      window.showToast?.('🤖 Campos autocompletados por IA correctamente', 'success');
-
-      // Ocultar botón de autocompletar
-      setTimeout(() => {
-        autocompletarIaBtn.classList.add('hidden');
-      }, 2000);
-
-    } catch (err) {
-      clearInterval(progressInterval);
-      iaProgressBar.style.width = '0%';
-      iaProgressPercent.textContent = 'Error';
-      iaProgressText.textContent = '❌ Error en el análisis';
-      iaProgressSubtext.textContent = err.message;
-      window.showToast?.(`❌ ${err.message}`, 'error');
-    } finally {
-      setTimeout(() => {
-        iaProgressContainer.classList.add('hidden');
-        autocompletarIaBtn.disabled = false;
-      }, 3000);
     }
   });
 
