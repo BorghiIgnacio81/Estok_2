@@ -451,9 +451,16 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   async function openEditor() {
     if (!imagenBase64.value) return;
-    const editorFn = window.openImageEditor;
+    // Esperar a que ImageEditor esté disponible (puede cargar después que este script)
+    let editorFn = (window as any).openImageEditor;
+    if (!editorFn) {
+      // Intentar de nuevo después de un breve delay
+      await new Promise(r => setTimeout(r, 500));
+      editorFn = (window as any).openImageEditor;
+    }
     if (!editorFn) {
       console.warn('ImageEditor no disponible');
+      window.showToast?.('⚠️ Editor de imagen no disponible. Intenta de nuevo.', 'warning');
       return;
     }
     const editedImage = await editorFn(imagenBase64.value);

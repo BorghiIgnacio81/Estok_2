@@ -123,8 +123,8 @@ const { imageSrc } = Astro.props;
   // ABRIR EDITOR
   // ===========================================================================
 
-  export function openEditor(imageSrc: string): Promise<string> {
-    return new Promise((resolve) => {
+  async function openEditor(imageSrc: string): Promise<string | null> {
+    return new Promise<string | null>((resolve) => {
       // Guardar resolve para usarlo después
       (window as any)._editorResolve = resolve;
 
@@ -150,6 +150,10 @@ const { imageSrc } = Astro.props;
 
         renderImage();
         editor.classList.remove('hidden');
+      };
+      img.onerror = () => {
+        console.error('Error al cargar imagen en el editor');
+        resolve(null);
       };
       img.src = imageSrc;
     });
