@@ -209,16 +209,16 @@ import AuthGuard from '../components/AuthGuard.astro';
         : '—';
 
       return `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base cursor-pointer" data-id="${obj.id}">
-          <!-- Foto -->
-          <div class="h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base" data-id="${obj.id}">
+          <!-- Foto (clickeable -> detalle) -->
+          <div class="h-40 bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer" onclick="window.location.href='/objetos/${obj.id}'">
             ${fotoUrl
               ? `<img src="${fotoUrl}" alt="${obj.nombre}" class="w-full h-full object-cover" />`
               : `<div class="text-center text-gray-400"><span class="text-4xl">${tipoIcon}</span><p class="text-xs mt-1">Sin foto</p></div>`
             }
           </div>
           <!-- Info -->
-          <div class="p-4">
+          <div class="p-4 cursor-pointer" onclick="window.location.href='/objetos/${obj.id}'">
             <div class="flex items-start justify-between gap-2 mb-2">
               <h3 class="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">${obj.nombre}</h3>
               <span class="text-lg flex-shrink-0">${tipoIcon}</span>
@@ -234,15 +234,48 @@ import AuthGuard from '../components/AuthGuard.astro';
             </div>
             <p class="text-xs text-gray-400 mt-2">${new Date(obj.fecha_registro).toLocaleDateString('es-AR')}</p>
           </div>
+          <!-- Botones de acción -->
+          <div class="flex border-t border-gray-100 divide-x divide-gray-100">
+            <a href="/objetos/${obj.id}/editar" class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-base">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Editar
+            </a>
+            <button class="delete-btn flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-base" data-id="${obj.id}" data-nombre="${obj.nombre}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Eliminar
+            </button>
+          </div>
         </div>
       `;
     }).join('');
 
-    // Click en card para ver detalle
-    objetosGrid.querySelectorAll('[data-id]').forEach((card) => {
-      card.addEventListener('click', () => {
-        const id = card.getAttribute('data-id');
-        if (id) window.location.href = `/objetos/${id}`;
+    // Click en card para ver detalle (foto + info ya tienen onclick)
+    // Botones eliminar
+    objetosGrid.querySelectorAll('.delete-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const nombre = btn.getAttribute('data-nombre');
+        if (!id) return;
+        if (!confirm(`¿Estás seguro de eliminar "${nombre}"? Se marcará como eliminado.`)) return;
+        try {
+          const res = await fetch(`${API_URL}/objetos/${id}/soft_delete/`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+          });
+          if (res.ok) {
+            (window as any).showSuccess?.(`✅ "${nombre}" eliminado`);
+            cargarObjetos(currentTipo);
+          } else {
+            (window as any).showError?.('❌ Error al eliminar');
+          }
+        } catch {
+          (window as any).showError?.('❌ Error de conexión');
+        }
       });
     });
   }
