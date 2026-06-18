@@ -82,32 +82,43 @@ class Command(BaseCommand):
                     if tipo_detectado == 'libro':
                         # INSERT directo en la tabla hijo para evitar
                         # que Django cree un nuevo Objeto (multi-table inheritance)
+                        # Los campos CharField con blank=True pero sin null=True
+                        # necesitan string vacío '' como valor por defecto
                         with connection.cursor() as cursor:
-                            cursor.execute(
-                                "INSERT INTO inventario_librorevista (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
-                                [str(obj.id)]
-                            )
+                            cursor.execute("""
+                                INSERT INTO inventario_librorevista 
+                                    (objeto_ptr_id, autor, edicion, isbn_issn, nombre_serie, 
+                                     titulo_tomo, editorial, idioma)
+                                VALUES (%s, '', '', '', '', '', '', '')
+                                ON CONFLICT (objeto_ptr_id) DO NOTHING
+                            """, [str(obj.id)])
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como libro")
                     elif tipo_detectado == 'tecnologia':
                         with connection.cursor() as cursor:
-                            cursor.execute(
-                                "INSERT INTO inventario_tecnologia (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
-                                [str(obj.id)]
-                            )
+                            cursor.execute("""
+                                INSERT INTO inventario_tecnologia 
+                                    (objeto_ptr_id)
+                                VALUES (%s)
+                                ON CONFLICT (objeto_ptr_id) DO NOTHING
+                            """, [str(obj.id)])
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como tecnologia")
                     elif tipo_detectado == 'mueble':
                         with connection.cursor() as cursor:
-                            cursor.execute(
-                                "INSERT INTO inventario_mueblearte (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
-                                [str(obj.id)]
-                            )
+                            cursor.execute("""
+                                INSERT INTO inventario_mueblearte 
+                                    (objeto_ptr_id)
+                                VALUES (%s)
+                                ON CONFLICT (objeto_ptr_id) DO NOTHING
+                            """, [str(obj.id)])
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como mueble")
                     elif tipo_detectado == 'ropa':
                         with connection.cursor() as cursor:
-                            cursor.execute(
-                                "INSERT INTO inventario_ropa (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
-                                [str(obj.id)]
-                            )
+                            cursor.execute("""
+                                INSERT INTO inventario_ropa 
+                                    (objeto_ptr_id)
+                                VALUES (%s)
+                                ON CONFLICT (objeto_ptr_id) DO NOTHING
+                            """, [str(obj.id)])
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como ropa")
                     else:
                         self.stdout.write(f"  ⚠️  {obj.nombre} -> sin tipo detectable, queda como 'objeto'")
