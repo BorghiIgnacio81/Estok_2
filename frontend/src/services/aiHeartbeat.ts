@@ -1,10 +1,10 @@
 // =============================================================================
-// AI HEARTBEAT - Servicio de monitoreo de LM Studio
-// Hace ping al endpoint de LM Studio para verificar disponibilidad
+// AI HEARTBEAT - Servicio de monitoreo de IA
+// Verifica disponibilidad de la IA a través del backend (no directo a LM Studio)
 // =============================================================================
 
-const LM_STUDIO_URL = 'http://localhost:1234/v1';
-const HEARTBEAT_INTERVAL = 15000; // 15 segundos
+const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+const HEARTBEAT_INTERVAL = 30000; // 30 segundos
 
 type AIStatusListener = (connected: boolean) => void;
 
@@ -19,23 +19,24 @@ class AIHeartbeatService {
   }
 
   /**
-   * Verifica si LM Studio está disponible
+   * Verifica si la IA está disponible a través del backend
    */
   async checkConnection(): Promise<boolean> {
     if (this._checking) return this._connected;
     this._checking = true;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const token = localStorage.getItem('estok_access_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch(`${LM_STUDIO_URL}/models`, {
+      const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
         method: 'GET',
-        signal: controller.signal,
+        headers,
       });
 
-      clearTimeout(timeoutId);
-      this._connected = response.ok;
+      const data = await response.json();
+      this._connected = response.ok && data.status === 'ok';
     } catch {
       this._connected = false;
     } finally {
