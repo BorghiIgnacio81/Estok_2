@@ -5,7 +5,7 @@
 # =============================================================================
 
 # ---- Etapa 1: Build ----
-# Cache invalidation: 2026-06-17-v6 (New archivador icon)
+# Cache invalidation: 2026-06-18-v7 (Fix navegacion tarjetas + boton editar + precio referencia)
 FROM node:22-alpine AS builder
 
 WORKDIR /app
