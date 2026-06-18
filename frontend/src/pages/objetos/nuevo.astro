@@ -1063,8 +1063,16 @@ import ImageEditor from '../../components/ImageEditor.astro';
       });
 
       if (!createResponse.ok) {
-        const errData = await createResponse.json();
-        throw new Error(errData.detail || errData.error || 'Error al crear el objeto');
+        let errorMsg = 'Error al crear el objeto';
+        try {
+          const errData = await createResponse.json();
+          errorMsg = errData.detail || errData.error || JSON.stringify(errData);
+        } catch {
+          try {
+            errorMsg = await createResponse.text();
+          } catch {}
+        }
+        throw new Error(errorMsg);
       }
 
       const createdObject = await createResponse.json();
