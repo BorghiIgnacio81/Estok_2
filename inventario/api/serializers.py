@@ -255,36 +255,14 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
 # =============================================================================
 # SERIALIZER PARA CREAR OBJETOS (CON HERENCIA)
 # =============================================================================
-class ObjetoCreateSerializer(serializers.Serializer):
+class ObjetoCreateSerializer(serializers.ModelSerializer):
     """
     Serializer para crear objetos con herencia multi-tabla.
     Acepta un campo 'tipo' para determinar qué modelo hijo crear.
+    Extiende ModelSerializer para que DRF maneje correctamente
+    la serialización de la respuesta y los errores de validación.
     """
-    # Campos base del objeto
-    nombre = serializers.CharField(max_length=300)
-    descripcion = serializers.CharField(required=False, allow_blank=True)
-    ubicacion = serializers.PrimaryKeyRelatedField(
-        queryset=Ubicacion.objects.all(), required=False, allow_null=True
-    )
-    contenedor = serializers.PrimaryKeyRelatedField(
-        queryset=Contenedor.objects.all(), required=False, allow_null=True
-    )
-    estado_conservacion = serializers.ChoiceField(
-        choices=['excelente', 'bueno', 'regular', 'malo', 'muy_malo'],
-        default='bueno'
-    )
-    valor_estimado = serializers.DecimalField(
-        max_digits=12, decimal_places=2, required=False, allow_null=True
-    )
-    color = serializers.CharField(required=False, allow_blank=True)
-    dueno_original = serializers.PrimaryKeyRelatedField(
-        queryset=CustomUser.objects.all(), required=False, allow_null=True
-    )
-    beneficiario = serializers.PrimaryKeyRelatedField(
-        queryset=CustomUser.objects.all(), required=False, allow_null=True
-    )
-
-    # Tipo de objeto
+    # Tipo de objeto (campo virtual, no está en el modelo Objeto)
     tipo = serializers.ChoiceField(
         choices=['libro', 'tecnologia', 'mueble', 'ropa', 'objeto'],
         default='objeto'
@@ -292,32 +270,47 @@ class ObjetoCreateSerializer(serializers.Serializer):
 
     # Campos específicos (opcionales según el tipo)
     # LibroRevista
-    autor = serializers.CharField(required=False, allow_blank=True)
-    edicion = serializers.CharField(required=False, allow_blank=True)
-    anio = serializers.IntegerField(required=False, allow_null=True)
-    isbn_issn = serializers.CharField(required=False, allow_blank=True)
-    nombre_serie = serializers.CharField(required=False, allow_blank=True)
-    titulo_tomo = serializers.CharField(required=False, allow_blank=True)
-    numero_tomo = serializers.IntegerField(required=False, allow_null=True)
-    editorial = serializers.CharField(required=False, allow_blank=True)
-    idioma = serializers.CharField(required=False, allow_blank=True)
+    autor = serializers.CharField(required=False, allow_blank=True, default='')
+    edicion = serializers.CharField(required=False, allow_blank=True, default='')
+    anio = serializers.IntegerField(required=False, allow_null=True, default=None)
+    isbn_issn = serializers.CharField(required=False, allow_blank=True, default='')
+    nombre_serie = serializers.CharField(required=False, allow_blank=True, default='')
+    titulo_tomo = serializers.CharField(required=False, allow_blank=True, default='')
+    numero_tomo = serializers.IntegerField(required=False, allow_null=True, default=None)
+    editorial = serializers.CharField(required=False, allow_blank=True, default='')
+    idioma = serializers.CharField(required=False, allow_blank=True, default='')
 
     # Tecnologia
-    marca = serializers.CharField(required=False, allow_blank=True)
-    modelo = serializers.CharField(required=False, allow_blank=True)
-    numero_serie = serializers.CharField(required=False, allow_blank=True)
-    peso = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    marca = serializers.CharField(required=False, allow_blank=True, default='')
+    modelo = serializers.CharField(required=False, allow_blank=True, default='')
+    numero_serie = serializers.CharField(required=False, allow_blank=True, default='')
+    peso = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
     especificaciones = serializers.JSONField(required=False, default=dict)
 
     # MuebleArte
-    material = serializers.CharField(required=False, allow_blank=True)
-    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
-    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
-    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
-    artista_fabricante = serializers.CharField(required=False, allow_blank=True)
+    material = serializers.CharField(required=False, allow_blank=True, default='')
+    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
+    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
+    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
+    artista_fabricante = serializers.CharField(required=False, allow_blank=True, default='')
 
     # Ropa
-    tamano = serializers.CharField(required=False, allow_blank=True)
+    tamano = serializers.CharField(required=False, allow_blank=True, default='')
+
+    class Meta:
+        model = Objeto
+        fields = [
+            'id', 'nombre', 'descripcion', 'tipo',
+            'ubicacion', 'contenedor',
+            'estado_conservacion', 'valor_estimado', 'color',
+            'dueno_original', 'beneficiario',
+            'autor', 'edicion', 'anio', 'isbn_issn',
+            'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
+            'marca', 'modelo', 'numero_serie', 'peso', 'especificaciones',
+            'material', 'largo', 'ancho', 'alto', 'artista_fabricante',
+            'tamano',
+        ]
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         tipo = validated_data.pop('tipo', 'objeto')
