@@ -262,48 +262,43 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
     Extiende ModelSerializer para que DRF maneje correctamente
     la serialización de la respuesta y los errores de validación.
     """
-    # Tipo de objeto (campo virtual, no está en el modelo Objeto)
+    # Tipo de objeto (write_only para crear, read_only para respuesta)
     tipo = serializers.ChoiceField(
         choices=['libro', 'tecnologia', 'mueble', 'ropa', 'objeto'],
-        default='objeto'
+        default='objeto',
+        write_only=True
     )
 
-    # Campos específicos (opcionales según el tipo)
-    # LibroRevista
-    autor = serializers.CharField(required=False, allow_blank=True, default='')
-    edicion = serializers.CharField(required=False, allow_blank=True, default='')
-    anio = serializers.IntegerField(required=False, allow_null=True, default=None)
-    isbn_issn = serializers.CharField(required=False, allow_blank=True, default='')
-    nombre_serie = serializers.CharField(required=False, allow_blank=True, default='')
-    titulo_tomo = serializers.CharField(required=False, allow_blank=True, default='')
-    numero_tomo = serializers.IntegerField(required=False, allow_null=True, default=None)
-    editorial = serializers.CharField(required=False, allow_blank=True, default='')
-    idioma = serializers.CharField(required=False, allow_blank=True, default='')
-
-    # Tecnologia
-    marca = serializers.CharField(required=False, allow_blank=True, default='')
-    modelo = serializers.CharField(required=False, allow_blank=True, default='')
-    numero_serie = serializers.CharField(required=False, allow_blank=True, default='')
-    peso = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
-    especificaciones = serializers.JSONField(required=False, default=dict)
-
-    # MuebleArte
-    material = serializers.CharField(required=False, allow_blank=True, default='')
-    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
-    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
-    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None)
-    artista_fabricante = serializers.CharField(required=False, allow_blank=True, default='')
-
-    # Ropa
-    tamano = serializers.CharField(required=False, allow_blank=True, default='')
+    # Campos específicos (opcionales según el tipo) - write_only
+    autor = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    edicion = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    anio = serializers.IntegerField(required=False, allow_null=True, default=None, write_only=True)
+    isbn_issn = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    nombre_serie = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    titulo_tomo = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    numero_tomo = serializers.IntegerField(required=False, allow_null=True, default=None, write_only=True)
+    editorial = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    idioma = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    marca = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    modelo = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    numero_serie = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    peso = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
+    especificaciones = serializers.JSONField(required=False, default=dict, write_only=True)
+    material = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
+    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
+    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
+    artista_fabricante = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
+    tamano = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
 
     class Meta:
         model = Objeto
         fields = [
-            'id', 'nombre', 'descripcion', 'tipo',
+            'id', 'nombre', 'descripcion',
             'ubicacion', 'contenedor',
             'estado_conservacion', 'valor_estimado', 'color',
             'dueno_original', 'beneficiario',
+            'tipo',
             'autor', 'edicion', 'anio', 'isbn_issn',
             'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
             'marca', 'modelo', 'numero_serie', 'peso', 'especificaciones',

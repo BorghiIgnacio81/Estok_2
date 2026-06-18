@@ -221,9 +221,26 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'list':
             return ObjetoListSerializer
-        elif self.action in ('create', 'update', 'partial_update'):
+        elif self.action in ('update', 'partial_update'):
             return ObjetoCreateSerializer
         return ObjetoDetailSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Crea un objeto usando ObjetoCreateSerializer para validar/crear,
+        pero retorna la respuesta usando ObjetoDetailSerializer para
+        que incluya correctamente el tipo y datos específicos.
+        """
+        create_serializer = ObjetoCreateSerializer(data=request.data, context={'request': request})
+        create_serializer.is_valid(raise_exception=True)
+        objeto = create_serializer.save()
+
+        # Refrescar desde BD para obtener relaciones hijo
+        objeto.refresh_from_db()
+
+        detail_serializer = ObjetoDetailSerializer(objeto, context={'request': request})
+        headers = self.get_success_headers(detail_serializer.data)
+        return Response(detail_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def get_queryset(self):
         qs = Objeto.objects.all()
