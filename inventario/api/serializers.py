@@ -349,6 +349,53 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
 
         return objeto
 
+    def update(self, instance, validated_data):
+        tipo = validated_data.pop('tipo', None)
+
+        # Extraer campos específicos
+        campos_especificos = {}
+        campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']
+        campos_tecno = ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']
+        campos_mueble = ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']
+        campos_ropa = ['tamano']
+
+        for campo in campos_libro + campos_tecno + campos_mueble + campos_ropa:
+            if campo in validated_data:
+                campos_especificos[campo] = validated_data.pop(campo)
+
+        # Actualizar campos base del objeto
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Actualizar o crear modelo hijo según el tipo
+        if tipo == 'libro' or (tipo is None and hasattr(instance, 'librorevista')):
+            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr=instance)
+            for k in campos_libro:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'tecnologia' or (tipo is None and hasattr(instance, 'tecnologia')):
+            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr=instance)
+            for k in campos_tecno:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'mueble' or (tipo is None and hasattr(instance, 'mueblearte')):
+            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr=instance)
+            for k in campos_mueble:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'ropa' or (tipo is None and hasattr(instance, 'ropa')):
+            hijo, created = Ropa.objects.get_or_create(objeto_ptr=instance)
+            for k in campos_ropa:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+
+        return instance
+
 
 # =============================================================================
 # SERIALIZERS DE MULTIMEDIA
