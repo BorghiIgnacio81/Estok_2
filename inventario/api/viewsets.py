@@ -625,6 +625,97 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         service = StockValuationService()
         return Response(service.calcular_plusvalia_total(objeto))
 
+    @action(detail=False, methods=['get'])
+    def buscar_precio_mercadolibre(self, request):
+        """
+        Busca precios de referencia en MercadoLibre Argentina.
+        Usa la API pública de MercadoLibre (sin autenticación).
+
+        Query params:
+            q (str): Término de búsqueda (ej: "iPhone 14", "Cien Años de Soledad")
+            limit (int): Cantidad de resultados (default: 5, max: 10)
+
+        Retorna:
+            {
+                "resultados": [
+                    {
+                        "titulo": "iPhone 14 Pro 128GB",
+                        "precio": 1500.00,
+                        "moneda": "ARS",
+                        "url": "https://...",
+                        "vendedor": "MercadoLibre",
+                        "condicion": "new",
+                        "ubicacion": "Capital Federal"
+                    }
+                ],
+                "promedio": 1500.00,
+                "minimo": 1200.00,
+                "maximo": 1800.00,
+                "cantidad": 5,
+                "fuente": "mercadolibre"
+            }
+        """
+        import requests as req_lib
+
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            return Response(
+                {"error": "Debes proporcionar 'q' (término de búsqueda)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        limit = min(int(request.query_params.get('limit', 5)), 10)
+
+        try:
+            # API pública de MercadoLibre Argentina (MLA)
+            url = "https://api.mercadolibre.com/sites/MLA/search"
+            params = {
+                "q": query,
+                "limit": limit,
+                "sort": "price_asc",
+            }
+
+            logger.info("🔍 Buscando en MercadoLibre: '%s' (limit=%d)", query, limit)
+            response = req_lib.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            resultados = []
+            for item in data.get('results', []):
+                resultados.append({
+                    "titulo": item.get('title', ''),
+                    "precio": item.get('price', 0),
+                    "moneda": item.get('currency_id', 'ARS'),
+                    "url": item.get('permalink', ''),
+                    "vendedor": item.get('seller', {}).get('nickname', 'Desconocido'),
+                    "condicion": item.get('condition', ''),
+                    "ubicacion": item.get('address', {}).get('city_name', ''),
+                })
+
+            precios = [r['precio'] for r in resultados if r['precio'] > 0]
+
+            return Response({
+                "resultados": resultados,
+                "promedio": sum(precios) / len(precios) if precios else 0,
+                "minimo": min(precios) if precios else 0,
+                "maximo": max(precios) if precios else 0,
+                "cantidad": len(resultados),
+                "fuente": "mercadolibre",
+            })
+
+        except req_lib.exceptions.Timeout:
+            logger.error("Timeout al consultar MercadoLibre")
+            return Response(
+                {"error": "La consulta a MercadoLibre tardó demasiado. Intenta de nuevo."},
+                status=status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        except req_lib.exceptions.RequestException as e:
+            logger.error("Error al consultar MercadoLibre: %s", e)
+            return Response(
+                {"error": f"Error al consultar MercadoLibre: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
     @action(detail=True, methods=['post'])
     def crear_alerta_stock(self, request, pk=None):
         """

@@ -509,6 +509,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
     precioReferencia.classList.add('hidden');
     try {
       const token = getToken();
+      // PASO 1: Buscar en el inventario local
       const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -529,29 +530,62 @@ import ImageEditor from '../../components/ImageEditor.astro';
           precioReferencia.className = 'mt-2 text-xs text-green-600';
           precioReferencia.innerHTML = `💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong> (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)}) basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.`;
           window.showToast?.(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
-        } else {
-          const tipo = document.getElementById('tipo')?.value;
-          let sugerencia = 0;
-          switch (tipo) {
-            case 'tecnologia': sugerencia = 150; break;
-            case 'libro': sugerencia = 20; break;
-            case 'mueble': sugerencia = 200; break;
-            case 'ropa': sugerencia = 30; break;
-            default: sugerencia = 50;
-          }
-          precioReferencia.className = 'mt-2 text-xs text-amber-600';
-          precioReferencia.innerHTML = `💡 No se encontraron objetos similares con precio. Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong> (basado en la categoría seleccionada).`;
-          const valorEstimado = document.getElementById('valor_estimado');
-          if (valorEstimado && !valorEstimado.value) {
-            valorEstimado.value = sugerencia.toFixed(2);
-          }
-          precioReferencia.classList.remove('hidden');
+          return;
         }
-      } else {
-        precioReferencia.className = 'mt-2 text-xs text-red-600';
-        precioReferencia.textContent = '❌ Error al buscar precios de referencia.';
-        precioReferencia.classList.remove('hidden');
       }
+
+      // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
+      try {
+        const mlResponse = await fetch(`${API_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (mlResponse.ok) {
+          const mlData = await mlResponse.json();
+          if (mlData.resultados && mlData.resultados.length > 0) {
+            const valorEstimado = document.getElementById('valor_estimado');
+            if (valorEstimado) {
+              valorEstimado.value = mlData.promedio.toFixed(2);
+              valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            // Mostrar los resultados de MercadoLibre
+            let html = `🛒 <strong>$${mlData.promedio.toFixed(2)}</strong> promedio en MercadoLibre (${mlData.cantidad} resultados)<br>`;
+            html += `<div class="mt-1 space-y-1">`;
+            mlData.resultados.slice(0, 3).forEach(r => {
+              const precioFormateado = r.moneda === 'ARS' ? `ARS $${r.precio.toLocaleString('es-AR')}` : `$${r.precio.toFixed(2)}`;
+              html += `<div class="flex justify-between text-[10px]">
+                <span class="truncate max-w-[200px]">${r.titulo}</span>
+                <span class="font-medium whitespace-nowrap">${precioFormateado}</span>
+              </div>`;
+            });
+            html += `</div>`;
+            html += `<a href="https://listado.mercadolibre.com.ar/${encodeURIComponent(nombre)}" target="_blank" class="mt-1 inline-block text-blue-600 hover:underline">Ver más en MercadoLibre →</a>`;
+            precioReferencia.className = 'mt-2 text-xs text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-200';
+            precioReferencia.innerHTML = html;
+            window.showToast?.(`🛒 Precio MercadoLibre: $${mlData.promedio.toFixed(2)}`, 'success');
+            return;
+          }
+        }
+      } catch (mlErr) {
+        console.warn('Error al consultar MercadoLibre:', mlErr);
+      }
+
+      // PASO 3: Si no encontró nada, sugerencia por categoría
+      const tipo = document.getElementById('tipo')?.value;
+      let sugerencia = 0;
+      switch (tipo) {
+        case 'tecnologia': sugerencia = 150; break;
+        case 'libro': sugerencia = 20; break;
+        case 'mueble': sugerencia = 200; break;
+        case 'ropa': sugerencia = 30; break;
+        default: sugerencia = 50;
+      }
+      precioReferencia.className = 'mt-2 text-xs text-amber-600';
+      precioReferencia.innerHTML = `💡 No se encontraron precios de referencia. Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong> (basado en la categoría).`;
+      const valorEstimado = document.getElementById('valor_estimado');
+      if (valorEstimado && !valorEstimado.value) {
+        valorEstimado.value = sugerencia.toFixed(2);
+      }
+      precioReferencia.classList.remove('hidden');
     } catch (err) {
       precioReferencia.className = 'mt-2 text-xs text-red-600';
       precioReferencia.textContent = '❌ Error de conexión al buscar precios.';
