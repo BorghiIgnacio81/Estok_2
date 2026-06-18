@@ -124,8 +124,25 @@ export async function getStaticPaths() {
 
             <div>
               <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">Valor estimado ($)</label>
-              <input id="valor_estimado" name="valor_estimado" type="number" step="0.01" min="0" placeholder="Ej: 150.00"
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <input id="valor_estimado" name="valor_estimado" type="number" step="0.01" min="0" placeholder="0.00"
+                  class="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
+              </div>
+              <button type="button" id="estimarPrecioBtn"
+                class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-base disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span id="estimarPrecioText">Buscar precio de referencia</span>
+                <span id="estimarPrecioSpinner" class="hidden">
+                  <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </span>
+              </button>
+              <div id="precioReferencia" class="mt-2 text-xs hidden"></div>
             </div>
           </div>
         </div>
@@ -407,6 +424,126 @@ export async function getStaticPaths() {
     const tipo = tipoSelect.value;
     if ((window as any).updateCategoryFields) {
       (window as any).updateCategoryFields(tipo);
+    }
+  });
+
+  // ===========================================================================
+  // ESTIMAR PRECIO DE REFERENCIA
+  // ===========================================================================
+
+  const estimarPrecioBtn = document.getElementById('estimarPrecioBtn');
+  const estimarPrecioText = document.getElementById('estimarPrecioText');
+  const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner');
+  const precioReferencia = document.getElementById('precioReferencia');
+  const nombreInput = document.getElementById('nombre');
+
+  estimarPrecioBtn?.addEventListener('click', async () => {
+    const nombre = nombreInput?.value?.trim();
+    if (!nombre) {
+      showToast('Primero escribe el nombre del objeto.', 'error');
+      nombreInput?.focus();
+      return;
+    }
+    estimarPrecioBtn.disabled = true;
+    estimarPrecioText?.classList.add('hidden');
+    estimarPrecioSpinner?.classList.remove('hidden');
+    precioReferencia?.classList.add('hidden');
+    try {
+      const token = getToken();
+      // PASO 1: Buscar en el inventario local
+      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const objetos = data.results || data;
+        const conPrecio = objetos.filter((o: any) => o.valor_estimado && Number(o.valor_estimado) > 0);
+        if (conPrecio.length > 0) {
+          const precios = conPrecio.map((o: any) => Number(o.valor_estimado));
+          const promedio = precios.reduce((a: number, b: number) => a + b, 0) / precios.length;
+          const maxPrecio = Math.max(...precios);
+          const minPrecio = Math.min(...precios);
+          const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+          if (valorEstimado) {
+            valorEstimado.value = promedio.toFixed(2);
+            valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (precioReferencia) {
+            precioReferencia.className = 'mt-2 text-xs text-green-600';
+            precioReferencia.innerHTML = `💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong> (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)}) basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.`;
+            precioReferencia.classList.remove('hidden');
+          }
+          showToast(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
+          return;
+        }
+      }
+
+      // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
+      try {
+        const mlResponse = await fetch(`${API_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (mlResponse.ok) {
+          const mlData = await mlResponse.json();
+          if (mlData.resultados && mlData.resultados.length > 0) {
+            const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+            if (valorEstimado) {
+              valorEstimado.value = mlData.promedio.toFixed(2);
+              valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (precioReferencia) {
+              let html = `🛒 <strong>$${mlData.promedio.toFixed(2)}</strong> promedio en MercadoLibre (${mlData.cantidad} resultados)<br>`;
+              html += `<div class="mt-1 space-y-1">`;
+              mlData.resultados.slice(0, 3).forEach((r: any) => {
+                const precioFormateado = r.moneda === 'ARS' ? `ARS $${r.precio.toLocaleString('es-AR')}` : `$${r.precio.toFixed(2)}`;
+                html += `<div class="flex justify-between text-[10px]">
+                  <span class="truncate max-w-[200px]">${r.titulo}</span>
+                  <span class="font-medium whitespace-nowrap">${precioFormateado}</span>
+                </div>`;
+              });
+              html += `</div>`;
+              html += `<a href="https://listado.mercadolibre.com.ar/${encodeURIComponent(nombre)}" target="_blank" class="mt-1 inline-block text-blue-600 hover:underline">Ver más en MercadoLibre →</a>`;
+              precioReferencia.className = 'mt-2 text-xs text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-200';
+              precioReferencia.innerHTML = html;
+              precioReferencia.classList.remove('hidden');
+            }
+            showToast(`🛒 Precio MercadoLibre: $${mlData.promedio.toFixed(2)}`, 'success');
+            return;
+          }
+        }
+      } catch (mlErr) {
+        console.warn('Error al consultar MercadoLibre:', mlErr);
+      }
+
+      // PASO 3: Si no encontró nada, sugerencia por categoría
+      const tipo = (document.getElementById('tipo') as HTMLSelectElement)?.value;
+      let sugerencia = 0;
+      switch (tipo) {
+        case 'tecnologia': sugerencia = 150; break;
+        case 'libro': sugerencia = 20; break;
+        case 'mueble': sugerencia = 200; break;
+        case 'ropa': sugerencia = 30; break;
+        default: sugerencia = 50;
+      }
+      if (precioReferencia) {
+        precioReferencia.className = 'mt-2 text-xs text-amber-600';
+        precioReferencia.innerHTML = `💡 No se encontraron precios de referencia. Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong> (basado en la categoría).`;
+        precioReferencia.classList.remove('hidden');
+      }
+      const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+      if (valorEstimado && !valorEstimado.value) {
+        valorEstimado.value = sugerencia.toFixed(2);
+      }
+    } catch (err) {
+      if (precioReferencia) {
+        precioReferencia.className = 'mt-2 text-xs text-red-600';
+        precioReferencia.textContent = '❌ Error de conexión al buscar precios.';
+        precioReferencia.classList.remove('hidden');
+      }
+    } finally {
+      estimarPrecioBtn.disabled = false;
+      estimarPrecioText?.classList.remove('hidden');
+      estimarPrecioSpinner?.classList.add('hidden');
     }
   });
 
