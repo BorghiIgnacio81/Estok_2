@@ -24,22 +24,33 @@ class Command(BaseCommand):
         sin_tipo = 0
 
         for obj in objetos:
-            tiene_hijo = (
-                hasattr(obj, 'librorevista') and obj.librorevista is not None
-            ) or (
-                hasattr(obj, 'tecnologia') and obj.tecnologia is not None
-            ) or (
-                hasattr(obj, 'mueblearte') and obj.mueblearte is not None
-            ) or (
-                hasattr(obj, 'ropa') and obj.ropa is not None
-            )
+            tiene_hijo = False
+            tipo_actual = None
+
+            try:
+                # Verificar si ya tiene hijo usando getattr con default
+                if hasattr(obj, 'librorevista') and obj.librorevista is not None:
+                    tiene_hijo = True
+                    tipo_actual = 'libro'
+                elif hasattr(obj, 'tecnologia') and obj.tecnologia is not None:
+                    tiene_hijo = True
+                    tipo_actual = 'tecnologia'
+                elif hasattr(obj, 'mueblearte') and obj.mueblearte is not None:
+                    tiene_hijo = True
+                    tipo_actual = 'mueble'
+                elif hasattr(obj, 'ropa') and obj.ropa is not None:
+                    tiene_hijo = True
+                    tipo_actual = 'ropa'
+            except Exception:
+                # Si hay error al acceder al hijo, es porque no existe
+                tiene_hijo = False
 
             if not tiene_hijo:
-                # Intentar determinar el tipo por el nombre o dejarlo como 'objeto'
+                # Intentar determinar el tipo por el nombre
                 nombre_lower = obj.nombre.lower()
                 
                 # Palabras clave para detectar tipo
-                palabras_libro = ['libro', 'revista', 'comic', 'cómic', 'novela', 'cuento', 'poesia', 'poesía', 'manual', 'guía', 'guia', 'diccionario', 'enciclopedia', 'tomo', 'volumen']
+                palabras_libro = ['libro', 'revista', 'comic', 'cómic', 'novela', 'cuento', 'poesia', 'poesía', 'manual', 'guía', 'guia', 'diccionario', 'enciclopedia', 'tomo', 'volumen', 'anne']
                 palabras_tecno = ['computadora', 'computador', 'laptop', 'notebook', 'celular', 'telefono', 'teléfono', 'tablet', 'monitor', 'teclado', 'mouse', 'impresora', 'cargador', 'auricular', 'parlante', 'router', 'modem', 'módem', 'disco', 'memoria', 'cable']
                 palabras_mueble = ['mueble', 'silla', 'mesa', 'escritorio', 'estante', 'biblioteca', 'cajonera', 'armario', 'cuadro', 'pintura', 'escultura', 'lámpara', 'lampara']
                 palabras_ropa = ['ropa', 'camisa', 'pantalon', 'pantalón', 'zapato', 'zapatilla', 'vestido', 'chaqueta', 'abrigo', 'bufanda', 'gorro', 'cinturon', 'cinturón']
@@ -67,19 +78,23 @@ class Command(BaseCommand):
 
                 try:
                     if tipo_detectado == 'libro':
-                        LibroRevista.objects.create(objeto_ptr=obj)
+                        # Usar el OneToOneField directamente para no crear duplicados
+                        lr = LibroRevista(objeto_ptr=obj)
+                        lr.save()
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como libro")
                     elif tipo_detectado == 'tecnologia':
-                        Tecnologia.objects.create(objeto_ptr=obj)
+                        t = Tecnologia(objeto_ptr=obj)
+                        t.save()
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como tecnologia")
                     elif tipo_detectado == 'mueble':
-                        MuebleArte.objects.create(objeto_ptr=obj)
+                        ma = MuebleArte(objeto_ptr=obj)
+                        ma.save()
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como mueble")
                     elif tipo_detectado == 'ropa':
-                        Ropa.objects.create(objeto_ptr=obj)
+                        r = Ropa(objeto_ptr=obj)
+                        r.save()
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como ropa")
                     else:
-                        # Si no se puede detectar, dejar como objeto genérico
                         self.stdout.write(f"  ⚠️  {obj.nombre} -> sin tipo detectable, queda como 'objeto'")
                         sin_tipo += 1
                     
@@ -87,18 +102,7 @@ class Command(BaseCommand):
                 except Exception as e:
                     self.stdout.write(self.style.ERROR(f"  ❌ Error al reparar {obj.nombre}: {e}"))
             else:
-                # Ya tiene hijo, verificar qué tipo
-                if hasattr(obj, 'librorevista') and obj.librorevista is not None:
-                    tipo = 'libro'
-                elif hasattr(obj, 'tecnologia') and obj.tecnologia is not None:
-                    tipo = 'tecnologia'
-                elif hasattr(obj, 'mueblearte') and obj.mueblearte is not None:
-                    tipo = 'mueble'
-                elif hasattr(obj, 'ropa') and obj.ropa is not None:
-                    tipo = 'ropa'
-                else:
-                    tipo = 'objeto'
-                self.stdout.write(f"  ✓ {obj.nombre} -> {tipo} (ok)")
+                self.stdout.write(f"  ✓ {obj.nombre} -> {tipo_actual} (ok)")
 
         self.stdout.write(self.style.SUCCESS(
             f"\n✅ Reparación completada: {reparados} objetos reparados, {sin_tipo} sin tipo detectable"
