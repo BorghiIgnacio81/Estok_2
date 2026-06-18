@@ -50,9 +50,9 @@ export async function getStaticPaths() {
             </svg>
             Compartir
           </button>
-          <a id="editBtn" href="#" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-base inline-flex items-center">
+          <button id="editBtn" class="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-base inline-flex items-center">
             ✏️ Editar
-          </a>
+          </button>
           <button id="deleteBtn" class="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-base">
             🗑️ Eliminar
           </button>
@@ -483,10 +483,11 @@ export async function getStaticPaths() {
   // ACCIONES: EDITAR (redirige al formulario de edición)
   // ===========================================================================
 
-  const editBtn = document.getElementById('editBtn') as HTMLAnchorElement;
-  if (editBtn && objetoId) {
-    editBtn.href = `/objetos/${objetoId}/editar`;
-  }
+  document.getElementById('editBtn')?.addEventListener('click', () => {
+    if (objetoId) {
+      window.location.href = `/objetos/${objetoId}/editar`;
+    }
+  });
 
   // ===========================================================================
   // RETRY
