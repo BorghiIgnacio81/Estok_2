@@ -209,16 +209,16 @@ import AuthGuard from '../components/AuthGuard.astro';
         : '—';
 
       return `
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base" data-id="${obj.id}">
-          <!-- Foto (clickeable -> detalle) -->
-          <div class="h-40 bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer" onclick="window.location.href='/objetos/${obj.id}'">
+        <div class="objeto-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base cursor-pointer" data-id="${obj.id}" data-href="/objetos/${obj.id}">
+          <!-- Foto -->
+          <div class="h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
             ${fotoUrl
               ? `<img src="${fotoUrl}" alt="${obj.nombre}" class="w-full h-full object-cover" />`
               : `<div class="text-center text-gray-400"><span class="text-4xl">${tipoIcon}</span><p class="text-xs mt-1">Sin foto</p></div>`
             }
           </div>
           <!-- Info -->
-          <div class="p-4 cursor-pointer" onclick="window.location.href='/objetos/${obj.id}'">
+          <div class="p-4">
             <div class="flex items-start justify-between gap-2 mb-2">
               <h3 class="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">${obj.nombre}</h3>
               <span class="text-lg flex-shrink-0">${tipoIcon}</span>
@@ -236,7 +236,7 @@ import AuthGuard from '../components/AuthGuard.astro';
           </div>
           <!-- Botones de acción -->
           <div class="flex border-t border-gray-100 divide-x divide-gray-100">
-            <a href="/objetos/${obj.id}/editar" class="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-base">
+            <a href="/objetos/${obj.id}/editar" class="editar-link flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-base">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
@@ -253,7 +253,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       `;
     }).join('');
 
-    // Click en card para ver detalle (foto + info ya tienen onclick)
+    // Click en card para ver detalle (usando event delegation)
     // Botones eliminar
     objetosGrid.querySelectorAll('.delete-btn').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
@@ -276,6 +276,17 @@ import AuthGuard from '../components/AuthGuard.astro';
         } catch {
           (window as any).showError?.('❌ Error de conexión');
         }
+      });
+    });
+
+    // Navegación al hacer clic en la tarjeta (excepto en botones/links)
+    objetosGrid.querySelectorAll('.objeto-card').forEach((card) => {
+      card.addEventListener('click', (e) => {
+        // No navegar si el clic fue en un enlace o botón
+        const target = e.target as HTMLElement;
+        if (target.closest('a') || target.closest('button')) return;
+        const href = card.getAttribute('data-href');
+        if (href) window.location.href = href;
       });
     });
   }
