@@ -9,6 +9,7 @@ Uso: python manage.py reparar_objetos
 """
 
 from django.core.management.base import BaseCommand
+from django.db import connection
 from inventario.models import Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa
 import logging
 
@@ -23,12 +24,16 @@ class Command(BaseCommand):
         reparados = 0
         sin_tipo = 0
 
+        # Primero, limpiar registros huérfanos de ejecuciones anteriores
+        # (cuando se usó create() en vez de save() directo)
+        self._limpiar_huérfanos()
+
         for obj in objetos:
             tiene_hijo = False
             tipo_actual = None
 
             try:
-                # Verificar si ya tiene hijo usando getattr con default
+                # Verificar si ya tiene hijo
                 if hasattr(obj, 'librorevista') and obj.librorevista is not None:
                     tiene_hijo = True
                     tipo_actual = 'libro'
@@ -42,15 +47,12 @@ class Command(BaseCommand):
                     tiene_hijo = True
                     tipo_actual = 'ropa'
             except Exception:
-                # Si hay error al acceder al hijo, es porque no existe
                 tiene_hijo = False
 
             if not tiene_hijo:
-                # Intentar determinar el tipo por el nombre
                 nombre_lower = obj.nombre.lower()
                 
-                # Palabras clave para detectar tipo
-                palabras_libro = ['libro', 'revista', 'comic', 'cómic', 'novela', 'cuento', 'poesia', 'poesía', 'manual', 'guía', 'guia', 'diccionario', 'enciclopedia', 'tomo', 'volumen', 'anne']
+                palabras_libro = ['libro', 'revista', 'comic', 'cómic', 'novela', 'cuento', 'poesia', 'poesía', 'manual', 'guía', 'guia', 'diccionario', 'enciclopedia', 'tomo', 'volumen', 'anne', 'garfield']
                 palabras_tecno = ['computadora', 'computador', 'laptop', 'notebook', 'celular', 'telefono', 'teléfono', 'tablet', 'monitor', 'teclado', 'mouse', 'impresora', 'cargador', 'auricular', 'parlante', 'router', 'modem', 'módem', 'disco', 'memoria', 'cable']
                 palabras_mueble = ['mueble', 'silla', 'mesa', 'escritorio', 'estante', 'biblioteca', 'cajonera', 'armario', 'cuadro', 'pintura', 'escultura', 'lámpara', 'lampara']
                 palabras_ropa = ['ropa', 'camisa', 'pantalon', 'pantalón', 'zapato', 'zapatilla', 'vestido', 'chaqueta', 'abrigo', 'bufanda', 'gorro', 'cinturon', 'cinturón']
@@ -78,21 +80,34 @@ class Command(BaseCommand):
 
                 try:
                     if tipo_detectado == 'libro':
-                        # Usar el OneToOneField directamente para no crear duplicados
-                        lr = LibroRevista(objeto_ptr=obj)
-                        lr.save()
+                        # INSERT directo en la tabla hijo para evitar
+                        # que Django cree un nuevo Objeto (multi-table inheritance)
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO inventario_librorevista (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
+                                [str(obj.id)]
+                            )
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como libro")
                     elif tipo_detectado == 'tecnologia':
-                        t = Tecnologia(objeto_ptr=obj)
-                        t.save()
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO inventario_tecnologia (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
+                                [str(obj.id)]
+                            )
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como tecnologia")
                     elif tipo_detectado == 'mueble':
-                        ma = MuebleArte(objeto_ptr=obj)
-                        ma.save()
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO inventario_mueblearte (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
+                                [str(obj.id)]
+                            )
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como mueble")
                     elif tipo_detectado == 'ropa':
-                        r = Ropa(objeto_ptr=obj)
-                        r.save()
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                "INSERT INTO inventario_ropa (objeto_ptr_id) VALUES (%s) ON CONFLICT (objeto_ptr_id) DO NOTHING",
+                                [str(obj.id)]
+                            )
                         self.stdout.write(f"  ✅ {obj.nombre} -> reparado como ropa")
                     else:
                         self.stdout.write(f"  ⚠️  {obj.nombre} -> sin tipo detectable, queda como 'objeto'")
@@ -107,3 +122,40 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"\n✅ Reparación completada: {reparados} objetos reparados, {sin_tipo} sin tipo detectable"
         ))
+
+    def _limpiar_huérfanos(self):
+        """
+        Limpia registros huérfanos creados por ejecuciones anteriores del script.
+        Cuando se usó LibroRevista.objects.create(objeto_ptr=obj), Django intentó
+        crear un nuevo Objeto con el mismo UUID, lo que dejó la BD inconsistente.
+        """
+        self.stdout.write("🧹 Limpiando registros huérfanos de ejecuciones anteriores...")
+        
+        with connection.cursor() as cursor:
+            # Buscar registros en inventario_librorevista cuyo objeto_ptr_id
+            # NO exista realmente como objeto (porque el create() falló)
+            cursor.execute("""
+                DELETE FROM inventario_librorevista 
+                WHERE objeto_ptr_id IN (
+                    SELECT lr.objeto_ptr_id 
+                    FROM inventario_librorevista lr
+                    LEFT JOIN inventario_objeto o ON o.id = lr.objeto_ptr_id
+                    WHERE o.id IS NULL
+                )
+            """)
+            deleted = cursor.rowcount
+            if deleted:
+                self.stdout.write(f"  🗑️  Eliminados {deleted} registros huérfanos de librorevista")
+            
+            cursor.execute("""
+                DELETE FROM inventario_tecnologia 
+                WHERE objeto_ptr_id IN (
+                    SELECT t.objeto_ptr_id 
+                    FROM inventario_tecnologia t
+                    LEFT JOIN inventario_objeto o ON o.id = t.objeto_ptr_id
+                    WHERE o.id IS NULL
+                )
+            """)
+            deleted = cursor.rowcount
+            if deleted:
+                self.stdout.write(f"  🗑️  Eliminados {deleted} registros huérfanos de tecnologia")
