@@ -48,26 +48,12 @@ COPY --from=frontend-builder /app/node_modules ./frontend/node_modules
 RUN rm -f /etc/nginx/sites-enabled/default
 COPY nginx-combined.conf /etc/nginx/sites-enabled/default
 
-# Script de entrada
-RUN echo '#!/bin/bash \
-    echo "=== Starting Estok ===" \
-    \
-    echo "Running migrations..." \
-    python manage.py migrate --noinput \
-    \
-    echo "Seeding data..." \
-    python manage.py seed_data \
-    \
-    echo "Starting Gunicorn on port 8000..." \
-    gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 & \
-    \
-    echo "Starting Astro Node server on port 4321..." \
-    cd /app/frontend && node ./dist/server/entry.mjs & \
-    \
-    echo "Starting Nginx on port 80..." \
-    nginx -g "daemon off;" \
-    ' > /entrypoint.sh && chmod +x /entrypoint.sh
+# Script de entrada (archivo separado para evitar errores de sintaxis)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+
+
