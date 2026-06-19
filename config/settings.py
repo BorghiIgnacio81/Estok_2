@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 from datetime import timedelta
 
-import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -124,32 +123,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # =============================================================================
 # DATABASE - PostgreSQL 17 (Coolify Resource)
-# Soporta DATABASE_URL (formato: postgres://user:pass@host:port/dbname)
-# y también variables individuales DB_* para compatibilidad.
+# Se usan SIEMPRE las variables individuales DB_HOST, DB_PORT, etc.
+# NO se usa DATABASE_URL porque Coolify la inyecta con un hostname interno
+# que no es resoluble desde la red de Docker.
 # =============================================================================
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+DATABASES = {
+    'default': {
+        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
+        'NAME': os.environ.get('DB_NAME', 'estok_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'postgresql-database-cagtcifjoy8ydxugg4bkdll1'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.postgresql'),
-            'NAME': os.environ.get('DB_NAME', 'estok_db'),
-            'USER': os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'C05m05.'),
-            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-        }
-    }
+}
 
 # =============================================================================
 # CUSTOM USER MODEL
+
 # =============================================================================
 AUTH_USER_MODEL = 'inventario.CustomUser'
 
