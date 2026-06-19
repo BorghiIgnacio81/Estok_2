@@ -71,6 +71,8 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: estok-frontend
     restart: unless-stopped
+    ports:
+      - "80:80"
     networks:
       - default
       - coolify
@@ -81,6 +83,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
 
 # =============================================================================
 # VOLUMES
