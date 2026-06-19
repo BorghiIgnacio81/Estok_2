@@ -71,6 +71,9 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: estok-frontend
     restart: unless-stopped
+    networks:
+      - default
+      - coolify
     environment:
       # Usar URL pública para que el navegador haga peticiones HTTPS
       - PUBLIC_API_URL=https://eeestok.duckdns.org/api
@@ -94,6 +97,7 @@ volumes:
 networks:
   coolify:
     external: true
+
 
 
 
