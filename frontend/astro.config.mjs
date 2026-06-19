@@ -1,7 +1,7 @@
 // =============================================================================
 // Astro Configuration - Estok Frontend
-// Hybrid: rutas estáticas + dinámicas con [id] (prerender=false)
-// Las rutas [id] se renderizan en servidor (Node adapter)
+// Server mode: rutas dinámicas con [id] se renderizan en servidor
+// Rutas estáticas se renderizan en build
 // =============================================================================
 
 import { defineConfig } from 'astro/config';
@@ -11,7 +11,7 @@ import node from '@astrojs/node';
 // https://astro.build/config
 export default defineConfig({
   site: process.env.PUBLIC_SITE_URL || 'https://eeestok.duckdns.org',
-  output: 'hybrid',
+  output: 'server',
   adapter: node({
     mode: 'standalone',
   }),
