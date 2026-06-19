@@ -1,32 +1,28 @@
 # =============================================================================
 # docker-compose.yml - Estok en Coolify
-# Orquestación: Backend Django + Frontend Astro (Node SSR + Nginx)
-# Ambos servicios usan network_mode: bridge (por defecto)
-# Backend se conecta a PostgreSQL via 172.17.0.1:5432 (gateway Docker)
+# Contenedor único: Backend Django + Frontend Astro + Nginx
 # =============================================================================
 
 version: '3.8'
 
 services:
-  # ===========================================================================
-  # BACKEND - Django REST API + Gunicorn
-  # Se conecta a PostgreSQL en 172.17.0.1:5432 (gateway Docker)
-  # ===========================================================================
-  backend:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: estok-backend
+      dockerfile: Dockerfile.combined
+    container_name: estok-app
     restart: unless-stopped
+    ports:
+      - "80:80"
     environment:
       # Django
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DEBUG=${DEBUG:-False}
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,eeestok.duckdns.org,frontend}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,eeestok.duckdns.org}
       - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS:-True}
       - DJANGO_CORS_ORIGINS=${DJANGO_CORS_ORIGINS:-https://eeestok.duckdns.org}
 
-      # Base de datos PostgreSQL via gateway Docker
+      # Base de datos PostgreSQL
       - DB_ENGINE=django.db.backends.postgresql
       - DB_NAME=${DB_NAME:-estok_db}
       - DB_USER=${DB_USER:-postgres}
@@ -39,14 +35,18 @@ services:
       - JWT_ACCESS_TOKEN_LIFETIME=${JWT_ACCESS_TOKEN_LIFETIME:-3600}
       - JWT_REFRESH_TOKEN_LIFETIME=${JWT_REFRESH_TOKEN_LIFETIME:-604800}
 
-      # IA Híbrida: apunta a tu PC local con la RX 9060 XT
+      # IA
       - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.0.101:1234/v1}
       - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
       - AI_HIGH_RES_TIMEOUT=${AI_HIGH_RES_TIMEOUT:-240}
 
-      # Media (fotos)
+      # Media
       - MEDIA_URL=/media/
       - MEDIA_ROOT=/app/media
+
+      # Frontend
+      - PUBLIC_API_URL=https://eeestok.duckdns.org/api
+      - PUBLIC_SITE_URL=https://eeestok.duckdns.org
 
     networks:
       - default
@@ -54,54 +54,13 @@ services:
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost',8000)); s.close()"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
 
-  # ===========================================================================
-  # FRONTEND - Astro (Hybrid SSR) + Nginx (proxy inverso)
-  # Nginx redirige /api/ al backend en backend:8000
-  # ===========================================================================
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: estok-frontend
-    restart: unless-stopped
-    ports:
-      - "80:80"
-
-    networks:
-      - default
-      - coolify
-    environment:
-      # Usar URL pública para que el navegador haga peticiones HTTPS
-      - PUBLIC_API_URL=https://eeestok.duckdns.org/api
-      - PUBLIC_SITE_URL=https://eeestok.duckdns.org
-    depends_on:
-      backend:
-        condition: service_healthy
-
-
-# =============================================================================
-# VOLUMES
-# =============================================================================
 volumes:
   media_data:
     driver: local
   static_data:
     driver: local
 
-# =============================================================================
-# NETWORKS
-# =============================================================================
 networks:
   coolify:
     external: true
-
-
-
-
