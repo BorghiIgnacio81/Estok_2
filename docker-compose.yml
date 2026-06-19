@@ -55,11 +55,11 @@ services:
       - media_data:/app/media
       - static_data:/app/staticfiles
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
 
   # ===========================================================================
   # FRONTEND - Astro (Hybrid SSR) + Nginx (proxy inverso)
@@ -75,6 +75,7 @@ services:
       # Usar URL pública para que el navegador haga peticiones HTTPS
       - PUBLIC_API_URL=https://eeestok.duckdns.org/api
       - PUBLIC_SITE_URL=https://eeestok.duckdns.org
+
     depends_on:
       backend:
         condition: service_healthy
