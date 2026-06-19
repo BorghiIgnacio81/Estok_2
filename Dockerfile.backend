@@ -1,7 +1,6 @@
 # =============================================================================
-# Dockerfile - Backend Django + Frontend Astro Static (Estok)
-# Multi-etapa: builder Python + builder Node + producción con Gunicorn
-# Nginx sirve el frontend estático directamente
+# Dockerfile - Backend Django (Estok)
+# Multi-etapa: builder Python + producción con Gunicorn
 # =============================================================================
 
 # ---- Etapa 1: Builder Python ----
@@ -19,34 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# ---- Etapa 2: Builder Node (Frontend Astro Static) ----
-FROM node:22-alpine AS node-builder
-
-# Cache buster: cambia este valor para forzar rebuild del frontend
-# Coolify debe pasar este ARG en la configuracion del build
-ARG CACHE_BUST=20260617-04
-
-# URL de la API para produccion (relativa al mismo dominio)
-ARG PUBLIC_API_URL=/api
-
-WORKDIR /app
-
-# Copiar package.json y lock del frontend
-COPY frontend/package.json frontend/package-lock.json ./
-
-# Instalar dependencias
-RUN npm ci
-
-# Copiar código fuente del frontend
-COPY frontend/ .
-
-# Crear .env con la URL de la API para produccion
-RUN echo "PUBLIC_API_URL=${PUBLIC_API_URL}" > .env
-
-# Construir sitio estático
-RUN npm run build
-
-# ---- Etapa 3: Producción ----
+# ---- Etapa 2: Producción ----
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -62,20 +34,6 @@ COPY . .
 
 # Recopilar archivos estáticos del backend (Django admin, etc.)
 RUN python manage.py collectstatic --noinput
-
-# Copiar el build estático de Astro a staticfiles/
-# Los assets (CSS/JS con hash) van a staticfiles/assets/
-# El index.html va a staticfiles/ (raíz para WhiteNoise)
-COPY --from=node-builder /app/dist /app/staticfiles/
-
-# Copiar archivos PWA (manifest.json, sw.js, favicon, icons) a staticfiles/raíz
-# para que WhiteNoise los sirva en /manifest.json, /sw.js, /favicon.ico
-COPY frontend/public/manifest.json /app/staticfiles/manifest.json
-COPY frontend/public/sw.js /app/staticfiles/sw.js
-COPY frontend/public/favicon.ico /app/staticfiles/favicon.ico
-COPY frontend/public/favicon.png /app/staticfiles/favicon.png
-COPY frontend/public/favicon.svg /app/staticfiles/favicon.svg
-COPY frontend/public/icons /app/staticfiles/icons/
 
 # Crear directorio para media (fotos subidas)
 RUN mkdir -p /app/media/qrcodes

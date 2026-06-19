@@ -8,10 +8,8 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CategoryFields from '../../../../components/CategoryFields.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
 
-// Ruta dinámica: se genera HTML placeholder, datos se cargan vía API desde el cliente
-export async function getStaticPaths() {
-  return [{ params: { id: 'placeholder' } }];
-}
+// Ruta dinámica: se renderiza en servidor (hybrid mode)
+export const prerender = false;
 ---
 
 <AuthGuard />

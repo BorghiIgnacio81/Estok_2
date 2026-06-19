@@ -1,16 +1,20 @@
 // =============================================================================
 // Astro Configuration - Estok Frontend
-// Static: páginas estáticas + dinámicas con [id] (prerender=false)
-// Las rutas [id] se generan como HTML genérico, datos vía API
+// Hybrid: rutas estáticas + dinámicas con [id] (prerender=false)
+// Las rutas [id] se renderizan en servidor (Node adapter)
 // =============================================================================
 
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import node from '@astrojs/node';
 
 // https://astro.build/config
 export default defineConfig({
   site: process.env.PUBLIC_SITE_URL || 'https://eeestok.duckdns.org',
-  output: 'static',
+  output: 'hybrid',
+  adapter: node({
+    mode: 'standalone',
+  }),
   build: {
     assets: 'assets',
     inlineStylesheets: 'auto',

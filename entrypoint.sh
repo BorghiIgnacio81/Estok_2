@@ -9,8 +9,8 @@ python manage.py migrate --noinput
 echo "Seeding data..."
 python manage.py seed_data || echo "Seed data skipped (not critical)"
 
-echo "Starting Gunicorn on port 8000..."
-gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 &
+echo "Starting Gunicorn on port 8001..."
+gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 4 --timeout 120 &
 GUNICORN_PID=$!
 echo "Gunicorn started (PID: $GUNICORN_PID)"
 
@@ -29,5 +29,5 @@ else
     echo "Will serve static files via Nginx only."
 fi
 
-echo "Starting Nginx on port 80..."
+echo "Starting Nginx on port 8000..."
 nginx -g "daemon off;"
