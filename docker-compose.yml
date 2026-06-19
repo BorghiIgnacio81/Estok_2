@@ -1,6 +1,8 @@
 # =============================================================================
 # docker-compose.yml - Estok en Coolify
-# Orquestación: Backend Django + Frontend Astro + PostgreSQL externo
+# Orquestación: Backend Django + Frontend Astro (Node SSR + Nginx)
+# Ambos servicios usan network_mode: bridge (por defecto)
+# Backend se conecta a PostgreSQL via 172.17.0.1:5432 (gateway Docker)
 # =============================================================================
 
 version: '3.8'
@@ -8,6 +10,7 @@ version: '3.8'
 services:
   # ===========================================================================
   # BACKEND - Django REST API + Gunicorn
+  # Se conecta a PostgreSQL en 172.17.0.1:5432 (gateway Docker)
   # ===========================================================================
   backend:
     build:
@@ -15,18 +18,15 @@ services:
       dockerfile: Dockerfile.backend
     container_name: estok-backend
     restart: unless-stopped
-    expose:
-      - "8000"
     environment:
       # Django
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
       - DEBUG=${DEBUG:-False}
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,eeestok.duckdns.org,frontend}
       - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS:-True}
-      - DJANGO_CORS_ORIGINS=${DJANGO_CORS_ORIGINS:-http://localhost:4321}
+      - DJANGO_CORS_ORIGINS=${DJANGO_CORS_ORIGINS:-https://eeestok.duckdns.org}
 
-      # Base de datos PostgreSQL (Coolify resource)
-      - DATABASE_URL=${DATABASE_URL}
+      # Base de datos PostgreSQL via gateway Docker
       - DB_ENGINE=django.db.backends.postgresql
       - DB_NAME=${DB_NAME:-estok_db}
       - DB_USER=${DB_USER:-postgres}
@@ -40,9 +40,6 @@ services:
       - JWT_REFRESH_TOKEN_LIFETIME=${JWT_REFRESH_TOKEN_LIFETIME:-604800}
 
       # IA Híbrida: apunta a tu PC local con la RX 9060 XT
-      # IMPORTANTE: Cambiá esta IP por la IP local de tu PC (ej: 192.168.0.101)
-      # LM Studio debe estar corriendo en tu PC en http://localhost:1234
-      # Desde Docker, necesitás usar la IP de tu PC en la red local
       - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.0.101:1234/v1}
       - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
       - AI_HIGH_RES_TIMEOUT=${AI_HIGH_RES_TIMEOUT:-240}
@@ -50,11 +47,10 @@ services:
       # Media (fotos)
       - MEDIA_URL=/media/
       - MEDIA_ROOT=/app/media
+
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
-    networks:
-      - estok-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/"]
       interval: 30s
@@ -63,7 +59,8 @@ services:
       start_period: 40s
 
   # ===========================================================================
-  # FRONTEND - Astro (SSG) servido por Nginx
+  # FRONTEND - Astro (Hybrid SSR) + Nginx (proxy inverso)
+  # Nginx redirige /api/ al backend en backend:8000
   # ===========================================================================
   frontend:
     build:
@@ -71,15 +68,13 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: estok-frontend
     restart: unless-stopped
-    ports:
-      - "80:80"
     environment:
-      - PUBLIC_API_URL=${PUBLIC_API_URL:-http://backend:8000/api}
+      # Usar URL pública para que el navegador haga peticiones HTTPS
+      - PUBLIC_API_URL=https://eeestok.duckdns.org/api
+      - PUBLIC_SITE_URL=https://eeestok.duckdns.org
     depends_on:
       backend:
         condition: service_healthy
-    networks:
-      - estok-network
 
 # =============================================================================
 # VOLUMES
@@ -89,10 +84,3 @@ volumes:
     driver: local
   static_data:
     driver: local
-
-# =============================================================================
-# NETWORKS
-# =============================================================================
-networks:
-  estok-network:
-    driver: bridge
