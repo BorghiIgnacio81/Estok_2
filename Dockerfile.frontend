@@ -1,11 +1,13 @@
 # =============================================================================
 # Dockerfile - Frontend Astro (Estok)
-# Multi-etapa: build estático + Nginx para servir
+# Multi-etapa: build + Node server + Nginx (proxy inverso local)
+# Nginx sirve como proxy para:
+#   - Frontend Astro (Node :4321) para rutas /, /objetos, /ubicaciones, etc.
+#   - Backend Django (localhost:8000) para rutas /api/, /admin/, /media/, /static/
 # Contexto de build: . (raíz del proyecto)
 # =============================================================================
 
 # ---- Etapa 1: Build ----
-# Cache invalidation: 2026-06-18-v7 (Fix navegacion tarjetas + boton editar + precio referencia)
 FROM node:22-alpine AS builder
 
 WORKDIR /app
@@ -19,23 +21,118 @@ RUN npm ci
 # Copiar código fuente del frontend
 COPY frontend/ .
 
-# Construir sitio estático
+# Construir sitio (genera dist/ con server entrypoint + static assets)
 RUN npm run build
 
-# ---- Etapa 2: Nginx ----
-FROM nginx:alpine
+# ---- Etapa 2: Node server + Nginx ----
+FROM node:22-alpine
 
-# Copiar configuración personalizada de Nginx (desde la raíz)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copiar build de Astro
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Instalar Nginx
+RUN apk add --no-cache nginx
 
-# Puerto
+# Copiar el build completo (incluye server/ y client/)
+COPY --from=builder /app/dist ./dist
+
+# Copiar package.json para poder arrancar el server
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+
+# Configuración de Nginx
+# Proxy: /api/, /admin/, /media/, /static/ → backend (localhost:8000)
+# Proxy: todo lo demás → frontend (Astro Node :4321)
+RUN echo 'server { \
+    listen 80; \
+    server_name _; \
+    resolver 127.0.0.11 valid=10s; \
+    \
+    gzip on; \
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml; \
+    gzip_min_length 256; \
+    gzip_vary on; \
+    \
+    # BACKEND PROXY (API, Admin, Media, Static) \
+    location /api/ { \
+        set $api_upstream http://backend:8000; \
+        proxy_pass $api_upstream; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_read_timeout 180s; \
+        proxy_connect_timeout 30s; \
+    } \
+    location /admin/ { \
+        set $api_upstream http://backend:8000; \
+        proxy_pass $api_upstream; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+    } \
+    location /media/ { \
+        set $api_upstream http://backend:8000; \
+        proxy_pass $api_upstream; \
+        expires 30d; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    location /static/ { \
+        set $api_upstream http://backend:8000; \
+        proxy_pass $api_upstream; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    \
+    # FRONTEND PROXY (Astro Node server) \
+    location /assets/ { \
+        proxy_pass http://127.0.0.1:4321; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    location /icons/ { \
+        proxy_pass http://127.0.0.1:4321; \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+    location /manifest.json { \
+        proxy_pass http://127.0.0.1:4321; \
+        expires -1; \
+        add_header Cache-Control "no-store, no-cache, must-revalidate"; \
+    } \
+    location /sw.js { \
+        proxy_pass http://127.0.0.1:4321; \
+        expires -1; \
+        add_header Cache-Control "no-store, no-cache, must-revalidate"; \
+        add_header Service-Worker-Allowed "/" always; \
+    } \
+    \
+    # Todas las demás rutas van al frontend Astro \
+    location / { \
+        proxy_pass http://127.0.0.1:4321; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+        proxy_set_header X-Forwarded-Proto $scheme; \
+        proxy_read_timeout 60s; \
+        proxy_connect_timeout 30s; \
+        expires -1; \
+        add_header Cache-Control "no-cache"; \
+    } \
+}' > /etc/nginx/http.d/default.conf
+
+
+# Puerto expuesto (Nginx)
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:80/ || exit 1
+# Script de entrada: arrancar Node server en background + Nginx en foreground
+RUN echo '#!/bin/sh \
+    echo "Starting Astro Node server on port 4321..." \
+    node ./dist/server/entry.mjs & \
+    ASTRO_PID=$! \
+    echo "Astro server started (PID: $ASTRO_PID)" \
+    echo "Starting Nginx on port 80..." \
+    nginx -g "daemon off;" \
+    ' > /entrypoint.sh && chmod +x /entrypoint.sh
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
