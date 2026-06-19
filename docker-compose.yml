@@ -31,7 +31,7 @@ services:
       - DB_NAME=${DB_NAME:-estok_db}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST:-postgresql-database-cagtcifjoy8ydxugg4bkdll1}
+      - DB_HOST=${DB_HOST:-cagtcifjoy8ydxugg4bkdll1}
       - DB_PORT=${DB_PORT:-5432}
 
       # JWT
@@ -48,6 +48,9 @@ services:
       - MEDIA_URL=/media/
       - MEDIA_ROOT=/app/media
 
+    networks:
+      - default
+      - coolify
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
@@ -84,3 +87,12 @@ volumes:
     driver: local
   static_data:
     driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  coolify:
+    external: true
+
+
