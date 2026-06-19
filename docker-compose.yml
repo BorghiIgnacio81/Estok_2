@@ -73,6 +73,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+
     networks:
       - default
       - coolify
