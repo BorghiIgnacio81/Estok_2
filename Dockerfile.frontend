@@ -39,87 +39,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
-# Configuración de Nginx
-# Proxy: /api/, /admin/, /media/, /static/ → backend (localhost:8000)
-# Proxy: todo lo demás → frontend (Astro Node :4321)
-RUN echo 'server { \
-    listen 80; \
-    server_name _; \
-    resolver 127.0.0.11 valid=10s; \
-    \
-    gzip on; \
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml; \
-    gzip_min_length 256; \
-    gzip_vary on; \
-    \
-    # BACKEND PROXY (API, Admin, Media, Static) \
-    location /api/ { \
-        set $api_upstream http://backend:8000; \
-        proxy_pass $api_upstream; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-        proxy_read_timeout 180s; \
-        proxy_connect_timeout 30s; \
-    } \
-    location /admin/ { \
-        set $api_upstream http://backend:8000; \
-        proxy_pass $api_upstream; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-    } \
-    location /media/ { \
-        set $api_upstream http://backend:8000; \
-        proxy_pass $api_upstream; \
-        expires 30d; \
-        add_header Cache-Control "public, immutable"; \
-    } \
-    location /static/ { \
-        set $api_upstream http://backend:8000; \
-        proxy_pass $api_upstream; \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
-    } \
-    \
-    # FRONTEND PROXY (Astro Node server) \
-    location /assets/ { \
-        proxy_pass http://127.0.0.1:4321; \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
-    } \
-    location /icons/ { \
-        proxy_pass http://127.0.0.1:4321; \
-        expires 1y; \
-        add_header Cache-Control "public, immutable"; \
-    } \
-    location /manifest.json { \
-        proxy_pass http://127.0.0.1:4321; \
-        expires -1; \
-        add_header Cache-Control "no-store, no-cache, must-revalidate"; \
-    } \
-    location /sw.js { \
-        proxy_pass http://127.0.0.1:4321; \
-        expires -1; \
-        add_header Cache-Control "no-store, no-cache, must-revalidate"; \
-        add_header Service-Worker-Allowed "/" always; \
-    } \
-    \
-    # Todas las demás rutas van al frontend Astro \
-    location / { \
-        proxy_pass http://127.0.0.1:4321; \
-        proxy_set_header Host $host; \
-        proxy_set_header X-Real-IP $remote_addr; \
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
-        proxy_set_header X-Forwarded-Proto $scheme; \
-        proxy_read_timeout 60s; \
-        proxy_connect_timeout 30s; \
-        expires -1; \
-        add_header Cache-Control "no-cache"; \
-    } \
-}' > /etc/nginx/http.d/default.conf
+# Copiar configuración de Nginx desde la raíz del proyecto
+COPY nginx.conf /etc/nginx/http.d/default.conf
+
 
 
 # Puerto expuesto (Nginx)
