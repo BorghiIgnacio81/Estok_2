@@ -15,7 +15,9 @@ WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ .
-RUN npm run build && ls -la dist/ && ls -la dist/server/ 2>/dev/null || echo "No server directory"
+RUN npm run build 2>&1
+RUN echo "=== Frontend build output ===" && ls -la dist/ && ls -la dist/server/ 2>/dev/null || echo "WARNING: No server/entry.mjs generated - will use static fallback"
+
 
 
 # ---- Etapa 2: Build Backend ----
