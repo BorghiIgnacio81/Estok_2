@@ -14,13 +14,20 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --timeout 120 &
 GUNICORN_PID=$!
 echo "Gunicorn started (PID: $GUNICORN_PID)"
 
-echo "Starting Astro Node server on port 4321..."
-cd /app/frontend
-node ./dist/server/entry.mjs &
-ASTRO_PID=$!
-echo "Astro server started (PID: $ASTRO_PID)"
-
-cd /app
+# Verificar si existe el servidor Astro
+if [ -f /app/frontend/dist/server/entry.mjs ]; then
+    echo "Starting Astro Node server on port 4321..."
+    cd /app/frontend
+    node ./dist/server/entry.mjs &
+    ASTRO_PID=$!
+    echo "Astro server started (PID: $ASTRO_PID)"
+    cd /app
+else
+    echo "WARNING: Astro server entry not found at /app/frontend/dist/server/entry.mjs"
+    echo "Contents of /app/frontend/dist:"
+    ls -la /app/frontend/dist/ 2>/dev/null || echo "  (dist directory not found)"
+    echo "Will serve static files via Nginx only."
+fi
 
 echo "Starting Nginx on port 80..."
 nginx -g "daemon off;"
