@@ -12,11 +12,9 @@ services:
       dockerfile: Dockerfile.combined
     container_name: estok-app
     restart: unless-stopped
-    ports:
-      - "80:80"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.estok.loadbalancer.server.port=80"
+      - "traefik.http.services.estok.loadbalancer.server.port=8000"
       - "traefik.http.routers.estok.rule=Host(`eeestok.duckdns.org`)"
       - "traefik.http.routers.estok.entrypoints=websecure"
       - "traefik.http.routers.estok.tls=true"
