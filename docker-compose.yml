@@ -12,6 +12,8 @@ services:
       dockerfile: Dockerfile.combined
     container_name: estok-app
     restart: unless-stopped
+    ports:
+      - "80:80"
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.estok.loadbalancer.server.port=80"
