@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 
 from ...models import Ubicacion, Contenedor, Objeto
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
-from ..services.qr_service import QRService
+from ...services.qr_service import QRService
 from .base import HasRolePermission
 
 logger = logging.getLogger(__name__)
