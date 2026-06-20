@@ -766,7 +766,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 210000);
+      const timeoutId = setTimeout(() => {
+        console.warn('[IA] Timeout de 210s alcanzado, abortando fetch');
+        controller.abort();
+      }, 210000);
 
       // Mensajes de expectativa para el usuario mientras espera
       const expectativaId = setTimeout(() => {
@@ -778,6 +781,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         iaProgressSubtext.textContent = 'Si no responde en 2 minutos más, se cancelará automáticamente.';
       }, 90000);
 
+      console.log('[IA] Enviando fetch a analizar_imagen con timeout de 210s');
       const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
@@ -791,6 +795,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         signal: controller.signal,
       });
 
+      console.log('[IA] Fetch completado, status:', response.status);
       clearTimeout(timeoutId);
       iaProgressText.textContent = '✅ Análisis completado';
 
