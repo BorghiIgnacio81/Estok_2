@@ -3,6 +3,10 @@ set -e
 
 echo "=== Starting Estok ==="
 
+# Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)
+ESTOK_PORT="${ESTOK_PORT:-8000}"
+echo "Using ESTOK_PORT=${ESTOK_PORT}"
+
 echo "Running migrations..."
 python manage.py migrate --noinput
 
@@ -29,5 +33,11 @@ else
     echo "Will serve static files via Nginx only."
 fi
 
-echo "Starting Nginx on port 80..."
+# Reemplazar el puerto en nginx.conf si ESTOK_PORT cambió
+if [ "${ESTOK_PORT}" != "8000" ]; then
+    echo "Updating nginx listen port to ${ESTOK_PORT}..."
+    sed -i "s/listen 8000;/listen ${ESTOK_PORT};/g" /etc/nginx/sites-enabled/default
+fi
+
+echo "Starting Nginx on port ${ESTOK_PORT}..."
 nginx -g "daemon off;"

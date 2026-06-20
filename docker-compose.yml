@@ -2,6 +2,12 @@
 # docker-compose.yml - Estok en Coolify
 # Contenedor único: Backend Django + Frontend Astro + Nginx
 # =============================================================================
+# NOTA: Este archivo es usado por Coolify para orquestar el contenedor.
+# Los puertos deben coincidir con:
+#   - EXPOSE en Dockerfile.combined
+#   - listen en nginx-combined.conf
+#   - traefik.http.services.estok.loadbalancer.server.port
+# =============================================================================
 
 version: '3.8'
 
@@ -12,14 +18,17 @@ services:
       dockerfile: Dockerfile.combined
     container_name: estok-app
     restart: unless-stopped
+    ports:
+      - "${ESTOK_PORT:-8000}:${ESTOK_PORT:-8000}"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.services.estok.loadbalancer.server.port=8000"
+      - "traefik.http.services.estok.loadbalancer.server.port=${ESTOK_PORT:-8000}"
       - "traefik.http.routers.estok.rule=Host(`eeestok.duckdns.org`)"
       - "traefik.http.routers.estok.entrypoints=websecure"
       - "traefik.http.routers.estok.tls=true"
     environment:
-
+      # Puerto principal (debe coincidir con EXPOSE y nginx listen)
+      - ESTOK_PORT=${ESTOK_PORT:-8000}
 
       # Django
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
