@@ -361,8 +361,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      console.log('[IA] Heartbeat result:', response.ok);
       return response.ok;
-    } catch {
+    } catch (err) {
+      console.warn('[IA] Heartbeat error:', err);
       return false;
     }
   }
@@ -370,12 +372,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
   async function updateAIStatus() {
     const connected = await checkAIAvailability();
     iaAvailable = connected;
+    console.log('[IA] updateAIStatus: iaAvailable =', iaAvailable, '| imagenBase64.value =', imagenBase64 ? '(existe)' : 'null', imagenBase64?.value ? '(tiene foto)' : '(sin foto)');
     if (connected) {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
       aiStatusText.textContent = 'IA Conectada';
       iaSection.classList.remove('hidden');
-      if (imagenBase64.value) {
+      if (imagenBase64 && imagenBase64.value) {
         analizarIaBtn.disabled = false;
       }
     } else {
@@ -720,22 +723,45 @@ import ImageEditor from '../../components/ImageEditor.astro';
   const iaProgressPercent = document.getElementById('iaProgressPercent');
 
   analizarIaBtn.addEventListener('click', async () => {
-    const base64Image = imagenBase64.value;
-    if (!base64Image) {
-      window.showToast?.('❌ Primero toma o selecciona una foto.', 'error');
-      return;
-    }
-
-    // Mostrar progreso (indicador indeterminado - sin porcentaje falso)
-    analizarIaBtn.disabled = true;
-    iaBtnText.classList.add('hidden');
-    iaBtnSpinner.classList.remove('hidden');
-    iaProgressContainer.classList.remove('hidden');
-    iaProgressText.textContent = '🤖 Analizando imagen con IA...';
-    iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
-    iaStatus.classList.add('hidden');
-
+    // =====================================================================
+    // FIX: Todo el handler envuelto en try/catch desde la primera línea
+    // para evitar errores silenciosos antes del fetch.
+    // =====================================================================
     try {
+      console.log('[IA] Click en Analizar IA detectado');
+
+      // Guard clauses: verificar que todos los elementos del DOM existan
+      if (!analizarIaBtn) { console.error('[IA] analizarIaBtn no encontrado en el DOM'); return; }
+      if (!imagenBase64) { console.error('[IA] elemento imagenBase64 no encontrado en el DOM'); return; }
+      if (!iaBtnText) { console.error('[IA] iaBtnText no encontrado en el DOM'); return; }
+      if (!iaBtnSpinner) { console.error('[IA] iaBtnSpinner no encontrado en el DOM'); return; }
+      if (!iaProgressContainer) { console.error('[IA] iaProgressContainer no encontrado en el DOM'); return; }
+      if (!iaProgressText) { console.error('[IA] iaProgressText no encontrado en el DOM'); return; }
+      if (!iaProgressSubtext) { console.error('[IA] iaProgressSubtext no encontrado en el DOM'); return; }
+      if (!iaStatus) { console.error('[IA] iaStatus no encontrado en el DOM'); return; }
+
+      // Validar que haya foto cargada
+      const base64Image = imagenBase64.value;
+      if (!base64Image) {
+        window.showToast?.('❌ Primero toma o selecciona una foto.', 'error');
+        return;
+      }
+
+      // Validar que la IA esté disponible (por si el botón se habilitó incorrectamente)
+      if (!iaAvailable) {
+        window.showToast?.('❌ La IA no está disponible en este momento. Verificá la conexión con LM Studio.', 'error');
+        return;
+      }
+
+      // Mostrar progreso (indicador indeterminado - sin porcentaje falso)
+      analizarIaBtn.disabled = true;
+      iaBtnText.classList.add('hidden');
+      iaBtnSpinner.classList.remove('hidden');
+      iaProgressContainer.classList.remove('hidden');
+      iaProgressText.textContent = '🤖 Analizando imagen con IA...';
+      iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
+      iaStatus.classList.add('hidden');
+
       const token = getToken();
 
       // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
@@ -881,21 +907,22 @@ import ImageEditor from '../../components/ImageEditor.astro';
       window.showToast?.('🤖 Campos autocompletados por IA correctamente. Revisa y guarda.', 'success');
 
     } catch (err) {
+      console.error('[IA] Error en handler de Analizar IA:', err);
       let mensaje = 'Error al analizar con IA';
       if (err.name === 'AbortError') {
         mensaje = 'El análisis está tardando más de lo esperado. La IA puede estar ocupada o no disponible. Intentá de nuevo.';
       } else if (err instanceof Error) {
         mensaje = err.message;
       }
-      iaProgressText.textContent = '❌ Error en el análisis';
-      iaProgressSubtext.textContent = mensaje;
+      if (iaProgressText) iaProgressText.textContent = '❌ Error en el análisis';
+      if (iaProgressSubtext) iaProgressSubtext.textContent = mensaje;
       window.showToast?.(`❌ ${mensaje}`, 'error');
     } finally {
       setTimeout(() => {
-        iaProgressContainer.classList.add('hidden');
-        analizarIaBtn.disabled = false;
-        iaBtnText.classList.remove('hidden');
-        iaBtnSpinner.classList.add('hidden');
+        if (iaProgressContainer) iaProgressContainer.classList.add('hidden');
+        if (analizarIaBtn) analizarIaBtn.disabled = false;
+        if (iaBtnText) iaBtnText.classList.remove('hidden');
+        if (iaBtnSpinner) iaBtnSpinner.classList.add('hidden');
       }, 3000);
     }
   });
