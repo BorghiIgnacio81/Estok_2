@@ -18,7 +18,7 @@ echo "Gunicorn started (PID: $GUNICORN_PID)"
 if [ -f /app/frontend/dist/server/entry.mjs ]; then
     echo "Starting Astro Node server on port 4321..."
     cd /app/frontend
-    node ./dist/server/entry.mjs &
+    HOST=0.0.0.0 node ./dist/server/entry.mjs &
     ASTRO_PID=$!
     echo "Astro server started (PID: $ASTRO_PID)"
     cd /app
@@ -29,5 +29,5 @@ else
     echo "Will serve static files via Nginx only."
 fi
 
-echo "Starting Nginx on port 8000..."
+echo "Starting Nginx on port 80..."
 nginx -g "daemon off;"
