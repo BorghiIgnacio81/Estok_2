@@ -1,0 +1,66 @@
+# Reglas de arquitectura - Estok (NO ROMPER SIN VERIFICAR)
+
+## Base de datos
+- El hostname real de PostgreSQL en Coolify es: cagtcifjoy8ydxugg4bkdll1
+  (SIN prefijo "postgresql-database-". Ese prefijo es solo el nombre visual
+  en la UI de Coolify, NO es el hostname de red real)
+- NUNCA reintroducir DATABASE_URL en settings.py. El proyecto usa
+  exclusivamente variables DB_* individuales (DB_HOST, DB_PORT, DB_NAME,
+  DB_USER, DB_PASSWORD). Si encontrás "import dj_database_url" o
+  "os.environ.get('DATABASE_URL')" en cualquier archivo, es un bug, eliminalo.
+- Antes de cambiar DB_HOST, verificá con: docker network ls y
+  docker inspect <container> | grep -A 15 '"Networks"' que el contenedor
+  destino esté en la misma red Docker que el backend.
+
+## Red Docker
+- El backend debe estar conectado a la red externa "coolify" (docker-compose.yml
+  tiene "networks: - default - coolify" en el servicio principal, y
+  "networks: coolify: external: true" al final). Si se quita esta conexión,
+  el backend no puede resolver el hostname de PostgreSQL (error: "Temporary
+  failure in name resolution").
+
+## Arquitectura de contenedores
+- El proyecto usa UN SOLO contenedor (Dockerfile.combined), no contenedores
+  separados backend/frontend. Dockerfile.backend y Dockerfile.frontend son
+  LEGACY, no se usan en producción, no los edites pensando que tienen efecto.
+- El entrypoint.sh lanza Gunicorn (puerto 8001) y Astro Node (puerto 4321) en
+  background con &, y Nginx (puerto ESTOK_PORT, default 8000) en foreground.
+- EXPOSE en Dockerfile.combined es solo documental, no bloquea otros puertos.
+  No es necesario que coincida con ESTOK_PORT.
+
+## Dominio / Traefik / Coolify
+- El campo "Domains" en la configuración General de la app en Coolify SIEMPRE
+  debe incluir el esquema completo: https://eeestok.duckdns.org (NUNCA solo
+  "eeestok.duckdns.org" sin el https://). Si falta el esquema, Coolify genera
+  mal el label de Traefik (Host() queda vacío y el dominio termina en
+  PathPrefix() por error), causando 503 aunque el contenedor esté sano.
+- Después de CUALQUIER cambio en la sección "Domains" o "General" de Coolify,
+  hay que hacer Redeploy explícito. Guardar el campo NO actualiza los labels
+  del contenedor corriendo.
+- Si hay un 503 pero los logs del contenedor muestran que Django/Gunicorn/Astro/
+  Nginx arrancaron bien: el problema es Traefik, no la app. Verificar con:
+  docker inspect <container> | grep "traefik.http.routers.*rule"
+  La regla correcta es: Host(`dominio`) && PathPrefix(`/`)
+  Si dice Host(``) && PathPrefix(`dominio`) está roto.
+
+## Antes de confiar en un refactor
+- "Está completo" no es suficiente. Después de mover código a módulos/paquetes
+  nuevos, SIEMPRE correr (o pedir verificación de):
+  python manage.py check
+  antes de asumir que los imports funcionan. Los imports relativos (.. vs ...)
+  cambian de significado al mover archivos de nivel, y eso no se detecta
+  leyendo el código, solo ejecutándolo.
+
+## Antes de diagnosticar basándose en código del repo
+- El código en GitHub puede NO ser el que está corriendo en el contenedor real.
+  Si algo no tiene sentido, verificar con:
+  docker run --rm <imagen> cat <archivo>
+  para ver el archivo TAL COMO ESTÁ COMPILADO en la imagen, no el del repo.
+- Verificar siempre que origin/main esté actualizado (git log -1 --oneline)
+  antes de asumir que un cambio local ya está en producción.
+
+## Contenedores fantasma
+- NO levantar contenedores manuales con "docker run" para pruebas en el
+  servidor de producción y dejarlos corriendo. Si se hace, documentarlo y
+  eliminarlo antes de cerrar la sesión. Usar "docker ps -a" para confirmar
+  que no quedan contenedores huérfanos después de cualquier sesión de debug.
