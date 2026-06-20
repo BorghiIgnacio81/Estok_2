@@ -18,7 +18,7 @@ echo "Gunicorn started (PID: $GUNICORN_PID)"
 if [ -f /app/frontend/dist/server/entry.mjs ]; then
     echo "Starting Astro Node server on port 4321..."
     cd /app/frontend
-    HOST=0.0.0.0 node ./dist/server/entry.mjs &
+    PORT=4321 HOST=0.0.0.0 node ./dist/server/entry.mjs &
     ASTRO_PID=$!
     echo "Astro server started (PID: $ASTRO_PID)"
     cd /app
