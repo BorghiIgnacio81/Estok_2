@@ -115,26 +115,18 @@ import ImageEditor from '../../components/ImageEditor.astro';
           Toma o selecciona una foto, edítala si lo deseas, y presiona "Analizar con IA" para llenar los campos automáticamente.
         </p>
 
-        <!-- Indicador de progreso / Heartbeat -->
+        <!-- Indicador de progreso (indeterminado - no simula porcentaje) -->
         <div id="iaProgressContainer" class="hidden mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-          <div class="flex items-center gap-3 mb-2">
-            <div class="relative">
-              <div class="w-8 h-8 border-4 border-purple-200 border-t-purple-700 rounded-full animate-spin"></div>
-              <div class="absolute inset-0 flex items-center justify-center">
-                <div class="w-2 h-2 bg-purple-700 rounded-full animate-pulse"></div>
-              </div>
-            </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 border-4 border-purple-200 border-t-purple-700 rounded-full animate-spin"></div>
             <div>
               <p id="iaProgressText" class="text-sm font-medium text-purple-800">Analizando imagen con IA...</p>
               <p id="iaProgressSubtext" class="text-xs text-purple-600">Procesando en GPU Radeon RX 9060 XT</p>
             </div>
           </div>
-          <div class="w-full bg-purple-200 rounded-full h-2 overflow-hidden">
-            <div id="iaProgressBar" class="bg-purple-700 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
-          </div>
-          <div class="flex justify-between text-xs text-purple-500 mt-1">
-            <span>Iniciando...</span>
-            <span id="iaProgressPercent">0%</span>
+          <!-- Barra indeterminada (animación continua, sin porcentaje falso) -->
+          <div class="w-full bg-purple-200 rounded-full h-2 overflow-hidden mt-3">
+            <div class="bg-purple-700 h-2 rounded-full animate-indeterminate" style="width: 40%"></div>
           </div>
         </div>
 
@@ -427,6 +419,23 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   let savedObjectId = null;
 
+  // ===========================================================================
+  // RESTAURAR FOTO DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
+  // ===========================================================================
+  (function restaurarFoto() {
+    const fotoGuardada = sessionStorage.getItem('nuevo_objeto_foto');
+    if (fotoGuardada) {
+      photoImage.src = fotoGuardada;
+      photoImage.classList.remove('hidden');
+      photoPlaceholder.classList.add('hidden');
+      imagenBase64.value = fotoGuardada;
+      editPhotoBtn.classList.remove('hidden');
+      if (iaAvailable) {
+        analizarIaBtn.disabled = false;
+      }
+    }
+  })();
+
   function handleFileSelected(file) {
     if (!file) return;
     const reader = new FileReader();
@@ -439,6 +448,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
       editPhotoBtn.classList.remove('hidden');
       analizarIaBtn.disabled = false;
       iaStatus.classList.add('hidden');
+      // Persistir foto en sessionStorage para sobrevivir a refrescos
+      try {
+        sessionStorage.setItem('nuevo_objeto_foto', result);
+      } catch (e) {
+        // Puede fallar si la imagen es muy grande (>5MB aprox)
+        console.warn('No se pudo guardar la foto en sessionStorage (posiblemente muy grande):', e);
+      }
       setTimeout(() => openEditor(), 300);
     };
     reader.readAsDataURL(file);
@@ -710,36 +726,32 @@ import ImageEditor from '../../components/ImageEditor.astro';
       return;
     }
 
-    // Mostrar progreso
+    // Mostrar progreso (indicador indeterminado - sin porcentaje falso)
     analizarIaBtn.disabled = true;
     iaBtnText.classList.add('hidden');
     iaBtnSpinner.classList.remove('hidden');
     iaProgressContainer.classList.remove('hidden');
     iaProgressText.textContent = '🤖 Analizando imagen con IA...';
     iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
-    iaProgressBar.style.width = '10%';
-    iaProgressPercent.textContent = '10%';
     iaStatus.classList.add('hidden');
-
-    // Simular progreso mientras se procesa
-    let progress = 10;
-    const progressInterval = setInterval(() => {
-      if (progress < 90) {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-        iaProgressBar.style.width = `${Math.round(progress)}%`;
-        iaProgressPercent.textContent = `${Math.round(progress)}%`;
-        if (progress > 30) {
-          iaProgressText.textContent = '🧠 Extrayendo información del objeto...';
-        }
-        if (progress > 60) {
-          iaProgressText.textContent = '📝 Analizando campos (marca, modelo, autor)...';
-        }
-      }
-    }, 800);
 
     try {
       const token = getToken();
+
+      // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 210000);
+
+      // Mensajes de expectativa para el usuario mientras espera
+      const expectativaId = setTimeout(() => {
+        iaProgressText.textContent = '⏳ La IA está procesando... esto puede tomar hasta 3 minutos.';
+        iaProgressSubtext.textContent = 'No cierres la página, el análisis sigue en curso.';
+      }, 30000);
+      const expectativaId2 = setTimeout(() => {
+        iaProgressText.textContent = '⏳ Sigo procesando... gracias por esperar.';
+        iaProgressSubtext.textContent = 'Si no responde en 2 minutos más, se cancelará automáticamente.';
+      }, 90000);
+
       const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
@@ -750,11 +762,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
           imagen_base64: base64Image,
           solo_analisis: true,
         }),
+        signal: controller.signal,
       });
 
-      clearInterval(progressInterval);
-      iaProgressBar.style.width = '100%';
-      iaProgressPercent.textContent = '100%';
+      clearTimeout(timeoutId);
       iaProgressText.textContent = '✅ Análisis completado';
 
       if (!response.ok) {
@@ -870,12 +881,15 @@ import ImageEditor from '../../components/ImageEditor.astro';
       window.showToast?.('🤖 Campos autocompletados por IA correctamente. Revisa y guarda.', 'success');
 
     } catch (err) {
-      clearInterval(progressInterval);
-      iaProgressBar.style.width = '0%';
-      iaProgressPercent.textContent = 'Error';
+      let mensaje = 'Error al analizar con IA';
+      if (err.name === 'AbortError') {
+        mensaje = 'El análisis está tardando más de lo esperado. La IA puede estar ocupada o no disponible. Intentá de nuevo.';
+      } else if (err instanceof Error) {
+        mensaje = err.message;
+      }
       iaProgressText.textContent = '❌ Error en el análisis';
-      iaProgressSubtext.textContent = err.message;
-      window.showToast?.(`❌ ${err.message}`, 'error');
+      iaProgressSubtext.textContent = mensaje;
+      window.showToast?.(`❌ ${mensaje}`, 'error');
     } finally {
       setTimeout(() => {
         iaProgressContainer.classList.add('hidden');
@@ -1101,7 +1115,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
         }
       }
 
-      // 3. Redirigir al detalle del objeto creado
+      // 3. Limpiar sessionStorage (foto temporal) y redirigir
+      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch {}
       window.showToast?.('✅ Objeto guardado correctamente', 'success');
       setTimeout(() => {
         window.location.href = `/objetos/${savedObjectId}`;

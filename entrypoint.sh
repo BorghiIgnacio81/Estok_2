@@ -14,7 +14,7 @@ echo "Seeding data..."
 python manage.py seed_data || echo "Seed data skipped (not critical)"
 
 echo "Starting Gunicorn on port 8001..."
-gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 4 --timeout 120 &
+gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 4 --timeout 200 &
 GUNICORN_PID=$!
 echo "Gunicorn started (PID: $GUNICORN_PID)"
 
