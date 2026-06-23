@@ -1,0 +1,25 @@
+Hetzner
+IP Pública: 178.156.224.212
+Usuario: root
+Ubicación: Ashburn, VA (USA)
+Plan: CPX21 (3 vCPU / 4GB RAM)
+Sistema: Ubuntu 24.04
+
+PostgreSQL SSH
+root@ubuntu-4gb-ash-1:~# docker run --name db-cliente-01 \
+  -e POSTGRES_PASSWORD=C4rl0S4lb3rt0B0rh1 \
+  -v pgdata_cliente_01:/var/lib/postgresql/data \
+  -p 5432:5432 \
+  -d postgres:16
+
+Contraseña postgres: C4rl0S4lb3rt0B0rh1
+
+Contraseña coolify: C05m05!!C05m05
+
+DATABASE_URL :
+postgres://postgres:C4rl0S4lb3rt0B0rh1@178.156.224.212:5432/pare_carrito
+
+28/3/26 al 11/04/26
+
+DEEPPSEEK
+API  KEY: sk-a5d2fda13c9b4d979bc59160a02c5d62

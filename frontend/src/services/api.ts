@@ -3,7 +3,7 @@
 // Cliente HTTP con autenticación JWT automática
 // =============================================================================
 
-import { getToken, getValidToken, logout } from './auth';
+import { getToken, getValidToken, logout, getEstokActivoId } from './auth';
 
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
@@ -38,6 +38,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // Agregar Estok activo si existe
+  const estokId = getEstokActivoId();
+  if (estokId) {
+    headers['X-Estok-Id'] = estokId;
+  }
+
   return headers;
 }
 
@@ -47,6 +53,12 @@ async function getMultipartHeaders(): Promise<Record<string, string>> {
   const token = await getValidToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Agregar Estok activo si existe
+  const estokId = getEstokActivoId();
+  if (estokId) {
+    headers['X-Estok-Id'] = estokId;
   }
 
   return headers;

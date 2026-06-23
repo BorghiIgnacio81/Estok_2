@@ -31,18 +31,25 @@ export interface Role {
   updated_at: string;
 }
 
+export interface EstokInfo {
+  id: string;
+  nombre: string;
+  role: string | null;
+  role_id: string | null;
+}
+
 export interface User {
   id: string;
   username: string;
   email: string;
   first_name: string;
   last_name: string;
-  role: string | null;
-  role_name: string;
   description: string;
   phone: string;
   is_active: boolean;
   date_joined: string;
+  estoks: EstokInfo[];
+  ultimo_estok_activo_id: string | null;
 }
 
 // =============================================================================

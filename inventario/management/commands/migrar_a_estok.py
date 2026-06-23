@@ -139,9 +139,18 @@ class Command(BaseCommand):
             ubicaciones_actualizadas = Ubicacion.objects.filter(estok__isnull=True).update(estok=estok)
             self.stdout.write(f"  ✅ {ubicaciones_actualizadas} Ubicacion(es) asignadas a '{estok.nombre}'")
 
-            # 5. Asignar Estok a Contenedores
-            contenedores_actualizados = Contenedor.objects.filter(estok__isnull=True).update(estok=estok)
-            self.stdout.write(f"  ✅ {contenedores_actualizados} Contenedor(es) asignados a '{estok.nombre}'")
+            # 5. Asignar Estok a Contenedores (vía ubicacion.estok)
+            contenedores_sin_estok = Contenedor.objects.filter(ubicacion__estok__isnull=True)
+            contenedores_con_ubicacion_sin_estok = contenedores_sin_estok.select_related('ubicacion').all()
+            contenedores_actualizados = 0
+            for c in contenedores_con_ubicacion_sin_estok:
+                if c.ubicacion and c.ubicacion.estok_id:
+                    # El contenedor hereda el estok de su ubicación
+                    contenedores_actualizados += 1
+            # Como Contenedor no tiene campo estok, solo informamos
+            self.stdout.write(f"  ℹ️  Contenedor(es) sin estok directo: {contenedores_sin_estok.count()}")
+            self.stdout.write(f"  ℹ️  Los contenedores heredan el Estok de su Ubicación (ubicacion.estok)")
+            self.stdout.write(f"  ✅ {contenedores_actualizados} Contenedor(es) ya tienen ubicación con Estok asignado")
 
         self.stdout.write(self.style.SUCCESS(
             f"\n🎉 Migración completada exitosamente.\n"

@@ -3,6 +3,8 @@
 // Maneja login, logout, token persistence y refresh
 // =============================================================================
 
+import type { EstokInfo } from '../types';
+
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
 // =============================================================================
@@ -12,6 +14,7 @@ const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/ap
 const TOKEN_KEY = 'estok_access_token';
 const REFRESH_KEY = 'estok_refresh_token';
 const USER_KEY = 'estok_user';
+const ESTOK_ACTIVO_KEY = 'estok_activo_id';
 
 // =============================================================================
 // INTERFACES
@@ -33,11 +36,11 @@ export interface AuthUser {
   email: string;
   first_name: string;
   last_name: string;
-  role: string | null;
-  role_name: string;
   description: string;
   phone: string;
   is_active: boolean;
+  estoks: EstokInfo[];
+  ultimo_estok_activo_id: string | null;
 }
 
 export interface AuthError {
@@ -66,6 +69,7 @@ export function clearTokens(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ESTOK_ACTIVO_KEY);
 }
 
 export function isAuthenticated(): boolean {
@@ -79,6 +83,31 @@ export function isAuthenticated(): boolean {
     return payload.exp > now;
   } catch {
     return false;
+  }
+}
+
+// =============================================================================
+// GESTIÓN DE ESTOK ACTIVO
+// =============================================================================
+
+/**
+ * Obtiene el ID del Estok activo desde la copia local (localStorage).
+ * La fuente de verdad es el backend (CustomUser.ultimo_estok_activo),
+ * esta es solo una caché para no tener que leer el header en cada request.
+ */
+export function getEstokActivoId(): string | null {
+  return localStorage.getItem(ESTOK_ACTIVO_KEY);
+}
+
+/**
+ * Actualiza la copia local del Estok activo.
+ * Esto debe llamarse después de que el backend confirme el cambio.
+ */
+export function setEstokActivoId(estokId: string | null): void {
+  if (estokId) {
+    localStorage.setItem(ESTOK_ACTIVO_KEY, estokId);
+  } else {
+    localStorage.removeItem(ESTOK_ACTIVO_KEY);
   }
 }
 
@@ -132,9 +161,71 @@ export async function login(credentials: LoginCredentials): Promise<{ user: Auth
 
   // Obtener datos del usuario autenticado
   const user = await fetchCurrentUser(tokens.access);
+
+  // Si no tiene Estok activo pero tiene estoks, usar el primero como default
+  if (!user.ultimo_estok_activo_id && user.estoks && user.estoks.length > 0) {
+    const primerEstok = user.estoks[0];
+    try {
+      await cambiarEstokActivo(primerEstok.id, tokens.access);
+      user.ultimo_estok_activo_id = primerEstok.id;
+    } catch {
+      // Si falla, continuar sin estok activo
+    }
+  }
+
+  // Cachear copia local del estok activo
+  if (user.ultimo_estok_activo_id) {
+    setEstokActivoId(user.ultimo_estok_activo_id);
+  }
+
   cacheUser(user);
 
   return { user, tokens };
+}
+
+/**
+ * Cambia el Estok activo del usuario autenticado.
+ * Llama al backend para persistir el cambio y actualiza la copia local.
+ */
+export async function cambiarEstokActivo(estokId: string, token?: string): Promise<EstokInfo> {
+  const authToken = token || getToken();
+  if (!authToken) {
+    throw { error: 'No hay sesión activa' } as AuthError;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/usuarios/cambiar_estok_activo/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`,
+    },
+    body: JSON.stringify({ estok_id: estokId }),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Error al cambiar Estok activo';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorMsg;
+    } catch {
+      // Usar mensaje por defecto
+    }
+    throw { error: errorMsg, status: response.status } as AuthError;
+  }
+
+  const estokInfo: EstokInfo = await response.json();
+
+  // Actualizar copia local
+  setEstokActivoId(estokInfo.id);
+
+  // Actualizar también el usuario cacheado
+  const cachedUser = getCachedUser();
+  if (cachedUser) {
+    cachedUser.ultimo_estok_activo_id = estokInfo.id;
+    cacheUser(cachedUser);
+  }
+
+  return estokInfo;
 }
 
 /**
@@ -270,6 +361,9 @@ const auth = {
   getCachedUser,
   fetchCurrentUser,
   refreshToken,
+  getEstokActivoId,
+  setEstokActivoId,
+  cambiarEstokActivo,
 };
 
 export default auth;
