@@ -56,6 +56,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        # Si no se especificó un rol, asignar "Visualizador" por defecto
+        # para que el usuario pueda acceder al sistema (lectura básica).
+        # TODO: revisar este default cuando se implemente el sistema de
+        # "Estoks" (cuentas) - el rol por defecto puede necesitar cambiar
+        # según si el usuario crea una cuenta nueva o se une a una existente.
+        if not validated_data.get('role'):
+            validated_data['role'] = Role.objects.get(name='Visualizador')
+
         password = validated_data.pop('password')
         user = CustomUser(**validated_data)
         user.set_password(password)
