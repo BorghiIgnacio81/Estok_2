@@ -36,8 +36,6 @@ class HasRolePermission(permissions.BasePermission):
         user = request.user
         if not user.is_authenticated:
             return False
-        if user.is_superuser:
-            return True
 
         estok_id = self._get_estok_id(request)
         membresia = self._get_membresia(user, estok_id)
@@ -75,8 +73,6 @@ class EsAdminDelEstok(permissions.BasePermission):
         user = request.user
         if not user.is_authenticated:
             return False
-        if user.is_superuser:
-            return True
 
         estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
         if not estok_id:
