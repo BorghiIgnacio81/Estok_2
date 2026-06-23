@@ -19,7 +19,16 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
-    permission_classes = [permissions.IsAuthenticated, HasRolePermission]
+
+    def get_permissions(self):
+        """
+        Permisos dinámicos:
+        - 'create' (registro público): AllowAny
+        - El resto (list, retrieve, update, delete, me): IsAuthenticated + HasRolePermission
+        """
+        if self.action == 'create':
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), HasRolePermission()]
 
     def get_serializer_class(self):
         if self.action == 'create':
