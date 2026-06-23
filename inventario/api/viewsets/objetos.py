@@ -6,7 +6,11 @@ import logging
 import csv
 import base64
 import time
-import imghdr
+# imghdr eliminado en Python 3.13, usamos alternativa simple
+try:
+    import imghdr
+except ImportError:
+    imghdr = None
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -66,6 +70,11 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Objeto.objects.all()
+
+        # Filtrar por estok
+        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        if estok_id:
+            qs = qs.filter(estok_id=estok_id)
 
         tipo = self.request.query_params.get('tipo')
         if tipo:

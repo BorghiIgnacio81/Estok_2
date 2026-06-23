@@ -22,6 +22,13 @@ class UbicacionViewSet(viewsets.ModelViewSet):
     serializer_class = UbicacionSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        if estok_id:
+            qs = qs.filter(estok_id=estok_id)
+        return qs
+
 
 class ContenedorViewSet(viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()
@@ -33,6 +40,10 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         ubicacion_id = self.request.query_params.get('ubicacion')
         if ubicacion_id:
             qs = qs.filter(ubicacion_id=ubicacion_id)
+        # Filtrar por estok vía ubicacion.estok
+        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        if estok_id:
+            qs = qs.filter(ubicacion__estok_id=estok_id)
         return qs
 
     @action(detail=True, methods=['get'])

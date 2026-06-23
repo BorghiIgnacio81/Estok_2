@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import (
-    Role, CustomUser, Ubicacion, Contenedor,
+    Role, CustomUser, Estok, Membresia, CodigoInvitacion,
+    Ubicacion, Contenedor,
     Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
     FotoObjeto
 )
@@ -22,13 +23,13 @@ class RoleAdmin(admin.ModelAdmin):
 # =============================================================================
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    list_display = ['username', 'email', 'role', 'get_full_name', 'is_active']
-    list_filter = ['role', 'is_active', 'is_staff']
+    list_display = ['username', 'email', 'get_full_name', 'is_active']
+    list_filter = ['is_active', 'is_staff']
     search_fields = ['username', 'email', 'first_name', 'last_name']
 
     fieldsets = UserAdmin.fieldsets + (
         ('Información adicional', {
-            'fields': ('role', 'description', 'phone'),
+            'fields': ('description', 'phone'),
         }),
     )
 
@@ -110,3 +111,26 @@ class FotoObjetoAdmin(admin.ModelAdmin):
     list_display = ['objeto', 'es_principal', 'fecha_subida']
     list_filter = ['es_principal']
     search_fields = ['objeto__nombre', 'descripcion']
+
+
+# =============================================================================
+# ADMIN: ESTOK / MEMBRESIA / CODIGO INVITACION
+# =============================================================================
+@admin.register(Estok)
+class EstokAdmin(admin.ModelAdmin):
+    list_display = ['nombre', 'descripcion', 'created_at']
+    search_fields = ['nombre']
+
+
+@admin.register(Membresia)
+class MembresiaAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'estok', 'role', 'joined_at']
+    list_filter = ['role', 'estok']
+    search_fields = ['usuario__username', 'estok__nombre']
+
+
+@admin.register(CodigoInvitacion)
+class CodigoInvitacionAdmin(admin.ModelAdmin):
+    list_display = ['codigo', 'estok', 'role', 'activo', 'usos_actuales', 'usos_maximos', 'fecha_expiracion']
+    list_filter = ['activo', 'estok']
+    search_fields = ['codigo', 'estok__nombre']

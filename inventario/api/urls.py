@@ -16,6 +16,9 @@ from .viewsets import (
     FotoObjetoViewSet,
     HistorialPrecioViewSet,
     AlertaStockViewSet,
+    EstokViewSet,
+    CodigoInvitacionViewSet,
+    CambiarEstokActivoView,
 )
 
 # =============================================================================
@@ -32,6 +35,9 @@ router.register(r'objetos', ObjetoViewSet, basename='objeto')
 router.register(r'fotos', FotoObjetoViewSet, basename='foto')
 router.register(r'historial-precios', HistorialPrecioViewSet, basename='historialprecio')
 router.register(r'alertas-stock', AlertaStockViewSet, basename='alertastock')
+router.register(r'estoks', EstokViewSet, basename='estok')
+router.register(r'codigos-invitacion', CodigoInvitacionViewSet, basename='codigo-invitacion')
+router.register(r'cambiar-estok-activo', CambiarEstokActivoView, basename='cambiar-estok-activo')
 
 # =============================================================================
 # URL PATTERNS

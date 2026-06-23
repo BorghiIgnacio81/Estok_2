@@ -1,5 +1,8 @@
 import uuid
+import secrets
+import string
 from django.db import models
+from django.db.models import F
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
@@ -40,24 +43,24 @@ class Role(models.Model):
 class CustomUser(AbstractUser):
     """
     Usuario personalizado que hereda de AbstractUser.
-    Reemplaza el campo 'parentesco' por un campo 'description' genérico
-    para permitir usos en galpones, empresas, herencia familiar, etc.
+    El campo 'role' global se elimina; ahora los roles se asignan
+    por Membresia (por Estok). Se agrega ultimo_estok_activo.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.ForeignKey(
-        Role,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='users',
-        verbose_name="Rol"
-    )
     description = models.TextField(
         blank=True,
         verbose_name="Descripción",
         help_text="Rol o parentesco dentro del sistema (ej: 'Hijo', 'Socio', 'Encargado de galpón')"
     )
     phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    ultimo_estok_activo = models.ForeignKey(
+        'Estok',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='usuarios_activos',
+        verbose_name="Último Estok activo"
+    )
 
     class Meta:
         verbose_name = "Usuario"
@@ -69,15 +72,166 @@ class CustomUser(AbstractUser):
 
 
 # =============================================================================
+# MODELO ESTOK (Cuenta/Organización multi-usuario)
+# =============================================================================
+class Estok(models.Model):
+    """
+    Representa una cuenta de Estok: un inventario compartido entre usuarios.
+    Cada usuario puede pertenecer a múltiples Estoks.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=200, default='Mi Inventario', verbose_name="Nombre del Estok")
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+
+    class Meta:
+        verbose_name = "Estok"
+        verbose_name_plural = "Estoks"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Membresia(models.Model):
+    """
+    Relación muchos-a-muchos entre Usuario y Estok con rol específico.
+    El rol se asigna mediante FK a Role (RBAC dinámico).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='membresias',
+        verbose_name="Usuario"
+    )
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        related_name='miembros',
+        verbose_name="Estok"
+    )
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='membresias',
+        verbose_name="Rol en el Estok"
+    )
+    joined_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de unión")
+
+    class Meta:
+        verbose_name = "Membresía"
+        verbose_name_plural = "Membresías"
+        unique_together = [('usuario', 'estok')]
+
+    def __str__(self):
+        return f"{self.usuario.username} → {self.estok.nombre} ({self.role.name if self.role else 'Sin rol'})"
+
+
+class CodigoInvitacion(models.Model):
+    """
+    Código compartible para unirse a un Estok.
+    Al usarlo, se crea una Membresia con el rol asociado al código.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        related_name='codigos_invitacion',
+        verbose_name="Estok"
+    )
+    role = models.ForeignKey(
+        Role,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='codigos_invitacion',
+        verbose_name="Rol a asignar"
+    )
+    codigo = models.CharField(
+        max_length=20,
+        unique=True,
+        verbose_name="Código de invitación",
+        help_text="Formato: EST-XXXXXXXX"
+    )
+    creado_por = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='codigos_creados',
+        verbose_name="Creado por"
+    )
+    activo = models.BooleanField(default=True, verbose_name="Activo")
+    usos_maximos = models.PositiveIntegerField(default=0, verbose_name="Usos máximos (0 = sin límite)")
+    usos_actuales = models.PositiveIntegerField(default=0, verbose_name="Usos actuales")
+    fecha_expiracion = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de expiración")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+
+    class Meta:
+        verbose_name = "Código de invitación"
+        verbose_name_plural = "Códigos de invitación"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.codigo} → {self.estok.nombre}"
+
+    @property
+    def es_valido(self):
+        """Verifica si el código sigue siendo usable."""
+        if not self.activo:
+            return False
+        if self.fecha_expiracion and timezone.now() > self.fecha_expiracion:
+            return False
+        if self.usos_maximos > 0 and self.usos_actuales >= self.usos_maximos:
+            return False
+        return True
+
+    def usar(self):
+        """
+        Incrementa usos_actuales de forma atómica.
+        Retorna True si se pudo usar, False si ya no es válido.
+        """
+        if not self.es_valido:
+            return False
+        CodigoInvitacion.objects.filter(pk=self.pk).update(usos_actuales=F('usos_actuales') + 1)
+        self.refresh_from_db()
+        return True
+
+    @staticmethod
+    def generar_codigo():
+        """Genera un código único formato EST-XXXXXXXX."""
+        random_part = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        return f"EST-{random_part}"
+
+    def save(self, *args, **kwargs):
+        if not self.codigo:
+            self.codigo = self.generar_codigo()
+        super().save(*args, **kwargs)
+
+
+# =============================================================================
 # ORGANIZACIÓN ESPACIAL
 # =============================================================================
 class Ubicacion(models.Model):
     """
     Representa una ubicación física general (ej: "Garaje", "Sótano", "Oficina").
+    Pertenece a un Estok.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='ubicaciones',
+        verbose_name="Estok"
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")
@@ -98,6 +252,7 @@ class Contenedor(models.Model):
     """
     Representa un contenedor físico dentro de una ubicación (ej: "Caja 4", "Estante A").
     Cada contenedor tiene un código QR único para escaneo rápido.
+    No tiene FK directa a Estok (se accede vía ubicacion.estok).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, verbose_name="Nombre")
@@ -152,10 +307,21 @@ class Objeto(models.Model):
     con una relación 1:1 hacia esta tabla base.
 
     Incluye soft delete (deleted_at) para evitar pérdida de información.
+    Pertenece a un Estok.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=300, verbose_name="Nombre del objeto")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+
+    # Estok al que pertenece
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='objetos',
+        verbose_name="Estok"
+    )
 
     # Organización espacial
     ubicacion = models.ForeignKey(

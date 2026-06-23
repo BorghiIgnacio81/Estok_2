@@ -6,7 +6,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ...models import Role, CustomUser
+from ...models import Role, CustomUser, Membresia
 from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
 
@@ -37,6 +37,24 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def me(self, request):
-        """Retorna el usuario autenticado actual."""
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        """Retorna el usuario autenticado actual con sus Estoks."""
+        user = request.user
+        serializer = UserSerializer(user)
+
+        # Incluir datos de Estok activo y membresías
+        membresias = Membresia.objects.filter(usuario=user).select_related('estok', 'role')
+        estoks_data = [
+            {
+                "id": str(m.estok.id),
+                "nombre": m.estok.nombre,
+                "role": m.role.name if m.role else None,
+                "role_id": str(m.role.id) if m.role else None,
+            }
+            for m in membresias
+        ]
+
+        data = serializer.data
+        data['estoks'] = estoks_data
+        data['ultimo_estok_activo_id'] = str(user.ultimo_estok_activo_id) if user.ultimo_estok_activo_id else None
+
+        return Response(data)
