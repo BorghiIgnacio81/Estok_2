@@ -29,7 +29,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action == 'me':
+        if self.action in ('me', 'cambiar_estok_activo'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
