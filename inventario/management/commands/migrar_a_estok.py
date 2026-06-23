@@ -23,9 +23,15 @@ class Command(BaseCommand):
             action='store_true',
             help="Solo muestra lo que se haría sin escribir nada a la base de datos.",
         )
+        parser.add_argument(
+            '--yes',
+            action='store_true',
+            help="Saltea todas las confirmaciones interactivas y ejecuta directamente.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
+        yes = options['yes']
 
         self.stdout.write(self.style.NOTICE("=== MIGRACIÓN A SISTEMA MULTI-ESTOK ==="))
         if dry_run:
@@ -33,7 +39,7 @@ class Command(BaseCommand):
 
         # --- Verificar si ya hay Estoks ---
         estoks_existentes = Estok.objects.count()
-        if estoks_existentes > 0 and not dry_run:
+        if estoks_existentes > 0 and not dry_run and not yes:
             self.stdout.write(
                 self.style.WARNING(
                     f"Ya existen {estoks_existentes} Estok(s) en la base de datos. "
@@ -97,12 +103,13 @@ class Command(BaseCommand):
             return
 
         # --- Ejecutar migración ---
-        confirm = input(f"\n¿Crear Estok 'Mi Inventario' y migrar {total_usuarios} usuarios, "
-                        f"{total_objetos} objetos, {total_ubicaciones} ubicaciones y "
-                        f"{total_contenedores} contenedores? (s/N): ").strip().lower()
-        if confirm != 's':
-            self.stdout.write(self.style.SUCCESS("Migración cancelada."))
-            return
+        if not yes:
+            confirm = input(f"\n¿Crear Estok 'Mi Inventario' y migrar {total_usuarios} usuarios, "
+                            f"{total_objetos} objetos, {total_ubicaciones} ubicaciones y "
+                            f"{total_contenedores} contenedores? (s/N): ").strip().lower()
+            if confirm != 's':
+                self.stdout.write(self.style.SUCCESS("Migración cancelada."))
+                return
 
         with transaction.atomic():
             # 1. Crear Estok
