@@ -135,6 +135,8 @@ import AuthGuard from '../components/AuthGuard.astro';
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+    const estokId = localStorage.getItem('estok_activo_id');
+    if (estokId) headers['X-Estok-Id'] = estokId;
     return headers;
   }
 

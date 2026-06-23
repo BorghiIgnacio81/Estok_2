@@ -162,6 +162,10 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       if (userResponse.ok) {
         const user = await userResponse.json();
         localStorage.setItem('estok_user', JSON.stringify(user));
+        // Guardar el estok activo inicial si el usuario tiene uno
+        if (user.ultimo_estok_activo_id) {
+          localStorage.setItem('estok_activo_id', user.ultimo_estok_activo_id);
+        }
       }
 
       window.location.href = '/';
@@ -236,6 +240,10 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       if (userResponse.ok) {
         const user = await userResponse.json();
         localStorage.setItem('estok_user', JSON.stringify(user));
+        // Guardar el estok activo inicial si el usuario tiene uno
+        if (user.ultimo_estok_activo_id) {
+          localStorage.setItem('estok_activo_id', user.ultimo_estok_activo_id);
+        }
       }
 
       // Paso 3: Redirigir al dashboard

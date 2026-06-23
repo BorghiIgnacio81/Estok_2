@@ -151,6 +151,15 @@ import AuthGuard from '../components/AuthGuard.astro';
       } catch { return null; }
     }
 
+    function getAuthHeaders() {
+      const headers: Record<string, string> = {};
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const estokId = localStorage.getItem('estok_activo_id');
+      if (estokId) headers['X-Estok-Id'] = estokId;
+      return headers;
+    }
+
     // =====================================================================
     // 1. VERIFICAR CONEXIÓN
     // =====================================================================
