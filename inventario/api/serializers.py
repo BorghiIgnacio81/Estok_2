@@ -16,7 +16,6 @@ from ..models import (
     Role, CustomUser, Ubicacion, Contenedor,
     Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
     FotoObjeto, HistorialPrecio, AlertaStock,
-    Estok, Membresia,
 )
 
 logger = logging.getLogger(__name__)
@@ -444,62 +443,3 @@ class AlertaStockSerializer(serializers.ModelSerializer):
         model = AlertaStock
         fields = '__all__'
         read_only_fields = ['id', 'ultima_verificacion']
-
-
-# =============================================================================
-# SERIALIZERS DE ESTOK Y MEMBRESÍAS
-# =============================================================================
-class MembresiaSerializer(serializers.ModelSerializer):
-    usuario_nombre = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Membresia
-        fields = '__all__'
-        read_only_fields = ['id', 'fecha_union']
-
-    def get_usuario_nombre(self, obj):
-        return str(obj.usuario)
-
-
-class EstokSerializer(serializers.ModelSerializer):
-    miembros = MembresiaSerializer(many=True, read_only=True)
-    objetos_count = serializers.SerializerMethodField()
-    ubicaciones_count = serializers.SerializerMethodField()
-    contenedores_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Estok
-        fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-    def get_objetos_count(self, obj):
-        return obj.objetos.count()
-
-    def get_ubicaciones_count(self, obj):
-        return obj.ubicaciones.count()
-
-    def get_contenedores_count(self, obj):
-        return obj.contenedores.count()
-
-
-class EstokCreateSerializer(serializers.ModelSerializer):
-    """Serializer para crear un Estok y automáticamente hacer admin al creador."""
-
-    class Meta:
-        model = Estok
-        fields = ['nombre', 'descripcion']
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        estok = Estok.objects.create(**validated_data)
-
-        # Crear membresía admin para el creador
-        if request and request.user.is_authenticated:
-            Membresia.objects.create(
-                estok=estok,
-                usuario=request.user,
-                rol_en_estok='admin',
-                invitacion_aceptada=True,
-            )
-
-        return estok

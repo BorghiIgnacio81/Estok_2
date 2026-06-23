@@ -59,17 +59,6 @@
 - Verificar siempre que origin/main esté actualizado (git log -1 --oneline)
   antes de asumir que un cambio local ya está en producción.
 
-## Servidor / SSH
-- Servidor Hetzner: 178.156.224.212, puerto 22, usuario root
-- Llave privada: C:\Users\USER\Documents\Server Hetz\llavehezner
-- Llave pública: C:\Users\USER\Documents\Server Hetz\llavehezner.pub
-- Plan: CPX21 (3 vCPU / 4GB RAM), Ubuntu 24.04, Ashburn VA (USA)
-- PostgreSQL corre en contenedor: db-cliente-01, puerto 5432
-- Contraseña postgres: C4rl0S4lb3rt0B0rh1
-- Contraseña coolify: C05m05!!C05m05
-- DATABASE_URL: postgres://postgres:C4rl0S4lb3rt0B0rh1@178.156.224.212:5432/estok_db
-- NOTA: La base de datos real se llama "estok_db" (no "pare_carrito" ni "estok"), y el hostname real de Coolify (cagtcifjoy8ydxugg4bkdll1) apunta a este servidor PostgreSQL
-
 ## Contenedores fantasma
 - NO levantar contenedores manuales con "docker run" para pruebas en el
   servidor de producción y dejarlos corriendo. Si se hace, documentarlo y
