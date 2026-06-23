@@ -56,10 +56,8 @@ class HasRolePermission(permissions.BasePermission):
         }
 
         action = getattr(view, 'action', None)
-        if action in action_map:
-            return getattr(role, action_map[action], False)
-
-        return False
+        permiso_requerido = action_map.get(action, 'can_read')  # default: can_read para cualquier action custom
+        return getattr(role, permiso_requerido, False)
 
 
 class EsAdminDelEstok(permissions.BasePermission):
