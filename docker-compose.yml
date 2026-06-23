@@ -59,8 +59,8 @@ services:
       - MEDIA_URL=/media/
       - MEDIA_ROOT=/app/media
 
-      # Frontend
-      - PUBLIC_API_URL=https://eeestok.duckdns.org/api
+      # Frontend (ruta relativa para que pase por Nginx interno, no por Traefik)
+      - PUBLIC_API_URL=/api
       - PUBLIC_SITE_URL=https://eeestok.duckdns.org
 
     networks:
