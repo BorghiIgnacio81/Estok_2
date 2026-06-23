@@ -9,6 +9,7 @@ from .organizacion import UbicacionViewSet, ContenedorViewSet
 from .objetos import ObjetoViewSet
 from .multimedia import FotoObjetoViewSet
 from .historial import HistorialPrecioViewSet, AlertaStockViewSet
+from .estok import EstokViewSet
 
 __all__ = [
     'HasRolePermission',
@@ -20,4 +21,5 @@ __all__ = [
     'FotoObjetoViewSet',
     'HistorialPrecioViewSet',
     'AlertaStockViewSet',
+    'EstokViewSet',
 ]

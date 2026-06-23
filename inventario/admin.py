@@ -3,8 +3,36 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     Role, CustomUser, Ubicacion, Contenedor,
     Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
-    FotoObjeto
+    FotoObjeto, Estok, Membresia
 )
+
+
+# =============================================================================
+# ADMIN: ESTOK Y MEMBRESÍAS
+# =============================================================================
+class MembresiaInline(admin.TabularInline):
+    model = Membresia
+    extra = 1
+    fields = ['usuario', 'rol_en_estok', 'invitacion_aceptada', 'fecha_union']
+    readonly_fields = ['fecha_union']
+
+
+@admin.register(Estok)
+class EstokAdmin(admin.ModelAdmin):
+    list_display = ['nombre', 'created_at', 'miembros_count']
+    search_fields = ['nombre', 'descripcion']
+    inlines = [MembresiaInline]
+
+    def miembros_count(self, obj):
+        return obj.miembros.count()
+    miembros_count.short_description = 'Miembros'
+
+
+@admin.register(Membresia)
+class MembresiaAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'estok', 'rol_en_estok', 'invitacion_aceptada', 'fecha_union']
+    list_filter = ['rol_en_estok', 'invitacion_aceptada']
+    search_fields = ['usuario__username', 'estok__nombre']
 
 
 # =============================================================================

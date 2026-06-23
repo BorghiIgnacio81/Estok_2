@@ -69,15 +69,89 @@ class CustomUser(AbstractUser):
 
 
 # =============================================================================
+# MODELO ESTOK (Cuenta/Organización multi-usuario)
+# =============================================================================
+class Estok(models.Model):
+    """
+    Representa una cuenta de Estok: un inventario compartido entre usuarios.
+    Cada usuario puede pertenecer a múltiples Estoks.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=200, default='Mi Inventario', verbose_name="Nombre del Estok")
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+
+    class Meta:
+        verbose_name = "Estok"
+        verbose_name_plural = "Estoks"
+        ordering = ['nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class Membresia(models.Model):
+    """
+    Relación muchos-a-muchos entre Usuario y Estok con rol específico.
+    Un usuario puede ser Admin de un Estok y Visualizador de otro.
+    """
+    ROLES_EN_ESTOK = [
+        ('admin', 'Admin'),
+        ('editor', 'Editor'),
+        ('visualizador', 'Visualizador'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        related_name='miembros',
+        verbose_name="Estok"
+    )
+    usuario = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='membresias',
+        verbose_name="Usuario"
+    )
+    rol_en_estok = models.CharField(
+        max_length=20,
+        choices=ROLES_EN_ESTOK,
+        default='visualizador',
+        verbose_name="Rol en el Estok"
+    )
+    invitacion_aceptada = models.BooleanField(default=True, verbose_name="Invitación aceptada")
+    fecha_union = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de unión")
+
+    class Meta:
+        verbose_name = "Membresía"
+        verbose_name_plural = "Membresías"
+        unique_together = [('estok', 'usuario')]
+
+    def __str__(self):
+        return f"{self.usuario.username} → {self.estok.nombre} ({self.rol_en_estok})"
+
+
+# =============================================================================
 # ORGANIZACIÓN ESPACIAL
 # =============================================================================
 class Ubicacion(models.Model):
     """
     Representa una ubicación física general (ej: "Garaje", "Sótano", "Oficina").
+    Pertenece a un Estok.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='ubicaciones',
+        verbose_name="Estok"
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")
@@ -98,10 +172,19 @@ class Contenedor(models.Model):
     """
     Representa un contenedor físico dentro de una ubicación (ej: "Caja 4", "Estante A").
     Cada contenedor tiene un código QR único para escaneo rápido.
+    Pertenece a un Estok.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, verbose_name="Nombre")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='contenedores',
+        verbose_name="Estok"
+    )
     ubicacion = models.ForeignKey(
         Ubicacion,
         on_delete=models.CASCADE,
@@ -156,6 +239,16 @@ class Objeto(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=300, verbose_name="Nombre del objeto")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+
+    # Estok al que pertenece
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='objetos',
+        verbose_name="Estok"
+    )
 
     # Organización espacial
     ubicacion = models.ForeignKey(

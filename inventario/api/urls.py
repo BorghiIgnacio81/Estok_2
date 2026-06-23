@@ -16,6 +16,7 @@ from .viewsets import (
     FotoObjetoViewSet,
     HistorialPrecioViewSet,
     AlertaStockViewSet,
+    EstokViewSet,
 )
 
 # =============================================================================
@@ -32,6 +33,7 @@ router.register(r'objetos', ObjetoViewSet, basename='objeto')
 router.register(r'fotos', FotoObjetoViewSet, basename='foto')
 router.register(r'historial-precios', HistorialPrecioViewSet, basename='historialprecio')
 router.register(r'alertas-stock', AlertaStockViewSet, basename='alertastock')
+router.register(r'estoks', EstokViewSet, basename='estok')
 
 # =============================================================================
 # URL PATTERNS
