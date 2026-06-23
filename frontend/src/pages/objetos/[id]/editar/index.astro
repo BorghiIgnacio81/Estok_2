@@ -241,7 +241,7 @@ export const prerender = false;
   // ===========================================================================
 
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
-  const objetoId = window.location.pathname.split('/').filter(Boolean).slice(-3, -2)[0];
+  const objetoId = window.location.pathname.split('/').filter(Boolean).slice(-2, -1)[0];
 
   const loadingState = document.getElementById('loadingState')!;
   const errorState = document.getElementById('errorState')!;
