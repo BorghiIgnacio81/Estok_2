@@ -24,10 +24,13 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Permisos dinámicos:
         - 'create' (registro público): AllowAny
-        - El resto (list, retrieve, update, delete, me): IsAuthenticated + HasRolePermission
+        - 'me' (perfil propio): solo IsAuthenticated (sin HasRolePermission)
+        - El resto (list, retrieve, update, delete): IsAuthenticated + HasRolePermission
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
+        if self.action == 'me':
+            return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
     def get_serializer_class(self):
