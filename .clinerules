@@ -59,6 +59,12 @@
 - Verificar siempre que origin/main esté actualizado (git log -1 --oneline)
   antes de asumir que un cambio local ya está en producción.
 
+## SSH
+- Las llaves SSH para Hetzner están en:
+  C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner (privada)
+  C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner.pub (pública)
+- IP: 178.156.224.212, usuario: root
+
 ## Contenedores fantasma
 - NO levantar contenedores manuales con "docker run" para pruebas en el
   servidor de producción y dejarlos corriendo. Si se hace, documentarlo y
