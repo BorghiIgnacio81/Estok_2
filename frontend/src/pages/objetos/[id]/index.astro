@@ -183,16 +183,7 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  function getToken(): string | null {
-    return localStorage.getItem('estok_access_token');
-  }
-
-  function getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
-  }
+  import { getAuthHeaders, getToken } from '../../../services/auth';
 
   // ===========================================================================
   // MAPEOS VISUALES

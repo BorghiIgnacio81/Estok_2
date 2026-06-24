@@ -223,6 +223,9 @@ import AuthGuard from '../components/AuthGuard.astro';
   // DASHBOARD PRO - Estadísticas en tiempo real + Chart.js + PWA + AI
   // ===========================================================================
 
+  import { getAuthHeaders } from '../services/auth';
+
+
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
   const LM_STUDIO_URL = 'http://localhost:1234/v1';
 
@@ -232,18 +235,6 @@ import AuthGuard from '../components/AuthGuard.astro';
   const retryBtn = document.getElementById('retryBtn')!;
   const dashboardContent = document.getElementById('dashboardContent')!;
 
-  function getToken(): string | null {
-    return localStorage.getItem('estok_access_token');
-  }
-
-  function getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    const estokId = localStorage.getItem('estok_activo_id');
-    if (estokId) headers['X-Estok-Id'] = estokId;
-    return headers;
-  }
 
   // ===========================================================================
   // AI HEARTBEAT

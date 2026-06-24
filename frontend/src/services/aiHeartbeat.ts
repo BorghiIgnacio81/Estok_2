@@ -3,7 +3,10 @@
 // Verifica disponibilidad de la IA a través del backend (no directo a LM Studio)
 // =============================================================================
 
+import { getAuthHeaders } from './auth';
+
 const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
 const HEARTBEAT_INTERVAL = 30000; // 30 segundos
 
 type AIStatusListener = (connected: boolean) => void;
@@ -26,14 +29,11 @@ class AIHeartbeatService {
     this._checking = true;
 
     try {
-      const token = localStorage.getItem('estok_access_token');
-      const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
         method: 'GET',
-        headers,
+        headers: getAuthHeaders(),
       });
+
 
       const data = await response.json();
       this._connected = response.ok && data.status === 'ok';

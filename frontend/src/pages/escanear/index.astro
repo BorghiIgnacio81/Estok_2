@@ -112,16 +112,10 @@ import AuthGuard from '../../components/AuthGuard.astro';
   let animationFrameId: number | null = null;
   let scanning = false;
 
-  function getToken(): string | null {
-    return localStorage.getItem('estok_access_token');
-  }
+  import { getAuthHeaders } from '../../services/auth';
 
-  function getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
-  }
+
+
 
   // ===========================================================================
   // INICIAR CÁMARA

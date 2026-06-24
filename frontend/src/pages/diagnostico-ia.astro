@@ -143,22 +143,11 @@ import AuthGuard from '../components/AuthGuard.astro';
   </div>
 
   <script>
+    import { getAuthHeaders, getToken } from '../services/auth';
+
+
     const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
-    function getToken() {
-      try {
-        return localStorage.getItem('estok_access_token');
-      } catch { return null; }
-    }
-
-    function getAuthHeaders() {
-      const headers: Record<string, string> = {};
-      const token = getToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const estokId = localStorage.getItem('estok_activo_id');
-      if (estokId) headers['X-Estok-Id'] = estokId;
-      return headers;
-    }
 
     // =====================================================================
     // 1. VERIFICAR CONEXIÓN

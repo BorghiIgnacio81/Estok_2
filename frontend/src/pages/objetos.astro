@@ -113,6 +113,8 @@ import AuthGuard from '../components/AuthGuard.astro';
   // LISTADO DINÁMICO DE OBJETOS
   // ===========================================================================
 
+  import { getAuthHeaders } from '../services/auth';
+
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
   const loadingState = document.getElementById('loadingState')!;
@@ -125,20 +127,6 @@ import AuthGuard from '../components/AuthGuard.astro';
 
   let currentTipo = '';
 
-  function getToken(): string | null {
-    return localStorage.getItem('estok_access_token');
-  }
-
-  function getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
-    const token = getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    const estokId = localStorage.getItem('estok_activo_id');
-    if (estokId) headers['X-Estok-Id'] = estokId;
-    return headers;
-  }
 
   function showLoading() {
     loadingState.classList.remove('hidden');

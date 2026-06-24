@@ -87,8 +87,30 @@ export function isAuthenticated(): boolean {
 }
 
 // =============================================================================
+// HEADERS DE AUTENTICACIÓN (centralizado)
+// =============================================================================
+
+/**
+ * Construye los headers HTTP necesarios para requests autenticados.
+ * Incluye Authorization (JWT) y X-Estok-Id si hay un estok activo.
+ */
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const estokId = getEstokActivoId();
+  if (estokId) {
+    headers['X-Estok-Id'] = estokId;
+  }
+  return headers;
+}
+
+// =============================================================================
 // GESTIÓN DE ESTOK ACTIVO
 // =============================================================================
+
 
 /**
  * Obtiene el ID del Estok activo desde la copia local (localStorage).

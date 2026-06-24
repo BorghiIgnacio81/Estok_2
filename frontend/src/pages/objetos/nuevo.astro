@@ -334,6 +334,11 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
 <script>
   // ===========================================================================
+  // IMPORTS
+  // ===========================================================================
+  import { getAuthHeaders, getToken } from '../../services/auth';
+
+  // ===========================================================================
   // CONSTANTES
   // ===========================================================================
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
@@ -354,10 +359,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const token = getToken();
       const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
         method: 'GET',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: getAuthHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -527,10 +531,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
     estimarPrecioSpinner.classList.remove('hidden');
     precioReferencia.classList.add('hidden');
     try {
-      const token = getToken();
       // PASO 1: Buscar en el inventario local
       const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -556,7 +559,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
       try {
         const mlResponse = await fetch(`${API_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
-          headers: { 'Authorization': `Bearer ${token}` },
+          headers: getAuthHeaders(),
         });
         if (mlResponse.ok) {
           const mlData = await mlResponse.json();
@@ -621,9 +624,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   async function cargarUbicaciones() {
     try {
-      const token = getToken();
       const response = await fetch(`${API_URL}/ubicaciones/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -643,9 +645,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   async function cargarContenedores() {
     try {
-      const token = getToken();
       const response = await fetch(`${API_URL}/contenedores/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -665,9 +666,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   async function cargarUsuarios() {
     try {
-      const token = getToken();
       const response = await fetch(`${API_URL}/usuarios/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -762,8 +762,6 @@ import ImageEditor from '../../components/ImageEditor.astro';
       iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
       iaStatus.classList.add('hidden');
 
-      const token = getToken();
-
       // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
@@ -786,7 +784,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           imagen_base64: base64Image,
@@ -961,12 +959,11 @@ import ImageEditor from '../../components/ImageEditor.astro';
         reader.readAsDataURL(file);
       });
 
-      const token = getToken();
       const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({
           imagen_base64: base64Image,
@@ -1054,7 +1051,6 @@ import ImageEditor from '../../components/ImageEditor.astro';
     submitSpinner.classList.remove('hidden');
 
     try {
-      const token = getToken();
       const formData = new FormData(e.target);
 
       // Construir payload del objeto
@@ -1103,7 +1099,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
       });
@@ -1137,7 +1133,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         const uploadResponse = await fetch(`${API_URL}/objetos/${savedObjectId}/subir_foto/`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `Bearer ${getToken()}`,
           },
           body: formDataUpload,
         });
@@ -1162,15 +1158,4 @@ import ImageEditor from '../../components/ImageEditor.astro';
     }
   });
 
-  // ===========================================================================
-  // FUNCIÓN AUXILIAR: getToken
-  // ===========================================================================
-  function getToken() {
-    // Intentar obtener token de localStorage (donde lo guarda login.astro y auth.ts)
-    try {
-      const token = localStorage.getItem('estok_access_token');
-      if (token) return token;
-    } catch {}
-    return null;
-  }
 </script>
