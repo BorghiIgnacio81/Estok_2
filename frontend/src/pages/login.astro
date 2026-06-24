@@ -98,9 +98,11 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 <script>
   // ===========================================================================
   // MANEJO DEL FORMULARIO DE LOGIN
+  // Usa login() de auth.ts que centraliza la lógica de autenticación,
+  // incluyendo la auto-selección del primer Estok activo.
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  import { login } from '../services/auth';
 
   const form = document.getElementById('loginForm') as HTMLFormElement;
   const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
@@ -130,6 +132,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
   // ===========================================================================
   // ACCESO RÁPIDO: IGNACIO BORGHI
+  // NOTA: Este botón es visible para cualquier visitante del sitio.
+  // Las credenciales están hardcodeadas en el frontend.
+  // Considerar eliminar o proteger en producción.
   // ===========================================================================
 
   const quickLoginBtn = document.getElementById('quickLoginBtn');
@@ -139,38 +144,10 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     setLoading(true);
 
     try {
-      const tokenResponse = await fetch(`${API_URL}/token/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'ignacio_borghi', password: 'S0l3d4d' }),
-      });
-
-      if (!tokenResponse.ok) {
-        showError('❌ No se pudo acceder automáticamente. Ingresa manualmente.');
-        setLoading(false);
-        return;
-      }
-
-      const tokens = await tokenResponse.json();
-      localStorage.setItem('estok_access_token', tokens.access);
-      localStorage.setItem('estok_refresh_token', tokens.refresh);
-
-      const userResponse = await fetch(`${API_URL}/usuarios/me/`, {
-        headers: { 'Authorization': `Bearer ${tokens.access}` },
-      });
-
-      if (userResponse.ok) {
-        const user = await userResponse.json();
-        localStorage.setItem('estok_user', JSON.stringify(user));
-        // Guardar el estok activo inicial si el usuario tiene uno
-        if (user.ultimo_estok_activo_id) {
-          localStorage.setItem('estok_activo_id', user.ultimo_estok_activo_id);
-        }
-      }
-
+      await login({ username: 'ignacio_borghi', password: 'S0l3d4d' });
       window.location.href = '/';
-    } catch (err) {
-      showError('❌ Error de conexión. Verifica que el servidor esté corriendo.');
+    } catch (err: any) {
+      showError(err?.error || '❌ No se pudo acceder automáticamente. Ingresa manualmente.');
       console.error('Quick login error:', err);
       setLoading(false);
     }
@@ -197,59 +174,11 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     setLoading(true);
 
     try {
-      // Paso 1: Obtener tokens JWT
-      const tokenResponse = await fetch(`${API_URL}/token/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!tokenResponse.ok) {
-        let errorMsg = 'Credenciales inválidas. Verifica tu usuario y contraseña.';
-        try {
-          const errorData = await tokenResponse.json();
-          errorMsg = errorData.detail || errorData.error || errorMsg;
-        } catch {
-          // Usar mensaje por defecto
-        }
-
-        if (tokenResponse.status === 401) {
-          showError('❌ ' + errorMsg);
-        } else {
-          showError('❌ Error del servidor. Intenta nuevamente.');
-        }
-        setLoading(false);
-        return;
-      }
-
-      const tokens = await tokenResponse.json();
-
-      // Guardar tokens
-      localStorage.setItem('estok_access_token', tokens.access);
-      localStorage.setItem('estok_refresh_token', tokens.refresh);
-
-      // Paso 2: Obtener datos del usuario
-      const userResponse = await fetch(`${API_URL}/usuarios/me/`, {
-        headers: {
-          'Authorization': `Bearer ${tokens.access}`,
-        },
-      });
-
-      if (userResponse.ok) {
-        const user = await userResponse.json();
-        localStorage.setItem('estok_user', JSON.stringify(user));
-        // Guardar el estok activo inicial si el usuario tiene uno
-        if (user.ultimo_estok_activo_id) {
-          localStorage.setItem('estok_activo_id', user.ultimo_estok_activo_id);
-        }
-      }
-
-      // Paso 3: Redirigir al dashboard
+      await login({ username, password });
       window.location.href = '/';
-    } catch (err) {
-      showError('❌ Error de conexión. Verifica que el servidor esté corriendo en ' + API_URL);
+    } catch (err: any) {
+      const errorMsg = err?.error || 'Error de conexión. Verifica que el servidor esté corriendo.';
+      showError('❌ ' + errorMsg);
       console.error('Login error:', err);
     } finally {
       setLoading(false);
