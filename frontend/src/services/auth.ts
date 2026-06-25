@@ -398,7 +398,10 @@ export async function fetchRoles(): Promise<Role[]> {
     throw { error: 'Error al obtener roles', status: response.status } as AuthError;
   }
 
-  return response.json();
+  const data = await response.json();
+  // DRF devuelve paginado: {count, next, previous, results}
+  // Extraemos el array para que el caller siempre reciba un array iterable
+  return data.results || data;
 }
 
 // =============================================================================
