@@ -369,6 +369,86 @@ export async function register(data: {
 }
 
 // =============================================================================
+// GESTIÓN DE ESTOKS
+// =============================================================================
+
+/**
+ * Crea un nuevo Estok.
+ * POST /api/estoks/ con {nombre}
+ * El backend automáticamente crea la Membresía Admin para el creador.
+ */
+export async function crearEstok(nombre: string): Promise<EstokInfo> {
+  const token = getToken();
+  if (!token) {
+    throw { error: 'No hay sesión activa' } as AuthError;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/estoks/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ nombre }),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Error al crear el Estok';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || Object.values(errorData).flat().join(', ') || errorMsg;
+    } catch {
+      // Usar mensaje por defecto
+    }
+    throw { error: errorMsg, status: response.status } as AuthError;
+  }
+
+  const estok: EstokInfo = await response.json();
+
+  // Actualizar el usuario cacheado para que incluya el nuevo Estok
+  const cachedUser = getCachedUser();
+  if (cachedUser) {
+    cachedUser.estoks = [...(cachedUser.estoks || []), estok];
+    cacheUser(cachedUser);
+  }
+
+  return estok;
+}
+
+/**
+ * Se une a un Estok usando un código de invitación.
+ * POST /api/estoks/unirse/ con {codigo}
+ */
+export async function unirseConCodigo(codigo: string): Promise<{ mensaje: string; estok: EstokInfo }> {
+  const token = getToken();
+  if (!token) {
+    throw { error: 'No hay sesión activa' } as AuthError;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/estoks/unirse/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ codigo }),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Error al unirse al Estok';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || errorMsg;
+    } catch {
+      // Usar mensaje por defecto
+    }
+    throw { error: errorMsg, status: response.status } as AuthError;
+  }
+
+  return response.json();
+}
+
+// =============================================================================
 // EXPORTACIÓN POR DEFECTO
 // =============================================================================
 

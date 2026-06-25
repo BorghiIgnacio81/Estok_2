@@ -1,0 +1,355 @@
+---
+// =============================================================================
+// PÁGINA DE GESTIÓN DE ESTOKS
+// Muestra los Estoks del usuario, permite crear nuevos o unirse con código
+// =============================================================================
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Mis Estoks | Sistema de Inventario">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Mis Estoks</h1>
+      <p class="mt-2 text-gray-500">Gestioná tus espacios de inventario</p>
+    </div>
+
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-12">
+      <svg class="animate-spin h-10 w-10 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando tus Estoks...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center mb-8">
+      <p id="errorMessage" class="font-medium">Error al cargar los Estoks.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Contenido principal -->
+    <div id="mainContent" class="hidden space-y-8">
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: Sin Estoks -->
+      <!-- ================================================================ -->
+      <div id="sinEstoksSection" class="hidden text-center py-12">
+        <div class="text-6xl mb-4">📦</div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">Todavía no formás parte de ningún Estok</h2>
+        <p class="text-gray-500 mb-8">Creá un nuevo espacio de inventario o unite a uno existente con un código de invitación.</p>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: Lista de Estoks -->
+      <!-- ================================================================ -->
+      <div id="listaEstoksSection" class="hidden">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Tus Estoks</h2>
+        <div id="estoksList" class="space-y-3">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+
+      <!-- ================================================================ -->
+      <!-- ACCIONES: Crear o Unirse -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-6">Acciones</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Crear Estok -->
+          <div class="border border-gray-200 rounded-lg p-5">
+            <h3 class="font-semibold text-gray-900 mb-1">Crear nuevo Estok</h3>
+            <p class="text-sm text-gray-500 mb-4">Creá un espacio de inventario nuevo y sé su administrador.</p>
+            <form id="crearForm" class="space-y-3">
+              <div>
+                <label for="nombreEstok" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Estok</label>
+                <input
+                  id="nombreEstok"
+                  type="text"
+                  required
+                  placeholder="Ej: Casa, Oficina, Taller..."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+              </div>
+              <div id="crearError" class="hidden text-sm text-red-600"></div>
+              <button
+                id="crearBtn"
+                type="submit"
+                class="w-full py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <span id="crearBtnText">Crear Estok</span>
+                <svg id="crearBtnSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+
+          <!-- Unirse con código -->
+          <div class="border border-gray-200 rounded-lg p-5">
+            <h3 class="font-semibold text-gray-900 mb-1">Unirme con código</h3>
+            <p class="text-sm text-gray-500 mb-4">Usá un código de invitación para unirte a un Estok existente.</p>
+            <form id="unirseForm" class="space-y-3">
+              <div>
+                <label for="codigoInvitacion" class="block text-sm font-medium text-gray-700 mb-1">Código de invitación</label>
+                <input
+                  id="codigoInvitacion"
+                  type="text"
+                  required
+                  placeholder="EST-XXXXXXXX"
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base uppercase"
+                />
+              </div>
+              <div id="unirseError" class="hidden text-sm text-red-600"></div>
+              <button
+                id="unirseBtn"
+                type="submit"
+                class="w-full py-2.5 bg-green-700 text-white font-medium rounded-lg hover:bg-green-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <span id="unirseBtnText">Unirme</span>
+                <svg id="unirseBtnSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // MANEJO DE LA PÁGINA DE ESTOKS
+  // ===========================================================================
+
+  import { getCachedUser, fetchCurrentUser, crearEstok, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
+  import type { EstokInfo } from '../../types';
+
+  // ===========================================================================
+  // REFERENCIAS DOM
+  // ===========================================================================
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const mainContent = document.getElementById('mainContent')!;
+  const sinEstoksSection = document.getElementById('sinEstoksSection')!;
+  const listaEstoksSection = document.getElementById('listaEstoksSection')!;
+  const estoksList = document.getElementById('estoksList')!;
+
+  // Formulario crear
+  const crearForm = document.getElementById('crearForm') as HTMLFormElement;
+  const nombreEstok = document.getElementById('nombreEstok') as HTMLInputElement;
+  const crearBtn = document.getElementById('crearBtn') as HTMLButtonElement;
+  const crearBtnText = document.getElementById('crearBtnText')!;
+  const crearBtnSpinner = document.getElementById('crearBtnSpinner')!;
+  const crearError = document.getElementById('crearError')!;
+
+  // Formulario unirse
+  const unirseForm = document.getElementById('unirseForm') as HTMLFormElement;
+  const codigoInvitacion = document.getElementById('codigoInvitacion') as HTMLInputElement;
+  const unirseBtn = document.getElementById('unirseBtn') as HTMLButtonElement;
+  const unirseBtnText = document.getElementById('unirseBtnText')!;
+  const unirseBtnSpinner = document.getElementById('unirseBtnSpinner')!;
+  const unirseError = document.getElementById('unirseError')!;
+
+  // ===========================================================================
+  // UTILIDADES
+  // ===========================================================================
+
+  function setLoading(btn: HTMLButtonElement, text: HTMLElement, spinner: HTMLElement, loading: boolean) {
+    btn.disabled = loading;
+    if (loading) {
+      text.classList.add('hidden');
+      spinner.classList.remove('hidden');
+    } else {
+      text.classList.remove('hidden');
+      spinner.classList.add('hidden');
+    }
+  }
+
+  function showError(container: HTMLElement, message: string) {
+    container.textContent = message;
+    container.classList.remove('hidden');
+  }
+
+  function hideError(container: HTMLElement) {
+    container.classList.add('hidden');
+  }
+
+  function getRoleBadge(role: string | null): string {
+    switch (role) {
+      case 'Admin': return 'bg-purple-100 text-purple-700';
+      case 'Editor': return 'bg-blue-100 text-blue-700';
+      case 'Visualizador': return 'bg-gray-100 text-gray-700';
+      default: return 'bg-gray-100 text-gray-500';
+    }
+  }
+
+  // ===========================================================================
+  // RENDERIZAR LISTA DE ESTOKS
+  // ===========================================================================
+
+  function renderEstoks(estoks: EstokInfo[]) {
+    if (estoks.length === 0) {
+      sinEstoksSection.classList.remove('hidden');
+      listaEstoksSection.classList.add('hidden');
+      return;
+    }
+
+    sinEstoksSection.classList.add('hidden');
+    listaEstoksSection.classList.remove('hidden');
+
+    estoksList.innerHTML = estoks.map(e => `
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center justify-between hover:shadow-md transition-base">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-xl">
+            📋
+          </div>
+          <div>
+            <h3 class="font-semibold text-gray-900">${e.nombre}</h3>
+            <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadge(e.role)}">
+              ${e.role || 'Sin rol'}
+            </span>
+          </div>
+        </div>
+        <button
+          data-estok-id="${e.id}"
+          data-estok-nombre="${e.nombre}"
+          class="entrarBtn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
+        >
+          Entrar
+        </button>
+      </div>
+    `).join('');
+
+    // Agregar event listeners a los botones "Entrar"
+    document.querySelectorAll('.entrarBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const estokId = (btn as HTMLElement).dataset.estokId!;
+        const estokNombre = (btn as HTMLElement).dataset.estokNombre!;
+        try {
+          await cambiarEstokActivo(estokId);
+          (window as any).showSuccess?.(`✅ Cambiaste a "${estokNombre}"`);
+          window.location.href = '/';
+        } catch (err: any) {
+          (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
+        }
+      });
+    });
+  }
+
+  // ===========================================================================
+  // CARGA INICIAL
+  // ===========================================================================
+
+  async function cargarEstoks() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    mainContent.classList.add('hidden');
+
+    try {
+      // Obtener datos frescos del usuario (incluye estoks actualizados)
+      const user = await fetchCurrentUser();
+      const estoks = user.estoks || [];
+
+      renderEstoks(estoks);
+
+      loadingState.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+    } catch (err: any) {
+      console.error('Error al cargar Estoks:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err?.error || 'Error de conexión. Verifica que el servidor esté corriendo.';
+    }
+  }
+
+  retryBtn?.addEventListener('click', cargarEstoks);
+
+  // ===========================================================================
+  // FORMULARIO: CREAR ESTOK
+  // ===========================================================================
+
+  crearForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError(crearError);
+
+    const nombre = nombreEstok.value.trim();
+    if (!nombre) {
+      showError(crearError, 'Por favor, ingresá un nombre para el Estok.');
+      return;
+    }
+
+    setLoading(crearBtn, crearBtnText, crearBtnSpinner, true);
+
+    try {
+      const nuevoEstok = await crearEstok(nombre);
+
+      // Establecer como activo y redirigir al dashboard
+      await cambiarEstokActivo(nuevoEstok.id);
+      (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado correctamente`);
+      window.location.href = '/';
+    } catch (err: any) {
+      showError(crearError, err?.error || 'Error al crear el Estok');
+      console.error('Error al crear Estok:', err);
+    } finally {
+      setLoading(crearBtn, crearBtnText, crearBtnSpinner, false);
+    }
+  });
+
+  // ===========================================================================
+  // FORMULARIO: UNIRSE CON CÓDIGO
+  // ===========================================================================
+
+  unirseForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideError(unirseError);
+
+    let codigo = codigoInvitacion.value.trim().toUpperCase();
+    if (!codigo) {
+      showError(unirseError, 'Por favor, ingresá un código de invitación.');
+      return;
+    }
+
+    // Validar formato EST-XXXXXXXX
+    if (!/^EST-[A-Z0-9]{8}$/.test(codigo)) {
+      showError(unirseError, 'El código debe tener el formato EST-XXXXXXXX (ej: EST-ABCD1234).');
+      return;
+    }
+
+    setLoading(unirseBtn, unirseBtnText, unirseBtnSpinner, true);
+
+    try {
+      const resultado = await unirseConCodigo(codigo);
+
+      // Establecer como activo y redirigir al dashboard
+      await cambiarEstokActivo(resultado.estok.id);
+      (window as any).showSuccess?.(`✅ ${resultado.mensaje}`);
+      window.location.href = '/';
+    } catch (err: any) {
+      showError(unirseError, err?.error || 'Error al unirse al Estok. Verificá el código e intentá de nuevo.');
+      console.error('Error al unirse:', err);
+    } finally {
+      setLoading(unirseBtn, unirseBtnText, unirseBtnSpinner, false);
+    }
+  });
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  cargarEstoks();
+</script>
