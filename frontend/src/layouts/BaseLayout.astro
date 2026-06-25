@@ -78,6 +78,25 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             </a>
           </div>
 
+          <!-- Estok activo + Invitar -->
+          <div id="estokSection" class="hidden md:flex items-center space-x-3">
+            <div id="estokInfo" class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span id="estokNombre" class="text-sm font-semibold text-blue-800"></span>
+              <span id="estokRoleBadge" class="text-xs px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 font-medium"></span>
+            </div>
+            <button id="invitarBtn"
+              class="hidden px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-base shadow-sm"
+              title="Invitar miembros al Estok">
+              <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              Invitar
+            </button>
+          </div>
+
           <!-- Acciones / Usuario -->
           <div class="flex items-center space-x-3">
             <!-- Botón Instalar App (PWA) -->
@@ -210,6 +229,44 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   const userName = document.getElementById('userName')!;
   const logoutBtn = document.getElementById('logoutBtn')!;
 
+  // Elementos del Estok activo
+  const estokSection = document.getElementById('estokSection')!;
+  const estokNombre = document.getElementById('estokNombre')!;
+  const estokRoleBadge = document.getElementById('estokRoleBadge')!;
+  const invitarBtn = document.getElementById('invitarBtn')!;
+
+  function updateEstokUI() {
+    const userData = localStorage.getItem('estok_user');
+    const estokActivoId = localStorage.getItem('estok_activo_id');
+
+    if (!userData || !estokActivoId) {
+      estokSection.classList.add('hidden');
+      return;
+    }
+
+    try {
+      const user = JSON.parse(userData);
+      const estokActivo = user.estoks?.find((e: any) => e.id === estokActivoId);
+
+      if (estokActivo) {
+        estokSection.classList.remove('hidden');
+        estokNombre.textContent = estokActivo.nombre;
+        estokRoleBadge.textContent = estokActivo.role || '';
+
+        // Mostrar botón Invitar solo si es Admin
+        if (estokActivo.role === 'Admin') {
+          invitarBtn.classList.remove('hidden');
+        } else {
+          invitarBtn.classList.add('hidden');
+        }
+      } else {
+        estokSection.classList.add('hidden');
+      }
+    } catch {
+      estokSection.classList.add('hidden');
+    }
+  }
+
   function updateAuthUI() {
     const token = localStorage.getItem('estok_access_token');
     const userData = localStorage.getItem('estok_user');
@@ -222,13 +279,16 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
         userName.textContent = user.first_name
           ? `${user.first_name} ${user.last_name || ''}`
           : user.username;
+        updateEstokUI();
       } catch {
         authSection.classList.add('hidden');
         loginLink.classList.remove('hidden');
+        estokSection.classList.add('hidden');
       }
     } else {
       authSection.classList.add('hidden');
       loginLink.classList.remove('hidden');
+      estokSection.classList.add('hidden');
     }
   }
 
@@ -241,6 +301,226 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   // Actualizar UI al cargar la página
   updateAuthUI();
+
+  // ===========================================================================
+  // MODAL DE INVITACIÓN
+  // ===========================================================================
+
+  const API_BASE_URL = 'http://127.0.0.1:8000/api';
+
+  let rolesCache: Array<{ id: string; name: string }> | null = null;
+
+  async function fetchRoles(): Promise<Array<{ id: string; name: string }>> {
+    if (rolesCache) return rolesCache;
+    const token = localStorage.getItem('estok_access_token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_BASE_URL}/roles/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        rolesCache = await res.json();
+        return rolesCache!;
+      }
+    } catch { /* ignore */ }
+    return [];
+  }
+
+  function crearModalInvitacion() {
+    // Evitar duplicados
+    if (document.getElementById('invitarModal')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'invitarModal';
+    overlay.className = 'fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden transform transition-all">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900">Invitar miembros</h3>
+          <button id="cerrarModalBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-200">
+          <button id="tabCodigo" class="flex-1 px-4 py-3 text-sm font-medium text-blue-700 border-b-2 border-blue-700 transition-base">
+            🔑 Generar código
+          </button>
+          <button id="tabEmail" class="flex-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-base">
+            📧 Enviar por email
+          </button>
+        </div>
+
+        <!-- Contenido: Generar código -->
+        <div id="panelCodigo" class="p-6">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Rol a asignar</label>
+              <select id="rolSelector" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <option value="">Cargando roles...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Usos máximos <span class="text-gray-400 font-normal">(opcional, 0 = sin límite)</span></label>
+              <input type="number" id="usosMaximos" min="0" value="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <button id="generarCodigoBtn"
+              class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
+              Generar código
+            </button>
+            <div id="codigoGenerado" class="hidden">
+              <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p class="text-xs text-green-700 font-medium mb-2">✅ Código generado exitosamente</p>
+                <div class="flex items-center gap-2">
+                  <code id="codigoTexto" class="flex-1 px-3 py-2 bg-white border border-green-300 rounded-lg text-lg font-mono font-bold text-green-800 text-center tracking-wider select-all"></code>
+                  <button id="copiarCodigoBtn"
+                    class="px-3 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-base shadow-sm whitespace-nowrap">
+                    Copiar
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div id="codigoError" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+          </div>
+        </div>
+
+        <!-- Contenido: Enviar por email (deshabilitado) -->
+        <div id="panelEmail" class="p-6 hidden">
+          <div class="p-6 bg-gray-50 border border-gray-200 rounded-lg text-center">
+            <p class="text-3xl mb-3">🚧</p>
+            <p class="text-sm font-medium text-gray-700">Envío por email</p>
+            <p class="text-xs text-gray-500 mt-1">Próximamente disponible</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Lógica de tabs
+    const tabCodigo = document.getElementById('tabCodigo')!;
+    const tabEmail = document.getElementById('tabEmail')!;
+    const panelCodigo = document.getElementById('panelCodigo')!;
+    const panelEmail = document.getElementById('panelEmail')!;
+
+    tabCodigo.addEventListener('click', () => {
+      tabCodigo.className = 'flex-1 px-4 py-3 text-sm font-medium text-blue-700 border-b-2 border-blue-700 transition-base';
+      tabEmail.className = 'flex-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-base';
+      panelCodigo.classList.remove('hidden');
+      panelEmail.classList.add('hidden');
+    });
+
+    tabEmail.addEventListener('click', () => {
+      tabEmail.className = 'flex-1 px-4 py-3 text-sm font-medium text-blue-700 border-b-2 border-blue-700 transition-base';
+      tabCodigo.className = 'flex-1 px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 transition-base';
+      panelEmail.classList.remove('hidden');
+      panelCodigo.classList.add('hidden');
+    });
+
+    // Cargar roles dinámicamente
+    const rolSelector = document.getElementById('rolSelector') as HTMLSelectElement;
+    fetchRoles().then(roles => {
+      rolSelector.innerHTML = '<option value="">Seleccionar rol...</option>';
+      roles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name;
+        rolSelector.appendChild(opt);
+      });
+    });
+
+    // Generar código
+    const generarBtn = document.getElementById('generarCodigoBtn')!;
+    const codigoGenerado = document.getElementById('codigoGenerado')!;
+    const codigoTexto = document.getElementById('codigoTexto')!;
+    const codigoError = document.getElementById('codigoError')!;
+    const copiarBtn = document.getElementById('copiarCodigoBtn')!;
+    const usosMaximos = document.getElementById('usosMaximos') as HTMLInputElement;
+
+    generarBtn.addEventListener('click', async () => {
+      const roleId = rolSelector.value;
+      if (!roleId) {
+        codigoError.textContent = 'Seleccioná un rol para el código.';
+        codigoError.classList.remove('hidden');
+        codigoGenerado.classList.add('hidden');
+        return;
+      }
+
+      codigoError.classList.add('hidden');
+      codigoGenerado.classList.add('hidden');
+      generarBtn.textContent = 'Generando...';
+      (generarBtn as HTMLButtonElement).disabled = true;
+
+      try {
+        const estokId = localStorage.getItem('estok_activo_id');
+        if (!estokId) throw new Error('No hay Estok activo');
+
+        const token = localStorage.getItem('estok_access_token');
+        const body: Record<string, unknown> = { role: roleId };
+        const usos = parseInt(usosMaximos.value, 10);
+        if (usos > 0) body.usos_maximos = usos;
+
+        const res = await fetch(`${API_BASE_URL}/codigos-invitacion/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-Estok-Id': estokId,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || Object.values(err).flat().join(', ') || 'Error al generar código');
+        }
+
+        const data = await res.json();
+        codigoTexto.textContent = data.codigo;
+        codigoGenerado.classList.remove('hidden');
+        codigoError.classList.add('hidden');
+      } catch (err: any) {
+        codigoError.textContent = err.message || 'Error al generar código';
+        codigoError.classList.remove('hidden');
+        codigoGenerado.classList.add('hidden');
+      } finally {
+        generarBtn.textContent = 'Generar código';
+        (generarBtn as HTMLButtonElement).disabled = false;
+      }
+    });
+
+    // Copiar al portapapeles
+    copiarBtn.addEventListener('click', () => {
+      const codigo = codigoTexto.textContent;
+      if (codigo) {
+        navigator.clipboard.writeText(codigo).then(() => {
+          copiarBtn.textContent = '✅ Copiado';
+          setTimeout(() => { copiarBtn.textContent = 'Copiar'; }, 2000);
+        }).catch(() => {
+          // Fallback: seleccionar texto
+          const range = document.createRange();
+          range.selectNodeContents(codigoTexto);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        });
+      }
+    });
+
+    // Cerrar modal
+    const cerrarBtn = document.getElementById('cerrarModalBtn')!;
+    const cerrar = () => overlay.remove();
+    cerrarBtn.addEventListener('click', cerrar);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cerrar();
+    });
+  }
+
+  invitarBtn?.addEventListener('click', crearModalInvitacion);
 
   // ===========================================================================
   // DARK MODE TOGGLE

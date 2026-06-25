@@ -3,7 +3,7 @@
 // Maneja login, logout, token persistence y refresh
 // =============================================================================
 
-import type { EstokInfo } from '../types';
+import type { EstokInfo, Role } from '../types';
 
 const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
@@ -356,6 +356,80 @@ export async function register(data: {
 
   if (!response.ok) {
     let errorMsg = 'Error al registrar usuario';
+    try {
+      const errorData = await response.json();
+      errorMsg = errorData.error || Object.values(errorData).flat().join(', ') || errorMsg;
+    } catch {
+      // Usar mensaje por defecto
+    }
+    throw { error: errorMsg, status: response.status } as AuthError;
+  }
+
+  return response.json();
+}
+
+// =============================================================================
+// ROLES
+// =============================================================================
+
+/**
+ * Obtiene la lista de roles disponibles.
+ * GET /api/roles/
+ */
+export async function fetchRoles(): Promise<Role[]> {
+  const token = getToken();
+  if (!token) {
+    throw { error: 'No hay sesión activa' } as AuthError;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/roles/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw { error: 'Error al obtener roles', status: response.status } as AuthError;
+  }
+
+  return response.json();
+}
+
+// =============================================================================
+// CÓDIGOS DE INVITACIÓN
+// =============================================================================
+
+/**
+ * Genera un código de invitación para un Estok.
+ * POST /api/codigos-invitacion/ con {role, usos_maximos?, fecha_expiracion?}
+ * Requiere header X-Estok-Id.
+ */
+export async function generarCodigoInvitacion(
+  estokId: string,
+  roleId: string,
+  opciones?: { usos_maximos?: number; fecha_expiracion?: string }
+): Promise<{ codigo: string; id: string }> {
+  const token = getToken();
+  if (!token) {
+    throw { error: 'No hay sesión activa' } as AuthError;
+  }
+
+  const body: Record<string, unknown> = { role: roleId };
+  if (opciones?.usos_maximos !== undefined) body.usos_maximos = opciones.usos_maximos;
+  if (opciones?.fecha_expiracion) body.fecha_expiracion = opciones.fecha_expiracion;
+
+  const response = await fetch(`${API_BASE_URL}/codigos-invitacion/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Estok-Id': estokId,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let errorMsg = 'Error al generar código de invitación';
     try {
       const errorData = await response.json();
       errorMsg = errorData.error || Object.values(errorData).flat().join(', ') || errorMsg;
