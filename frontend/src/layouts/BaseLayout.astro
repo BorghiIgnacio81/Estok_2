@@ -162,6 +162,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 </html>
 
 <script>
+  import { getCachedUser, getEstokActivoId, generarCodigoInvitacion, fetchRoles as fetchRolesFromAuth } from '../services/auth';
+
   // ===========================================================================
   // SISTEMA DE TOASTS GLOBAL
   // ===========================================================================
@@ -236,33 +238,28 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   const invitarBtn = document.getElementById('invitarBtn')!;
 
   function updateEstokUI() {
-    const userData = localStorage.getItem('estok_user');
-    const estokActivoId = localStorage.getItem('estok_activo_id');
+    const user = getCachedUser();
+    const estokActivoId = getEstokActivoId();
 
-    if (!userData || !estokActivoId) {
+    if (!user || !estokActivoId) {
       estokSection.classList.add('hidden');
       return;
     }
 
-    try {
-      const user = JSON.parse(userData);
-      const estokActivo = user.estoks?.find((e: any) => e.id === estokActivoId);
+    const estokActivo = user.estoks?.find((e: any) => e.id === estokActivoId);
 
-      if (estokActivo) {
-        estokSection.classList.remove('hidden');
-        estokNombre.textContent = estokActivo.nombre;
-        estokRoleBadge.textContent = estokActivo.role || '';
+    if (estokActivo) {
+      estokSection.classList.remove('hidden');
+      estokNombre.textContent = estokActivo.nombre;
+      estokRoleBadge.textContent = estokActivo.role || '';
 
-        // Mostrar botón Invitar solo si es Admin
-        if (estokActivo.role === 'Admin') {
-          invitarBtn.classList.remove('hidden');
-        } else {
-          invitarBtn.classList.add('hidden');
-        }
+      // Mostrar botón Invitar solo si es Admin
+      if (estokActivo.role === 'Admin') {
+        invitarBtn.classList.remove('hidden');
       } else {
-        estokSection.classList.add('hidden');
+        invitarBtn.classList.add('hidden');
       }
-    } catch {
+    } else {
       estokSection.classList.add('hidden');
     }
   }
@@ -305,26 +302,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   // ===========================================================================
   // MODAL DE INVITACIÓN
   // ===========================================================================
-
-  const API_BASE_URL = 'http://127.0.0.1:8000/api';
-
-  let rolesCache: Array<{ id: string; name: string }> | null = null;
-
-  async function fetchRoles(): Promise<Array<{ id: string; name: string }>> {
-    if (rolesCache) return rolesCache;
-    const token = localStorage.getItem('estok_access_token');
-    if (!token) return [];
-    try {
-      const res = await fetch(`${API_BASE_URL}/roles/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (res.ok) {
-        rolesCache = await res.json();
-        return rolesCache!;
-      }
-    } catch { /* ignore */ }
-    return [];
-  }
 
   function crearModalInvitacion() {
     // Evitar duplicados
@@ -421,11 +398,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       panelCodigo.classList.add('hidden');
     });
 
-    // Cargar roles dinámicamente
+    // Cargar roles dinámicamente desde auth.ts
     const rolSelector = document.getElementById('rolSelector') as HTMLSelectElement;
-    fetchRoles().then(roles => {
+    fetchRolesFromAuth().then((roles: Array<{ id: string; name: string }>) => {
       rolSelector.innerHTML = '<option value="">Seleccionar rol...</option>';
-      roles.forEach(r => {
+      roles.forEach((r: { id: string; name: string }) => {
         const opt = document.createElement('option');
         opt.value = r.id;
         opt.textContent = r.name;
@@ -433,7 +410,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       });
     });
 
-    // Generar código
+    // Generar código usando auth.ts
     const generarBtn = document.getElementById('generarCodigoBtn')!;
     const codigoGenerado = document.getElementById('codigoGenerado')!;
     const codigoTexto = document.getElementById('codigoTexto')!;
@@ -456,30 +433,13 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       (generarBtn as HTMLButtonElement).disabled = true;
 
       try {
-        const estokId = localStorage.getItem('estok_activo_id');
+        const estokId = getEstokActivoId();
         if (!estokId) throw new Error('No hay Estok activo');
 
-        const token = localStorage.getItem('estok_access_token');
-        const body: Record<string, unknown> = { role: roleId };
         const usos = parseInt(usosMaximos.value, 10);
-        if (usos > 0) body.usos_maximos = usos;
+        const opciones = usos > 0 ? { usos_maximos: usos } : undefined;
 
-        const res = await fetch(`${API_BASE_URL}/codigos-invitacion/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'X-Estok-Id': estokId,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || Object.values(err).flat().join(', ') || 'Error al generar código');
-        }
-
-        const data = await res.json();
+        const data = await generarCodigoInvitacion(estokId, roleId, opciones);
         codigoTexto.textContent = data.codigo;
         codigoGenerado.classList.remove('hidden');
         codigoError.classList.add('hidden');
