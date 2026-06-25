@@ -513,7 +513,7 @@ class CodigoInvitacionSerializer(serializers.ModelSerializer):
             'activo', 'usos_maximos', 'usos_actuales',
             'fecha_expiracion', 'es_valido', 'created_at',
         ]
-        read_only_fields = ['id', 'codigo', 'usos_actuales', 'created_at']
+        read_only_fields = ['id', 'codigo', 'usos_actuales', 'created_at', 'estok']
 
 
 class UnirseConCodigoSerializer(serializers.Serializer):
