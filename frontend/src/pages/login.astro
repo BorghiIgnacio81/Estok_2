@@ -78,19 +78,6 @@ import AuthLayout from '../layouts/AuthLayout.astro';
         </a>
       </p>
 
-      <!-- Acceso rápido para Ignacio Borghi -->
-      <div class="mt-6 pt-4 border-t border-gray-100">
-        <button
-          id="quickLoginBtn"
-          type="button"
-          class="w-full py-2 px-4 bg-gray-100 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base flex items-center justify-center gap-2"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          Acceder como Ignacio Borghi
-        </button>
-      </div>
     </form>
   </div>
 </AuthLayout>
@@ -130,29 +117,6 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     }
   }
 
-  // ===========================================================================
-  // ACCESO RÁPIDO: IGNACIO BORGHI
-  // NOTA: Este botón es visible para cualquier visitante del sitio.
-  // Las credenciales están hardcodeadas en el frontend.
-  // Considerar eliminar o proteger en producción.
-  // ===========================================================================
-
-  const quickLoginBtn = document.getElementById('quickLoginBtn');
-
-  quickLoginBtn?.addEventListener('click', async () => {
-    hideError();
-    setLoading(true);
-
-    try {
-      await login({ username: 'ignacio_borghi', password: 'S0l3d4d' });
-      window.location.href = '/';
-    } catch (err: any) {
-      showError(err?.error || '❌ No se pudo acceder automáticamente. Ingresa manualmente.');
-      console.error('Quick login error:', err);
-      setLoading(false);
-    }
-  });
-
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError();
@@ -174,8 +138,8 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     setLoading(true);
 
     try {
-      await login({ username, password });
-      window.location.href = '/';
+      const { user } = await login({ username, password });
+      window.location.href = user.estoks.length === 0 ? '/estoks' : '/';
     } catch (err: any) {
       const errorMsg = err?.error || 'Error de conexión. Verifica que el servidor esté corriendo.';
       showError('❌ ' + errorMsg);
