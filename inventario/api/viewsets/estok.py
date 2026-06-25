@@ -33,6 +33,11 @@ class EstokViewSet(viewsets.ModelViewSet):
     queryset = Estok.objects.all()
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
+    def get_permissions(self):
+        if self.action in ('unirse', 'mis_estoks'):
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         if self.action == 'create':
             return EstokCreateSerializer
