@@ -382,10 +382,16 @@ export async function fetchRoles(): Promise<Role[]> {
     throw { error: 'No hay sesión activa' } as AuthError;
   }
 
+  const estokId = getEstokActivoId();
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${token}`,
+  };
+  if (estokId) {
+    headers['X-Estok-Id'] = estokId;
+  }
+
   const response = await fetch(`${API_BASE_URL}/roles/`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
+    headers,
   });
 
   if (!response.ok) {
