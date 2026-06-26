@@ -303,16 +303,173 @@ class LMStudioClient:
 
 
 # =============================================================================
+# CLIENTE GEMINI (Google Generative AI)
+# =============================================================================
+class GeminiClient:
+    """
+    Cliente para conectar con la API de Gemini 2.5 Flash-Lite de Google.
+    Utiliza la librería oficial `google-generativeai`.
+
+    Lee la API key desde la variable de entorno GEMINI_API_KEY.
+    """
+
+    MODEL_NAME = "gemini-2.5-flash-lite"  # alias estable de Gemini 2.5 Flash-Lite
+    GENERATION_CONFIG = {
+        "temperature": 0.1,
+        "max_output_tokens": 1024,
+    }
+
+    def __init__(self):
+        self.api_key = os.environ.get('GEMINI_API_KEY')
+        if not self.api_key:
+            logger.warning("GEMINI_API_KEY no está configurada en el entorno")
+        self._client = None
+
+    def _get_client(self):
+        """Inicializa el cliente de Gemini si no está creado."""
+        if self._client is None:
+            import google.generativeai as genai
+            genai.configure(api_key=self.api_key)
+            self._client = genai.GenerativeModel(
+                model_name=self.MODEL_NAME,
+                generation_config=self.GENERATION_CONFIG,
+            )
+        return self._client
+
+    def _check_health(self) -> bool:
+        """Verifica que la API key de Gemini sea válida."""
+        if not self.api_key:
+            return False
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=self.api_key)
+            genai.list_models()
+            return True
+        except Exception as e:
+            logger.warning("Gemini no está disponible: %s", e)
+            return False
+
+    def analyze_base64(self, image_base64: str, rag_context: str = "") -> Optional[Dict[str, Any]]:
+        """
+        Envía una imagen en Base64 a Gemini 2.5 Flash-Lite para análisis.
+
+        Args:
+            image_base64: Imagen codificada en Base64 (con o sin prefijo data:image).
+            rag_context: Contexto de objetos similares ya catalogados (opcional).
+
+        Returns:
+            Diccionario con la respuesta JSON del modelo, o None si falla.
+            Misma estructura que LMStudioClient._analyze_base64().
+        """
+        if not self.api_key:
+            logger.error("GEMINI_API_KEY no está configurada")
+            return None
+
+        # Limpiar prefijo data:image si existe
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',', 1)[1]
+
+        # Prompt del sistema - idéntico al de LM Studio para misma estructura
+        system_prompt = (
+            "Eres un experto en catalogación de objetos. Responde ÚNICAMENTE con JSON válido, "
+            "sin texto adicional, sin markdown. Usa esta estructura:\n\n"
+            "{\n"
+            '  "nombre": "Nombre del objeto",\n'
+            '  "marca": "Marca o fabricante",\n'
+            '  "autor": "Autor del libro",\n'
+            '  "anio": 2020,\n'
+            '  "isbn_issn": "ISBN o ISSN si visible",\n'
+            '  "edicion": "Edición",\n'
+            '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
+            '  "precio_estimado_mercado": 150.00,\n'
+            '  "descripcion": "Descripción breve del objeto",\n'
+            '  "color": "Color predominante",\n'
+            '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
+            '  "confianza_general": 0.85,\n'
+            '  "nombre_serie": "Serie si es cómic",\n'
+            '  "titulo_tomo": "Título del tomo",\n'
+            '  "numero_tomo": 1,\n'
+            '  "editorial": "Editorial",\n'
+            '  "idioma": "Idioma"\n'
+            "}\n\n"
+            "REGLAS:\n"
+            "- Si es un LIBRO: pon el título en 'nombre', autor en 'autor', editorial en 'editorial', "
+            "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
+            "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
+            "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia'.\n"
+            "- Si no puedes determinar un campo, déjalo vacío o null.\n"
+            "- confianza_general: 0-1. Sé conservador.\n"
+            "- Lee el texto visible en la imagen (títulos, autores).\n"
+            "- No inventes información."
+        )
+
+        if rag_context:
+            system_prompt += "\n\n" + rag_context
+
+        import time as time_module
+        start_time = time_module.time()
+
+        # Estimar tamaño de la imagen
+        img_size_mb = len(image_base64) * 0.73 / (1024 * 1024)
+        logger.info("Enviando imagen a Gemini 2.5 Flash-Lite para análisis (tamaño: %.2fMB)...", img_size_mb)
+
+        try:
+            client = self._get_client()
+            import google.generativeai as genai
+
+            response = client.generate_content([
+                system_prompt,
+                {"mime_type": "image/jpeg", "data": base64.b64decode(image_base64)}
+            ])
+
+            elapsed = time_module.time() - start_time
+            content = response.text
+            logger.info("✅ Gemini respondió en %.1fs. Respuesta: %s", elapsed, content[:300])
+
+            # Intentar parsear como JSON
+            try:
+                result = json.loads(content)
+                logger.info("✅ JSON parseado correctamente. Campos: %s", list(result.keys()))
+                return result
+            except json.JSONDecodeError:
+                # Intentar extraer JSON de un bloque de código
+                import re
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group())
+                        logger.info("✅ JSON extraído de bloque de código. Campos: %s", list(result.keys()))
+                        return result
+                    except:
+                        pass
+                logger.error("❌ No se pudo parsear la respuesta de Gemini como JSON: %s", content[:500])
+                return None
+
+        except Exception as e:
+            elapsed = time_module.time() - start_time
+            logger.error("❌ Error al comunicarse con Gemini después de %.1fs: %s", elapsed, e)
+            return None
+
+
+# =============================================================================
 # SERVICIO DE VISIÓN
 # =============================================================================
 class AIVisionService:
     """
     Servicio principal de visión por IA.
     Orquesta el análisis de imágenes y la lógica de campos pendientes.
+    Soporta motores: 'local' (LM Studio) y 'gemini' (Google Gemini 2.5 Flash-Lite).
     """
 
     def __init__(self):
         self.client = LMStudioClient()
+        self._gemini_client = None
+
+    def _get_gemini_client(self) -> GeminiClient:
+        """Lazy initialization del cliente Gemini."""
+        if self._gemini_client is None:
+            self._gemini_client = GeminiClient()
+        return self._gemini_client
 
     def _buscar_objetos_similares(self, max_resultados: int = 5) -> str:
         """
@@ -606,7 +763,7 @@ class AIVisionService:
 
     def procesar_imagen_desde_base64(self, image_base64: str) -> VisionResult:
         """
-        Procesa una imagen desde una cadena Base64.
+        Procesa una imagen desde una cadena Base64 usando el motor LOCAL (LM Studio).
         Comprime la imagen automáticamente antes de enviarla al modelo
         para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct.
 
@@ -619,28 +776,58 @@ class AIVisionService:
         Returns:
             VisionResult con los datos extraídos y campos pendientes.
         """
+        return self.procesar_imagen_desde_base64_con_motor(image_base64, motor='local')
+
+    def procesar_imagen_desde_base64_con_motor(self, image_base64: str, motor: str = 'local') -> VisionResult:
+        """
+        Procesa una imagen desde una cadena Base64 usando el motor especificado.
+
+        Args:
+            image_base64: Imagen codificada en Base64.
+            motor: 'local' para LM Studio, 'gemini' para Google Gemini 2.5 Flash-Lite.
+
+        Returns:
+            VisionResult con los datos extraídos y campos pendientes.
+        """
         # Buscar objetos similares ya catalogados (RAG) para mejorar precisión
         rag_context = self._buscar_objetos_similares()
         if rag_context:
             logger.info("📚 RAG: incluyendo %d objetos similares como contexto", rag_context.count("\n- '"))
 
-        # Comprimir la imagen antes de enviarla al modelo
-        # Esto es crítico para no exceder el contexto de 4096 tokens
-        image_base64_comprimida = self._comprimir_imagen_base64(image_base64)
-        raw_result = self.client.analyze_base64(image_base64_comprimida, rag_context=rag_context)
+        if motor == 'gemini':
+            # Gemini: no necesita compresión (contexto grande), enviar directo
+            gemini_client = self._get_gemini_client()
+            raw_result = gemini_client.analyze_base64(image_base64, rag_context=rag_context)
 
-        if raw_result is None:
-            return VisionResult(
-                confianza_general=0.0,
-                campos_pendientes=[
-                    "nombre", "marca", "autor", "anio",
-                    "estado_conservacion", "precio_estimado_mercado",
-                    "descripcion", "color", "categoria"
-                ],
-                raw_response="LM Studio no disponible"
-            )
+            if raw_result is None:
+                return VisionResult(
+                    confianza_general=0.0,
+                    campos_pendientes=[
+                        "nombre", "marca", "autor", "anio",
+                        "estado_conservacion", "precio_estimado_mercado",
+                        "descripcion", "color", "categoria"
+                    ],
+                    raw_response="Gemini no disponible"
+                )
 
-        return self._mapear_resultado(raw_result)
+            return self._mapear_resultado(raw_result)
+        else:
+            # Local (LM Studio): comprimir para no exceder contexto de 4096 tokens
+            image_base64_comprimida = self._comprimir_imagen_base64(image_base64)
+            raw_result = self.client.analyze_base64(image_base64_comprimida, rag_context=rag_context)
+
+            if raw_result is None:
+                return VisionResult(
+                    confianza_general=0.0,
+                    campos_pendientes=[
+                        "nombre", "marca", "autor", "anio",
+                        "estado_conservacion", "precio_estimado_mercado",
+                        "descripcion", "color", "categoria"
+                    ],
+                    raw_response="LM Studio no disponible"
+                )
+
+            return self._mapear_resultado(raw_result)
 
     def crear_objeto_desde_vision(
         self,

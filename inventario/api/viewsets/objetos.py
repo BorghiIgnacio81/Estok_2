@@ -190,7 +190,8 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def analizar_imagen(self, request):
         """
-        Analiza una imagen recibida en Base64 usando IA local (LM Studio).
+        Analiza una imagen recibida en Base64 usando IA.
+        Soporta motores: 'local' (LM Studio) y 'gemini' (Google Gemini 2.5 Flash-Lite).
         Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
         Si se envía `crear_objeto: true`, también crea el objeto en BD.
         """
@@ -203,6 +204,13 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
         if ',' in imagen_base64:
             imagen_base64 = imagen_base64.split(',', 1)[1]
+
+        motor = request.data.get('motor', 'local')
+        if motor not in ('local', 'gemini'):
+            return Response(
+                {"error": "El motor debe ser 'local' o 'gemini'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         solo_analisis = request.data.get('solo_analisis', True)
         if isinstance(solo_analisis, str):
@@ -238,7 +246,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
         try:
             service = AIVisionService()
-            resultado = service.procesar_imagen_desde_base64(imagen_base64)
+            resultado = service.procesar_imagen_desde_base64_con_motor(imagen_base64, motor=motor)
 
             response_data = {
                 "mensaje": "Imagen analizada correctamente",

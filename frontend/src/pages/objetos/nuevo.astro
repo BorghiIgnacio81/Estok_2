@@ -115,6 +115,36 @@ import ImageEditor from '../../components/ImageEditor.astro';
           Toma o selecciona una foto, edítala si lo deseas, y presiona "Analizar con IA" para llenar los campos automáticamente.
         </p>
 
+        <!-- Selector de motor IA -->
+        <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Motor de análisis:</label>
+          <div class="flex gap-2">
+            <button type="button" id="motorLocalBtn" data-motor="local"
+              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
+              border-purple-700 bg-purple-50 text-purple-800">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🖥️</span>
+                <div>
+                  <div class="font-semibold">Local (LM Studio)</div>
+                  <div class="text-xs opacity-75 mt-0.5">Privado — tus fotos nunca salen de tu red. Requiere que tu PC esté encendida y conectada.</div>
+                </div>
+              </div>
+            </button>
+            <button type="button" id="motorGeminiBtn" data-motor="gemini"
+              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
+              border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">☁️</span>
+                <div>
+                  <div class="font-semibold">Gemini (nube)</div>
+                  <div class="text-xs opacity-75 mt-0.5">Más rápido y disponible siempre. Tus fotos se procesan en servidores de Google.</div>
+                </div>
+              </div>
+            </button>
+          </div>
+          <input type="hidden" id="motorSeleccionado" value="local" />
+        </div>
+
         <!-- Indicador de progreso (indeterminado - no simula porcentaje) -->
         <div id="iaProgressContainer" class="hidden mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
           <div class="flex items-center gap-3">
@@ -342,6 +372,30 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // CONSTANTES
   // ===========================================================================
   const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
+  // ===========================================================================
+  // SELECTOR DE MOTOR IA (Local / Gemini)
+  // ===========================================================================
+  const motorLocalBtn = document.getElementById('motorLocalBtn');
+  const motorGeminiBtn = document.getElementById('motorGeminiBtn');
+  const motorSeleccionado = document.getElementById('motorSeleccionado');
+
+  let motorActual = 'local';
+
+  function seleccionarMotor(motor: string) {
+    motorActual = motor;
+    motorSeleccionado.value = motor;
+    if (motor === 'local') {
+      motorLocalBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-purple-700 bg-purple-50 text-purple-800';
+      motorGeminiBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-gray-200 bg-white text-gray-600 hover:border-gray-300';
+    } else {
+      motorGeminiBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-blue-500 bg-blue-50 text-blue-800';
+      motorLocalBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-gray-200 bg-white text-gray-600 hover:border-gray-300';
+    }
+  }
+
+  motorLocalBtn?.addEventListener('click', () => seleccionarMotor('local'));
+  motorGeminiBtn?.addEventListener('click', () => seleccionarMotor('gemini'));
 
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad de LM Studio
@@ -789,6 +843,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         body: JSON.stringify({
           imagen_base64: base64Image,
           solo_analisis: true,
+          motor: motorActual,
         }),
         signal: controller.signal,
       });
