@@ -551,8 +551,27 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def test_ia_stress(self, request):
-        """Endpoint de test de estrés para el servicio de IA."""
+        """
+        Endpoint de test de estrés para el servicio de IA.
+        Soporta parámetro ?motor=local|gemini para verificar disponibilidad
+        del motor seleccionado.
+        """
+        motor = request.query_params.get('motor', 'local')
+        if motor not in ('local', 'gemini'):
+            return Response(
+                {"error": "El motor debe ser 'local' o 'gemini'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         start = time.time()
+
+        if motor == 'gemini':
+            return self._check_gemini_health(start)
+        else:
+            return self._check_lmstudio_health(start)
+
+    def _check_lmstudio_health(self, start):
+        """Verifica disponibilidad de LM Studio."""
         try:
             client = LMStudioClient()
             available = client._check_health()
@@ -582,6 +601,38 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 "latency_ms": latency,
                 "error": str(e),
                 "message": f"Error de conexión en {latency}ms: {str(e)}",
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    def _check_gemini_health(self, start):
+        """Verifica disponibilidad de Gemini (API key configurada)."""
+        try:
+            from ...services.ai_vision_service import GeminiClient
+            gemini = GeminiClient()
+            available = gemini._check_health()
+            latency = int((time.time() - start) * 1000)
+
+            if available:
+                return Response({
+                    "status": "ok",
+                    "latency_ms": latency,
+                    "model": "gemini-2.5-flash-lite (Google Gemini)",
+                    "message": f"Gemini conectado en {latency}ms.",
+                })
+            else:
+                return Response({
+                    "status": "error",
+                    "latency_ms": latency,
+                    "model": None,
+                    "message": "Gemini no está disponible. Verifica que GEMINI_API_KEY esté configurada en el servidor.",
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        except Exception as e:
+            latency = int((time.time() - start) * 1000)
+            return Response({
+                "status": "error",
+                "latency_ms": latency,
+                "error": str(e),
+                "message": f"Error de conexión con Gemini en {latency}ms: {str(e)}",
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     @action(detail=False, methods=['get'])

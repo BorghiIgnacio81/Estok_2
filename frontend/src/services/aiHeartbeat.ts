@@ -24,16 +24,15 @@ class AIHeartbeatService {
   /**
    * Verifica si la IA está disponible a través del backend
    */
-  async checkConnection(): Promise<boolean> {
+  async checkConnection(motor: string = 'local'): Promise<boolean> {
     if (this._checking) return this._connected;
     this._checking = true;
 
     try {
-      const response = await fetch(`${API_URL}/objetos/test_ia_stress/`, {
+      const response = await fetch(`${API_URL}/objetos/test_ia_stress/?motor=${motor}`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
-
 
       const data = await response.json();
       this._connected = response.ok && data.status === 'ok';
