@@ -9,7 +9,7 @@
 // incrementá este número para que la PWA detecte la nueva versión
 // y le muestre un cartel de actualización al usuario.
 // =============================================================================
-const CACHE_NAME = 'estok-cache-v8';
+const CACHE_NAME = 'estok-cache-v9';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
