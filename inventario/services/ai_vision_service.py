@@ -304,21 +304,20 @@ class LMStudioClient:
 
 
 # =============================================================================
-# CLIENTE GEMINI (Google Generative AI)
+# CLIENTE GEMINI (Google Gen AI SDK)
 # =============================================================================
 class GeminiClient:
     """
     Cliente para conectar con la API de Gemini 2.5 Flash-Lite de Google.
-    Utiliza la librería oficial `google-generativeai`.
+    Utiliza el SDK oficial `google-genai` (google.genai).
 
     Lee la API key desde la variable de entorno GEMINI_API_KEY.
+
+    Nota: El paquete `google-generativeai` (0.8.x) está deprecado.
+    Esta implementación usa `google-genai` (>=2.0) que es el SDK actual.
     """
 
     MODEL_NAME = "gemini-2.5-flash-lite"  # alias estable de Gemini 2.5 Flash-Lite
-    GENERATION_CONFIG = {
-        "temperature": 0.1,
-        "max_output_tokens": 1024,
-    }
 
     def __init__(self):
         self.api_key = os.environ.get('GEMINI_API_KEY')
@@ -329,12 +328,8 @@ class GeminiClient:
     def _get_client(self):
         """Inicializa el cliente de Gemini si no está creado."""
         if self._client is None:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            self._client = genai.GenerativeModel(
-                model_name=self.MODEL_NAME,
-                generation_config=self.GENERATION_CONFIG,
-            )
+            import google.genai as genai
+            self._client = genai.Client(api_key=self.api_key)
         return self._client
 
     def _check_health(self) -> bool:
@@ -342,9 +337,8 @@ class GeminiClient:
         if not self.api_key:
             return False
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            genai.list_models()
+            client = self._get_client()
+            client.models.list()
             return True
         except Exception as e:
             logger.warning("Gemini no está disponible: %s", e)
@@ -415,13 +409,24 @@ class GeminiClient:
         logger.info("Enviando imagen a Gemini 2.5 Flash-Lite para análisis (tamaño: %.2fMB)...", img_size_mb)
 
         try:
-            client = self._get_client()
-            import google.generativeai as genai
+            from google.genai import types as genai_types
 
-            response = client.generate_content([
-                system_prompt,
-                {"mime_type": "image/jpeg", "data": base64.b64decode(image_base64)}
-            ])
+            client = self._get_client()
+
+            response = client.models.generate_content(
+                model=self.MODEL_NAME,
+                contents=[
+                    genai_types.Part.from_text(text=system_prompt),
+                    genai_types.Part.from_bytes(
+                        data=base64.b64decode(image_base64),
+                        mime_type="image/jpeg",
+                    ),
+                ],
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.1,
+                    max_output_tokens=1024,
+                ),
+            )
 
             elapsed = time_module.time() - start_time
             content = response.text
