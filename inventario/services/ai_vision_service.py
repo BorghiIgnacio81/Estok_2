@@ -561,7 +561,7 @@ class AIVisionService:
             logger.warning("Error al buscar objetos similares para RAG: %s", e)
             return ""
 
-    def _comprimir_imagen_base64(self, image_base64: str, max_size_mb: float = MAX_IMAGE_SIZE_FOR_GPU_MB) -> str:
+    def _comprimir_imagen_base64(self, image_base64: str, max_size_mb: float = MAX_IMAGE_SIZE_FOR_GPU_MB, max_dimension: int = MAX_IMAGE_DIMENSION, quality: int = COMPRESS_QUALITY) -> str:
         """
         Comprime una imagen en Base64 si excede el tamaño máximo para GPU.
         Usa PIL/Pillow para redimensionar y comprimir la imagen antes de enviarla
@@ -570,6 +570,8 @@ class AIVisionService:
         Args:
             image_base64: Imagen en formato Base64 (con o sin prefijo data:image).
             max_size_mb: Tamaño máximo en MB para la imagen comprimida.
+            max_dimension: Máximo de píxeles en el lado mayor (default: 640 para LM Studio).
+            quality: Calidad JPEG (default: 30 para LM Studio, 70 para Gemini).
 
         Returns:
             Imagen Base64 comprimida (sin prefijo data:image).
@@ -587,8 +589,8 @@ class AIVisionService:
             return image_base64
 
         logger.info(
-            "Comprimiendo imagen para GPU: %.2fMB -> objetivo <%.2fMB",
-            estimated_mb, max_size_mb
+            "Comprimiendo imagen: %.2fMB -> objetivo <%.2fMB (max_dim=%dpx, quality=%d%%)",
+            estimated_mb, max_size_mb, max_dimension, quality
         )
 
         try:
@@ -605,35 +607,33 @@ class AIVisionService:
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
 
-            # Redimensionar si es muy grande (máximo MAX_IMAGE_DIMENSION px en cualquier lado)
-            # Usamos 640px para no exceder el contexto de 4096 tokens de qwen2.5-vl-7b-instruct
-            max_dimension = MAX_IMAGE_DIMENSION
+            # Redimensionar si es muy grande
             if max(img.width, img.height) > max_dimension:
                 ratio = max_dimension / max(img.width, img.height)
                 new_width = int(img.width * ratio)
                 new_height = int(img.height * ratio)
                 img = img.resize((new_width, new_height), Image.LANCZOS)
-                logger.info("Imagen redimensionada a %dx%d (máx %dpx para contexto 4096 tokens)", new_width, new_height, max_dimension)
+                logger.info("Imagen redimensionada a %dx%d (máx %dpx)", new_width, new_height, max_dimension)
 
             # Comprimir con calidad ajustable
             output = io.BytesIO()
-            quality = COMPRESS_QUALITY
-            img.save(output, format='JPEG', quality=quality, optimize=True)
+            current_quality = quality
+            img.save(output, format='JPEG', quality=current_quality, optimize=True)
 
             # Verificar tamaño resultante
             compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
 
             # Si aún excede, reducir calidad progresivamente
-            while compressed_size_mb > max_size_mb and quality > 10:
-                quality -= 5
+            while compressed_size_mb > max_size_mb and current_quality > 10:
+                current_quality -= 5
                 output = io.BytesIO()
-                img.save(output, format='JPEG', quality=quality, optimize=True)
+                img.save(output, format='JPEG', quality=current_quality, optimize=True)
                 compressed_size_mb = len(output.getvalue()) / (1024 * 1024)
 
             compressed_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
             logger.info(
                 "Imagen comprimida: %.2fMB -> %.2fMB (calidad: %d%%)",
-                estimated_mb, compressed_size_mb, quality
+                estimated_mb, compressed_size_mb, current_quality
             )
 
             return compressed_b64
@@ -805,9 +805,19 @@ class AIVisionService:
             logger.info("📚 RAG: incluyendo %d objetos similares como contexto", rag_context.count("\n- '"))
 
         if motor == 'gemini':
-            # Gemini: no necesita compresión (contexto grande), enviar directo
+            # Gemini: compresión ligera para reducir payload y latencia
+            # Las fotos de cámara de celular pueden pesar 3-8MB, lo que hace
+            # que la subida a la API de Google sea lenta y costosa en tokens.
+            # Comprimimos a 1024px/70% calidad (~200-500KB) - suficiente para
+            # que el modelo vea detalles sin mandar MB innecesarios.
+            image_base64_comprimida = self._comprimir_imagen_base64(
+                image_base64,
+                max_size_mb=1.0,       # máximo 1MB
+                max_dimension=1024,    # máximo 1024px en lado mayor
+                quality=70,            # calidad JPEG 70%
+            )
             gemini_client = self._get_gemini_client()
-            raw_result = gemini_client.analyze_base64(image_base64, rag_context=rag_context)
+            raw_result = gemini_client.analyze_base64(image_base64_comprimida, rag_context=rag_context)
 
             if raw_result is None:
                 return VisionResult(
