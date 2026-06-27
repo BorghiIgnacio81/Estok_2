@@ -814,7 +814,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       // Validar que la IA esté disponible (por si el botón se habilitó incorrectamente)
       if (!iaAvailable) {
-        window.showToast?.('❌ La IA no está disponible en este momento. Verificá la conexión con LM Studio.', 'error');
+        const msg = motorActual === 'gemini'
+          ? '❌ Gemini no está disponible. Verificá que la API key esté configurada en el servidor.'
+          : '❌ La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
+        window.showToast?.(msg, 'error');
         return;
       }
 
@@ -824,7 +827,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       iaBtnSpinner.classList.remove('hidden');
       iaProgressContainer.classList.remove('hidden');
       iaProgressText.textContent = '🤖 Analizando imagen con IA...';
-      iaProgressSubtext.textContent = 'Procesando en GPU Radeon RX 9060 XT';
+      iaProgressSubtext.textContent = motorActual === 'gemini' ? '☁️ Procesando en Google Gemini (nube)' : '🖥️ Procesando en LM Studio (local)';
       iaStatus.classList.add('hidden');
 
       // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
