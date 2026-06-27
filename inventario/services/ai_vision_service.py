@@ -426,6 +426,10 @@ class GeminiClient:
                     temperature=0.1,
                     max_output_tokens=1024,
                 ),
+                # Timeout explícito: 90s para evitar que se cuelgue para siempre
+                # Gunicorn tiene timeout 200s, Nginx 200s, frontend 210s
+                # Este timeout es más bajo para dar tiempo a reintentar si falla
+                timeout=90000,  # 90 segundos en milisegundos
             )
 
             elapsed = time_module.time() - start_time
