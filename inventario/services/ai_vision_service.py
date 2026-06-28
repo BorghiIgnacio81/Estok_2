@@ -424,7 +424,10 @@ class GeminiClient:
                     genai_types.Part.from_text(text="Analiza este objeto y devuelve los datos en JSON valido, sin texto adicional, sin markdown."),
                 ],
                 config=genai_types.GenerateContentConfig(
-                    system_instruction=genai_types.Part.from_text(text=system_prompt),
+                    # system_instruction debe ser Content, NO Part
+                    system_instruction=genai_types.Content(
+                        parts=[genai_types.Part.from_text(text=system_prompt)]
+                    ),
                     temperature=0.1,
                     max_output_tokens=1024,
                 ),
@@ -435,7 +438,17 @@ class GeminiClient:
             )
 
             elapsed = time_module.time() - start_time
-            content = response.text
+            # Obtener texto de forma segura (response.text puede fallar si la respuesta fue bloqueada)
+            try:
+                content = response.text
+            except (ValueError, AttributeError) as e:
+                logger.error("❌ Gemini response.text fallo: %s", e)
+                # Intentar extraer de candidates
+                try:
+                    content = response.candidates[0].content.parts[0].text
+                except Exception:
+                    logger.error("❌ Tampoco se pudo extraer texto de candidates")
+                    return None
             # LOG TEMPORAL: respuesta COMPLETA de Gemini para diagnosticar parseo
             logger.info("✅ Gemini respondió en %.1fs.", elapsed)
             logger.info("⚡ GEMINI_RESPUESTA_CRUDA_INICIO ⚡\n%s\n⚡ GEMINI_RESPUESTA_CRUDA_FIN ⚡", content)

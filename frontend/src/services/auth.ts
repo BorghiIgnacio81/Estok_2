@@ -70,6 +70,8 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(ESTOK_ACTIVO_KEY);
+  // Limpiar foto persistente de la pagina de nuevo objeto
+  try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
 }
 
 export function isAuthenticated(): boolean {
