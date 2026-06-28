@@ -113,9 +113,9 @@ import AuthGuard from '../components/AuthGuard.astro';
   // LISTADO DINÁMICO DE OBJETOS
   // ===========================================================================
 
-  import { getAuthHeaders } from '../services/auth';
+  import {getAuthHeaders, API_BASE_URL} from '../services/auth';
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
 
   const loadingState = document.getElementById('loadingState')!;
   const emptyState = document.getElementById('emptyState')!;
@@ -253,15 +253,19 @@ import AuthGuard from '../components/AuthGuard.astro';
         if (!id) return;
         if (!confirm(`¿Estás seguro de eliminar "${nombre}"? Se marcará como eliminado.`)) return;
         try {
-          const res = await fetch(`${API_URL}/objetos/${id}/soft_delete/`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
+          const res = await fetch(`${API_BASE_URL}/objetos/${id}/`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders(),
+            },
           });
-          if (res.ok) {
+          if (res.ok || res.status === 204) {
             (window as any).showSuccess?.(`✅ "${nombre}" eliminado`);
             cargarObjetos(currentTipo);
           } else {
-            (window as any).showError?.('❌ Error al eliminar');
+            const err = await res.json().catch(() => ({}));
+            (window as any).showError?.(`❌ Error al eliminar: ${err.detail || err.error || 'Error desconocido'}`);
           }
         } catch {
           (window as any).showError?.('❌ Error de conexión');
@@ -285,7 +289,7 @@ import AuthGuard from '../components/AuthGuard.astro';
     showLoading();
 
     try {
-      let url = `${API_URL}/objetos/?page_size=50`;
+      let url = `${API_BASE_URL}/objetos/?page_size=50`;
       if (tipo) url += `&tipo=${tipo}`;
 
       const response = await fetch(url, { headers: getAuthHeaders() });
@@ -347,7 +351,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       if (query.length > 0 && query.length < 2) return;
 
       showLoading();
-      let url = `${API_URL}/objetos/?page_size=50`;
+      let url = `${API_BASE_URL}/objetos/?page_size=50`;
       if (currentTipo) url += `&tipo=${currentTipo}`;
       if (query) url += `&search=${encodeURIComponent(query)}`;
 
@@ -364,7 +368,7 @@ import AuthGuard from '../components/AuthGuard.astro';
 
   document.getElementById('exportCsvBtn')?.addEventListener('click', async () => {
     try {
-      const response = await fetch(`${API_URL}/objetos/exportar_csv/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/exportar_csv/`, {
         headers: getAuthHeaders(),
       });
 

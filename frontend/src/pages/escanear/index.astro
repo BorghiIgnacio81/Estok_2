@@ -95,7 +95,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
   // ESCÁNER QR - Usa jsQR para decodificar QR desde la cámara
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
 
   const noCamera = document.getElementById('noCamera')!;
   const scanningState = document.getElementById('scanningState')!;
@@ -112,7 +112,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
   let animationFrameId: number | null = null;
   let scanning = false;
 
-  import { getAuthHeaders } from '../../services/auth';
+  import {getAuthHeaders, API_BASE_URL} from '../../services/auth';
 
 
 
@@ -237,7 +237,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
   async function precargarContenedores() {
     if (cacheLoaded) return;
     try {
-      const res = await fetch(`${API_URL}/contenedores/?limit=100`, {
+      const res = await fetch(`${API_BASE_URL}/contenedores/?limit=100`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
@@ -301,7 +301,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
         // Verificar que el contenedor existe (con timeout corto)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
-        const res = await fetch(`${API_URL}/contenedores/${contenedorId}/`, {
+        const res = await fetch(`${API_BASE_URL}/contenedores/${contenedorId}/`, {
           headers: getAuthHeaders(),
           signal: controller.signal,
         });
@@ -319,7 +319,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
       // Si no se pudo identificar, intentar con el endpoint de escaneo
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${API_URL}/contenedores/escanear/?qr_data=${encodeURIComponent(qrData)}`, {
+      const res = await fetch(`${API_BASE_URL}/contenedores/escanear/?qr_data=${encodeURIComponent(qrData)}`, {
         headers: getAuthHeaders(),
         signal: controller.signal,
       });

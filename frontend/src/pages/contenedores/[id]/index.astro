@@ -124,7 +124,7 @@ export const prerender = false;
   // DETALLE DE CONTENEDOR CON QR Y OBJETOS
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
   const contenedorId = window.location.pathname.split('/').filter(Boolean).pop();
 
   const loadingState = document.getElementById('loadingState')!;
@@ -133,7 +133,7 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  import { getAuthHeaders, getToken } from '../../../services/auth';
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
 
   function getEstadoBadge(estado: string): string {
     const map: Record<string, string> = {
@@ -164,7 +164,7 @@ export const prerender = false;
     detailContent.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/contenedores/${contenedorId}/`, {
+      const response = await fetch(`${API_BASE_URL}/contenedores/${contenedorId}/`, {
         headers: getAuthHeaders(),
       });
 
@@ -221,7 +221,7 @@ export const prerender = false;
     grid.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/objetos/?contenedor=${contenedorId}&page_size=50`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/?contenedor=${contenedorId}&page_size=50`, {
         headers: getAuthHeaders(),
       });
 
@@ -290,7 +290,7 @@ export const prerender = false;
     if (!confirm('¿Regenerar el código QR del contenedor?')) return;
 
     try {
-      const res = await fetch(`${API_URL}/contenedores/${contenedorId}/regenerar_qr/`, {
+      const res = await fetch(`${API_BASE_URL}/contenedores/${contenedorId}/regenerar_qr/`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });

@@ -374,12 +374,12 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
-  import { getAuthHeaders, getToken } from '../../services/auth';
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../../services/auth';
 
   // ===========================================================================
   // CONSTANTES
   // ===========================================================================
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
 
   // ===========================================================================
   // SELECTOR DE MOTOR IA (Local / Gemini)
@@ -407,7 +407,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${API_URL}/objetos/test_ia_stress/?motor=${motorAUsar}`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/test_ia_stress/?motor=${motorAUsar}`, {
         method: 'GET',
         headers: getAuthHeaders(),
         signal: controller.signal,
@@ -649,7 +649,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
     precioReferencia.classList.add('hidden');
     try {
       // PASO 1: Buscar en el inventario local
-      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
@@ -675,7 +675,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
       try {
-        const mlResponse = await fetch(`${API_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
+        const mlResponse = await fetch(`${API_BASE_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
           headers: getAuthHeaders(),
         });
         if (mlResponse.ok) {
@@ -741,7 +741,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   async function cargarUbicaciones() {
     try {
-      const response = await fetch(`${API_URL}/ubicaciones/`, {
+      const response = await fetch(`${API_BASE_URL}/ubicaciones/`, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
@@ -762,7 +762,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   async function cargarContenedores() {
     try {
-      const response = await fetch(`${API_URL}/contenedores/`, {
+      const response = await fetch(`${API_BASE_URL}/contenedores/`, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
@@ -783,7 +783,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   async function cargarUsuarios() {
     try {
-      const response = await fetch(`${API_URL}/usuarios/`, {
+      const response = await fetch(`${API_BASE_URL}/usuarios/`, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
@@ -819,15 +819,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
   tipoSelect.addEventListener('change', () => {
     const tipo = tipoSelect.value || 'objeto';
-    // Recargar CategoryFields con fetch interno
-    fetch(`/api/category-fields?tipo=${tipo}`)
-      .then(r => r.text())
-      .then(html => {
-        categoryContainer.innerHTML = html;
-      })
-      .catch(() => {
-        // Fallback: mantener el actual
-      });
+    // Actualizar CategoryFields localmente (sin llamada API)
+    if ((window as any).updateCategoryFields) {
+      (window as any).updateCategoryFields(tipo);
+    }
   });
 
   // ===========================================================================
@@ -900,7 +895,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       }, 90000);
 
       console.log('[IA] Enviando fetch a analizar_imagen con timeout de 210s');
-      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1080,7 +1075,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         reader.readAsDataURL(file);
       });
 
-      const response = await fetch(`${API_URL}/objetos/analizar_imagen/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1216,7 +1211,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       }
 
       // 1. Crear el objeto
-      const createResponse = await fetch(`${API_URL}/objetos/`, {
+      const createResponse = await fetch(`${API_BASE_URL}/objetos/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1251,7 +1246,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         formDataUpload.append('es_principal', 'true');
         formDataUpload.append('descripcion', 'Foto principal');
 
-        const uploadResponse = await fetch(`${API_URL}/objetos/${savedObjectId}/subir_foto/`, {
+        const uploadResponse = await fetch(`${API_BASE_URL}/objetos/${savedObjectId}/subir_foto/`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${getToken()}`,

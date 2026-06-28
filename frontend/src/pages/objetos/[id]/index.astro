@@ -174,7 +174,7 @@ export const prerender = false;
   // DETALLE DE OBJETO CON HERENCIA MULTI-TABLA
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
   const objetoId = window.location.pathname.split('/').filter(Boolean).pop();
 
   const loadingState = document.getElementById('loadingState')!;
@@ -183,7 +183,7 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  import { getAuthHeaders, getToken } from '../../../services/auth';
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -361,7 +361,7 @@ export const prerender = false;
     detailContent.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
         headers: getAuthHeaders(),
       });
 
@@ -430,15 +430,19 @@ export const prerender = false;
     if (!confirm('¿Estás seguro de eliminar este objeto? Se marcará como eliminado (soft delete).')) return;
 
     try {
-      const res = await fetch(`${API_URL}/objetos/${objetoId}/soft_delete/`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
+      const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
       });
-      if (res.ok) {
+      if (res.ok || res.status === 204) {
         alert('✅ Objeto eliminado correctamente.');
         window.location.href = '/objetos';
       } else {
-        alert('❌ Error al eliminar el objeto.');
+        const err = await res.json().catch(() => ({}));
+        alert(`❌ Error al eliminar: ${err.detail || err.error || 'Error desconocido'}`);
       }
     } catch {
       alert('❌ Error de conexión.');

@@ -157,10 +157,10 @@ import AuthGuard from '../components/AuthGuard.astro';
   // LISTADO DINÁMICO DE CONTENEDORES
   // ===========================================================================
 
-  import { getAuthHeaders, getToken } from '../services/auth';
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../services/auth';
 
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
 
   const loadingState = document.getElementById('loadingState')!;
   const emptyState = document.getElementById('emptyState')!;
@@ -195,7 +195,7 @@ import AuthGuard from '../components/AuthGuard.astro';
 
   async function cargarUbicaciones(selectEl: HTMLSelectElement) {
     try {
-      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const ubicaciones = data.results || data;
@@ -278,7 +278,7 @@ import AuthGuard from '../components/AuthGuard.astro';
         const nombre = btn.getAttribute('data-nombre');
         if (!id || !confirm(`¿Eliminar contenedor "${nombre}"?`)) return;
         try {
-          const res = await fetch(`${API_URL}/contenedores/${id}/`, {
+          const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
             method: 'DELETE',
             headers: getAuthHeaders(),
           });
@@ -297,7 +297,7 @@ import AuthGuard from '../components/AuthGuard.astro';
   async function cargarContenedores(ubicacionId?: string) {
     showLoading();
     try {
-      let url = `${API_URL}/contenedores/`;
+      let url = `${API_BASE_URL}/contenedores/`;
       if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
       const response = await fetch(url, { headers: getAuthHeaders() });
       if (response.status === 401) { window.location.href = '/login'; return; }
@@ -375,7 +375,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       const token = getToken();
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_URL}/contenedores/`, {
+      const res = await fetch(`${API_BASE_URL}/contenedores/`, {
         method: 'POST',
         headers,
         body: formData,
@@ -405,7 +405,7 @@ import AuthGuard from '../components/AuthGuard.astro';
   // Cargar ubicaciones para el filtro
   async function cargarFiltroUbicaciones() {
     try {
-      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const ubicaciones = data.results || data;

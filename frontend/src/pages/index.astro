@@ -223,10 +223,10 @@ import AuthGuard from '../components/AuthGuard.astro';
   // DASHBOARD PRO - Estadísticas en tiempo real + Chart.js + PWA + AI
   // ===========================================================================
 
-  import { getAuthHeaders } from '../services/auth';
+  import {getAuthHeaders, API_BASE_URL} from '../services/auth';
 
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
   const LM_STUDIO_URL = 'http://localhost:1234/v1';
 
   const loadingState = document.getElementById('loadingState')!;
@@ -547,7 +547,7 @@ import AuthGuard from '../components/AuthGuard.astro';
     dashboardContent.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/objetos/estadisticas/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/estadisticas/`, {
         headers: getAuthHeaders(),
       });
 

@@ -102,7 +102,7 @@ export const prerender = false;
   // DETALLE DE UBICACIÓN CON CONTENEDORES
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
   const ubicacionId = window.location.pathname.split('/').filter(Boolean).pop();
 
   const loadingState = document.getElementById('loadingState')!;
@@ -111,7 +111,7 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  import { getAuthHeaders, getToken } from '../../../services/auth';
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
 
   // ===========================================================================
   // CARGA DE LA UBICACIÓN
@@ -123,7 +123,7 @@ export const prerender = false;
     detailContent.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/ubicaciones/${ubicacionId}/`, {
+      const response = await fetch(`${API_BASE_URL}/ubicaciones/${ubicacionId}/`, {
         headers: getAuthHeaders(),
       });
 
@@ -165,7 +165,7 @@ export const prerender = false;
     grid.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/contenedores/?ubicacion=${ubicacionId}&page_size=50`, {
+      const response = await fetch(`${API_BASE_URL}/contenedores/?ubicacion=${ubicacionId}&page_size=50`, {
         headers: getAuthHeaders(),
       });
 

@@ -5,7 +5,11 @@
 
 import type { EstokInfo, Role } from '../types';
 
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+// =============================================================================
+// URL BASE DE LA API - ÚNICA FUENTE DE VERDAD
+// Todos los archivos deben importar esta constante desde auth.ts
+// =============================================================================
+export const API_BASE_URL = import.meta.env.PUBLIC_API_URL || '/api';
 
 // =============================================================================
 // CONSTANTES

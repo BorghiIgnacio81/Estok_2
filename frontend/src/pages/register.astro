@@ -154,7 +154,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   // MANEJO DEL FORMULARIO DE REGISTRO
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+  
 
   const form = document.getElementById('registerForm') as HTMLFormElement;
   const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
@@ -226,7 +226,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/usuarios/`, {
+      const response = await fetch(`${API_BASE_URL}/usuarios/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

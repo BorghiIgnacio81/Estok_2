@@ -316,6 +316,13 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         tipo = validated_data.pop('tipo', 'objeto')
 
+        # Asignar estok desde el header X-Estok-Id del request
+        request = self.context.get('request')
+        if request:
+            estok_id = request.headers.get('X-Estok-Id')
+            if estok_id:
+                validated_data['estok_id'] = estok_id
+
         # Extraer campos específicos
         campos_especificos = {}
         campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']

@@ -240,7 +240,6 @@ export const prerender = false;
   // EDICIÓN DE OBJETO - Carga datos + PUT a la API
   // ===========================================================================
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
   const objetoId = window.location.pathname.split('/').filter(Boolean).slice(-2, -1)[0];
 
   const loadingState = document.getElementById('loadingState')!;
@@ -253,7 +252,7 @@ export const prerender = false;
   const saveSpinner = document.getElementById('saveSpinner')!;
   const editSubtitle = document.getElementById('editSubtitle')!;
 
-  import { getAuthHeaders, getToken } from '../../../../services/auth';
+  import { getAuthHeaders, getToken, API_BASE_URL } from '../../../../services/auth';
 
   // ===========================================================================
   // CARGA DE DATOS DEL OBJETO
@@ -265,7 +264,7 @@ export const prerender = false;
     form.classList.add('hidden');
 
     try {
-      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
         headers: getAuthHeaders(),
       });
 
@@ -336,7 +335,7 @@ export const prerender = false;
 
   async function cargarUbicaciones(selectedId?: string) {
     try {
-      const res = await fetch(`${API_URL}/ubicaciones/`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const ubicaciones = data.results || data;
@@ -354,7 +353,7 @@ export const prerender = false;
   async function cargarContenedores(ubicacionId?: string, selectedId?: string) {
     contenedorSelect.innerHTML = '<option value="">Sin contenedor</option>';
     try {
-      let url = `${API_URL}/contenedores/`;
+      let url = `${API_BASE_URL}/contenedores/`;
       if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
       const res = await fetch(url, { headers: getAuthHeaders() });
       if (res.ok) {
@@ -373,7 +372,7 @@ export const prerender = false;
 
   async function cargarUsuarios(duenoId?: string, beneficiarioId?: string) {
     try {
-      const res = await fetch(`${API_URL}/usuarios/`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE_URL}/usuarios/`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const usuarios = data.results || data;
@@ -438,7 +437,7 @@ export const prerender = false;
     precioReferencia?.classList.add('hidden');
     try {
       // PASO 1: Buscar en el inventario local
-      const response = await fetch(`${API_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
         headers: getAuthHeaders(),
       });
       if (response.ok) {
@@ -467,7 +466,7 @@ export const prerender = false;
 
       // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
       try {
-        const mlResponse = await fetch(`${API_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
+        const mlResponse = await fetch(`${API_BASE_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
           headers: getAuthHeaders(),
         });
         if (mlResponse.ok) {
@@ -578,9 +577,12 @@ export const prerender = false;
       });
 
       // Enviar PUT a la API
-      const response = await fetch(`${API_URL}/objetos/${objetoId}/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(payload),
       });
 

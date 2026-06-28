@@ -515,7 +515,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def exportar_csv(self, request):
         """Exporta el inventario completo a CSV."""
-        objetos = Objeto.objects.filter(deleted_at__isnull=True).select_related(
+        objetos = self.get_queryset().select_related(
             'ubicacion', 'contenedor', 'dueno_original', 'beneficiario'
         )
 
@@ -638,7 +638,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def estadisticas(self, request):
         """Retorna estadísticas del inventario para el dashboard."""
-        objetos = Objeto.objects.filter(deleted_at__isnull=True)
+        objetos = self.get_queryset()
 
         total_objetos = objetos.count()
         valor_total = objetos.aggregate(total=Sum('valor_estimado'))['total'] or 0

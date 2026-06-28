@@ -70,3 +70,21 @@
   servidor de producción y dejarlos corriendo. Si se hace, documentarlo y
   eliminarlo antes de cerrar la sesión. Usar "docker ps -a" para confirmar
   que no quedan contenedores huérfanos después de cualquier sesión de debug.
+
+## Metodología de código limpio
+- Al terminar cualquier feature o fix, antes de considerarlo "completo":
+  revisar si la lógica nueva debería vivir en un módulo/servicio reusable
+  en vez de quedar inline o duplicada en múltiples archivos.
+- Después de cualquier refactor o feature grande, correr una pasada de
+  limpieza: buscar (grep) funciones, archivos o imports que ya no se usan
+  en ningún lado, y eliminarlos (no dejar código muerto "por si acaso").
+- Antes de reportar algo como "completo" o "resuelto", verificar con
+  evidencia real (comando ejecutado + output, no solo lectura del código)
+  — no asumir que algo funciona porque el código "se ve correcto".
+- Si se detecta lógica duplicada en más de un archivo (por ejemplo, la
+  misma función de headers/auth/fetch repetida), priorizar centralizarla
+  en un único módulo antes de seguir agregando features nuevas sobre esa
+  duplicación.
+- Mantener los archivos grandes (>400-500 líneas) bajo revisión para
+  modularizar cuando crezcan demasiado, en vez de seguir agregando código
+  a un archivo ya extenso.
