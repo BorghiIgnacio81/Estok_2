@@ -7,6 +7,7 @@
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import CategoryFields from '../../../../components/CategoryFields.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
+import ImageEditor from '../../../../components/ImageEditor.astro';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -279,6 +280,9 @@ export const prerender = false;
       </div>
     </form>
   </div>
+
+  <!-- Image Editor Component (Modal) -->
+  <ImageEditor imageSrc="" />
 </BaseLayout>
 
 <script>
@@ -791,19 +795,66 @@ export const prerender = false;
     }
   }
 
-  // Subir foto(s)
-  fotoInput?.addEventListener('change', () => {
-    const files = fotoInput.files;
-    if (files && files.length > 0) {
-      subirFotosBtn.disabled = false;
-    } else {
-      subirFotosBtn.disabled = true;
-    }
-  });
+  // ===========================================================================
+  // SUBIR FOTO(S) CON EDICIÓN SECUENCIAL (Opción D)
+  // El usuario selecciona múltiples fotos, y se van editando una por una
+  // en el ImageEditor antes de subirlas.
+  // ===========================================================================
 
-  subirFotosBtn?.addEventListener('click', async () => {
-    const files = fotoInput.files;
-    if (!files || files.length === 0) return;
+  // Cola de fotos pendientes de editar
+  let colaEdicion: { file: File; dataUrl: string }[] = [];
+  let editandoCola = false;
+
+  // Helper: convertir File a dataURL
+  function fileToDataURL(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Helper: convertir base64 a Blob
+  function base64ToBlob(base64: string, mimeType: string = 'image/jpeg'): Blob {
+    const byteChars = atob(base64.split(',')[1]);
+    const byteArrays: BlobPart[] = [];
+    for (let offset = 0; offset < byteChars.length; offset += 512) {
+      const slice = byteChars.slice(offset, offset + 512);
+      const byteNumbers = new Array(slice.length);
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+      byteArrays.push(new Uint8Array(byteNumbers));
+    }
+    return new Blob(byteArrays, { type: mimeType });
+  }
+
+  // Subir una foto ya editada (base64) al servidor
+  async function subirFotoEditada(base64: string, index: number, total: number, esPrimera: boolean): Promise<boolean> {
+    try {
+      const blob = base64ToBlob(base64);
+      const formData = new FormData();
+      formData.append('imagen', blob, `foto_${Date.now()}.jpg`);
+      formData.append('es_principal', esPrimera && fotosActuales.length === 0 ? 'true' : 'false');
+      formData.append('descripcion', `Foto ${index + 1}`);
+
+      const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/subir_foto/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData,
+      });
+
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  // Procesar la cola de edición: abre el editor para cada foto secuencialmente
+  async function procesarColaEdicion() {
+    if (editandoCola || colaEdicion.length === 0) return;
+    editandoCola = true;
 
     subirFotosBtn.disabled = true;
     subirFotosText.classList.add('hidden');
@@ -812,41 +863,44 @@ export const prerender = false;
 
     let subidas = 0;
     let errores = 0;
+    const total = colaEdicion.length;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      subirFotosProgress.textContent = `Subiendo ${i + 1} de ${files.length}...`;
+    for (let i = 0; i < total; i++) {
+      const item = colaEdicion[i];
+      subirFotosProgress.textContent = `Editando foto ${i + 1} de ${total}...`;
 
-      try {
-        const formData = new FormData();
-        formData.append('imagen', file);
-        // Solo la primera foto se marca como principal si no hay fotos aún
-        if (i === 0 && fotosActuales.length === 0) {
-          formData.append('es_principal', 'true');
-        } else {
-          formData.append('es_principal', 'false');
-        }
-        formData.append('descripcion', file.name.replace(/\.[^/.]+$/, ''));
+      // Abrir el editor para esta foto
+      let editorFn = (window as any).openImageEditor;
+      if (!editorFn) {
+        await new Promise(r => setTimeout(r, 500));
+        editorFn = (window as any).openImageEditor;
+      }
+      if (!editorFn) {
+        showToast('⚠️ Editor de imagen no disponible', 'error');
+        errores++;
+        continue;
+      }
 
-        const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/subir_foto/`, {
-          method: 'POST',
-          // NO poner Content-Type: application/json — el navegador lo setea solo con boundary para multipart
-          headers: getAuthHeaders(),
-          body: formData,
-        });
-
-        if (res.ok) {
+      const editedImage = await editorFn(item.dataUrl);
+      if (editedImage) {
+        // Subir la foto editada
+        subirFotosProgress.textContent = `Subiendo foto ${i + 1} de ${total}...`;
+        const ok = await subirFotoEditada(editedImage, i, total, i === 0);
+        if (ok) {
           subidas++;
         } else {
-          const errText = await res.text().catch(() => 'Error desconocido');
-          console.warn(`Error subiendo foto ${i + 1}:`, errText);
           errores++;
         }
-      } catch (err) {
-        console.warn(`Error de conexión subiendo foto ${i + 1}:`, err);
-        errores++;
+      } else {
+        // Usuario canceló la edición de esta foto — no la subimos
+        subirFotosProgress.textContent = `Foto ${i + 1} omitida (edición cancelada)`;
+        await new Promise(r => setTimeout(r, 500));
       }
     }
+
+    // Limpiar cola
+    colaEdicion = [];
+    editandoCola = false;
 
     // Resetear input
     fotoInput.value = '';
@@ -855,7 +909,7 @@ export const prerender = false;
     subirFotosSpinner.classList.add('hidden');
     subirFotosText.classList.remove('hidden');
 
-    if (errores === 0) {
+    if (errores === 0 && subidas > 0) {
       subirFotosProgress.textContent = `✅ ${subidas} foto(s) subida(s) correctamente`;
       subirFotosProgress.className = 'mt-2 text-sm text-green-600';
       showToast(`✅ ${subidas} foto(s) subida(s)`, 'success');
@@ -863,6 +917,9 @@ export const prerender = false;
       subirFotosProgress.textContent = `⚠️ ${subidas} subida(s), ${errores} error(es)`;
       subirFotosProgress.className = 'mt-2 text-sm text-amber-600';
       showToast(`⚠️ ${subidas} subida(s), ${errores} error(es)`, 'error');
+    } else if (subidas === 0 && errores === 0) {
+      subirFotosProgress.textContent = `ℹ️ No se subieron fotos`;
+      subirFotosProgress.className = 'mt-2 text-sm text-gray-500';
     } else {
       subirFotosProgress.textContent = `❌ Error al subir las fotos`;
       subirFotosProgress.className = 'mt-2 text-sm text-red-600';
@@ -875,6 +932,44 @@ export const prerender = false;
     setTimeout(() => {
       subirFotosProgress.classList.add('hidden');
     }, 5000);
+  }
+
+  // Al seleccionar archivos, cargarlos a la cola y empezar edición
+  fotoInput?.addEventListener('change', async () => {
+    const files = fotoInput.files;
+    if (!files || files.length === 0) return;
+
+    // Deshabilitar el botón mientras se prepara la cola
+    subirFotosBtn.disabled = true;
+    subirFotosProgress.classList.remove('hidden');
+    subirFotosProgress.textContent = `Preparando ${files.length} foto(s)...`;
+
+    // Convertir todos los archivos a dataURL y agregarlos a la cola
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const dataUrl = await fileToDataURL(files[i]);
+        colaEdicion.push({ file: files[i], dataUrl });
+      } catch {
+        console.warn(`Error leyendo archivo ${i + 1}`);
+      }
+    }
+
+    if (colaEdicion.length > 0) {
+      // Procesar la cola inmediatamente
+      await procesarColaEdicion();
+    } else {
+      subirFotosProgress.classList.add('hidden');
+    }
+  });
+
+  // El botón "Subir foto(s)" ahora inicia/reanuda la edición de la cola
+  subirFotosBtn?.addEventListener('click', async () => {
+    if (colaEdicion.length > 0) {
+      await procesarColaEdicion();
+    } else {
+      // Si no hay cola, forzar el cambio del input
+      fotoInput.click();
+    }
   });
 
   // ===========================================================================
