@@ -434,7 +434,12 @@ class GeminiClient:
 
             elapsed = time_module.time() - start_time
             content = response.text
-            logger.info("✅ Gemini respondió en %.1fs. Respuesta: %s", elapsed, content[:300])
+            # LOG TEMPORAL: respuesta COMPLETA de Gemini para diagnosticar parseo
+            logger.info("✅ Gemini respondió en %.1fs.", elapsed)
+            logger.info("⚡ GEMINI_RESPUESTA_CRUDA_INICIO ⚡\n%s\n⚡ GEMINI_RESPUESTA_CRUDA_FIN ⚡", content)
+            logger.info("✅ Gemini respuesta (primeros 300): %s", content[:300])
+            logger.info("✅ Gemini respuesta (últimos 300): %s", content[-300:] if len(content) > 300 else content)
+            logger.info("✅ Gemini respuesta length: %d chars, repr de primeros 50: %s", len(content), repr(content[:50]))
 
             # Intentar parsear como JSON
             try:
@@ -444,15 +449,21 @@ class GeminiClient:
             except json.JSONDecodeError:
                 # Intentar extraer JSON de un bloque de código
                 import re
-                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                # Buscar JSON con o sin markdown ```json ... ```
+                json_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', content, re.DOTALL)
+                if not json_match:
+                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
                 if json_match:
                     try:
-                        result = json.loads(json_match.group())
+                        candidate = json_match.group(1) if json_match.lastindex else json_match.group()
+                        result = json.loads(candidate)
                         logger.info("✅ JSON extraído de bloque de código. Campos: %s", list(result.keys()))
                         return result
-                    except:
-                        pass
-                logger.error("❌ No se pudo parsear la respuesta de Gemini como JSON: %s", content[:500])
+                    except json.JSONDecodeError as e2:
+                        logger.error("❌ JSON candidate también falló: %s. Texto: %s", e2, candidate[:200])
+                else:
+                    logger.error("❌ No se encontró ni siquiera patrón {...} en la respuesta")
+                logger.error("❌ No se pudo parsear la respuesta de Gemini como JSON. Respuesta COMPLETA:\n%s", content)
                 return None
 
         except Exception as e:
