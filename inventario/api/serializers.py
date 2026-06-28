@@ -81,6 +81,13 @@ class ContenedorSerializer(serializers.ModelSerializer):
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
     qr_code_url = serializers.SerializerMethodField()
     objetos_count = serializers.SerializerMethodField()
+    # Campos de dimensiones y material (editable desde el frontend)
+    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
+    foto = serializers.ImageField(required=False, allow_null=True)
+    material = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    tipo_madera = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Contenedor

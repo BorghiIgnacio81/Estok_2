@@ -267,6 +267,39 @@ class Contenedor(models.Model):
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")
     foto = models.ImageField(upload_to='contenedores/', blank=True, null=True, verbose_name="Foto")
+    material = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        choices=[
+            ('madera', 'Madera'),
+            ('metal', 'Metal'),
+            ('plastico', 'Plastico'),
+            ('vidrio', 'Vidrio'),
+            ('tela', 'Tela'),
+            ('otro', 'Otro'),
+        ],
+        verbose_name="Material"
+    )
+    tipo_madera = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        choices=[
+            ('pino', 'Pino'),
+            ('roble', 'Roble'),
+            ('nogal', 'Nogal'),
+            ('cerezo', 'Cerezo'),
+            ('haya', 'Haya'),
+            ('caoba', 'Caoba'),
+            ('mdf', 'MDF'),
+            ('aglomerado', 'Aglomerado'),
+            ('terciado', 'Terciado (Multicapa)'),
+            ('otro', 'Otro'),
+        ],
+        verbose_name="Tipo de Madera",
+        help_text="Solo aplica si el material es 'Madera'"
+    )
     qr_code_image = models.ImageField(
         upload_to='qrcodes/',
         blank=True,

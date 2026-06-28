@@ -503,6 +503,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // RESTAURAR FOTO DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
   // ===========================================================================
   (function restaurarFoto() {
+    // Restaurar foto solo si viene de un F5 (sessionStorage aun existe)
     const fotoGuardada = sessionStorage.getItem('nuevo_objeto_foto');
     if (fotoGuardada) {
       photoImage.src = fotoGuardada;
@@ -514,6 +515,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (iaAvailable) {
         analizarIaBtn.disabled = false;
       }
+      // Limpiar sessionStorage inmediatamente para que NO sobreviva a navegacion
+      // Solo F5 la mantiene porque el script se ejecuta antes de que se borre el storage
+      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
     }
   })();
 
