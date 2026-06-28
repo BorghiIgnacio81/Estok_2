@@ -521,6 +521,27 @@ import ImageEditor from '../../components/ImageEditor.astro';
     }
   })();
 
+  // ===========================================================================
+  // MANEJAR BFCACHE - Cuando el navegador restaura la pagina desde cache
+  // (por ejemplo al volver con el boton Atras), el DOM incluye la foto
+  // aunque sessionStorage ya se haya limpiado.
+  // ===========================================================================
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      // Pagina restaurada de BFCache - limpiar foto
+      photoImage.src = '';
+      photoImage.classList.add('hidden');
+      photoPlaceholder.classList.remove('hidden');
+      imagenBase64.value = '';
+      editPhotoBtn.classList.add('hidden');
+      const clearBtn = document.getElementById('clearPhotoBtn');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      analizarIaBtn.disabled = true;
+      iaStatus.classList.add('hidden');
+      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+    }
+  });
+
   function handleFileSelected(file) {
     if (!file) return;
     const reader = new FileReader();
