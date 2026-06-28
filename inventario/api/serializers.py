@@ -423,7 +423,7 @@ class FotoObjetoSerializer(serializers.ModelSerializer):
 
 
 class FotoObjetoUploadSerializer(serializers.Serializer):
-    objeto_id = serializers.UUIDField()
+    objeto_id = serializers.UUIDField(required=False)
     imagen = serializers.ImageField()
     descripcion = serializers.CharField(required=False, allow_blank=True)
     es_principal = serializers.BooleanField(default=False)
