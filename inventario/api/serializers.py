@@ -425,8 +425,14 @@ class FotoObjetoSerializer(serializers.ModelSerializer):
 class FotoObjetoUploadSerializer(serializers.Serializer):
     objeto_id = serializers.UUIDField(required=False)
     imagen = serializers.ImageField()
-    descripcion = serializers.CharField(required=False, allow_blank=True)
+    descripcion = serializers.CharField(required=False, allow_blank=True, default='')
     es_principal = serializers.BooleanField(default=False)
+
+    def validate_es_principal(self, value):
+        """Acepta 'true'/'false' como strings (vienen de FormData)."""
+        if isinstance(value, str):
+            return value.lower() in ('true', '1', 'yes')
+        return bool(value)
 
 
 # =============================================================================

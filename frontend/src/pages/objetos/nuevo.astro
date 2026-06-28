@@ -374,7 +374,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // IMPORTS
   // ===========================================================================
-  import {getAuthHeaders, getToken, API_BASE_URL} from '../../services/auth';
+  import {getAuthHeaders, getToken, getEstokActivoId, API_BASE_URL} from '../../services/auth';
 
   // ===========================================================================
   // CONSTANTES
@@ -1250,6 +1250,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${getToken()}`,
+            'X-Estok-Id': getEstokActivoId() || '',
           },
           body: formDataUpload,
         });
