@@ -213,6 +213,52 @@ export const prerender = false;
       </div>
 
       <!-- ================================================================ -->
+      <!-- SECCIÓN: FOTOS (independiente del submit principal) -->
+      <!-- ================================================================ -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Fotos
+        </h2>
+        <p class="text-sm text-gray-400 mb-4">Gestioná las fotos del objeto. Las acciones son independientes del guardado principal.</p>
+
+        <!-- Fotos existentes -->
+        <div id="fotosExistentes" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-4">
+          <!-- Se llena dinámicamente -->
+        </div>
+
+        <!-- Estado vacío -->
+        <div id="fotosEmpty" class="hidden text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <svg class="w-10 h-10 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <p class="text-sm text-gray-400">Este objeto no tiene fotos todavía.</p>
+        </div>
+
+        <!-- Subir foto -->
+        <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+          <div class="flex-1 w-full">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Agregar foto(s)</label>
+            <input id="fotoInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple
+              class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-base cursor-pointer" />
+          </div>
+          <button type="button" id="subirFotosBtn" disabled
+            class="px-4 py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap">
+            <span id="subirFotosText">📤 Subir foto(s)</span>
+            <span id="subirFotosSpinner" class="hidden">
+              <svg class="animate-spin h-4 w-4 mx-auto" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div id="subirFotosProgress" class="mt-2 text-sm text-gray-500 hidden"></div>
+      </div>
+
+      <!-- ================================================================ -->
       <!-- BOTÓN DE GUARDADO -->
       <!-- ================================================================ -->
       <div class="flex gap-3 pt-2">
@@ -301,7 +347,11 @@ export const prerender = false;
       // === Cargar usuarios y seleccionar dueño/beneficiario ===
       await cargarUsuarios(obj.dueno_original, obj.beneficiario);
 
+      // === Cargar fotos ===
+      await cargarFotos();
+
       // === Mostrar formulario ===
+
       editSubtitle.textContent = `Editando: ${obj.nombre}`;
       loadingState.classList.add('hidden');
       errorState.classList.add('hidden');
@@ -607,6 +657,227 @@ export const prerender = false;
   });
 
   // ===========================================================================
+  // GESTIÓN DE FOTOS (independiente del submit principal)
+  // ===========================================================================
+
+  const fotosExistentes = document.getElementById('fotosExistentes')!;
+  const fotosEmpty = document.getElementById('fotosEmpty')!;
+  const fotoInput = document.getElementById('fotoInput') as HTMLInputElement;
+  const subirFotosBtn = document.getElementById('subirFotosBtn') as HTMLButtonElement;
+  const subirFotosText = document.getElementById('subirFotosText')!;
+  const subirFotosSpinner = document.getElementById('subirFotosSpinner')!;
+  const subirFotosProgress = document.getElementById('subirFotosProgress')!;
+
+  // Cache de fotos actuales
+  let fotosActuales: any[] = [];
+
+  function renderFotos(fotos: any[]) {
+    fotosActuales = fotos;
+    fotosExistentes.innerHTML = '';
+
+    if (!fotos || fotos.length === 0) {
+      fotosExistentes.classList.add('hidden');
+      fotosEmpty.classList.remove('hidden');
+      return;
+    }
+
+    fotosExistentes.classList.remove('hidden');
+    fotosEmpty.classList.add('hidden');
+
+    fotos.forEach((foto: any) => {
+      const card = document.createElement('div');
+      card.className = 'relative group bg-gray-50 rounded-lg overflow-hidden border border-gray-200';
+
+      const img = document.createElement('img');
+      img.src = foto.imagen;
+      img.alt = foto.descripcion || 'Foto';
+      img.className = 'w-full aspect-square object-cover';
+      card.appendChild(img);
+
+      // Badge "Principal"
+      if (foto.es_principal) {
+        const badge = document.createElement('div');
+        badge.className = 'absolute top-1 left-1 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded';
+        badge.textContent = '★ PRINCIPAL';
+        card.appendChild(badge);
+      }
+
+      // Overlay de acciones al hover
+      const overlay = document.createElement('div');
+      overlay.className = 'absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2';
+
+      // Botón "Marcar como principal"
+      if (!foto.es_principal) {
+        const btnPrincipal = document.createElement('button');
+        btnPrincipal.className = 'w-full px-2 py-1.5 text-xs font-medium bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-base';
+        btnPrincipal.textContent = '★ Hacer principal';
+        btnPrincipal.addEventListener('click', async () => {
+          btnPrincipal.disabled = true;
+          btnPrincipal.textContent = '...';
+          try {
+            const res = await fetch(`${API_BASE_URL}/fotos/${foto.id}/`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders(),
+              },
+              body: JSON.stringify({ es_principal: true }),
+            });
+            if (res.ok) {
+              showToast('✅ Foto marcada como principal', 'success');
+              // Recargar fotos
+              await cargarFotos();
+            } else {
+              const err = await res.json().catch(() => ({}));
+              showToast(`❌ Error: ${err.detail || 'No se pudo actualizar'}`, 'error');
+              btnPrincipal.disabled = false;
+              btnPrincipal.textContent = '★ Hacer principal';
+            }
+          } catch {
+            showToast('❌ Error de conexión', 'error');
+            btnPrincipal.disabled = false;
+            btnPrincipal.textContent = '★ Hacer principal';
+          }
+        });
+        overlay.appendChild(btnPrincipal);
+      }
+
+      // Botón "Eliminar"
+      const btnEliminar = document.createElement('button');
+      btnEliminar.className = 'w-full px-2 py-1.5 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700 transition-base';
+      btnEliminar.textContent = '🗑️ Eliminar';
+      btnEliminar.addEventListener('click', async () => {
+        if (!confirm('¿Eliminar esta foto definitivamente?')) return;
+        btnEliminar.disabled = true;
+        btnEliminar.textContent = '...';
+        try {
+          const res = await fetch(`${API_BASE_URL}/fotos/${foto.id}/`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+          });
+          if (res.ok || res.status === 204) {
+            showToast('✅ Foto eliminada', 'success');
+            await cargarFotos();
+          } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(`❌ Error: ${err.detail || 'No se pudo eliminar'}`, 'error');
+            btnEliminar.disabled = false;
+            btnEliminar.textContent = '🗑️ Eliminar';
+          }
+        } catch {
+          showToast('❌ Error de conexión', 'error');
+          btnEliminar.disabled = false;
+          btnEliminar.textContent = '🗑️ Eliminar';
+        }
+      });
+      overlay.appendChild(btnEliminar);
+
+      card.appendChild(overlay);
+      fotosExistentes.appendChild(card);
+    });
+  }
+
+  async function cargarFotos() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const obj = await res.json();
+        renderFotos(obj.fotos || []);
+      }
+    } catch {
+      // Silencioso - no bloquear la edición
+    }
+  }
+
+  // Subir foto(s)
+  fotoInput?.addEventListener('change', () => {
+    const files = fotoInput.files;
+    if (files && files.length > 0) {
+      subirFotosBtn.disabled = false;
+    } else {
+      subirFotosBtn.disabled = true;
+    }
+  });
+
+  subirFotosBtn?.addEventListener('click', async () => {
+    const files = fotoInput.files;
+    if (!files || files.length === 0) return;
+
+    subirFotosBtn.disabled = true;
+    subirFotosText.classList.add('hidden');
+    subirFotosSpinner.classList.remove('hidden');
+    subirFotosProgress.classList.remove('hidden');
+
+    let subidas = 0;
+    let errores = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      subirFotosProgress.textContent = `Subiendo ${i + 1} de ${files.length}...`;
+
+      try {
+        const formData = new FormData();
+        formData.append('imagen', file);
+        // Solo la primera foto se marca como principal si no hay fotos aún
+        if (i === 0 && fotosActuales.length === 0) {
+          formData.append('es_principal', 'true');
+        } else {
+          formData.append('es_principal', 'false');
+        }
+        formData.append('descripcion', file.name.replace(/\.[^/.]+$/, ''));
+
+        const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/subir_foto/`, {
+          method: 'POST',
+          // NO poner Content-Type: application/json — el navegador lo setea solo con boundary para multipart
+          headers: getAuthHeaders(),
+          body: formData,
+        });
+
+        if (res.ok) {
+          subidas++;
+        } else {
+          const errText = await res.text().catch(() => 'Error desconocido');
+          console.warn(`Error subiendo foto ${i + 1}:`, errText);
+          errores++;
+        }
+      } catch (err) {
+        console.warn(`Error de conexión subiendo foto ${i + 1}:`, err);
+        errores++;
+      }
+    }
+
+    // Resetear input
+    fotoInput.value = '';
+    subirFotosBtn.disabled = true;
+
+    subirFotosSpinner.classList.add('hidden');
+    subirFotosText.classList.remove('hidden');
+
+    if (errores === 0) {
+      subirFotosProgress.textContent = `✅ ${subidas} foto(s) subida(s) correctamente`;
+      subirFotosProgress.className = 'mt-2 text-sm text-green-600';
+      showToast(`✅ ${subidas} foto(s) subida(s)`, 'success');
+    } else if (subidas > 0) {
+      subirFotosProgress.textContent = `⚠️ ${subidas} subida(s), ${errores} error(es)`;
+      subirFotosProgress.className = 'mt-2 text-sm text-amber-600';
+      showToast(`⚠️ ${subidas} subida(s), ${errores} error(es)`, 'error');
+    } else {
+      subirFotosProgress.textContent = `❌ Error al subir las fotos`;
+      subirFotosProgress.className = 'mt-2 text-sm text-red-600';
+      showToast('❌ Error al subir fotos', 'error');
+    }
+
+    // Recargar fotos
+    await cargarFotos();
+
+    setTimeout(() => {
+      subirFotosProgress.classList.add('hidden');
+    }, 5000);
+  });
+
+  // ===========================================================================
   // RETRY
   // ===========================================================================
 
@@ -615,6 +886,7 @@ export const prerender = false;
   // ===========================================================================
   // INICIALIZAR
   // ===========================================================================
+
 
   if (objetoId) {
     cargarObjeto();

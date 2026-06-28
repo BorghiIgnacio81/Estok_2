@@ -1248,12 +1248,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
         const uploadResponse = await fetch(`${API_BASE_URL}/objetos/${savedObjectId}/subir_foto/`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getToken()}`,
-            'X-Estok-Id': getEstokActivoId() || '',
-          },
+          headers: getAuthHeaders(),
           body: formDataUpload,
         });
+
 
         if (!uploadResponse.ok) {
           console.warn('Foto subida con advertencia:', await uploadResponse.text());
