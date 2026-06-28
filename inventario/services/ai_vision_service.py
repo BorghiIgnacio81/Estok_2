@@ -413,16 +413,18 @@ class GeminiClient:
 
             client = self._get_client()
 
+            # FIX: system_prompt debe ir como system_instruction, NO como contenido de usuario
             response = client.models.generate_content(
                 model=self.MODEL_NAME,
                 contents=[
-                    genai_types.Part.from_text(text=system_prompt),
                     genai_types.Part.from_bytes(
                         data=base64.b64decode(image_base64),
                         mime_type="image/jpeg",
                     ),
+                    genai_types.Part.from_text(text="Analiza este objeto y devuelve los datos en JSON valido, sin texto adicional, sin markdown."),
                 ],
                 config=genai_types.GenerateContentConfig(
+                    system_instruction=genai_types.Part.from_text(text=system_prompt),
                     temperature=0.1,
                     max_output_tokens=1024,
                 ),
