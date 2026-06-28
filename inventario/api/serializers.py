@@ -338,25 +338,27 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         objeto = Objeto.objects.create(**validated_data)
 
         # Crear el modelo hijo según el tipo
+        # Usamos objeto_ptr_id en lugar de objeto_ptr para evitar que Django
+        # intente crear OTRA fila en inventario_objeto (multi-table inheritance bug)
         if tipo == 'libro':
             LibroRevista.objects.create(
-                objeto_ptr=objeto,
+                objeto_ptr_id=objeto.id,
                 **{k: campos_especificos.get(k, '') for k in campos_libro}
             )
         elif tipo == 'tecnologia':
             Tecnologia.objects.create(
-                objeto_ptr=objeto,
+                objeto_ptr_id=objeto.id,
                 **{k: campos_especificos.get(k, '' if k != 'especificaciones' else dict)
                    for k in campos_tecno}
             )
         elif tipo == 'mueble':
             MuebleArte.objects.create(
-                objeto_ptr=objeto,
+                objeto_ptr_id=objeto.id,
                 **{k: campos_especificos.get(k, '') for k in campos_mueble}
             )
         elif tipo == 'ropa':
             Ropa.objects.create(
-                objeto_ptr=objeto,
+                objeto_ptr_id=objeto.id,
                 **{k: campos_especificos.get(k, '') for k in campos_ropa}
             )
 
