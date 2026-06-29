@@ -152,7 +152,7 @@ export const prerender = false;
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../../services/auth';
 
-  const ubicacionId = window.location.pathname.split('/').filter(Boolean).pop();
+  const ubicacionId = window.location.pathname.split('/').filter(Boolean).slice(-2, -1)[0];
 
   const loadingState = document.getElementById('loadingState')!;
   const errorState = document.getElementById('errorState')!;
