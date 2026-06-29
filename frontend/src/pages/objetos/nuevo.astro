@@ -542,22 +542,60 @@ import ImageEditor from '../../components/ImageEditor.astro';
     }
   });
 
+  // ===========================================================================
+  // COMPRIMIR IMAGEN EN FRONTEND antes de enviar al backend
+  // Redimensiona a max 1024px y comprime a JPEG 70% para reducir
+  // drásticamente el tiempo de subida, especialmente en fotos de cámara
+  // directa que pueden pesar 5-15MB.
+  // ===========================================================================
+  function comprimirImagenBase64(base64: string, maxDimension = 1024, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        // Redimensionar si excede la dimensión máxima
+        if (w > maxDimension || h > maxDimension) {
+          const ratio = maxDimension / Math.max(w, h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Error al cargar imagen para comprimir'));
+      img.src = base64;
+    });
+  }
+
   function handleFileSelected(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
       const result = e.target.result;
-      photoImage.src = result;
+      // Comprimir antes de guardar
+      let compressed: string;
+      try {
+        compressed = await comprimirImagenBase64(result);
+      } catch (err) {
+        console.warn('Error al comprimir imagen, usando original:', err);
+        compressed = result;
+      }
+      photoImage.src = compressed;
       photoImage.classList.remove('hidden');
       photoPlaceholder.classList.add('hidden');
-      imagenBase64.value = result;
+      imagenBase64.value = compressed;
       editPhotoBtn.classList.remove('hidden');
       clearPhotoBtn.classList.remove('hidden');
       analizarIaBtn.disabled = false;
       iaStatus.classList.add('hidden');
       // Persistir foto en sessionStorage para sobrevivir a refrescos
       try {
-        sessionStorage.setItem('nuevo_objeto_foto', result);
+        sessionStorage.setItem('nuevo_objeto_foto', compressed);
       } catch (e) {
         // Puede fallar si la imagen es muy grande (>5MB aprox)
         console.warn('No se pudo guardar la foto en sessionStorage (posiblemente muy grande):', e);
