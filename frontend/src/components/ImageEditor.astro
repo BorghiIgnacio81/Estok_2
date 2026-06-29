@@ -136,6 +136,7 @@ const { imageSrc } = Astro.props;
   const cropInstructions = document.getElementById('cropInstructions') as HTMLElement;
 
   let originalImage: HTMLImageElement | null = null;
+  let baseImage: HTMLImageElement | null = null; // copia inalterable para reset
   let currentRotation = 0;
   let currentBrightness = 0;
   let isCropping = false; // modo recorte activo
@@ -164,6 +165,8 @@ const { imageSrc } = Astro.props;
       const img = new Image();
       img.onload = () => {
         originalImage = img;
+        // Guardar copia inalterable para reset
+        baseImage = img;
         currentRotation = 0;
         currentBrightness = 0;
         isCropping = false;
@@ -196,19 +199,17 @@ const { imageSrc } = Astro.props;
 
     const maxWidth = 700;
     const maxHeight = 550;
-    let imgW = originalImage.width;
-    let imgH = originalImage.height;
+    const imgW = originalImage.width;
+    const imgH = originalImage.height;
 
-    const isRotated = currentRotation % 180 !== 0;
-    const displayW = isRotated ? imgH : imgW;
-    const displayH = isRotated ? imgW : imgH;
-
+    // La imagen ya está rotada (bake), así que no hay rotación pendiente.
+    // currentRotation siempre es 0 aquí.
     let scale = 1;
-    if (displayW > maxWidth) scale = maxWidth / displayW;
-    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
+    if (imgW > maxWidth) scale = maxWidth / imgW;
+    if (imgH * scale > maxHeight) scale = maxHeight / imgH;
 
-    const canvasW = Math.round(displayW * scale);
-    const canvasH = Math.round(displayH * scale);
+    const canvasW = Math.round(imgW * scale);
+    const canvasH = Math.round(imgH * scale);
 
     canvas.width = canvasW;
     canvas.height = canvasH;
@@ -217,12 +218,7 @@ const { imageSrc } = Astro.props;
 
     // Aplicar brillo
     ctx.filter = `brightness(${1 + currentBrightness / 100})`;
-
-    ctx.save();
-    ctx.translate(canvasW / 2, canvasH / 2);
-    ctx.rotate((currentRotation * Math.PI) / 180);
-    ctx.drawImage(originalImage, -imgW / 2 * scale, -imgH / 2 * scale, imgW * scale, imgH * scale);
-    ctx.restore();
+    ctx.drawImage(originalImage, 0, 0, canvasW, canvasH);
     ctx.filter = 'none';
 
     // Dibujar overlay de recorte si está activo
@@ -248,23 +244,16 @@ const { imageSrc } = Astro.props;
     ctx.clip();
 
     ctx.filter = `brightness(${1 + currentBrightness / 100})`;
-    const isRotated = currentRotation % 180 !== 0;
     const imgW = originalImage!.width;
     const imgH = originalImage!.height;
-    const displayW = isRotated ? imgH : imgW;
-    const displayH = isRotated ? imgW : imgH;
     const maxWidth = 700, maxHeight = 550;
     let scale = 1;
-    if (displayW > maxWidth) scale = maxWidth / displayW;
-    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
-    const canvasW = Math.round(displayW * scale);
-    const canvasH = Math.round(displayH * scale);
+    if (imgW > maxWidth) scale = maxWidth / imgW;
+    if (imgH * scale > maxHeight) scale = maxHeight / imgH;
+    const canvasW = Math.round(imgW * scale);
+    const canvasH = Math.round(imgH * scale);
 
-    ctx.save();
-    ctx.translate(canvasW / 2, canvasH / 2);
-    ctx.rotate((currentRotation * Math.PI) / 180);
-    ctx.drawImage(originalImage!, -imgW / 2 * scale, -imgH / 2 * scale, imgW * scale, imgH * scale);
-    ctx.restore();
+    ctx.drawImage(originalImage!, 0, 0, canvasW, canvasH);
     ctx.filter = 'none';
     ctx.restore();
 
@@ -600,22 +589,53 @@ const { imageSrc } = Astro.props;
   });
 
   // ===========================================================================
+  // FUNCIÓN: Hornear rotación en la imagen (bake)
+  // Toma la imagen actual, la rota en un canvas, y reemplaza originalImage
+  // con el resultado. Así el recorte siempre trabaja sobre la imagen ya rotada.
+  // ===========================================================================
+
+  function bakeRotation(degrees: number) {
+    if (!originalImage) return;
+
+    const srcW = originalImage.width;
+    const srcH = originalImage.height;
+    const isRotated = degrees % 180 !== 0;
+    const dstW = isRotated ? srcH : srcW;
+    const dstH = isRotated ? srcW : srcH;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = dstW;
+    tempCanvas.height = dstH;
+    const tempCtx = tempCanvas.getContext('2d')!;
+
+    tempCtx.save();
+    tempCtx.translate(dstW / 2, dstH / 2);
+    tempCtx.rotate((degrees * Math.PI) / 180);
+    tempCtx.drawImage(originalImage, -srcW / 2, -srcH / 2);
+    tempCtx.restore();
+
+    // Reemplazar originalImage con la imagen rotada
+    const newImg = new Image();
+    newImg.onload = () => {
+      originalImage = newImg;
+      currentRotation = 0; // ya no hay rotación pendiente
+      hasCrop = false;
+      cropRect = { x: 0, y: 0, w: 0, h: 0 };
+      renderImage();
+    };
+    newImg.src = tempCanvas.toDataURL('image/jpeg', 0.95);
+  }
+
+  // ===========================================================================
   // CONTROLES: ROTACIÓN
   // ===========================================================================
 
   rotateLeftBtn?.addEventListener('click', () => {
-    currentRotation = (currentRotation - 90) % 360;
-    // Resetear recorte al rotar (las coordenadas cambian)
-    hasCrop = false;
-    cropRect = { x: 0, y: 0, w: 0, h: 0 };
-    renderImage();
+    bakeRotation(-90);
   });
 
   rotateRightBtn?.addEventListener('click', () => {
-    currentRotation = (currentRotation + 90) % 360;
-    hasCrop = false;
-    cropRect = { x: 0, y: 0, w: 0, h: 0 };
-    renderImage();
+    bakeRotation(90);
   });
 
   // ===========================================================================
@@ -653,17 +673,24 @@ const { imageSrc } = Astro.props;
   // ===========================================================================
 
   resetBtn?.addEventListener('click', () => {
-    currentRotation = 0;
-    currentBrightness = 0;
-    isCropping = false;
-    hasCrop = false;
-    cropRect = { x: 0, y: 0, w: 0, h: 0 };
-    brightnessSlider.value = '0';
-    brightnessValue.textContent = '0';
-    cropBtnText.textContent = 'Activar Recorte';
-    cropToggleBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition-base flex items-center gap-2';
-    resetCropBtn.disabled = true;
-    renderImage();
+    if (!baseImage) return;
+    // Restaurar desde la imagen original inalterable
+    const newImg = new Image();
+    newImg.onload = () => {
+      originalImage = newImg;
+      currentRotation = 0;
+      currentBrightness = 0;
+      isCropping = false;
+      hasCrop = false;
+      cropRect = { x: 0, y: 0, w: 0, h: 0 };
+      brightnessSlider.value = '0';
+      brightnessValue.textContent = '0';
+      cropBtnText.textContent = 'Activar Recorte';
+      cropToggleBtn.className = 'px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg transition-base flex items-center gap-2';
+      resetCropBtn.disabled = true;
+      renderImage();
+    };
+    newImg.src = baseImage.src;
   });
 
   // ===========================================================================
@@ -676,71 +703,36 @@ const { imageSrc } = Astro.props;
     const finalCanvas = document.createElement('canvas');
     const finalCtx = finalCanvas.getContext('2d')!;
 
-    let finalW = originalImage.width;
-    let finalH = originalImage.height;
-
-    const isRotated = currentRotation % 180 !== 0;
-    if (isRotated) {
-      [finalW, finalH] = [finalH, finalW];
-    }
-
-    // Calcular escala del canvas de edición respecto a la imagen original
+    // La imagen ya está rotada (bake), currentRotation siempre es 0.
+    // Solo necesitamos calcular la escala del canvas de preview a la imagen real.
     const maxWidth = 700, maxHeight = 550;
-    const displayW = isRotated ? originalImage.height : originalImage.width;
-    const displayH = isRotated ? originalImage.width : originalImage.height;
+    const imgW = originalImage.width;
+    const imgH = originalImage.height;
     let scale = 1;
-    if (displayW > maxWidth) scale = maxWidth / displayW;
-    if (displayH * scale > maxHeight) scale = maxHeight / displayH;
+    if (imgW > maxWidth) scale = maxWidth / imgW;
+    if (imgH * scale > maxHeight) scale = maxHeight / imgH;
 
     if (isCropping && hasCrop && cropRect.w > 0 && cropRect.h > 0) {
       // Convertir coordenadas del recorte del canvas a la imagen original
-      const cropX = cropRect.x / scale;
-      const cropY = cropRect.y / scale;
-      const cropW = cropRect.w / scale;
-      const cropH = cropRect.h / scale;
+      const cropX = Math.round(cropRect.x / scale);
+      const cropY = Math.round(cropRect.y / scale);
+      const cropW = Math.round(cropRect.w / scale);
+      const cropH = Math.round(cropRect.h / scale);
 
       finalCanvas.width = cropW;
       finalCanvas.height = cropH;
 
-      // Dibujar la porción recortada con rotación
+      // Recortar directamente de la imagen ya rotada
       finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
-      finalCtx.save();
-
-      // Aplicar rotación centrada en el área recortada
-      finalCtx.translate(cropW / 2, cropH / 2);
-      finalCtx.rotate((currentRotation * Math.PI) / 180);
-
-      // Dibujar la parte correspondiente de la imagen original
-      // Necesitamos mapear las coordenadas del recorte rotado
-      if (isRotated) {
-        // Cuando está rotado, el origen del recorte en canvas se mapea diferente
-        finalCtx.drawImage(
-          originalImage,
-          -originalImage.width / 2 + cropY,  // ajuste por rotación
-          -originalImage.height / 2 + cropX,
-          cropH, cropW  // invertido por rotación
-        );
-      } else {
-        finalCtx.drawImage(
-          originalImage,
-          cropX, cropY, cropW, cropH,
-          -cropW / 2, -cropH / 2, cropW, cropH
-        );
-      }
-
-      finalCtx.restore();
+      finalCtx.drawImage(originalImage, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
       finalCtx.filter = 'none';
     } else {
-      // Sin recorte: imagen completa con rotación y brillo
-      finalCanvas.width = finalW;
-      finalCanvas.height = finalH;
+      // Sin recorte: imagen completa con brillo
+      finalCanvas.width = imgW;
+      finalCanvas.height = imgH;
 
       finalCtx.filter = `brightness(${1 + currentBrightness / 100})`;
-      finalCtx.save();
-      finalCtx.translate(finalW / 2, finalH / 2);
-      finalCtx.rotate((currentRotation * Math.PI) / 180);
-      finalCtx.drawImage(originalImage, -originalImage.width / 2, -originalImage.height / 2);
-      finalCtx.restore();
+      finalCtx.drawImage(originalImage, 0, 0);
       finalCtx.filter = 'none';
     }
 
