@@ -207,6 +207,7 @@ import AuthGuard from '../components/AuthGuard.astro';
         <div class="flex items-center justify-between pt-3 border-t border-gray-100">
           <span class="text-sm text-gray-500">
             📦 <strong>${u.objetos_count || 0}</strong> objetos
+            ${u.contenedores_count ? ` · 📦 <strong>${u.contenedores_count}</strong> contenedores` : ''}
           </span>
           <button class="delete-ubicacion text-red-400 hover:text-red-600 transition-base p-1" data-id="${u.id}" data-nombre="${u.nombre}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

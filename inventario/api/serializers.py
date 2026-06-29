@@ -67,6 +67,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 # =============================================================================
 class UbicacionSerializer(serializers.ModelSerializer):
     objetos_count = serializers.SerializerMethodField()
+    contenedores_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Ubicacion
@@ -74,7 +75,12 @@ class UbicacionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_objetos_count(self, obj):
-        return obj.objetos.count()
+        """Cuenta solo objetos NO eliminados (excluye soft-delete)."""
+        return obj.objetos.filter(deleted_at__isnull=True).count()
+
+    def get_contenedores_count(self, obj):
+        """Cuenta los contenedores dentro de esta ubicación."""
+        return obj.contenedores.count()
 
 
 class ContenedorSerializer(serializers.ModelSerializer):
@@ -104,8 +110,8 @@ class ContenedorSerializer(serializers.ModelSerializer):
         return None
 
     def get_objetos_count(self, obj):
-        """Retorna la cantidad de objetos dentro del contenedor."""
-        return obj.objetos.count()
+        """Retorna la cantidad de objetos NO eliminados dentro del contenedor."""
+        return obj.objetos.filter(deleted_at__isnull=True).count()
 
 
 # =============================================================================
