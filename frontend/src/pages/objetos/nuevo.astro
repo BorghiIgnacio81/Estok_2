@@ -1121,6 +1121,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
         base64Image = rawBase64 as string;
       }
 
+      // LOG: tamaño real de la imagen comprimida
+      const imgSizeKB = Math.round(base64Image.length * 0.73 / 1024);
+      console.log(`[SEGUNDA FOTO] Tamaño comprimido: ~${imgSizeKB}KB`);
+
       const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
@@ -1131,6 +1135,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
           imagen_base64: base64Image,
           solo_analisis: true,
           es_segunda_foto: true,
+          motor: motorActual,  // <-- Usar el mismo motor que el usuario seleccionó
         }),
       });
 
