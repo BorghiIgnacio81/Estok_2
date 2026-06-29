@@ -1,0 +1,323 @@
+---
+// =============================================================================
+// PÁGINA DE EDICIÓN DE UBICACIÓN (Mobile-First)
+// Formulario para editar nombre, descripción, dimensiones y foto
+// =============================================================================
+
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import AuthGuard from '../../../../components/AuthGuard.astro';
+
+// Ruta dinámica: se renderiza en servidor (hybrid mode)
+export const prerender = false;
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Editar Ubicación | Inventario">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <a
+        href="/ubicaciones"
+        class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base mb-4"
+      >
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a ubicaciones
+      </a>
+      <h1 class="text-3xl font-bold text-gray-900">Editar Ubicación</h1>
+      <p id="editSubtitle" class="mt-1 text-gray-500">
+        Cargando datos de la ubicación...
+      </p>
+    </div>
+
+    <!-- Estado de carga -->
+    <div id="loadingState" class="text-center py-12">
+      <svg class="animate-spin h-10 w-10 mx-auto text-blue-700 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando datos de la ubicación...</p>
+    </div>
+
+    <!-- Estado de error -->
+    <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center mb-6">
+      <p id="errorMessage" class="font-medium">Error al cargar la ubicación.</p>
+      <button id="retryBtn" class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+        Reintentar
+      </button>
+    </div>
+
+    <!-- Formulario -->
+    <div id="formContainer" class="hidden">
+      <form id="editForm" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+        <!-- Nombre -->
+        <div>
+          <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
+            Nombre <span class="text-red-500">*</span>
+          </label>
+          <input
+            id="nombre" name="nombre" type="text" required
+            placeholder="Ej: Garaje, Sótano, Oficina"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+          />
+        </div>
+
+        <!-- Descripción -->
+        <div>
+          <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+          <textarea
+            id="descripcion" name="descripcion" rows={3}
+            placeholder="Descripción opcional de la ubicación"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+          ></textarea>
+        </div>
+
+        <!-- Dimensiones -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Dimensiones (opcional)</label>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label for="largo" class="block text-xs text-gray-500 mb-1">Largo (cm)</label>
+              <input
+                id="largo" name="largo" type="number" step="0.01" placeholder="0"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+            </div>
+            <div>
+              <label for="ancho" class="block text-xs text-gray-500 mb-1">Ancho (cm)</label>
+              <input
+                id="ancho" name="ancho" type="number" step="0.01" placeholder="0"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+            </div>
+            <div>
+              <label for="alto" class="block text-xs text-gray-500 mb-1">Alto (cm)</label>
+              <input
+                id="alto" name="alto" type="number" step="0.01" placeholder="0"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Foto actual -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Foto</label>
+          <div id="fotoActualContainer" class="hidden mb-3">
+            <p class="text-xs text-gray-500 mb-2">Foto actual:</p>
+            <img id="fotoActual" class="w-32 h-32 object-cover rounded-lg border border-gray-200" alt="Foto actual" />
+          </div>
+          <label class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span id="fotoLabel">Cambiar foto</span>
+            <input id="fotoInput" type="file" accept="image/*" class="hidden" />
+          </label>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex gap-3 pt-4 border-t border-gray-100">
+          <button type="submit" id="saveBtn"
+            class="flex-1 px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50"
+          >
+            <span id="saveText">Guardar cambios</span>
+            <span id="saveSpinner" class="hidden">
+              <svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </span>
+          </button>
+          <a href="/ubicaciones"
+            class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base text-center"
+          >
+            Cancelar
+          </a>
+        </div>
+
+        <p id="formError" class="hidden text-sm text-red-600"></p>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // EDICIÓN DE UBICACIÓN
+  // ===========================================================================
+
+  import {getAuthHeaders, getToken, API_BASE_URL} from '../../../../services/auth';
+
+  const ubicacionId = window.location.pathname.split('/').filter(Boolean).pop();
+
+  const loadingState = document.getElementById('loadingState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const formContainer = document.getElementById('formContainer')!;
+  const editSubtitle = document.getElementById('editSubtitle')!;
+  const editForm = document.getElementById('editForm') as HTMLFormElement;
+  const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+  const saveText = document.getElementById('saveText')!;
+  const saveSpinner = document.getElementById('saveSpinner')!;
+  const formError = document.getElementById('formError')!;
+
+  const nombreInput = document.getElementById('nombre') as HTMLInputElement;
+  const descripcionInput = document.getElementById('descripcion') as HTMLTextAreaElement;
+  const largoInput = document.getElementById('largo') as HTMLInputElement;
+  const anchoInput = document.getElementById('ancho') as HTMLInputElement;
+  const altoInput = document.getElementById('alto') as HTMLInputElement;
+  const fotoInput = document.getElementById('fotoInput') as HTMLInputElement;
+  const fotoLabel = document.getElementById('fotoLabel')!;
+  const fotoActualContainer = document.getElementById('fotoActualContainer')!;
+  const fotoActualImg = document.getElementById('fotoActual') as HTMLImageElement;
+
+  let fotoFile: File | null = null;
+  let fotoUrlOriginal: string | null = null;
+
+  // ===========================================================================
+  // CARGA DE DATOS
+  // ===========================================================================
+
+  async function cargarUbicacion() {
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    formContainer.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/ubicaciones/${ubicacionId}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) throw new Error(`Error del servidor (${response.status})`);
+
+      const ubicacion = await response.json();
+
+      // Llenar formulario
+      nombreInput.value = ubicacion.nombre || '';
+      descripcionInput.value = ubicacion.descripcion || '';
+      largoInput.value = ubicacion.largo || '';
+      anchoInput.value = ubicacion.ancho || '';
+      altoInput.value = ubicacion.alto || '';
+
+      // Foto actual
+      if (ubicacion.foto) {
+        fotoUrlOriginal = ubicacion.foto;
+        fotoActualImg.src = ubicacion.foto;
+        fotoActualContainer.classList.remove('hidden');
+      }
+
+      editSubtitle.textContent = `Editando: ${ubicacion.nombre}`;
+
+      loadingState.classList.add('hidden');
+      errorState.classList.add('hidden');
+      formContainer.classList.remove('hidden');
+
+    } catch (err: any) {
+      console.error('Error al cargar ubicación:', err);
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = err.message || 'Error de conexión.';
+    }
+  }
+
+  // ===========================================================================
+  // FOTO
+  // ===========================================================================
+
+  fotoInput?.addEventListener('change', () => {
+    fotoFile = fotoInput.files?.[0] || null;
+    fotoLabel.textContent = fotoFile ? fotoFile.name : 'Cambiar foto';
+    if (fotoFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        fotoActualImg.src = e.target?.result as string;
+        fotoActualContainer.classList.remove('hidden');
+      };
+      reader.readAsDataURL(fotoFile);
+    }
+  });
+
+  // ===========================================================================
+  // GUARDAR
+  // ===========================================================================
+
+  editForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.classList.add('hidden');
+    saveBtn.disabled = true;
+    saveText.classList.add('hidden');
+    saveSpinner.classList.remove('hidden');
+
+    const nombre = nombreInput.value.trim();
+    if (!nombre) {
+      formError.textContent = 'El nombre es obligatorio.';
+      formError.classList.remove('hidden');
+      saveBtn.disabled = false;
+      saveText.classList.remove('hidden');
+      saveSpinner.classList.add('hidden');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('nombre', nombre);
+      formData.append('descripcion', descripcionInput.value.trim());
+      if (largoInput.value) formData.append('largo', largoInput.value);
+      if (anchoInput.value) formData.append('ancho', anchoInput.value);
+      if (altoInput.value) formData.append('alto', altoInput.value);
+      if (fotoFile) formData.append('foto', fotoFile);
+
+      const headers: Record<string, string> = {};
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/${ubicacionId}/`, {
+        method: 'PATCH',
+        headers,
+        body: formData,
+      });
+
+      if (res.ok) {
+        window.showToast?.('✅ Ubicación actualizada correctamente', 'success');
+        setTimeout(() => {
+          window.location.href = `/ubicaciones/${ubicacionId}`;
+        }, 1000);
+      } else {
+        const err = await res.json();
+        formError.textContent = Object.values(err).flat().join(', ');
+        formError.classList.remove('hidden');
+      }
+    } catch {
+      formError.textContent = 'Error de conexión.';
+      formError.classList.remove('hidden');
+    } finally {
+      saveBtn.disabled = false;
+      saveText.classList.remove('hidden');
+      saveSpinner.classList.add('hidden');
+    }
+  });
+
+  // ===========================================================================
+  // RETRY
+  // ===========================================================================
+
+  retryBtn?.addEventListener('click', cargarUbicacion);
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  if (ubicacionId) {
+    cargarUbicacion();
+  } else {
+    errorMessage.textContent = 'ID de ubicación no válido.';
+    errorState.classList.remove('hidden');
+    loadingState.classList.add('hidden');
+  }
+</script>
