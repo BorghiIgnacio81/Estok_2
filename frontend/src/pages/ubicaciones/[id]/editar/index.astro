@@ -273,9 +273,9 @@ export const prerender = false;
       if (altoInput.value) formData.append('alto', altoInput.value);
       if (fotoFile) formData.append('foto', fotoFile);
 
-      const headers: Record<string, string> = {};
-      const token = getToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = getAuthHeaders();
+      // No enviar Content-Type con FormData; el browser lo setea solo con boundary
+      delete headers['Content-Type'];
 
       const res = await fetch(`${API_BASE_URL}/ubicaciones/${ubicacionId}/`, {
         method: 'PATCH',
