@@ -592,19 +592,25 @@ export const prerender = false;
   // ===========================================================================
 
   function showToast(message: string, type: 'success' | 'error') {
-    const existing = document.getElementById('formToast');
-    if (existing) existing.remove();
-    const toast = document.createElement('div');
-    toast.id = 'formToast';
-    toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${
-      type === 'success' ? 'bg-green-600' : 'bg-red-600'
-    }`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    // Delegar en el sistema de Toast global de BaseLayout
+    if ((window as any).showToast) {
+      (window as any).showToast(message, type);
+    } else {
+      // Fallback si BaseLayout no cargó (no debería ocurrir)
+      const existing = document.getElementById('formToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'formToast';
+      toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${
+        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+      }`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
   }
 
   form?.addEventListener('submit', async (e) => {
