@@ -1108,10 +1108,18 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
     try {
       const reader = new FileReader();
-      const base64Image = await new Promise((resolve) => {
+      const rawBase64 = await new Promise((resolve) => {
         reader.onload = (ev) => resolve(ev.target.result);
         reader.readAsDataURL(file);
       });
+      // Comprimir igual que la primera foto antes de enviar al backend
+      let base64Image: string;
+      try {
+        base64Image = await comprimirImagenBase64(rawBase64 as string);
+      } catch (err) {
+        console.warn('Error al comprimir segunda foto, usando original:', err);
+        base64Image = rawBase64 as string;
+      }
 
       const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
