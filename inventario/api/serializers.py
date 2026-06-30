@@ -390,42 +390,80 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         return None
 
     def _eliminar_hijo_actual(self, instance, tipo_actual):
-        """Elimina la fila del subtipo actual si existe."""
-        if tipo_actual == 'libro':
-            LibroRevista.objects.filter(objeto_ptr_id=instance.id).delete()
-        elif tipo_actual == 'tecnologia':
-            Tecnologia.objects.filter(objeto_ptr_id=instance.id).delete()
-        elif tipo_actual == 'mueble':
-            MuebleArte.objects.filter(objeto_ptr_id=instance.id).delete()
-        elif tipo_actual == 'ropa':
-            Ropa.objects.filter(objeto_ptr_id=instance.id).delete()
+        """Elimina la fila del subtipo actual si existe (SQL directo)."""
+        from django.db import connection
+        tablas = {
+            'libro': 'inventario_librorevista',
+            'tecnologia': 'inventario_tecnologia',
+            'mueble': 'inventario_mueblearte',
+            'ropa': 'inventario_ropa',
+        }
+        tabla = tablas.get(tipo_actual)
+        if tabla:
+            with connection.cursor() as cursor:
+                cursor.execute(f"DELETE FROM {tabla} WHERE objeto_ptr_id = %s", [instance.id])
 
     def _crear_o_actualizar_hijo(self, instance, tipo, campos_especificos, campos_libro, campos_tecno, campos_mueble, campos_ropa):
-        """Crea o actualiza la fila del subtipo según el tipo indicado."""
+        """
+        Crea o actualiza la fila del subtipo usando SQL directo.
+        
+        Django multi-table inheritance SIEMPRE intenta hacer INSERT en la tabla
+        padre al crear un hijo, incluso si el padre ya existe. Por eso usamos
+        SQL directo para INSERT/UPDATE en las tablas hijas.
+        """
+        from django.db import connection
+        
         if tipo == 'libro':
-            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_libro:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
+            columnas = campos_libro  # ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']
+            tabla = 'inventario_librorevista'
         elif tipo == 'tecnologia':
-            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_tecno:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
+            columnas = campos_tecno  # ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']
+            tabla = 'inventario_tecnologia'
         elif tipo == 'mueble':
-            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_mueble:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
+            columnas = campos_mueble  # ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']
+            tabla = 'inventario_mueblearte'
         elif tipo == 'ropa':
-            hijo, created = Ropa.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_ropa:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
+            columnas = campos_ropa  # ['tamano']
+            tabla = 'inventario_ropa'
+        else:
+            return
+        
+        # Verificar si ya existe la fila
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COUNT(*) FROM {tabla} WHERE objeto_ptr_id = %s", [instance.id])
+            existe = cursor.fetchone()[0] > 0
+        
+        if existe:
+            # UPDATE: solo las columnas que vienen en campos_especificos
+            sets = []
+            valores = []
+            for col in columnas:
+                if col in campos_especificos:
+                    sets.append(f"{col} = %s")
+                    valores.append(campos_especificos[col])
+            if sets:
+                valores.append(instance.id)
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        f"UPDATE {tabla} SET {', '.join(sets)} WHERE objeto_ptr_id = %s",
+                        valores
+                    )
+        else:
+            # INSERT: todas las columnas con defaults
+            cols = ['objeto_ptr_id'] + columnas
+            placeholders = ['%s'] * len(cols)
+            valores = [instance.id]
+            for col in columnas:
+                if col in campos_especificos:
+                    valores.append(campos_especificos[col])
+                else:
+                    # Default values según el tipo de columna
+                    valores.append('' if col != 'especificaciones' else '{}')
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"INSERT INTO {tabla} ({', '.join(cols)}) VALUES ({', '.join(placeholders)})",
+                    valores
+                )
 
     def update(self, instance, validated_data):
         tipo = validated_data.pop('tipo', None)
@@ -465,53 +503,6 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             )
 
         return instance
-
-
-# =============================================================================
-# SERIALIZERS DE MULTIMEDIA
-# =============================================================================
-class FotoObjetoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FotoObjeto
-        fields = '__all__'
-        read_only_fields = ['id', 'fecha_subida']
-
-
-class FotoObjetoUploadSerializer(serializers.Serializer):
-    objeto_id = serializers.UUIDField(required=False)
-    imagen = serializers.ImageField()
-    descripcion = serializers.CharField(required=False, allow_blank=True, default='')
-    es_principal = serializers.BooleanField(default=False)
-
-    def validate_es_principal(self, value):
-        """Acepta 'true'/'false' como strings (vienen de FormData)."""
-        if isinstance(value, str):
-            return value.lower() in ('true', '1', 'yes')
-        return bool(value)
-
-
-# =============================================================================
-# SERIALIZERS DE HISTORIAL Y ALERTAS
-# =============================================================================
-class HistorialPrecioSerializer(serializers.ModelSerializer):
-    objeto_nombre = serializers.CharField(source='objeto.nombre', read_only=True)
-    registrado_por_nombre = serializers.CharField(source='registrado_por.username', read_only=True)
-
-    class Meta:
-        model = HistorialPrecio
-        fields = '__all__'
-        read_only_fields = ['id', 'diferencia', 'porcentaje_cambio', 'fecha_cambio']
-
-
-class AlertaStockSerializer(serializers.ModelSerializer):
-    objeto_nombre = serializers.CharField(source='objeto.nombre', read_only=True)
-    necesita_reposicion = serializers.BooleanField(read_only=True)
-
-    class Meta:
-        model = AlertaStock
-        fields = '__all__'
-        read_only_fields = ['id', 'ultima_verificacion']
-
 
 # =============================================================================
 # SERIALIZERS DE ESTOK / MEMBRESIA / CODIGO INVITACION
@@ -615,4 +606,48 @@ class CambiarEstokActivoSerializer(serializers.Serializer):
         user = self.context['request'].user
         if not Membresia.objects.filter(usuario=user, estok_id=value).exists():
             raise serializers.ValidationError("No eres miembro de este Estok.")
+        return value
+
+
+# =============================================================================
+# SERIALIZERS DE HISTORIAL DE PRECIOS Y ALERTAS
+# =============================================================================
+class HistorialPrecioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistorialPrecio
+        fields = '__all__'
+        read_only_fields = ['id', 'fecha_cambio']
+
+
+class AlertaStockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AlertaStock
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at']
+
+
+# =============================================================================
+# SERIALIZERS DE FOTOS DE OBJETOS
+# =============================================================================
+class FotoObjetoSerializer(serializers.ModelSerializer):
+    """Serializer general para fotos de objetos."""
+
+    class Meta:
+        model = FotoObjeto
+        fields = '__all__'
+        read_only_fields = ['id', 'fecha_subida']
+
+
+class FotoObjetoUploadSerializer(serializers.ModelSerializer):
+    """Serializer para subir fotos a un objeto existente."""
+
+    class Meta:
+        model = FotoObjeto
+        fields = ['id', 'objeto', 'imagen', 'descripcion', 'es_principal', 'fecha_subida']
+        read_only_fields = ['id', 'fecha_subida']
+
+    def validate_imagen(self, value):
+        """Valida que el archivo sea una imagen."""
+        if value.size > 10 * 1024 * 1024:  # 10MB
+            raise serializers.ValidationError("La imagen no puede superar los 10MB.")
         return value
