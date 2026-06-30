@@ -390,26 +390,28 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         instance.save()
 
         # Actualizar o crear modelo hijo según el tipo
+        # Usamos objeto_ptr_id en lugar de objeto_ptr para evitar que Django
+        # intente hacer INSERT en inventario_objeto (multi-table inheritance bug)
         if tipo == 'libro' or (tipo is None and hasattr(instance, 'librorevista')):
-            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr=instance)
+            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr_id=instance.id)
             for k in campos_libro:
                 if k in campos_especificos:
                     setattr(hijo, k, campos_especificos[k])
             hijo.save()
         elif tipo == 'tecnologia' or (tipo is None and hasattr(instance, 'tecnologia')):
-            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr=instance)
+            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr_id=instance.id)
             for k in campos_tecno:
                 if k in campos_especificos:
                     setattr(hijo, k, campos_especificos[k])
             hijo.save()
         elif tipo == 'mueble' or (tipo is None and hasattr(instance, 'mueblearte')):
-            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr=instance)
+            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr_id=instance.id)
             for k in campos_mueble:
                 if k in campos_especificos:
                     setattr(hijo, k, campos_especificos[k])
             hijo.save()
         elif tipo == 'ropa' or (tipo is None and hasattr(instance, 'ropa')):
-            hijo, created = Ropa.objects.get_or_create(objeto_ptr=instance)
+            hijo, created = Ropa.objects.get_or_create(objeto_ptr_id=instance.id)
             for k in campos_ropa:
                 if k in campos_especificos:
                     setattr(hijo, k, campos_especificos[k])
