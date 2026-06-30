@@ -6,11 +6,7 @@ import logging
 import csv
 import base64
 import time
-# imghdr eliminado en Python 3.13, usamos alternativa simple
-try:
-    import imghdr
-except ImportError:
-    imghdr = None
+import json
 import os
 from decimal import Decimal
 from pathlib import Path
@@ -728,11 +724,12 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        allowed_types = ['jpeg', 'png', 'gif', 'webp']
-        file_type = imghdr.what(imagen_file)
-        if file_type and file_type not in allowed_types:
+        # Validar tipo de imagen (compatible Python 3.13+)
+        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        content_type = getattr(imagen_file, 'content_type', None)
+        if content_type and content_type not in allowed_types:
             return Response(
-                {"error": f"Tipo de imagen no soportado: {file_type}. Permitidos: {', '.join(allowed_types)}"},
+                {"error": f"Tipo de imagen no soportado: {content_type}. Permitidos: jpeg, png, gif, webp"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

@@ -303,6 +303,7 @@ export const prerender = false;
   const editSubtitle = document.getElementById('editSubtitle')!;
 
   import { getAuthHeaders, getToken, API_BASE_URL } from '../../../../services/auth';
+  import { comprimirImagenBase64 } from '../../../../services/image';
 
   // ===========================================================================
   // CARGA DE DATOS DEL OBJETO
@@ -839,7 +840,9 @@ export const prerender = false;
   // Subir una foto ya editada (base64) al servidor
   async function subirFotoEditada(base64: string, index: number, total: number, esPrimera: boolean): Promise<boolean> {
     try {
-      const blob = base64ToBlob(base64);
+      // Comprimir la imagen antes de subirla (max 1024px, calidad 0.7)
+      const comprimida = await comprimirImagenBase64(base64, 1024, 0.7);
+      const blob = base64ToBlob(comprimida);
       const formData = new FormData();
       formData.append('imagen', blob, `foto_${Date.now()}.jpg`);
       formData.append('es_principal', esPrimera && fotosActuales.length === 0 ? 'true' : 'false');
