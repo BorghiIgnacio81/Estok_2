@@ -651,7 +651,7 @@ class FotoObjetoUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = FotoObjeto
         fields = ['id', 'objeto', 'imagen', 'descripcion', 'es_principal', 'fecha_subida']
-        read_only_fields = ['id', 'fecha_subida']
+        read_only_fields = ['id', 'fecha_subida', 'objeto']
 
     def validate_imagen(self, value):
         """Valida que el archivo sea una imagen."""
