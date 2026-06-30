@@ -370,6 +370,63 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
 
         return objeto
 
+    def _get_tipo_actual(self, instance):
+        """Determina el tipo actual del objeto según qué subtipo existe en DB."""
+        # Usamos consulta directa a DB para evitar el cache de hasattr
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM inventario_librorevista WHERE objeto_ptr_id = %s", [instance.id])
+            if cursor.fetchone()[0] > 0:
+                return 'libro'
+            cursor.execute("SELECT COUNT(*) FROM inventario_tecnologia WHERE objeto_ptr_id = %s", [instance.id])
+            if cursor.fetchone()[0] > 0:
+                return 'tecnologia'
+            cursor.execute("SELECT COUNT(*) FROM inventario_mueblearte WHERE objeto_ptr_id = %s", [instance.id])
+            if cursor.fetchone()[0] > 0:
+                return 'mueble'
+            cursor.execute("SELECT COUNT(*) FROM inventario_ropa WHERE objeto_ptr_id = %s", [instance.id])
+            if cursor.fetchone()[0] > 0:
+                return 'ropa'
+        return None
+
+    def _eliminar_hijo_actual(self, instance, tipo_actual):
+        """Elimina la fila del subtipo actual si existe."""
+        if tipo_actual == 'libro':
+            LibroRevista.objects.filter(objeto_ptr_id=instance.id).delete()
+        elif tipo_actual == 'tecnologia':
+            Tecnologia.objects.filter(objeto_ptr_id=instance.id).delete()
+        elif tipo_actual == 'mueble':
+            MuebleArte.objects.filter(objeto_ptr_id=instance.id).delete()
+        elif tipo_actual == 'ropa':
+            Ropa.objects.filter(objeto_ptr_id=instance.id).delete()
+
+    def _crear_o_actualizar_hijo(self, instance, tipo, campos_especificos, campos_libro, campos_tecno, campos_mueble, campos_ropa):
+        """Crea o actualiza la fila del subtipo según el tipo indicado."""
+        if tipo == 'libro':
+            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr_id=instance.id)
+            for k in campos_libro:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'tecnologia':
+            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr_id=instance.id)
+            for k in campos_tecno:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'mueble':
+            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr_id=instance.id)
+            for k in campos_mueble:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+        elif tipo == 'ropa':
+            hijo, created = Ropa.objects.get_or_create(objeto_ptr_id=instance.id)
+            for k in campos_ropa:
+                if k in campos_especificos:
+                    setattr(hijo, k, campos_especificos[k])
+            hijo.save()
+
     def update(self, instance, validated_data):
         tipo = validated_data.pop('tipo', None)
 
@@ -389,33 +446,23 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
 
-        # Actualizar o crear modelo hijo según el tipo
-        # Usamos objeto_ptr_id en lugar de objeto_ptr para evitar que Django
-        # intente hacer INSERT en inventario_objeto (multi-table inheritance bug)
-        if tipo == 'libro' or (tipo is None and hasattr(instance, 'librorevista')):
-            hijo, created = LibroRevista.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_libro:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
-        elif tipo == 'tecnologia' or (tipo is None and hasattr(instance, 'tecnologia')):
-            hijo, created = Tecnologia.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_tecno:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
-        elif tipo == 'mueble' or (tipo is None and hasattr(instance, 'mueblearte')):
-            hijo, created = MuebleArte.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_mueble:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
-        elif tipo == 'ropa' or (tipo is None and hasattr(instance, 'ropa')):
-            hijo, created = Ropa.objects.get_or_create(objeto_ptr_id=instance.id)
-            for k in campos_ropa:
-                if k in campos_especificos:
-                    setattr(hijo, k, campos_especificos[k])
-            hijo.save()
+        # Determinar tipo actual (desde DB, no desde hasattr que puede fallar)
+        tipo_actual = self._get_tipo_actual(instance)
+
+        if tipo is None:
+            # No se envió tipo en el payload → mantener el subtipo actual
+            tipo = tipo_actual
+
+        if tipo is not None:
+            # Si el tipo cambió, eliminar el hijo anterior antes de crear el nuevo
+            if tipo_actual is not None and tipo_actual != tipo:
+                self._eliminar_hijo_actual(instance, tipo_actual)
+
+            # Crear o actualizar el hijo del nuevo tipo
+            self._crear_o_actualizar_hijo(
+                instance, tipo, campos_especificos,
+                campos_libro, campos_tecno, campos_mueble, campos_ropa
+            )
 
         return instance
 
