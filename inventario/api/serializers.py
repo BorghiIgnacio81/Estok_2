@@ -403,6 +403,13 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             with connection.cursor() as cursor:
                 cursor.execute(f"DELETE FROM {tabla} WHERE objeto_ptr_id = %s", [instance.id])
 
+    def _serializar_valor(self, valor):
+        """Serializa valores para SQL directo: JSONField necesita json.dumps."""
+        import json
+        if isinstance(valor, dict):
+            return json.dumps(valor)
+        return valor
+
     def _crear_o_actualizar_hijo(self, instance, tipo, campos_especificos, campos_libro, campos_tecno, campos_mueble, campos_ropa):
         """
         Crea o actualiza la fila del subtipo usando SQL directo.
@@ -440,7 +447,7 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             for col in columnas:
                 if col in campos_especificos:
                     sets.append(f"{col} = %s")
-                    valores.append(campos_especificos[col])
+                    valores.append(self._serializar_valor(campos_especificos[col]))
             if sets:
                 valores.append(instance.id)
                 with connection.cursor() as cursor:
@@ -455,7 +462,7 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             valores = [instance.id]
             for col in columnas:
                 if col in campos_especificos:
-                    valores.append(campos_especificos[col])
+                    valores.append(self._serializar_valor(campos_especificos[col]))
                 else:
                     # Default values según el tipo de columna
                     valores.append('' if col != 'especificaciones' else '{}')
