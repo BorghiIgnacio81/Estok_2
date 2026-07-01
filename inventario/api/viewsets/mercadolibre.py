@@ -74,24 +74,16 @@ def callback_oauth(request):
 
     token_data = exchange_code_for_token(code, code_verifier=code_verifier)
     if not token_data:
-        return Response(
-            {"error": "No se pudo obtener el token de MercadoLibre"},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
+        logger.error("No se pudo obtener el token de MercadoLibre")
+        return redirect("/?ml_error=token_exchange_failed")
 
     token = save_token(token_data)
     if not token:
-        return Response(
-            {"error": "No se pudo guardar el token en la base de datos"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        logger.error("No se pudo guardar el token en la base de datos")
+        return redirect("/?ml_error=save_failed")
 
     logger.info("MercadoLibre autorizado exitosamente (user_id=%s)", token.user_id)
-    return Response({
-        "mensaje": "MercadoLibre autorizado exitosamente",
-        "user_id": token.user_id,
-        "expires_in": token.expires_in,
-    })
+    return redirect("/?ml_success=true")
 
 
 @api_view(["GET"])
