@@ -1,6 +1,7 @@
 """
 Servicio de OAuth para MercadoLibre.
 Maneja el flujo completo: autorización, callback, refresh automático.
+Soporta PKCE (Proof Key for Code Exchange) requerido por ML.
 """
 
 import logging
@@ -8,6 +9,9 @@ import urllib.request
 import urllib.parse
 import json
 import os
+import secrets
+import hashlib
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -33,26 +37,51 @@ def get_client_secret() -> Optional[str]:
     return os.environ.get("MERCADOLIBRE_CLIENT_SECRET")
 
 
-def get_auth_url(state: str = "estok_ml_auth") -> str:
+def _generar_code_verifier() -> str:
+    """
+    Genera un code_verifier aleatorio según RFC 7636.
+    String de 43-128 caracteres alfanuméricos.
+    """
+    return secrets.token_urlsafe(64)[:128]
+
+
+def _generar_code_challenge(verifier: str) -> str:
+    """
+    Genera el code_challenge S256 a partir del code_verifier.
+    """
+    sha256 = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(sha256).rstrip(b"=").decode("ascii")
+
+
+def get_auth_url(state: str = "estok_ml_auth") -> tuple[str, str]:
     """
     Genera la URL de autorización para redirigir al usuario a MercadoLibre.
+    Retorna (url, code_verifier).
+    El code_verifier debe guardarse en sesión para usarlo en el callback.
     """
     client_id = get_client_id()
     if not client_id:
         raise ValueError("MERCADOLIBRE_CLIENT_ID no está configurado")
+
+    code_verifier = _generar_code_verifier()
+    code_challenge = _generar_code_challenge(code_verifier)
 
     params = {
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": CALLBACK_URL,
         "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
     }
-    return f"{ML_AUTH_URL}?{urllib.parse.urlencode(params)}"
+    url = f"{ML_AUTH_URL}?{urllib.parse.urlencode(params)}"
+    return url, code_verifier
 
 
-def exchange_code_for_token(code: str) -> Optional[dict]:
+def exchange_code_for_token(code: str, code_verifier: Optional[str] = None) -> Optional[dict]:
     """
     Intercambia un código de autorización por un token de acceso.
+    Si se proporciona code_verifier, se incluye en la solicitud (PKCE).
     """
     client_id = get_client_id()
     client_secret = get_client_secret()
@@ -60,13 +89,17 @@ def exchange_code_for_token(code: str) -> Optional[dict]:
         logger.error("MERCADOLIBRE_CLIENT_ID o MERCADOLIBRE_CLIENT_SECRET no configurados")
         return None
 
-    data = urllib.parse.urlencode({
+    params = {
         "grant_type": "authorization_code",
         "client_id": client_id,
         "client_secret": client_secret,
         "code": code,
         "redirect_uri": CALLBACK_URL,
-    }).encode("utf-8")
+    }
+    if code_verifier:
+        params["code_verifier"] = code_verifier
+
+    data = urllib.parse.urlencode(params).encode("utf-8")
 
     try:
         req = urllib.request.Request(

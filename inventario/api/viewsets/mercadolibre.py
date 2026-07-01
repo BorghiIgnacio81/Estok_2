@@ -30,9 +30,13 @@ def iniciar_oauth(request):
     """
     Redirige al usuario a MercadoLibre para autorizar la app.
     GET /api/mercadolibre/auth/
+    Genera un code_verifier PKCE y lo guarda en sesión.
     """
     try:
-        auth_url = get_auth_url()
+        auth_url, code_verifier = get_auth_url()
+        # Guardar code_verifier en sesión para usarlo en el callback
+        request.session["ml_code_verifier"] = code_verifier
+        request.session.set_expiry(600)  # 10 minutos
         return redirect(auth_url)
     except ValueError as e:
         return Response(
@@ -64,7 +68,10 @@ def callback_oauth(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    token_data = exchange_code_for_token(code)
+    # Recuperar code_verifier de la sesión (PKCE)
+    code_verifier = request.session.pop("ml_code_verifier", None)
+
+    token_data = exchange_code_for_token(code, code_verifier=code_verifier)
     if not token_data:
         return Response(
             {"error": "No se pudo obtener el token de MercadoLibre"},
