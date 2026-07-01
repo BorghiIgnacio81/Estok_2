@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import redirect
+from django.http import HttpResponse
 
 from ...services.mercadolibre_oauth import (
     get_auth_url,
@@ -75,15 +76,27 @@ def callback_oauth(request):
     token_data = exchange_code_for_token(code, code_verifier=code_verifier)
     if not token_data:
         logger.error("No se pudo obtener el token de MercadoLibre")
-        return redirect("/?ml_error=token_exchange_failed")
+        return HttpResponse(
+            "<html><body><script>window.close()</script>"
+            "<p>Error al obtener token. Podés cerrar esta pestaña.</p></body></html>",
+            content_type="text/html",
+        )
 
     token = save_token(token_data)
     if not token:
         logger.error("No se pudo guardar el token en la base de datos")
-        return redirect("/?ml_error=save_failed")
+        return HttpResponse(
+            "<html><body><script>window.close()</script>"
+            "<p>Error al guardar token. Podés cerrar esta pestaña.</p></body></html>",
+            content_type="text/html",
+        )
 
     logger.info("MercadoLibre autorizado exitosamente (user_id=%s)", token.user_id)
-    return redirect("/?ml_success=true")
+    return HttpResponse(
+        "<html><body><script>window.close()</script>"
+        "<p>¡Autorización exitosa! Podés cerrar esta pestaña.</p></body></html>",
+        content_type="text/html",
+    )
 
 
 @api_view(["GET"])
