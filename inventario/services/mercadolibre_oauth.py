@@ -69,6 +69,7 @@ def generar_url_autorizacion() -> str:
         f"response_type=code"
         f"&client_id={client_id}"
         f"&redirect_uri={redirect_uri}"
+        f"&scope=read+offline_access"
     )
     return f"{ML_AUTH_URL}?{params}"
 
