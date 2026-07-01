@@ -1,26 +1,22 @@
 """
 Servicio de búsqueda de precios de referencia en MercadoLibre Argentina.
 
-Usa un access_token de USUARIO de MercadoLibre (no Client Credentials).
-El token de usuario tiene acceso a la API pública de búsqueda /sites/MLA/search.
+Usa OAuth de usuario con refresh automático.
+El token se guarda en la base de datos (MercadoLibreToken) y se refresca
+automáticamente cuando expira usando el refresh_token.
 
-Requiere la variable de entorno:
-  - MERCADOLIBRE_ACCESS_TOKEN: Token generado desde tu cuenta de MercadoLibre
-    (https://developers.mercadolibre.com.ar -> "Tu aplicación" -> "Access Token")
-
-El token de usuario expira cada 6 horas. Cuando expire, el servicio devolverá
-un error indicando que necesitás renovarlo manualmente desde el panel de
-desarrollador de MercadoLibre.
+Flujo:
+  1. El usuario visita /api/mercadolibre/auth/ → redirige a ML para autorizar
+  2. ML redirige a /api/mercadolibre/callback/ → guarda tokens en DB
+  3. PriceSearchService obtiene el token de DB y lo refresca si es necesario
 """
 
-import json
 import logging
-import time
 from typing import Dict, Any, List, Optional
 
 import requests
 
-from django.conf import settings
+from inventario.services import mercadolibre_oauth as ml_oauth
 
 logger = logging.getLogger(__name__)
 
@@ -30,76 +26,36 @@ class MercadoLibreAuthError(Exception):
     pass
 
 
-class MercadoLibreAPIError(Exception):
-    """Error en la consulta a la API de MercadoLibre."""
-    pass
-
-
 class PriceSearchService:
     """
     Servicio para buscar precios de referencia en MercadoLibre Argentina.
-    Usa un access_token de usuario (no Client Credentials).
+    Usa OAuth de usuario con refresh automático desde la base de datos.
     """
 
     SEARCH_URL = "https://api.mercadolibre.com/sites/MLA/search"
     ITEM_URL = "https://api.mercadolibre.com/items/"
-    USER_URL = "https://api.mercadolibre.com/users/me"
 
-    def __init__(self):
-        self.access_token = getattr(settings, 'MERCADOLIBRE_ACCESS_TOKEN', None)
-        if not self.access_token:
-            import os
-            self.access_token = os.environ.get('MERCADOLIBRE_ACCESS_TOKEN', '')
+    def _get_access_token(self) -> str:
+        """
+        Obtiene un access_token válido desde la base de datos.
+        Si está expirado, lo refresca automáticamente.
+        """
+        token = ml_oauth.obtener_token_valido()
+        if not token:
+            raise MercadoLibreAuthError(
+                "No hay token de MercadoLibre configurado. "
+                "Andá a Configuración → Conectar con MercadoLibre "
+                "para autorizar la aplicación."
+            )
+        return token.access_token
 
     def _get_headers(self) -> Dict[str, str]:
         """Retorna headers con autenticación."""
-        if not self.access_token:
-            raise MercadoLibreAuthError(
-                "MERCADOLIBRE_ACCESS_TOKEN no está configurado. "
-                "Generalo desde https://developers.mercadolibre.com.ar "
-                "y agregalo como variable de entorno en Coolify."
-            )
+        access_token = self._get_access_token()
         return {
-            "Authorization": f"Bearer {self.access_token}",
+            "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
-
-    def verificar_token(self) -> Dict[str, Any]:
-        """
-        Verifica si el access_token es válido consultando /users/me.
-        Útil para diagnosticar problemas de autenticación.
-        """
-        try:
-            resp = requests.get(
-                self.USER_URL,
-                headers=self._get_headers(),
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "valido": True,
-                    "usuario": data.get("nickname", ""),
-                    "id": data.get("id", ""),
-                    "email": data.get("email", ""),
-                }
-            elif resp.status_code == 401:
-                return {
-                    "valido": False,
-                    "error": "Token expirado o inválido. Renovalo desde developers.mercadolibre.com.ar",
-                    "detalle": resp.json().get("message", ""),
-                }
-            else:
-                return {
-                    "valido": False,
-                    "error": f"Error inesperado: {resp.status_code}",
-                    "detalle": resp.text[:200],
-                }
-        except requests.exceptions.RequestException as e:
-            return {
-                "valido": False,
-                "error": f"Error de conexión: {e}",
-            }
 
     def buscar_precios(
         self,
@@ -137,6 +93,7 @@ class PriceSearchService:
                 "maximo": 0,
                 "cantidad": 0,
                 "fuente": "mercadolibre",
+                "no_configurado": True,
             }
 
         params = {"q": query, "limit": limit}
@@ -157,9 +114,8 @@ class PriceSearchService:
                 return {
                     "error": (
                         "El token de MercadoLibre expiró. "
-                        "Andá a https://developers.mercadolibre.com.ar, "
-                        "iniciá sesión, entrá a 'Tu aplicación', "
-                        "copiá el nuevo Access Token y actualizalo en Coolify."
+                        "Andá a Configuración → Conectar con MercadoLibre "
+                        "para renovar la autorización."
                     ),
                     "resultados": [],
                     "promedio": 0,
