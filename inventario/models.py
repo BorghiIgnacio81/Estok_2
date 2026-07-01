@@ -792,3 +792,28 @@ class AlertaStock(models.Model):
     def __str__(self):
         estado = "⚠️ Reponer" if self.necesita_reposicion else "✅ OK"
         return f"{self.objeto.nombre}: {self.cantidad_actual}/{self.nivel_minimo} {estado}"
+
+
+# =============================================================================
+# MODELO DE TOKEN DE MERCADOLIBRE (OAuth)
+# =============================================================================
+class MercadoLibreToken(models.Model):
+    """
+    Almacena el token de acceso OAuth de MercadoLibre.
+    Solo puede existir un token activo a la vez.
+    """
+    access_token = models.TextField(verbose_name="Token de acceso")
+    refresh_token = models.TextField(verbose_name="Token de refresh")
+    token_type = models.CharField(max_length=50, default="Bearer")
+    expires_in = models.IntegerField(default=21600, verbose_name="Segundos hasta expirar")
+    scope = models.CharField(max_length=255, blank=True)
+    user_id = models.BigIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Token de MercadoLibre"
+        verbose_name_plural = "Tokens de MercadoLibre"
+
+    def __str__(self):
+        return f"ML Token (user_id={self.user_id}) - expires in {self.expires_in}s"

@@ -1,6 +1,6 @@
 """
 Servicio de búsqueda de precios en MercadoLibre Argentina.
-Usa la API pública de MercadoLibre (NO requiere OAuth ni tokens).
+Usa la API autenticada de MercadoLibre (requiere OAuth).
 
 Documentación: https://developers.mercadolibre.com.ar/es_ar/items-y-busquedas
 """
@@ -13,9 +13,11 @@ import json
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+from .mercadolibre_oauth import get_valid_access_token
+
 logger = logging.getLogger(__name__)
 
-# URL base de la API pública de MercadoLibre
+# URL base de la API de MercadoLibre
 MLA_API_BASE = "https://api.mercadolibre.com/sites/MLA/search"
 
 
@@ -55,7 +57,7 @@ class MLSearchResponse:
 class MLSearcher:
     """
     Buscador de precios en MercadoLibre Argentina.
-    Usa la API pública, sin autenticación.
+    Usa la API autenticada con OAuth.
     """
 
     def buscar(self, query: str, limit: int = 5, sort: str = "price_asc") -> MLSearchResponse:
@@ -75,6 +77,13 @@ class MLSearcher:
 
         query = query.strip()
 
+        # Obtener token de acceso OAuth
+        access_token = get_valid_access_token()
+        if not access_token:
+            return MLSearchResponse(
+                error="No hay token de MercadoLibre. Ve a /api/mercadolibre/auth/ para autorizar la app."
+            )
+
         # Mapeo de sort a parámetro de ML
         sort_map = {
             "price_asc": "price_asc",
@@ -90,15 +99,15 @@ class MLSearcher:
         }
 
         url = f"{MLA_API_BASE}?{urllib.parse.urlencode(params)}"
-        logger.info("Consultando ML API: %s", url)
+        logger.info("Consultando ML API con OAuth: %s", url)
 
         try:
             req = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                    "Authorization": f"Bearer {access_token}",
+                    "User-Agent": "Estok/1.0",
                     "Accept": "application/json",
-                    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
                 }
             )
             with urllib.request.urlopen(req, timeout=15) as response:
@@ -128,6 +137,17 @@ class MLSearcher:
 
         except urllib.error.HTTPError as e:
             logger.error("Error HTTP al consultar ML API: %d %s", e.code, e.reason)
+            # Si es 401 o 403, el token puede haber expirado, intentar refrescar
+            if e.code in (401, 403):
+                logger.info("Token posiblemente expirado, intentando refrescar...")
+                from .mercadolibre_oauth import refresh_access_token
+                new_token = refresh_access_token()
+                if new_token:
+                    # Reintentar con el nuevo token
+                    return self._reintentar_con_token(url, new_token, limit)
+                return MLSearchResponse(
+                    error="Token expirado y no se pudo refrescar. Ve a /api/mercadolibre/auth/ para re-autorizar."
+                )
             return MLSearchResponse(error=f"Error HTTP {e.code}: {e.reason}")
         except urllib.error.URLError as e:
             logger.error("Error de conexión al consultar ML API: %s", e.reason)
@@ -138,3 +158,38 @@ class MLSearcher:
         except Exception as e:
             logger.error("Error inesperado al consultar ML API: %s", e)
             return MLSearchResponse(error=f"Error inesperado: {e}")
+
+    def _reintentar_con_token(self, url: str, access_token: str, limit: int) -> MLSearchResponse:
+        """Reintenta la búsqueda con un token nuevo."""
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "User-Agent": "Estok/1.0",
+                    "Accept": "application/json",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=15) as response:
+                data = json.loads(response.read().decode("utf-8"))
+
+            results_raw = data.get("results", [])
+            total = data.get("paging", {}).get("total", 0)
+
+            results = []
+            for item in results_raw[:limit]:
+                results.append(MLSearchResult(
+                    title=item.get("title", ""),
+                    price=float(item.get("price", 0)),
+                    currency_id=item.get("currency_id", "ARS"),
+                    permalink=item.get("permalink", ""),
+                    thumbnail=item.get("thumbnail", ""),
+                    condition=item.get("condition", ""),
+                    seller_city=item.get("address", {}).get("city_name"),
+                    available_quantity=item.get("available_quantity", 0),
+                ))
+
+            return MLSearchResponse(results=results, total=total, query="reintento")
+        except Exception as e:
+            logger.error("Error en reintento con token nuevo: %s", e)
+            return MLSearchResponse(error=f"Error incluso después de refrescar token: {e}")
