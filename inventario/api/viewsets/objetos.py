@@ -147,10 +147,14 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         resultado = searcher.buscar(query, limit=limit, sort=sort)
 
         if resultado.error:
-            return Response(
-                {"error": resultado.error},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+            # Devolvemos 200 con el error en el body para que el frontend
+            # pueda mostrar el mensaje sin romper el flujo
+            return Response({
+                "error": resultado.error,
+                "results": [],
+                "total": 0,
+                "query": query,
+            })
 
         return Response(resultado.to_dict())
 
