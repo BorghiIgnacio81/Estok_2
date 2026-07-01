@@ -1,12 +1,16 @@
 """
 Servicio de búsqueda de precios de referencia en MercadoLibre Argentina.
 
-Usa la API oficial de MercadoLibre con autenticación OAuth (Client Credentials).
-Requiere las variables de entorno:
-  - MERCADOLIBRE_CLIENT_ID
-  - MERCADOLIBRE_CLIENT_SECRET
+Usa un access_token de USUARIO de MercadoLibre (no Client Credentials).
+El token de usuario tiene acceso a la API pública de búsqueda /sites/MLA/search.
 
-El access_token se obtiene automáticamente y se cachea hasta que expira.
+Requiere la variable de entorno:
+  - MERCADOLIBRE_ACCESS_TOKEN: Token generado desde tu cuenta de MercadoLibre
+    (https://developers.mercadolibre.com.ar -> "Tu aplicación" -> "Access Token")
+
+El token de usuario expira cada 6 horas. Cuando expire, el servicio devolverá
+un error indicando que necesitás renovarlo manualmente desde el panel de
+desarrollador de MercadoLibre.
 """
 
 import json
@@ -34,85 +38,68 @@ class MercadoLibreAPIError(Exception):
 class PriceSearchService:
     """
     Servicio para buscar precios de referencia en MercadoLibre Argentina.
-    Maneja autenticación OAuth y cacheo de tokens.
+    Usa un access_token de usuario (no Client Credentials).
     """
 
-    TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
     SEARCH_URL = "https://api.mercadolibre.com/sites/MLA/search"
     ITEM_URL = "https://api.mercadolibre.com/items/"
-
-    # Cache de token en memoria (se pierde al reiniciar el servidor)
-    _token_cache: Dict[str, Any] = {
-        "access_token": None,
-        "expires_at": 0,
-    }
+    USER_URL = "https://api.mercadolibre.com/users/me"
 
     def __init__(self):
-        self.client_id = getattr(settings, 'MERCADOLIBRE_CLIENT_ID', None) or \
-            getattr(settings, 'MERCADOLIBRE_CLIENT_ID', None)
-        self.client_secret = getattr(settings, 'MERCADOLIBRE_CLIENT_SECRET', None) or \
-            getattr(settings, 'MERCADOLIBRE_CLIENT_SECRET', None)
-
-        # Fallback a variables de entorno directas
-        if not self.client_id:
+        self.access_token = getattr(settings, 'MERCADOLIBRE_ACCESS_TOKEN', None)
+        if not self.access_token:
             import os
-            self.client_id = os.environ.get('MERCADOLIBRE_CLIENT_ID', '')
-        if not self.client_secret:
-            import os
-            self.client_secret = os.environ.get('MERCADOLIBRE_CLIENT_SECRET', '')
+            self.access_token = os.environ.get('MERCADOLIBRE_ACCESS_TOKEN', '')
 
-    def _obtener_token(self) -> str:
-        """
-        Obtiene un access_token de MercadoLibre usando Client Credentials.
-        Usa cache en memoria para evitar pedir token en cada request.
-        """
-        # Verificar si el token cacheado sigue vigente
-        ahora = time.time()
-        if (self._token_cache["access_token"] and
-                self._token_cache["expires_at"] > ahora + 60):  # 1 min de margen
-            return self._token_cache["access_token"]
-
-        if not self.client_id or not self.client_secret:
+    def _get_headers(self) -> Dict[str, str]:
+        """Retorna headers con autenticación."""
+        if not self.access_token:
             raise MercadoLibreAuthError(
-                "MERCADOLIBRE_CLIENT_ID y MERCADOLIBRE_CLIENT_SECRET no están configurados. "
-                "Agregalos como variables de entorno en Coolify."
+                "MERCADOLIBRE_ACCESS_TOKEN no está configurado. "
+                "Generalo desde https://developers.mercadolibre.com.ar "
+                "y agregalo como variable de entorno en Coolify."
             )
+        return {
+            "Authorization": f"Bearer {self.access_token}",
+            "Accept": "application/json",
+        }
 
+    def verificar_token(self) -> Dict[str, Any]:
+        """
+        Verifica si el access_token es válido consultando /users/me.
+        Útil para diagnosticar problemas de autenticación.
+        """
         try:
-            logger.info("🔄 Solicitando nuevo access_token a MercadoLibre...")
-            resp = requests.post(
-                self.TOKEN_URL,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                },
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-                timeout=15,
+            resp = requests.get(
+                self.USER_URL,
+                headers=self._get_headers(),
+                timeout=10,
             )
-            resp.raise_for_status()
-            data = resp.json()
-
-            token = data.get("access_token")
-            expires_in = data.get("expires_in", 21600)  # 6 horas por defecto
-
-            if not token:
-                raise MercadoLibreAuthError(
-                    f"Respuesta sin access_token: {json.dumps(data, ensure_ascii=False)}"
-                )
-
-            # Cachear
-            self._token_cache["access_token"] = token
-            self._token_cache["expires_at"] = ahora + expires_in
-
-            logger.info("✅ Access_token obtenido (expira en %d segundos)", expires_in)
-            return token
-
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "valido": True,
+                    "usuario": data.get("nickname", ""),
+                    "id": data.get("id", ""),
+                    "email": data.get("email", ""),
+                }
+            elif resp.status_code == 401:
+                return {
+                    "valido": False,
+                    "error": "Token expirado o inválido. Renovalo desde developers.mercadolibre.com.ar",
+                    "detalle": resp.json().get("message", ""),
+                }
+            else:
+                return {
+                    "valido": False,
+                    "error": f"Error inesperado: {resp.status_code}",
+                    "detalle": resp.text[:200],
+                }
         except requests.exceptions.RequestException as e:
-            raise MercadoLibreAuthError(f"Error al obtener token de MercadoLibre: {e}")
+            return {
+                "valido": False,
+                "error": f"Error de conexión: {e}",
+            }
 
     def buscar_precios(
         self,
@@ -140,7 +127,7 @@ class PriceSearchService:
         limit = min(max(limit, 1), 20)
 
         try:
-            token = self._obtener_token()
+            headers = self._get_headers()
         except MercadoLibreAuthError as e:
             return {
                 "error": str(e),
@@ -161,39 +148,27 @@ class PriceSearchService:
             response = requests.get(
                 self.SEARCH_URL,
                 params=params,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                },
+                headers=headers,
                 timeout=15,
             )
 
             if response.status_code == 401:
-                # Token expirado, limpiar cache y reintentar una vez
-                self._token_cache["access_token"] = None
-                self._token_cache["expires_at"] = 0
-                logger.warning("⚠️ Token expirado, reintentando con token nuevo...")
-                try:
-                    token = self._obtener_token()
-                    response = requests.get(
-                        self.SEARCH_URL,
-                        params=params,
-                        headers={
-                            "Authorization": f"Bearer {token}",
-                            "Accept": "application/json",
-                        },
-                        timeout=15,
-                    )
-                except MercadoLibreAuthError as e:
-                    return {
-                        "error": f"Error de autenticación incluso después de renovar token: {e}",
-                        "resultados": [],
-                        "promedio": 0,
-                        "minimo": 0,
-                        "maximo": 0,
-                        "cantidad": 0,
-                        "fuente": "mercadolibre",
-                    }
+                logger.error("❌ Token de MercadoLibre expirado o inválido")
+                return {
+                    "error": (
+                        "El token de MercadoLibre expiró. "
+                        "Andá a https://developers.mercadolibre.com.ar, "
+                        "iniciá sesión, entrá a 'Tu aplicación', "
+                        "copiá el nuevo Access Token y actualizalo en Coolify."
+                    ),
+                    "resultados": [],
+                    "promedio": 0,
+                    "minimo": 0,
+                    "maximo": 0,
+                    "cantidad": 0,
+                    "fuente": "mercadolibre",
+                    "token_expirado": True,
+                }
 
             response.raise_for_status()
             data = response.json()
@@ -255,17 +230,14 @@ class PriceSearchService:
             Dict con datos del item, o None si hay error.
         """
         try:
-            token = self._obtener_token()
+            headers = self._get_headers()
         except MercadoLibreAuthError:
             return None
 
         try:
             resp = requests.get(
                 f"{self.ITEM_URL}{item_id}",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                },
+                headers=headers,
                 timeout=10,
             )
             resp.raise_for_status()
