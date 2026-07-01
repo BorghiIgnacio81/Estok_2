@@ -1,10 +1,14 @@
 """
 Servicio OAuth para MercadoLibre.
 Maneja el flujo completo: autorización, callback, refresh automático.
+Soporta PKCE (SHA256) para cumplir con los requisitos de ML.
 """
 
+import base64
+import hashlib
 import logging
 import os
+import secrets
 from typing import Dict, Any, Optional
 
 import requests
@@ -21,6 +25,17 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 ML_AUTH_URL = "https://auth.mercadolibre.com.ar/authorization"
 ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
+
+
+def _generar_code_verifier() -> str:
+    """Genera un code_verifier aleatorio para PKCE."""
+    return secrets.token_urlsafe(64)[:128]
+
+
+def _generar_code_challenge(verifier: str) -> str:
+    """Genera un code_challenge S256 a partir del code_verifier."""
+    sha256 = hashlib.sha256(verifier.encode('ascii')).digest()
+    return base64.urlsafe_b64encode(sha256).rstrip(b'=').decode('ascii')
 
 
 def get_client_id() -> str:
@@ -53,8 +68,12 @@ def get_redirect_uri() -> str:
 
 def generar_url_autorizacion() -> str:
     """
-    Genera la URL de autorización de MercadoLibre.
+    Genera la URL de autorización de MercadoLibre con PKCE.
     El usuario debe visitar esta URL para autorizar la app.
+
+    Returns:
+        Tupla (url, code_verifier): la URL de autorización y el code_verifier
+        que debe guardarse para usar en el callback.
     """
     client_id = get_client_id()
     if not client_id:
@@ -64,6 +83,8 @@ def generar_url_autorizacion() -> str:
         )
 
     redirect_uri = get_redirect_uri()
+    code_verifier = _generar_code_verifier()
+    code_challenge = _generar_code_challenge(code_verifier)
 
     params = (
         f"response_type=code"
@@ -71,16 +92,19 @@ def generar_url_autorizacion() -> str:
         f"&redirect_uri={redirect_uri}"
         f"&scope=read+offline_access"
         f"&prompt=consent"
+        f"&code_challenge={code_challenge}"
+        f"&code_challenge_method=S256"
     )
-    return f"{ML_AUTH_URL}?{params}"
+    return f"{ML_AUTH_URL}?{params}", code_verifier
 
 
-def canjear_codigo_por_token(code: str) -> Dict[str, Any]:
+def canjear_codigo_por_token(code: str, code_verifier: Optional[str] = None) -> Dict[str, Any]:
     """
     Canjea el código de autorización por access_token y refresh_token.
 
     Args:
         code: Código de autorización recibido en el callback
+        code_verifier: Code verifier para PKCE (opcional)
 
     Returns:
         Dict con la respuesta de MercadoLibre (access_token, refresh_token, etc.)
@@ -95,16 +119,22 @@ def canjear_codigo_por_token(code: str) -> Dict[str, Any]:
             "deben estar configurados."
         )
 
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+        "redirect_uri": redirect_uri,
+    }
+
+    # Si hay code_verifier (PKCE), lo incluimos
+    if code_verifier:
+        data["code_verifier"] = code_verifier
+
     try:
         resp = requests.post(
             ML_TOKEN_URL,
-            data={
-                "grant_type": "authorization_code",
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "redirect_uri": redirect_uri,
-            },
+            data=data,
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",

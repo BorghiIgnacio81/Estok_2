@@ -30,7 +30,9 @@ def iniciar_oauth(request):
     GET /api/mercadolibre/auth/
     """
     try:
-        auth_url = ml_oauth.generar_url_autorizacion()
+        auth_url, code_verifier = ml_oauth.generar_url_autorizacion()
+        # Guardar code_verifier en sesión para usarlo en el callback
+        request.session['ml_code_verifier'] = code_verifier
         return HttpResponseRedirect(auth_url)
     except ValueError as e:
         return Response(
@@ -66,8 +68,11 @@ def callback_oauth(request):
         )
 
     try:
+        # Recuperar code_verifier de la sesión (PKCE)
+        code_verifier = request.session.pop('ml_code_verifier', None)
+
         # Canjear el código por tokens
-        token_data = ml_oauth.canjear_codigo_por_token(code)
+        token_data = ml_oauth.canjear_codigo_por_token(code, code_verifier=code_verifier)
         
         # Guardar en base de datos
         ml_oauth.guardar_token(token_data)
