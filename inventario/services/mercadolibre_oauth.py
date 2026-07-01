@@ -70,6 +70,7 @@ def generar_url_autorizacion() -> str:
         f"&client_id={client_id}"
         f"&redirect_uri={redirect_uri}"
         f"&scope=read+offline_access"
+        f"&prompt=consent"
     )
     return f"{ML_AUTH_URL}?{params}"
 
