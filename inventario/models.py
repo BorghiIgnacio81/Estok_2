@@ -744,42 +744,8 @@ class HistorialPrecio(models.Model):
 
 
 # =============================================================================
-# MERCADOLIBRE OAUTH - Token de usuario con refresh automático
-# =============================================================================
-class MercadoLibreToken(models.Model):
-    """
-    Almacena el access_token y refresh_token de MercadoLibre OAuth.
-    Se usa para autenticar requests a la API de búsqueda de precios.
-    El refresh_token dura 6 meses y permite obtener nuevos access_tokens.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    access_token = models.TextField(verbose_name="Access Token")
-    refresh_token = models.TextField(verbose_name="Refresh Token")
-    user_id = models.BigIntegerField(null=True, blank=True, verbose_name="ID de usuario ML")
-    expires_in = models.IntegerField(default=21600, verbose_name="Segundos hasta expiración")
-    scope = models.TextField(blank=True, verbose_name="Scopes")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
-
-    class Meta:
-        verbose_name = "Token de MercadoLibre"
-        verbose_name_plural = "Tokens de MercadoLibre"
-
-    def __str__(self):
-        return f"ML Token (expira en {self.expires_in}s)"
-
-    @property
-    def esta_expirado(self) -> bool:
-        """Verifica si el access_token está expirado."""
-        if not self.updated_at:
-            return True
-        from django.utils import timezone
-        delta = timezone.now() - self.updated_at
-        return delta.total_seconds() >= self.expires_in
-
-
-# =============================================================================
 # ALERTAS DE STOCK / REPOSICIÓN
+
 # =============================================================================
 class AlertaStock(models.Model):
     """

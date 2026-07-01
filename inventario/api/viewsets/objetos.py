@@ -28,8 +28,8 @@ from ..serializers import (
 from ...services.ai_vision_service import AIVisionService, LMStudioClient, LM_STUDIO_TIMEOUT_ALTA_RES
 from ...services.marketing_service import MarketingService
 from ...services.stock_service import StockValuationService
-from ...services.price_search_service import PriceSearchService
 from .base import HasRolePermission
+
 
 logger = logging.getLogger(__name__)
 
@@ -422,33 +422,10 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         service = StockValuationService()
         return Response(service.calcular_plusvalia_total(objeto))
 
-    @action(detail=False, methods=['get'])
-    def buscar_precio_mercadolibre(self, request):
-        """Busca precios de referencia en MercadoLibre Argentina usando OAuth."""
-        query = request.query_params.get('q', '').strip()
-        if not query:
-            return Response(
-                {"error": "Debes proporcionar 'q' (término de búsqueda)"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        limit = min(int(request.query_params.get('limit', 5)), 20)
-        sort = request.query_params.get('sort', 'price_asc')
-
-        service = PriceSearchService()
-        resultado = service.buscar_precios(query, limit=limit, sort=sort)
-
-        if resultado.get("error"):
-            return Response(
-                {"error": resultado["error"]},
-                status=status.HTTP_502_BAD_GATEWAY
-            )
-
-        return Response(resultado)
-
     @action(detail=True, methods=['post'])
     def crear_alerta_stock(self, request, pk=None):
         """Crea una alerta de stock para el objeto."""
+
         objeto = self.get_object()
         nivel_minimo = request.data.get('nivel_minimo', 1)
         cantidad_actual = request.data.get('cantidad_actual', 1)

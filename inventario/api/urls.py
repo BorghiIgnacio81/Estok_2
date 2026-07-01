@@ -19,11 +19,8 @@ from .viewsets import (
     EstokViewSet,
     CodigoInvitacionViewSet,
     CambiarEstokActivoView,
-    iniciar_oauth,
-    callback_oauth,
-    estado_token,
-    desconectar,
 )
+
 
 
 # =============================================================================
@@ -50,11 +47,7 @@ router.register(r'cambiar-estok-activo', CambiarEstokActivoView, basename='cambi
 urlpatterns = [
     path('', include(router.urls)),
     path('api-auth/', include('rest_framework.urls')),
-    # MercadoLibre OAuth
-    path('mercadolibre/auth/', iniciar_oauth, name='ml-auth'),
-    path('mercadolibre/callback/', callback_oauth, name='ml-callback'),
-    path('mercadolibre/estado/', estado_token, name='ml-estado'),
-    path('mercadolibre/desconectar/', desconectar, name='ml-desconectar'),
 ]
+
 
 
