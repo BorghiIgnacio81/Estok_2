@@ -8,6 +8,7 @@ Documentación: https://developers.mercadolibre.com.ar/es_ar/items-y-busquedas
 import logging
 import urllib.request
 import urllib.parse
+import urllib.error
 import json
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -95,8 +96,9 @@ class MLSearcher:
             req = urllib.request.Request(
                 url,
                 headers={
-                    "User-Agent": "Estok/1.0 (inventory system)",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
                     "Accept": "application/json",
+                    "Accept-Language": "es-AR,es;q=0.9,en;q=0.8",
                 }
             )
             with urllib.request.urlopen(req, timeout=15) as response:
