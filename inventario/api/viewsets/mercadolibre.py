@@ -30,13 +30,10 @@ def iniciar_oauth(request):
     """
     Redirige al usuario a MercadoLibre para autorizar la app.
     GET /api/mercadolibre/auth/
-    Genera un code_verifier PKCE y lo guarda en sesión.
+    El code_verifier PKCE se codifica dentro del state que ML devuelve en el callback.
     """
     try:
-        auth_url, code_verifier = get_auth_url()
-        # Guardar code_verifier en sesión para usarlo en el callback
-        request.session["ml_code_verifier"] = code_verifier
-        request.session.set_expiry(600)  # 10 minutos
+        auth_url, _ = get_auth_url()
         return redirect(auth_url)
     except ValueError as e:
         return Response(
@@ -68,8 +65,12 @@ def callback_oauth(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Recuperar code_verifier de la sesión (PKCE)
-    code_verifier = request.session.pop("ml_code_verifier", None)
+    # Extraer code_verifier del state (PKCE)
+    # El state tiene formato: "estok_ml_auth:<code_verifier>"
+    state = request.GET.get("state", "")
+    code_verifier = None
+    if ":" in state:
+        code_verifier = state.split(":", 1)[1]
 
     token_data = exchange_code_for_token(code, code_verifier=code_verifier)
     if not token_data:

@@ -57,7 +57,7 @@ def get_auth_url(state: str = "estok_ml_auth") -> tuple[str, str]:
     """
     Genera la URL de autorización para redirigir al usuario a MercadoLibre.
     Retorna (url, code_verifier).
-    El code_verifier debe guardarse en sesión para usarlo en el callback.
+    El code_verifier se codifica dentro del state para recuperarlo en el callback.
     """
     client_id = get_client_id()
     if not client_id:
@@ -66,11 +66,14 @@ def get_auth_url(state: str = "estok_ml_auth") -> tuple[str, str]:
     code_verifier = _generar_code_verifier()
     code_challenge = _generar_code_challenge(code_verifier)
 
+    # Codificar el code_verifier dentro del state para recuperarlo en el callback
+    state_with_verifier = f"{state}:{code_verifier}"
+
     params = {
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": CALLBACK_URL,
-        "state": state,
+        "state": state_with_verifier,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
     }
