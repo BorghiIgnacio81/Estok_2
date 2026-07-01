@@ -28,6 +28,7 @@ from ..serializers import (
 from ...services.ai_vision_service import AIVisionService, LMStudioClient, LM_STUDIO_TIMEOUT_ALTA_RES
 from ...services.marketing_service import MarketingService
 from ...services.stock_service import StockValuationService
+from ...services.price_search_service import PriceSearchService
 from .base import HasRolePermission
 
 logger = logging.getLogger(__name__)
@@ -423,9 +424,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def buscar_precio_mercadolibre(self, request):
-        """Busca precios de referencia en MercadoLibre Argentina."""
-        import requests as req_lib
-
+        """Busca precios de referencia en MercadoLibre Argentina usando OAuth."""
         query = request.query_params.get('q', '').strip()
         if not query:
             return Response(
@@ -433,52 +432,19 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        limit = min(int(request.query_params.get('limit', 5)), 10)
+        limit = min(int(request.query_params.get('limit', 5)), 20)
+        sort = request.query_params.get('sort', 'price_asc')
 
-        try:
-            url = "https://api.mercadolibre.com/sites/MLA/search"
-            params = {"q": query, "limit": limit, "sort": "price_asc"}
+        service = PriceSearchService()
+        resultado = service.buscar_precios(query, limit=limit, sort=sort)
 
-            logger.info("🔍 Buscando en MercadoLibre: '%s' (limit=%d)", query, limit)
-            response = req_lib.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            resultados = []
-            for item in data.get('results', []):
-                resultados.append({
-                    "titulo": item.get('title', ''),
-                    "precio": item.get('price', 0),
-                    "moneda": item.get('currency_id', 'ARS'),
-                    "url": item.get('permalink', ''),
-                    "vendedor": item.get('seller', {}).get('nickname', 'Desconocido'),
-                    "condicion": item.get('condition', ''),
-                    "ubicacion": item.get('address', {}).get('city_name', ''),
-                })
-
-            precios = [r['precio'] for r in resultados if r['precio'] > 0]
-
-            return Response({
-                "resultados": resultados,
-                "promedio": sum(precios) / len(precios) if precios else 0,
-                "minimo": min(precios) if precios else 0,
-                "maximo": max(precios) if precios else 0,
-                "cantidad": len(resultados),
-                "fuente": "mercadolibre",
-            })
-
-        except req_lib.exceptions.Timeout:
-            logger.error("Timeout al consultar MercadoLibre")
+        if resultado.get("error"):
             return Response(
-                {"error": "La consulta a MercadoLibre tardó demasiado. Intenta de nuevo."},
-                status=status.HTTP_504_GATEWAY_TIMEOUT
-            )
-        except req_lib.exceptions.RequestException as e:
-            logger.error("Error al consultar MercadoLibre: %s", e)
-            return Response(
-                {"error": f"Error al consultar MercadoLibre: {str(e)}"},
+                {"error": resultado["error"]},
                 status=status.HTTP_502_BAD_GATEWAY
             )
+
+        return Response(resultado)
 
     @action(detail=True, methods=['post'])
     def crear_alerta_stock(self, request, pk=None):
