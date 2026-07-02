@@ -9,7 +9,7 @@
 // incrementá este número para que la PWA detecte la nueva versión
 // y le muestre un cartel de actualización al usuario.
 // =============================================================================
-const CACHE_NAME = 'estok-cache-v9';
+const CACHE_NAME = 'estok-cache-v10';
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
@@ -64,6 +64,9 @@ self.addEventListener('fetch', (event) => {
 
   // Do NOT intercept API calls - let them go to network normally
   if (url.pathname.startsWith('/api/')) return;
+
+  // Do NOT intercept MercadoLibre OAuth callback
+  if (url.pathname.startsWith('/ml-callback/')) return;
 
   // Only cache static assets (CSS, JS, images, fonts, icons)
   const isStaticAsset = /\.(css|js|json|ico|png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot)$/i.test(url.pathname);
