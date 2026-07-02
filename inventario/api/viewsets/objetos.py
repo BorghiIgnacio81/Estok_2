@@ -28,7 +28,6 @@ from ..serializers import (
 from ...services.ai_vision_service import AIVisionService, LMStudioClient, LM_STUDIO_TIMEOUT_ALTA_RES
 from ...services.marketing_service import MarketingService
 from ...services.stock_service import StockValuationService
-from ...services.ml_search_service import MLSearcher
 from .base import HasRolePermission
 
 
@@ -122,41 +121,6 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             qs = qs.filter(deleted_at__isnull=True)
 
         return qs.select_related('ubicacion', 'contenedor').prefetch_related('fotos')
-
-    # =========================================================================
-    # ACCIÓN: BUSCAR PRECIOS EN MERCADOLIBRE (API PÚBLICA)
-    # =========================================================================
-    @action(detail=False, methods=['get'])
-    def buscar_precio_mercadolibre(self, request):
-        """
-        Busca precios de referencia en MercadoLibre Argentina.
-        Usa la API pública (NO requiere OAuth ni configuración).
-        GET /api/objetos/buscar_precio_mercadolibre/?q=iphone 12&limit=5&sort=price_asc
-        """
-        query = request.query_params.get('q', '').strip()
-        if not query:
-            return Response(
-                {"error": "Debes proporcionar 'q' (término de búsqueda)"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        limit = min(int(request.query_params.get('limit', 5)), 20)
-        sort = request.query_params.get('sort', 'price_asc')
-
-        searcher = MLSearcher()
-        resultado = searcher.buscar(query, limit=limit, sort=sort)
-
-        if resultado.error:
-            # Devolvemos 200 con el error en el body para que el frontend
-            # pueda mostrar el mensaje sin romper el flujo
-            return Response({
-                "error": resultado.error,
-                "results": [],
-                "total": 0,
-                "query": query,
-            })
-
-        return Response(resultado.to_dict())
 
     # =========================================================================
     # ACCIONES DE IA

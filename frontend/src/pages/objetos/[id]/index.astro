@@ -490,97 +490,14 @@ export const prerender = false;
   });
 
   // ===========================================================================
-  // ACCIÓN: BUSCAR PRECIO EN MERCADOLIBRE
+  // ACCIÓN: BUSCAR PRECIO EN MERCADOLIBRE (abre búsqueda en nueva pestaña)
   // ===========================================================================
 
-  // Modal de resultados
-  const mlModal = document.createElement('div');
-  mlModal.id = 'mlModal';
-  mlModal.className = 'fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4';
-  mlModal.innerHTML = `
-    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-      <div class="flex items-center justify-between p-4 border-b border-gray-200">
-        <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <svg class="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-          </svg>
-          Precios de referencia en MercadoLibre
-        </h3>
-        <button id="mlModalClose" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-      </div>
-      <div id="mlModalBody" class="p-4">
-        <div class="text-center py-8 text-gray-500">
-          <svg class="animate-spin h-8 w-8 mx-auto mb-3 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p>Buscando en MercadoLibre...</p>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(mlModal);
-
-  document.getElementById('mlModalClose')?.addEventListener('click', () => {
-    mlModal.classList.add('hidden');
-  });
-  mlModal.addEventListener('click', (e) => {
-    if (e.target === mlModal) mlModal.classList.add('hidden');
-  });
-
-  document.getElementById('buscarPrecioMLBtn')?.addEventListener('click', async () => {
+  document.getElementById('buscarPrecioMLBtn')?.addEventListener('click', () => {
     const nombre = document.getElementById('nombreObj')?.textContent;
     if (!nombre || nombre === 'Cargando...') return;
-
-    mlModal.classList.remove('hidden');
-    const body = document.getElementById('mlModalBody')!;
-
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5&sort=price_asc`,
-        { headers: getAuthHeaders() }
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Error del servidor' }));
-        body.innerHTML = `<div class="text-center py-8 text-red-600">❌ ${err.error || 'Error al buscar precios'}</div>`;
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.error) {
-        body.innerHTML = `<div class="text-center py-8 text-red-600">❌ ${data.error}</div>`;
-        return;
-      }
-
-      if (!data.results || data.results.length === 0) {
-        body.innerHTML = `<div class="text-center py-8 text-gray-500">No se encontraron resultados para "${data.query}"</div>`;
-        return;
-      }
-
-      body.innerHTML = `
-        <p class="text-sm text-gray-500 mb-3">Resultados para: <strong>${data.query}</strong> (${data.total} encontrados, mostrando ${data.results.length})</p>
-        <div class="space-y-3">
-          ${data.results.map((r: any) => `
-            <div class="flex gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-base">
-              <img src="${r.thumbnail}" alt="${r.title}" class="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-white" onerror="this.style.display='none'" />
-              <div class="flex-1 min-w-0">
-                <a href="${r.permalink}" target="_blank" class="text-sm font-medium text-gray-900 hover:text-blue-600 line-clamp-2 block">${r.title}</a>
-                <p class="text-lg font-bold text-green-700 mt-1">$${Number(r.price).toLocaleString('es-AR')} <span class="text-xs text-gray-500 font-normal">${r.currency_id}</span></p>
-                <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                  <span>${r.condition === 'new' ? 'Nuevo' : r.condition === 'used' ? 'Usado' : r.condition}</span>
-                  ${r.seller_city ? `<span>📍 ${r.seller_city}</span>` : ''}
-                  <span>📦 ${r.available_quantity} disp.</span>
-                </div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } catch (err: any) {
-      body.innerHTML = `<div class="text-center py-8 text-red-600">❌ Error de conexión: ${err.message}</div>`;
-    }
+    const mlUrl = `https://www.mercadolibre.com.ar/search?q=${encodeURIComponent(nombre)}`;
+    window.open(mlUrl, '_blank');
   });
 
   // ===========================================================================
