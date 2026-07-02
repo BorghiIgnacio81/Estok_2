@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include, re_path
+from inventario.api.viewsets.mercadolibre import callback_oauth
 from django.conf import settings
 from django.conf.urls.static import static
 from django.utils.safestring import mark_safe
@@ -46,6 +47,8 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # Callback de MercadoLibre OAuth (fuera de /api/ para evitar service worker)
+    path('ml-callback/', callback_oauth, name='ml-callback'),
     # Favicon: servir directamente desde Django
     re_path(r'^favicon\.ico$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/x-icon')),
     re_path(r'^favicon\.png$', lambda request: FileResponse(open(FAVICON_PATH, 'rb'), content_type='image/png')),
@@ -56,7 +59,7 @@ urlpatterns = [
     #   /objetos -> objetos/index.html
     #   / -> index.html
     # Si el archivo no existe, servir index.html (para SPA routing)
-    re_path(r'^(?!api/|admin/|static/|media/|assets/|icons/|favicon|manifest\.json|sw\.js)(.+)?$',
+    re_path(r'^(?!api/|admin/|static/|media/|assets/|icons/|favicon|manifest\.json|sw\.js|ml-callback/)(.+)?$',
         lambda request, path='': serve(
             request,
             f'{path}/index.html' if path else 'index.html',

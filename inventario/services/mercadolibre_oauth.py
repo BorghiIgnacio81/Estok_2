@@ -26,7 +26,7 @@ ML_AUTH_URL = "https://auth.mercadolibre.com.ar/authorization"
 ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
 
 # URL de callback (debe coincidir con lo configurado en el DevCenter de ML)
-CALLBACK_URL = "https://eeestok.duckdns.org/api/mercadolibre/callback/"
+CALLBACK_URL = "https://eeestok.duckdns.org/ml-callback/"
 
 
 def get_client_id() -> Optional[str]:
