@@ -30,6 +30,10 @@ from ...services.marketing_service import MarketingService
 from ...services.stock_service import StockValuationService
 from .base import HasRolePermission
 
+import urllib.request
+import urllib.parse
+import ssl
+
 
 
 logger = logging.getLogger(__name__)
@@ -694,6 +698,98 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             FotoObjetoUploadSerializer(foto).data,
             status=status.HTTP_201_CREATED
         )
+
+    # =========================================================================
+    # ACCIÓN: BUSCAR PRECIO EN MERCADOLIBRE
+    # =========================================================================
+    @action(detail=False, methods=['get'])
+    def buscar_precio_ml(self, request):
+        """
+        Busca precios de referencia en MercadoLibre para un producto.
+        Usa la API pública de MercadoLibre (no requiere OAuth).
+        GET /api/objetos/buscar_precio_ml/?q=iphone+14+pro
+        """
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response(
+                {"error": "Debes proporcionar 'q' con el nombre del producto"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            url = f"https://api.mercadolibre.com/sites/MLA/search?q={urllib.parse.quote(q)}&limit=10"
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Estok/1.0 (inventario personal)',
+                'Accept': 'application/json',
+            })
+            ctx = ssl.create_default_context()
+            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+
+            results = data.get('results', [])
+            if not results:
+                return Response({
+                    "encontrado": False,
+                    "mensaje": f"No se encontraron resultados en MercadoLibre para '{q}'",
+                    "precio_promedio": None,
+                    "precio_minimo": None,
+                    "precio_maximo": None,
+                    "total_resultados": 0,
+                    "resultados": [],
+                })
+
+            precios = [r.get('price', 0) for r in results if r.get('price')]
+            if not precios:
+                return Response({
+                    "encontrado": False,
+                    "mensaje": "Se encontraron resultados pero sin precios",
+                    "precio_promedio": None,
+                    "precio_minimo": None,
+                    "precio_maximo": None,
+                    "total_resultados": len(results),
+                    "resultados": [],
+                })
+
+            precio_promedio = sum(precios) / len(precios)
+            precio_minimo = min(precios)
+            precio_maximo = max(precios)
+
+            resultados_simple = [
+                {
+                    "titulo": r.get('title', ''),
+                    "precio": r.get('price', 0),
+                    "moneda": r.get('currency_id', 'ARS'),
+                    "permalink": r.get('permalink', ''),
+                    "condicion": r.get('condition', ''),
+                }
+                for r in results[:5]
+            ]
+
+            return Response({
+                "encontrado": True,
+                "mensaje": f"Se encontraron {len(precios)} resultados con precio",
+                "precio_promedio": round(precio_promedio, 2),
+                "precio_minimo": round(precio_minimo, 2),
+                "precio_maximo": round(precio_maximo, 2),
+                "total_resultados": len(results),
+                "resultados": resultados_simple,
+                "moneda": "ARS",
+            })
+
+        except urllib.error.HTTPError as e:
+            logger.error("Error HTTP al consultar ML API: %s %s", e.code, e.reason)
+            return Response({
+                "encontrado": False,
+                "error": f"Error al consultar MercadoLibre (HTTP {e.code})",
+                "precio_promedio": None,
+            }, status=status.HTTP_200_OK)  # 200 con error en body, no 502
+        except Exception as e:
+            logger.error("Error al buscar precio en ML: %s", e)
+            return Response({
+                "encontrado": False,
+                "error": f"Error al buscar precio: {str(e)}",
+                "precio_promedio": None,
+            }, status=status.HTTP_200_OK)
 
     def _get_tipo(self, obj):
         if hasattr(obj, 'librorevista'):

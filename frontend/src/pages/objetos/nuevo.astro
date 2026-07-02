@@ -687,10 +687,36 @@ import ImageEditor from '../../components/ImageEditor.astro';
         }
       }
 
-      // PASO 2: Si no encontró en inventario, abrir MercadoLibre en nueva pestaña
+      // PASO 2: Buscar en MercadoLibre a través del backend
+      try {
+        const mlResponse = await fetch(`${API_BASE_URL}/objetos/buscar_precio_ml/?q=${encodeURIComponent(nombre)}`, {
+          headers: getAuthHeaders(),
+        });
+        if (mlResponse.ok) {
+          const mlData = await mlResponse.json();
+          if (mlData.encontrado && mlData.precio_promedio) {
+            const valorEstimado = document.getElementById('valor_estimado');
+            if (valorEstimado) {
+              valorEstimado.value = mlData.precio_promedio;
+              valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            precioReferencia.className = 'mt-2 text-xs text-green-600';
+            precioReferencia.innerHTML = `💰 Precio ML: <strong>$${mlData.precio_promedio}</strong> (rango: $${mlData.precio_minimo} - $${mlData.precio_maximo}) basado en ${mlData.total_resultados} publicación(es) en MercadoLibre.`;
+            precioReferencia.classList.remove('hidden');
+            window.showToast?.(`💰 Precio de referencia: $${mlData.precio_promedio}`, 'success');
+            // También abrir la pestaña de listado como referencia visual
+            window.open(`https://listado.mercadolibre.com.ar/${nombre.replace(/\s+/g, '-')}`, '_blank');
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Error al buscar precio en ML:', err);
+      }
+
+      // PASO 3: Abrir MercadoLibre en nueva pestaña como referencia visual
       window.open(`https://listado.mercadolibre.com.ar/${nombre.replace(/\s+/g, '-')}`, '_blank');
 
-      // PASO 3: Si no encontró nada, sugerencia por categoría
+      // PASO 4: Sugerencia por categoría
       const tipo = document.getElementById('tipo')?.value;
       let sugerencia = 0;
       switch (tipo) {
