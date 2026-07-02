@@ -688,7 +688,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       }
 
       // PASO 2: Si no encontró en inventario, abrir MercadoLibre en nueva pestaña
-      window.open(`https://www.mercadolibre.com.ar/search?q=${encodeURIComponent(nombre)}`, '_blank');
+      window.open(`https://listado.mercadolibre.com.ar/${nombre.replace(/\s+/g, '-')}`, '_blank');
 
       // PASO 3: Si no encontró nada, sugerencia por categoría
       const tipo = document.getElementById('tipo')?.value;
