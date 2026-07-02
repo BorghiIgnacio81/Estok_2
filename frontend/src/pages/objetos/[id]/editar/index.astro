@@ -2,6 +2,7 @@
 // =============================================================================
 // PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
 // Formulario dinámico con CategoryFields para herencia multi-tabla
+// Build: 2026-07-01 — Forzar rebuild de bundle Astro
 // =============================================================================
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
@@ -519,42 +520,8 @@ export const prerender = false;
         }
       }
 
-      // PASO 2: Si no encontró en inventario, buscar en MercadoLibre Argentina
-      try {
-        const mlResponse = await fetch(`${API_BASE_URL}/objetos/buscar_precio_mercadolibre/?q=${encodeURIComponent(nombre)}&limit=5`, {
-          headers: getAuthHeaders(),
-        });
-        if (mlResponse.ok) {
-          const mlData = await mlResponse.json();
-          if (mlData.resultados && mlData.resultados.length > 0) {
-            const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
-            if (valorEstimado) {
-              valorEstimado.value = mlData.promedio.toFixed(2);
-              valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            if (precioReferencia) {
-              let html = `🛒 <strong>$${mlData.promedio.toFixed(2)}</strong> promedio en MercadoLibre (${mlData.cantidad} resultados)<br>`;
-              html += `<div class="mt-1 space-y-1">`;
-              mlData.resultados.slice(0, 3).forEach((r: any) => {
-                const precioFormateado = r.moneda === 'ARS' ? `ARS $${r.precio.toLocaleString('es-AR')}` : `$${r.precio.toFixed(2)}`;
-                html += `<div class="flex justify-between text-[10px]">
-                  <span class="truncate max-w-[200px]">${r.titulo}</span>
-                  <span class="font-medium whitespace-nowrap">${precioFormateado}</span>
-                </div>`;
-              });
-              html += `</div>`;
-              html += `<a href="https://listado.mercadolibre.com.ar/${encodeURIComponent(nombre)}" target="_blank" class="mt-1 inline-block text-blue-600 hover:underline">Ver más en MercadoLibre →</a>`;
-              precioReferencia.className = 'mt-2 text-xs text-blue-700 bg-blue-50 p-2 rounded-lg border border-blue-200';
-              precioReferencia.innerHTML = html;
-              precioReferencia.classList.remove('hidden');
-            }
-            showToast(`🛒 Precio MercadoLibre: $${mlData.promedio.toFixed(2)}`, 'success');
-            return;
-          }
-        }
-      } catch (mlErr) {
-        console.warn('Error al consultar MercadoLibre:', mlErr);
-      }
+      // PASO 2: Si no encontró en inventario, abrir MercadoLibre en nueva pestaña
+      window.open(`https://www.mercadolibre.com.ar/search?q=${encodeURIComponent(nombre)}`, '_blank');
 
       // PASO 3: Si no encontró nada, sugerencia por categoría
       const tipo = (document.getElementById('tipo') as HTMLSelectElement)?.value;
