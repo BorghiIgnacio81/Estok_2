@@ -76,6 +76,7 @@ def get_auth_url(state: str = "estok_ml_auth") -> tuple[str, str]:
         "state": state_with_verifier,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
+        "prompt": "consent",
     }
     url = f"{ML_AUTH_URL}?{urllib.parse.urlencode(params)}"
     return url, code_verifier
