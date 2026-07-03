@@ -402,32 +402,49 @@ import ImageEditor from '../../components/ImageEditor.astro';
   const analizarIaBtn = document.getElementById('analizarIaBtn');
   const iaStatus = document.getElementById('iaStatus');
 
-  let iaAvailable = false;
+  // Estado de disponibilidad INDEPENDIENTE para cada motor
+  let iaLocalAvailable = false;
+  let iaGeminiAvailable = false;
 
-  async function checkAIAvailability(motor?: string) {
-    const motorAUsar = motor || motorActual;
+  async function checkAIAvailability(motor: string): Promise<boolean> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${API_BASE_URL}/objetos/test_ia_stress/?motor=${motorAUsar}`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/test_ia_stress/?motor=${motor}`, {
         method: 'GET',
         headers: getAuthHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      console.log(`[IA] Heartbeat result for motor="${motorAUsar}":`, response.ok);
+      console.log(`[IA] Heartbeat result for motor="${motor}":`, response.ok);
       return response.ok;
     } catch (err) {
-      console.warn(`[IA] Heartbeat error for motor="${motorAUsar}":`, err);
+      console.warn(`[IA] Heartbeat error for motor="${motor}":`, err);
       return false;
     }
   }
 
+  async function checkAllMotors() {
+    const [localOk, geminiOk] = await Promise.all([
+      checkAIAvailability('local'),
+      checkAIAvailability('gemini'),
+    ]);
+    iaLocalAvailable = localOk;
+    iaGeminiAvailable = geminiOk;
+    console.log('[IA] Estado motores - local:', localOk, 'gemini:', geminiOk);
+    updateAIStatus();
+  }
+
   async function updateAIStatus() {
-    const connected = await checkAIAvailability();
-    iaAvailable = connected;
-    console.log('[IA] updateAIStatus: motorActual =', motorActual, '| iaAvailable =', iaAvailable, '| imagenBase64.value =', imagenBase64 ? '(existe)' : 'null', imagenBase64?.value ? '(tiene foto)' : '(sin foto)');
-    if (connected) {
+    // El motor actual está disponible?
+    const motorDisponible = motorActual === 'gemini' ? iaGeminiAvailable : iaLocalAvailable;
+    // Algún motor está disponible?
+    const algunDisponible = iaLocalAvailable || iaGeminiAvailable;
+
+    console.log('[IA] updateAIStatus: motorActual =', motorActual, '| local =', iaLocalAvailable, '| gemini =', iaGeminiAvailable, '| imagenBase64.value =', imagenBase64 ? '(existe)' : 'null', imagenBase64?.value ? '(tiene foto)' : '(sin foto)');
+
+    if (motorDisponible) {
+      // El motor seleccionado está conectado
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
       aiStatusText.textContent = motorActual === 'gemini' ? '☁️ Gemini Conectado' : '🖥️ IA Local Conectada';
@@ -436,18 +453,24 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (imagenBase64 && imagenBase64.value) {
         analizarIaBtn.disabled = false;
       }
+    } else if (algunDisponible) {
+      // El motor seleccionado NO está disponible, pero el otro sí
+      const otroMotor = motorActual === 'gemini' ? 'local' : 'gemini';
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-amber-500';
+      aiStatusText.textContent = motorActual === 'gemini' ? '☁️ Gemini no disponible' : '🖥️ IA Local no disponible';
+      iaStatus.className = 'mt-3 text-sm text-amber-600';
+      iaStatus.textContent = `💡 El motor "${motorActual}" no está disponible. Probá cambiando al motor "${otroMotor}" que sí responde.`;
+      iaSection.classList.remove('hidden');
+      analizarIaBtn.disabled = true;
+      iaStatus.classList.remove('hidden');
     } else {
-      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
-      aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
-      if (motorActual === 'gemini') {
-        aiStatusText.textContent = '☁️ Gemini no disponible';
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.textContent = '💡 Gemini no está disponible. Verificá que la API key esté configurada en el servidor.';
-      } else {
-        aiStatusText.textContent = '🖥️ IA Local no disponible';
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.textContent = '💡 La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
-      }
+      // Ningún motor disponible
+      aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700';
+      aiStatusDot.className = 'w-2 h-2 rounded-full bg-red-400';
+      aiStatusText.textContent = '❌ IA no disponible';
+      iaStatus.className = 'mt-3 text-sm text-red-600';
+      iaStatus.textContent = '💡 Ningún motor de IA está disponible. Verificá LM Studio (local) o la API key de Gemini en el servidor.';
       iaSection.classList.remove('hidden');
       analizarIaBtn.disabled = true;
       iaStatus.classList.remove('hidden');
@@ -472,19 +495,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
   motorLocalBtn?.addEventListener('click', () => seleccionarMotor('local'));
   motorGeminiBtn?.addEventListener('click', () => seleccionarMotor('gemini'));
 
-  updateAIStatus();
-  // Polling: verificar cada 30s si hay conexión, cada 120s si no
-  setInterval(async () => {
-    if (!iaAvailable) {
-      const connected = await checkAIAvailability();
-      if (connected) {
-        iaAvailable = true;
-        updateAIStatus();
-      }
-    } else {
-      updateAIStatus();
-    }
-  }, iaAvailable ? 30000 : 120000);
+  // Verificar ambos motores al cargar la página
+  checkAllMotors();
+  // Polling: re-verificar ambos motores cada 60s
+  setInterval(checkAllMotors, 60000);
 
   // ===========================================================================
   // MANEJO DE CAPTURA DE FOTO + Editor de imagen
@@ -514,7 +528,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
       imagenBase64.value = fotoGuardada;
       editPhotoBtn.classList.remove('hidden');
       clearPhotoBtn.classList.remove('hidden');
-      if (iaAvailable) {
+      // Verificar si el motor actual está disponible
+      const motorOk = motorActual === 'gemini' ? iaGeminiAvailable : iaLocalAvailable;
+      if (motorOk) {
         analizarIaBtn.disabled = false;
       }
       // Limpiar sessionStorage inmediatamente para que NO sobreviva a navegacion
@@ -922,8 +938,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
         return;
       }
 
-      // Validar que la IA esté disponible (por si el botón se habilitó incorrectamente)
-      if (!iaAvailable) {
+      // Validar que el motor actual esté disponible (por si el botón se habilitó incorrectamente)
+      const motorOk = motorActual === 'gemini' ? iaGeminiAvailable : iaLocalAvailable;
+      if (!motorOk) {
         const msg = motorActual === 'gemini'
           ? '❌ Gemini no está disponible. Verificá que la API key esté configurada en el servidor.'
           : '❌ La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
