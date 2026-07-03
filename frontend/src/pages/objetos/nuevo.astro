@@ -1050,43 +1050,55 @@ import ImageEditor from '../../components/ImageEditor.astro';
         if (edicionInput) edicionInput.value = datos.edicion;
       }
 
-      // Mostrar campos pendientes
-      const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];
-      if (camposPendientes.length > 0) {
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.innerHTML = `⚠️ La IA no pudo determinar: <strong>${camposPendientes.join(', ')}</strong>. Revisa estos campos manualmente.`;
-      } else {
-        iaStatus.className = 'mt-3 text-sm text-green-600';
-        iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
-      }
-      iaStatus.classList.remove('hidden');
+            // Mostrar campos pendientes - MENSAJE ÚNICO, no contradictorio
+            const camposPendientes = result.campos_pendientes || datos.campos_pendientes || [];
+            const camposCompletados = Object.entries(datos).filter(([k, v]) => {
+              if (k === 'raw_response' || k === 'confianza_general' || k === 'campos_pendientes') return false;
+              return v !== null && v !== undefined && v !== '';
+            }).map(([k]) => k);
 
-      // Verificar si la IA detectó que es un libro y necesita segunda foto
-      if (result.necesita_segunda_foto) {
-        const segundaFotoSection = document.getElementById('segundaFotoSection');
-        const segundaFotoMotivo = document.getElementById('segundaFotoMotivo');
-        if (segundaFotoSection && segundaFotoMotivo) {
-          segundaFotoMotivo.textContent = result.motivo_segunda_foto || 'Toma una foto de la parte trasera para capturar el código ISBN.';
-          segundaFotoSection.classList.remove('hidden');
-          window.showToast?.('📖 Libro detectado. Toma una foto de la parte trasera para obtener el ISBN.', 'info');
-        }
-      }
+            if (camposPendientes.length === 0) {
+              // Éxito total: todos los campos se autocompletaron
+              iaStatus.className = 'mt-3 text-sm text-green-600';
+              iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
+              window.showToast?.('🤖 Todos los campos autocompletados por IA correctamente.', 'success');
+            } else if (camposCompletados.length > 0) {
+              // Éxito parcial: algunos campos se autocompletaron, otros no
+              iaStatus.className = 'mt-3 text-sm text-amber-600';
+              iaStatus.innerHTML = `⚠️ Se autocompletaron: <strong>${camposCompletados.join(', ')}</strong>. Quedaron pendientes: <strong>${camposPendientes.join(', ')}</strong>. Revisalos manualmente.`;
+              window.showToast?.(`🤖 Se autocompletaron ${camposCompletados.length} campo(s). Revisá los pendientes.`, 'info');
+            } else {
+              // No se autocompletó nada
+              iaStatus.className = 'mt-3 text-sm text-red-600';
+              iaStatus.textContent = '❌ La IA no pudo determinar ningún campo. Revisá la foto e intentá de nuevo.';
+              window.showToast?.('❌ La IA no pudo autocompletar ningún campo.', 'error');
+            }
+            iaStatus.classList.remove('hidden');
 
-      // Si es la segunda foto y se detectó ISBN, mostrarlo
-      if (result.isbn_detectado) {
-        const isbnInput = document.querySelector('[name="isbn_issn"]');
-        if (isbnInput) {
-          isbnInput.value = result.isbn_detectado;
-          window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
-        }
-        // Ocultar la sección de segunda foto
-        const segundaFotoSection = document.getElementById('segundaFotoSection');
-        if (segundaFotoSection) {
-          segundaFotoSection.classList.add('hidden');
-        }
-      }
+            // Verificar si la IA detectó que es un libro y necesita segunda foto
+            if (result.necesita_segunda_foto) {
+              const segundaFotoSection = document.getElementById('segundaFotoSection');
+              const segundaFotoMotivo = document.getElementById('segundaFotoMotivo');
+              if (segundaFotoSection && segundaFotoMotivo) {
+                segundaFotoMotivo.textContent = result.motivo_segunda_foto || 'Toma una foto de la parte trasera para capturar el código ISBN.';
+                segundaFotoSection.classList.remove('hidden');
+                window.showToast?.('📖 Libro detectado. Toma una foto de la parte trasera para obtener el ISBN.', 'info');
+              }
+            }
 
-      window.showToast?.('🤖 Campos autocompletados por IA correctamente. Revisa y guarda.', 'success');
+            // Si es la segunda foto y se detectó ISBN, mostrarlo
+            if (result.isbn_detectado) {
+              const isbnInput = document.querySelector('[name="isbn_issn"]');
+              if (isbnInput) {
+                isbnInput.value = result.isbn_detectado;
+                window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
+              }
+              // Ocultar la sección de segunda foto
+              const segundaFotoSection = document.getElementById('segundaFotoSection');
+              if (segundaFotoSection) {
+                segundaFotoSection.classList.add('hidden');
+              }
+            }
 
     } catch (err) {
       console.error('[IA] Error en handler de Analizar IA:', err);
