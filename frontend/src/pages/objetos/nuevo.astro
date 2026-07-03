@@ -712,19 +712,25 @@ import ImageEditor from '../../components/ImageEditor.astro';
         }
       }
 
-      // PASO 2: Buscar en MercadoLibre a través del backend
+      // PASO 2: Buscar en MercadoLibre DIRECTAMENTE desde el frontend
+      // (la API de ML bloquea IPs de servidor/datacenter, pero permite CORS desde navegadores)
       try {
-        const mlResponse = await fetch(`${API_BASE_URL}/objetos/buscar_precio_ml/?q=${encodeURIComponent(nombre)}`, {
-          headers: getAuthHeaders(),
+        const mlUrl = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(nombre)}&limit=5`;
+        const mlResponse = await fetch(mlUrl, {
+          headers: {
+            'Accept': 'application/json',
+          },
         });
         if (mlResponse.ok) {
           const mlData = await mlResponse.json();
-          if (mlData.encontrado && mlData.resultados && mlData.resultados.length > 0) {
+          const results = mlData.results || [];
+          if (results.length > 0) {
             const estadoActual = (document.getElementById('estado_conservacion') as HTMLSelectElement)?.value || 'bueno';
             const factor = FACTORES_AJUSTE[estadoActual] ?? 0.9;
-            const primerResultado = mlData.resultados[0];
-            const precioOriginal = Number(primerResultado.precio);
+            const primerResultado = results[0];
+            const precioOriginal = Number(primerResultado.price);
             const precioAjustado = precioOriginal * factor;
+            const moneda = (primerResultado.currency_id || 'ARS') === 'ARS' ? 'ARS' : 'USD';
 
             // Autocompletar valor estimado con el precio ajustado
             const valorEstimado = document.getElementById('valor_estimado');
@@ -734,14 +740,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
             }
 
             // Mostrar tarjeta con el resultado de ML
-            const moneda = mlData.moneda === 'ARS' ? 'ARS' : 'USD';
             precioReferencia.className = 'mt-2';
             precioReferencia.innerHTML = `
               <div class="cursor-pointer border border-blue-200 bg-blue-50 rounded-lg p-3 hover:bg-blue-100 transition-base" data-permalink="${primerResultado.permalink}">
                 <div class="flex items-start gap-2">
                   <span class="text-lg">📦</span>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">${primerResultado.titulo}</p>
+                    <p class="text-sm font-medium text-gray-900 truncate">${primerResultado.title}</p>
                     <div class="mt-1 space-y-0.5">
                       <p class="text-xs text-gray-500">Precio ML: <span class="font-semibold text-gray-700">${moneda} ${precioOriginal.toFixed(2)}</span></p>
                       <p class="text-xs text-gray-500">Ajuste por estado (${getEstadoLabel(estadoActual)} ${getDescuentoLabel(factor)}): <span class="font-semibold text-blue-700">${moneda} ${precioAjustado.toFixed(2)}</span></p>
