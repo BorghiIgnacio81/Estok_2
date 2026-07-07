@@ -147,7 +147,16 @@ class CambiarEstokActivoView(viewsets.ViewSet):
         request.user.ultimo_estok_activo_id = estok_id
         request.user.save(update_fields=['ultimo_estok_activo_id'])
 
+        # Obtener datos del Estok para la respuesta
+        from ...models import Membresia
+        membresia = Membresia.objects.filter(
+            usuario=request.user,
+            estok_id=estok_id,
+        ).select_related('estok', 'role').first()
+
         return Response({
-            "mensaje": "Estok activo actualizado.",
-            "ultimo_estok_activo_id": str(estok_id),
+            "id": str(estok_id),
+            "nombre": membresia.estok.nombre if membresia else "",
+            "role": membresia.role.name if membresia and membresia.role else None,
+            "role_id": str(membresia.role.id) if membresia and membresia.role else None,
         })

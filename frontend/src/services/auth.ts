@@ -221,7 +221,7 @@ export async function cambiarEstokActivo(estokId: string, token?: string): Promi
     throw { error: 'No hay sesión activa' } as AuthError;
   }
 
-  const response = await fetch(`${API_BASE_URL}/usuarios/cambiar_estok_activo/`, {
+  const response = await fetch(`${API_BASE_URL}/cambiar-estok-activo/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

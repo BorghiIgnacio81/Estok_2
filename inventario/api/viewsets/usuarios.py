@@ -48,7 +48,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'cambiar_estok_activo'):
+        if self.action == 'me':
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -81,41 +81,3 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response(data)
 
-    @action(detail=False, methods=['post'])
-    def cambiar_estok_activo(self, request):
-        """
-        Cambia el Estok activo del usuario autenticado.
-        Recibe: { "estok_id": "uuid" }
-        Verifica que el usuario tenga membresía en ese Estok.
-        """
-        user = request.user
-        estok_id = request.data.get('estok_id')
-
-        if not estok_id:
-            return Response(
-                {"error": "estok_id es requerido"},
-                status=400,
-            )
-
-        # Verificar que el usuario tenga membresía en ese Estok
-        membresia = Membresia.objects.filter(
-            usuario=user,
-            estok_id=estok_id,
-        ).select_related('estok', 'role').first()
-
-        if not membresia:
-            return Response(
-                {"error": "No tienes membresía en este Estok"},
-                status=403,
-            )
-
-        # Actualizar el campo persistente en el usuario
-        user.ultimo_estok_activo = membresia.estok
-        user.save(update_fields=['ultimo_estok_activo'])
-
-        return Response({
-            "estok_id": str(membresia.estok.id),
-            "nombre": membresia.estok.nombre,
-            "role": membresia.role.name if membresia.role else None,
-            "role_id": str(membresia.role.id) if membresia.role else None,
-        })
