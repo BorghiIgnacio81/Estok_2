@@ -335,11 +335,22 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     });
   }
 
-  function abrirDropdown() {
-    const user = getCachedUser();
-    const estokActivoId = getEstokActivoId();
-    if (user?.estoks) {
-      renderEstokDropdown(user.estoks, estokActivoId);
+  async function abrirDropdown() {
+    // Refrescar datos del usuario desde el backend para tener Estoks actualizados
+    try {
+      const { fetchCurrentUser } = await import('../services/auth');
+      const userFresco = await fetchCurrentUser();
+      if (userFresco?.estoks) {
+        const estokActivoId = getEstokActivoId();
+        renderEstokDropdown(userFresco.estoks, estokActivoId);
+      }
+    } catch {
+      // Fallback: usar datos cacheados
+      const user = getCachedUser();
+      const estokActivoId = getEstokActivoId();
+      if (user?.estoks) {
+        renderEstokDropdown(user.estoks, estokActivoId);
+      }
     }
     estokDropdownMenu.classList.remove('hidden');
   }
