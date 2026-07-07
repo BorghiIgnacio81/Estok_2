@@ -151,7 +151,12 @@
       return;
     }
 
-    chatMessages.innerHTML = mensajes.map(msg => {
+    // Ordenar por created_at ascendente (más antiguo primero, más nuevo al final)
+    const ordenados = [...mensajes].sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    chatMessages.innerHTML = ordenados.map(msg => {
       const esPropio = msg.remitente === currentUserId;
       const nombre = getRemitenteNombre(msg);
       return `
