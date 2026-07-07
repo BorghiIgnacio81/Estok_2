@@ -128,20 +128,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
         <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
           <label class="block text-sm font-medium text-gray-700 mb-2">Motor de análisis:</label>
           <div class="flex gap-2">
-            <button type="button" id="motorLocalBtn" data-motor="local"
-              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
-              border-purple-700 bg-purple-50 text-purple-800">
-              <div class="flex items-center gap-2">
-                <span class="text-lg">🖥️</span>
-                <div>
-                  <div class="font-semibold">Local (LM Studio)</div>
-                  <div class="text-xs opacity-75 mt-0.5">Privado — tus fotos nunca salen de tu red. Requiere que tu PC esté encendida y conectada.</div>
-                </div>
-              </div>
-            </button>
             <button type="button" id="motorGeminiBtn" data-motor="gemini"
               class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
-              border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+              border-blue-500 bg-blue-50 text-blue-800">
               <div class="flex items-center gap-2">
                 <span class="text-lg">☁️</span>
                 <div>
@@ -150,8 +139,19 @@ import ImageEditor from '../../components/ImageEditor.astro';
                 </div>
               </div>
             </button>
+            <button type="button" id="motorLocalBtn" data-motor="local"
+              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
+              border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🖥️</span>
+                <div>
+                  <div class="font-semibold">Local (LM Studio)</div>
+                  <div class="text-xs opacity-75 mt-0.5">Privado — tus fotos nunca salen de tu red. Requiere que tu PC esté encendida y conectada.</div>
+                </div>
+              </div>
+            </button>
           </div>
-          <input type="hidden" id="motorSeleccionado" value="local" />
+          <input type="hidden" id="motorSeleccionado" value="gemini" />
         </div>
 
         <!-- Indicador de progreso (indeterminado - no simula porcentaje) -->
@@ -390,7 +390,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   const motorGeminiBtn = document.getElementById('motorGeminiBtn');
   const motorSeleccionado = document.getElementById('motorSeleccionado');
 
-  let motorActual = 'local';
+  let motorActual = 'gemini';
 
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad del motor IA seleccionado
