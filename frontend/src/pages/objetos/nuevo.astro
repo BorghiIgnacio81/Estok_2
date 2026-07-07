@@ -702,9 +702,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
         // Mostrar tarjeta con el resultado
         const esML = data.fuente === 'mercadolibre_scraping';
+        const tieneLink = data.link && data.link.length > 0;
         precioReferencia.className = 'mt-2';
         precioReferencia.innerHTML = `
-          <div class="${esML ? 'cursor-pointer border border-blue-200 bg-blue-50 hover:bg-blue-100' : 'border border-purple-200 bg-purple-50'} rounded-lg p-3 transition-base" ${esML ? `data-link="${data.link}"` : ''}>
+          <div class="${tieneLink ? 'cursor-pointer ' : ''}${esML ? 'border border-blue-200 bg-blue-50 hover:bg-blue-100' : 'border border-purple-200 bg-purple-50 hover:bg-purple-100'} rounded-lg p-3 transition-base" ${tieneLink ? `data-link="${data.link}"` : ''}>
             <div class="flex items-start gap-2">
               <span class="text-lg">${esML ? '📦' : '🤖'}</span>
               <div class="flex-1 min-w-0">
@@ -714,7 +715,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
                   <p class="text-xs text-gray-500">Ajuste por estado (${getEstadoLabel(data.estado_aplicado)} ${getDescuentoLabel(data.porcentaje_aplicado)}): <span class="font-semibold text-blue-700">$${data.precio_ajustado.toFixed(2)}</span></p>
                   ${esML
                     ? '<p class="text-xs text-blue-600 mt-1">🔗 Ver en MercadoLibre →</p>'
-                    : '<p class="text-xs text-purple-600 mt-1">🤖 Estimación de IA (Gemini)</p>'
+                    : tieneLink
+                      ? '<p class="text-xs text-purple-600 mt-1">🔗 Ver resultados en MercadoLibre →</p>'
+                      : '<p class="text-xs text-purple-600 mt-1">🤖 Estimación de IA (Gemini)</p>'
                   }
                 </div>
               </div>
@@ -723,8 +726,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
         `;
         precioReferencia.classList.remove('hidden');
 
-        // Click en la tarjeta abre el link de ML
-        if (esML) {
+        // Click en la tarjeta abre el link
+        if (tieneLink) {
           const tarjeta = precioReferencia.querySelector('[data-link]') as HTMLElement;
           if (tarjeta) {
             tarjeta.addEventListener('click', () => {

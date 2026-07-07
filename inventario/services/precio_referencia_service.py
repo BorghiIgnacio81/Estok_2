@@ -149,7 +149,7 @@ def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
         estado: Estado de conservación.
 
     Returns:
-        Dict con titulo, precio_original, link (vacío) o None si falla.
+        Dict con titulo, precio_original, link (búsqueda en ML) o None si falla.
     """
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -196,10 +196,12 @@ def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
             precio = float(match.group(1))
             if precio > 0:
                 logger.info("Gemini estimó $%.2f para '%s' (%s)", precio, nombre, estado)
+                # Generar link de búsqueda en ML para que el usuario pueda ver resultados reales
+                ml_search_url = f"https://listado.mercadolibre.com.ar/{requests.utils.quote(nombre)}"
                 return {
                     "titulo": f"Estimación de IA: {nombre}",
                     "precio": precio,
-                    "link": "",
+                    "link": ml_search_url,
                 }
 
         logger.warning("Gemini no pudo estimar precio. Respuesta: %s", texto)
@@ -260,7 +262,7 @@ def buscar_precio_referencia(nombre: str, estado: str = "bueno") -> Dict[str, An
             "titulo": resultado_gemini["titulo"],
             "precio_original": precio_original,
             "precio_ajustado": precio_ajustado,
-            "link": "",
+            "link": resultado_gemini["link"],
             "estado_aplicado": estado,
             "porcentaje_aplicado": porcentaje,
         }
