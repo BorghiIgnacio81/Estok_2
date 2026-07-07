@@ -20,6 +20,27 @@ class RoleViewSet(viewsets.ModelViewSet):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
 
+    def get_queryset(self):
+        """
+        Filtra los usuarios según el Estok activo del usuario autenticado.
+        - Si el usuario tiene un Estok activo (ultimo_estok_activo), solo devuelve
+          los usuarios que son miembros de ese mismo Estok.
+        - Si no tiene Estok activo, devuelve todos los usuarios (comportamiento legacy).
+        - Los superusers/staff pueden ver todos los usuarios.
+        """
+        user = self.request.user
+        # Superusers y staff ven todos
+        if user.is_superuser or user.is_staff:
+            return CustomUser.objects.all()
+        # Si tiene Estok activo, filtrar por miembros de ese Estok
+        if user.ultimo_estok_activo:
+            miembros_ids = Membresia.objects.filter(
+                estok=user.ultimo_estok_activo
+            ).values_list('usuario_id', flat=True)
+            return CustomUser.objects.filter(id__in=miembros_ids)
+        # Fallback: todos los usuarios
+        return CustomUser.objects.all()
+
     def get_permissions(self):
         """
         Permisos dinámicos:
