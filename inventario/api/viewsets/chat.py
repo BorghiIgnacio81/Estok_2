@@ -43,11 +43,9 @@ class MensajeViewSet(viewsets.ModelViewSet):
         return Mensaje.objects.none()
 
     def perform_create(self, serializer):
-        estok_id = self.request.headers.get('X-Estok-Id')
-        serializer.save(
-            remitente=self.request.user,
-            estok_id=estok_id,
-        )
+        # El serializer MensajeCreateSerializer.create() ya maneja
+        # la asignación de remitente y estok_id desde el request.
+        serializer.save()
 
     @action(detail=True, methods=['patch'])
     def marcar_leido(self, request, pk=None):
