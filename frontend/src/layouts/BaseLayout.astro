@@ -325,9 +325,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           const { cambiarEstokActivo } = await import('../services/auth');
           await cambiarEstokActivo(estokId);
           cerrarDropdown();
-          (window as any).showSuccess?.('✅ Estok cambiado');
-          // Recargar la página para refrescar todos los datos
-          window.location.reload();
+          // Redirigir a la página principal para refrescar todos los datos
+          window.location.href = '/';
         } catch (err: any) {
           (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
         }
