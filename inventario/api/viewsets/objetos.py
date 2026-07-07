@@ -28,6 +28,7 @@ from ..serializers import (
 from ...services.ai_vision_service import AIVisionService, LMStudioClient, LM_STUDIO_TIMEOUT_ALTA_RES
 from ...services.marketing_service import MarketingService
 from ...services.stock_service import StockValuationService
+from ...services.precio_referencia_service import buscar_precio_referencia
 from .base import HasRolePermission
 
 import urllib.request
@@ -706,7 +707,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
     def buscar_precio_ml(self, request):
         """
         Busca precios de referencia en MercadoLibre para un producto.
-        Usa la API pública de MercadoLibre (no requiere OAuth).
+        Intenta con token de ML primero, fallback a requests simple.
         GET /api/objetos/buscar_precio_ml/?q=iphone+14+pro
         """
         q = request.query_params.get('q', '').strip()
@@ -718,10 +719,17 @@ class ObjetoViewSet(viewsets.ModelViewSet):
 
         try:
             url = f"https://api.mercadolibre.com/sites/MLA/search?q={urllib.parse.quote(q)}&limit=10"
-            req = urllib.request.Request(url, headers={
-                'User-Agent': 'Estok/1.0 (inventario personal)',
+            
+            # Intentar con token de ML si está configurado
+            ml_token = os.environ.get('MERCADOLIBRE_ACCESS_TOKEN', '')
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'application/json',
-            })
+            }
+            if ml_token:
+                headers['Authorization'] = f'Bearer {ml_token}'
+            
+            req = urllib.request.Request(url, headers=headers)
             ctx = ssl.create_default_context()
             with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
@@ -782,7 +790,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 "encontrado": False,
                 "error": f"Error al consultar MercadoLibre (HTTP {e.code})",
                 "precio_promedio": None,
-            }, status=status.HTTP_200_OK)  # 200 con error en body, no 502
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error("Error al buscar precio en ML: %s", e)
             return Response({
@@ -790,6 +798,48 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 "error": f"Error al buscar precio: {str(e)}",
                 "precio_promedio": None,
             }, status=status.HTTP_200_OK)
+
+
+    # =========================================================================
+    # ACCIÓN: BUSCAR PRECIO DE REFERENCIA (scraping + Gemini fallback)
+    # =========================================================================
+    @action(detail=False, methods=['get'])
+    def buscar_precio_referencia(self, request):
+        """
+        Busca precio de referencia para un objeto.
+        Primero intenta scraping de listado.mercadolibre.com.ar.
+        Si falla, usa Gemini como fallback.
+
+        GET /api/objetos/buscar_precio_referencia/?q=iphone+14&estado=bueno
+        """
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response(
+                {"error": "Debes proporcionar 'q' con el nombre del producto"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        estado = request.query_params.get('estado', 'bueno').strip()
+        if estado not in ('excelente', 'bueno', 'regular', 'malo', 'muy_malo'):
+            estado = 'bueno'
+
+        try:
+            resultado = buscar_precio_referencia(q, estado=estado)
+            return Response(resultado)
+        except Exception as e:
+            logger.error("Error al buscar precio de referencia: %s", e)
+            return Response({
+                "encontrado": False,
+                "fuente": None,
+                "titulo": None,
+                "precio_original": None,
+                "precio_ajustado": None,
+                "link": None,
+                "estado_aplicado": estado,
+                "porcentaje_aplicado": None,
+                "error": str(e),
+            }, status=status.HTTP_200_OK)
+
 
     def _get_tipo(self, obj):
         if hasattr(obj, 'librorevista'):

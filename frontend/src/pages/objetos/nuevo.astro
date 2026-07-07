@@ -642,22 +642,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
   });
 
   // ===========================================================================
-  // ESTIMAR PRECIO
+  // ESTIMAR PRECIO DE REFERENCIA (scraping backend + Gemini fallback)
   // ===========================================================================
   const estimarPrecioBtn = document.getElementById('estimarPrecioBtn');
   const estimarPrecioText = document.getElementById('estimarPrecioText');
   const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner');
   const precioReferencia = document.getElementById('precioReferencia');
   const nombreInput = document.getElementById('nombre');
-
-  // Factor de ajuste según estado de conservación
-  const FACTORES_AJUSTE: Record<string, number> = {
-    excelente: 1.0,   // 0% descuento
-    bueno: 0.9,       // -10%
-    regular: 0.6,     // -40%
-    malo: 0.5,        // -50%
-    muy_malo: 0.4,    // -60%
-  };
 
   function getEstadoLabel(estado: string): string {
     const labels: Record<string, string> = {
@@ -670,8 +661,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
     return labels[estado] || estado;
   }
 
-  function getDescuentoLabel(factor: number): string {
-    const descuento = Math.round((1 - factor) * 100);
+  function getDescuentoLabel(porcentaje: number): string {
+    const descuento = 100 - porcentaje;
     return descuento > 0 ? `-${descuento}%` : '0%';
   }
 
@@ -687,113 +678,74 @@ import ImageEditor from '../../components/ImageEditor.astro';
     estimarPrecioSpinner.classList.remove('hidden');
     precioReferencia.classList.add('hidden');
     try {
-      // PASO 1: Buscar en el inventario local
-      const response = await fetch(`${API_BASE_URL}/objetos/?search=${encodeURIComponent(nombre)}&ordering=-valor_estimado`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const objetos = data.results || data;
-        const conPrecio = objetos.filter((o) => o.valor_estimado && Number(o.valor_estimado) > 0);
-        if (conPrecio.length > 0) {
-          const precios = conPrecio.map((o) => Number(o.valor_estimado));
-          const promedio = precios.reduce((a, b) => a + b, 0) / precios.length;
-          const maxPrecio = Math.max(...precios);
-          const minPrecio = Math.min(...precios);
-          const valorEstimado = document.getElementById('valor_estimado');
-          if (valorEstimado) {
-            valorEstimado.value = promedio.toFixed(2);
-            valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-          precioReferencia.className = 'mt-2 text-xs text-green-600';
-          precioReferencia.innerHTML = `💰 Precio sugerido: <strong>$${promedio.toFixed(2)}</strong> (rango: $${minPrecio.toFixed(2)} - $${maxPrecio.toFixed(2)}) basado en ${conPrecio.length} objeto(s) similar(es) en tu inventario.`;
-          window.showToast?.(`💰 Precio estimado: $${promedio.toFixed(2)}`, 'success');
-          return;
-        }
+      const estadoActual = (document.getElementById('estado_conservacion') as HTMLSelectElement)?.value || 'bueno';
+
+      // Llamar al nuevo endpoint de precio referencia (scraping + Gemini fallback)
+      const response = await fetch(
+        `${API_BASE_URL}/objetos/buscar_precio_referencia/?q=${encodeURIComponent(nombre)}&estado=${encodeURIComponent(estadoActual)}`,
+        { headers: getAuthHeaders() }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor (${response.status})`);
       }
 
-      // PASO 2: Buscar en MercadoLibre DIRECTAMENTE desde el frontend
-      // (la API de ML bloquea IPs de servidor/datacenter, pero permite CORS desde navegadores)
-      try {
-        const mlUrl = `https://api.mercadolibre.com/sites/MLA/search?q=${encodeURIComponent(nombre)}&limit=5`;
-        const mlResponse = await fetch(mlUrl, {
-          headers: {
-            'Accept': 'application/json',
-          },
-        });
-        if (mlResponse.ok) {
-          const mlData = await mlResponse.json();
-          const results = mlData.results || [];
-          if (results.length > 0) {
-            const estadoActual = (document.getElementById('estado_conservacion') as HTMLSelectElement)?.value || 'bueno';
-            const factor = FACTORES_AJUSTE[estadoActual] ?? 0.9;
-            const primerResultado = results[0];
-            const precioOriginal = Number(primerResultado.price);
-            const precioAjustado = precioOriginal * factor;
-            const moneda = (primerResultado.currency_id || 'ARS') === 'ARS' ? 'ARS' : 'USD';
+      const data = await response.json();
 
-            // Autocompletar valor estimado con el precio ajustado
-            const valorEstimado = document.getElementById('valor_estimado');
-            if (valorEstimado) {
-              valorEstimado.value = precioAjustado.toFixed(2);
-              valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
-            }
+      if (data.encontrado) {
+        // Autocompletar valor estimado con el precio ajustado
+        const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+        if (valorEstimado) {
+          valorEstimado.value = data.precio_ajustado.toFixed(2);
+          valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
+        }
 
-            // Mostrar tarjeta con el resultado de ML
-            precioReferencia.className = 'mt-2';
-            precioReferencia.innerHTML = `
-              <div class="cursor-pointer border border-blue-200 bg-blue-50 rounded-lg p-3 hover:bg-blue-100 transition-base" data-permalink="${primerResultado.permalink}">
-                <div class="flex items-start gap-2">
-                  <span class="text-lg">📦</span>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">${primerResultado.title}</p>
-                    <div class="mt-1 space-y-0.5">
-                      <p class="text-xs text-gray-500">Precio ML: <span class="font-semibold text-gray-700">${moneda} ${precioOriginal.toFixed(2)}</span></p>
-                      <p class="text-xs text-gray-500">Ajuste por estado (${getEstadoLabel(estadoActual)} ${getDescuentoLabel(factor)}): <span class="font-semibold text-blue-700">${moneda} ${precioAjustado.toFixed(2)}</span></p>
-                      <p class="text-xs text-blue-600 mt-1">🔗 Hacé clic para ver en MercadoLibre →</p>
-                    </div>
-                  </div>
+        // Mostrar tarjeta con el resultado
+        const esML = data.fuente === 'mercadolibre_scraping';
+        precioReferencia.className = 'mt-2';
+        precioReferencia.innerHTML = `
+          <div class="${esML ? 'cursor-pointer border border-blue-200 bg-blue-50 hover:bg-blue-100' : 'border border-purple-200 bg-purple-50'} rounded-lg p-3 transition-base" ${esML ? `data-link="${data.link}"` : ''}>
+            <div class="flex items-start gap-2">
+              <span class="text-lg">${esML ? '📦' : '🤖'}</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">${data.titulo}</p>
+                <div class="mt-1 space-y-0.5">
+                  <p class="text-xs text-gray-500">Precio original: <span class="font-semibold text-gray-700">$${data.precio_original.toFixed(2)}</span></p>
+                  <p class="text-xs text-gray-500">Ajuste por estado (${getEstadoLabel(data.estado_aplicado)} ${getDescuentoLabel(data.porcentaje_aplicado)}): <span class="font-semibold text-blue-700">$${data.precio_ajustado.toFixed(2)}</span></p>
+                  ${esML
+                    ? '<p class="text-xs text-blue-600 mt-1">🔗 Ver en MercadoLibre →</p>'
+                    : '<p class="text-xs text-purple-600 mt-1">🤖 Estimación de IA (Gemini)</p>'
+                  }
                 </div>
               </div>
-            `;
-            precioReferencia.classList.remove('hidden');
+            </div>
+          </div>
+        `;
+        precioReferencia.classList.remove('hidden');
 
-            // Click en la tarjeta abre el link de ML
-            const tarjeta = precioReferencia.querySelector('[data-permalink]') as HTMLElement;
-            if (tarjeta) {
-              tarjeta.addEventListener('click', () => {
-                const permalink = tarjeta.dataset.permalink;
-                if (permalink) {
-                  window.open(permalink, '_blank');
-                }
-              });
-            }
-            window.showToast?.(`💰 Precio de referencia: ${moneda} ${precioAjustado.toFixed(2)}`, 'success');
-            return;
+        // Click en la tarjeta abre el link de ML
+        if (esML) {
+          const tarjeta = precioReferencia.querySelector('[data-link]') as HTMLElement;
+          if (tarjeta) {
+            tarjeta.addEventListener('click', () => {
+              const link = tarjeta.dataset.link;
+              if (link) {
+                window.open(link, '_blank');
+              }
+            });
           }
         }
-      } catch (err) {
-        console.warn('Error al buscar precio en ML:', err);
-      }
 
-      // PASO 3: Sugerencia por categoría (sin abrir ML)
-      const tipo = document.getElementById('tipo')?.value;
-      let sugerencia = 0;
-      switch (tipo) {
-        case 'tecnologia': sugerencia = 150; break;
-        case 'libro': sugerencia = 20; break;
-        case 'mueble': sugerencia = 200; break;
-        case 'ropa': sugerencia = 30; break;
-        default: sugerencia = 50;
+        window.showToast?.(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
+      } else {
+        // No se encontró precio de referencia
+        precioReferencia.className = 'mt-2 text-xs text-amber-600';
+        precioReferencia.textContent = '💡 No se encontró precio de referencia para este objeto.';
+        precioReferencia.classList.remove('hidden');
+        window.showToast?.('No se encontró precio de referencia.', 'info');
       }
-      precioReferencia.className = 'mt-2 text-xs text-amber-600';
-      precioReferencia.innerHTML = `💡 No se encontraron precios de referencia en MercadoLibre. Sugerencia inicial: <strong>$${sugerencia.toFixed(2)}</strong> (basado en la categoría).`;
-      const valorEstimado = document.getElementById('valor_estimado');
-      if (valorEstimado && !valorEstimado.value) {
-        valorEstimado.value = sugerencia.toFixed(2);
-      }
-      precioReferencia.classList.remove('hidden');
     } catch (err) {
+      console.error('Error al buscar precio de referencia:', err);
       precioReferencia.className = 'mt-2 text-xs text-red-600';
       precioReferencia.textContent = '❌ Error de conexión al buscar precios.';
       precioReferencia.classList.remove('hidden');

@@ -11,3 +11,4 @@ gunicorn>=23.0,<24.0
 django-cors-headers>=4.7,<5.0
 whitenoise[brotli]>=6.9,<7.0
 google-genai>=2.0,<3.0
+beautifulsoup4>=4.12,<5.0
