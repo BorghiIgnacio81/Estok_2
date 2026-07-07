@@ -26,12 +26,10 @@ class UserViewSet(viewsets.ModelViewSet):
         - Si el usuario tiene un Estok activo (ultimo_estok_activo), solo devuelve
           los usuarios que son miembros de ese mismo Estok.
         - Si no tiene Estok activo, devuelve todos los usuarios (comportamiento legacy).
-        - Los superusers/staff pueden ver todos los usuarios.
+        - Incluso superusers/staff respetan el filtro del Estok activo, para que
+          en los combobox de dueño/beneficiario solo aparezcan los miembros del Estok.
         """
         user = self.request.user
-        # Superusers y staff ven todos
-        if user.is_superuser or user.is_staff:
-            return CustomUser.objects.all()
         # Si tiene Estok activo, filtrar por miembros de ese Estok
         if user.ultimo_estok_activo:
             miembros_ids = Membresia.objects.filter(
