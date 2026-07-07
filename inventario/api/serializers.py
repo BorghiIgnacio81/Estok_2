@@ -16,7 +16,7 @@ from ..models import (
     Role, CustomUser, Estok, Membresia, CodigoInvitacion,
     Ubicacion, Contenedor,
     Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
-    FotoObjeto, HistorialPrecio, AlertaStock,
+    FotoObjeto, HistorialPrecio, AlertaStock, Mensaje,
 )
 
 logger = logging.getLogger(__name__)
@@ -658,3 +658,45 @@ class FotoObjetoUploadSerializer(serializers.ModelSerializer):
         if value.size > 10 * 1024 * 1024:  # 10MB
             raise serializers.ValidationError("La imagen no puede superar los 10MB.")
         return value
+
+
+# =============================================================================
+# SERIALIZERS DE CHAT INTERNO
+# =============================================================================
+class MensajeSerializer(serializers.ModelSerializer):
+    """Serializer para mensajes de chat interno."""
+    remitente_nombre = serializers.SerializerMethodField()
+    remitente_username = serializers.CharField(source='remitente.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Mensaje
+        fields = [
+            'id', 'estok', 'remitente', 'remitente_nombre', 'remitente_username',
+            'contenido', 'leido', 'created_at',
+        ]
+        read_only_fields = ['id', 'remitente', 'created_at']
+
+    def get_remitente_nombre(self, obj):
+        if obj.remitente:
+            return obj.remitente.get_full_name() or obj.remitente.username
+        return None
+
+
+class MensajeCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear un mensaje."""
+
+    class Meta:
+        model = Mensaje
+        fields = ['contenido']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        estok_id = request.headers.get('X-Estok-Id') if request else None
+        if not estok_id:
+            raise serializers.ValidationError({"error": "Header X-Estok-Id requerido"})
+        mensaje = Mensaje.objects.create(
+            estok_id=estok_id,
+            remitente=request.user,
+            **validated_data
+        )
+        return mensaje

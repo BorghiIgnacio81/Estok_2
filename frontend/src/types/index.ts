@@ -311,3 +311,18 @@ export interface EscaneoQRResponse {
   objetos: ObjetoListItem[];
   total_objetos: number;
 }
+
+// =============================================================================
+// CHAT INTERNO
+// =============================================================================
+
+export interface Mensaje {
+  id: string;
+  estok: string;
+  remitente: string;
+  remitente_nombre: string | null;
+  remitente_username: string | null;
+  contenido: string;
+  leido: boolean;
+  created_at: string;
+}

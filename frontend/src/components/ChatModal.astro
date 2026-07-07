@@ -1,0 +1,269 @@
+---
+// =============================================================================
+// CHAT MODAL - Chat interno entre miembros de un Estok
+// Botón amarillo en forma de sobre en la barra superior
+// =============================================================================
+---
+
+<div id="chatContainer" class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+  <!-- Ventana de chat -->
+  <div id="chatWindow" class="hidden bg-white rounded-2xl shadow-2xl border border-gray-200 w-80 sm:w-96 max-h-[500px] flex flex-col overflow-hidden transition-all duration-300 ease-out">
+    <!-- Header del chat -->
+    <div class="flex items-center justify-between px-4 py-3 bg-yellow-400 border-b border-yellow-500">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <span class="text-sm font-bold text-yellow-900">Chat del Estok</span>
+      </div>
+      <button id="chatCloseBtn" class="p-1 rounded-lg hover:bg-yellow-500 transition-base text-yellow-900">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mensajes -->
+    <div id="chatMessages" class="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50" style="min-height: 250px; max-height: 350px;">
+      <div class="text-center text-sm text-gray-400 py-8">
+        <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <p>Cargando mensajes...</p>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="border-t border-gray-200 p-3 bg-white">
+      <form id="chatForm" class="flex gap-2">
+        <input
+          id="chatInput"
+          type="text"
+          placeholder="Escribí un mensaje..."
+          class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
+          autocomplete="off"
+        />
+        <button
+          id="chatSendBtn"
+          type="submit"
+          class="px-3 py-2 bg-yellow-400 text-yellow-900 font-medium rounded-lg hover:bg-yellow-500 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Botón flotante (sobre amarillo) -->
+  <button id="chatToggleBtn"
+    class="w-12 h-12 bg-yellow-400 hover:bg-yellow-500 rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 relative"
+    title="Chat del Estok">
+    <svg class="w-6 h-6 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+    <!-- Badge de no leídos -->
+    <span id="chatUnreadBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-sm">0</span>
+  </button>
+</div>
+
+<script>
+  import { fetchMensajes, enviarMensaje, fetchNoLeidos } from '../services/chat';
+  import { getEstokActivoId } from '../services/auth';
+
+  // ===========================================================================
+  // ELEMENTOS DEL DOM
+  // ===========================================================================
+
+  const chatToggleBtn = document.getElementById('chatToggleBtn')!;
+  const chatWindow = document.getElementById('chatWindow')!;
+  const chatCloseBtn = document.getElementById('chatCloseBtn')!;
+  const chatMessages = document.getElementById('chatMessages')!;
+  const chatForm = document.getElementById('chatForm') as HTMLFormElement;
+  const chatInput = document.getElementById('chatInput') as HTMLInputElement;
+  const chatSendBtn = document.getElementById('chatSendBtn') as HTMLButtonElement;
+  const chatUnreadBadge = document.getElementById('chatUnreadBadge')!;
+
+  // ===========================================================================
+  // ESTADO
+  // ===========================================================================
+
+  let isOpen = false;
+  let pollingInterval: number | null = null;
+  let currentUserId: string | null = null;
+
+  // Obtener usuario actual
+  try {
+    const userData = localStorage.getItem('estok_user');
+    if (userData) {
+      currentUserId = JSON.parse(userData).id;
+    }
+  } catch {}
+
+  // ===========================================================================
+  // FUNCIONES
+  // ===========================================================================
+
+  function getRemitenteNombre(msg: any): string {
+    return msg.remitente_nombre || msg.remitente_username || 'Usuario';
+  }
+
+  function formatTime(dateStr: string): string {
+    const d = new Date(dateStr);
+    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderMensajes(mensajes: any[]) {
+    if (mensajes.length === 0) {
+      chatMessages.innerHTML = `
+        <div class="text-center text-sm text-gray-400 py-8">
+          <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <p>No hay mensajes aún.</p>
+          <p class="text-xs text-gray-300 mt-1">¡Sé el primero en escribir!</p>
+        </div>
+      `;
+      return;
+    }
+
+    chatMessages.innerHTML = mensajes.map(msg => {
+      const esPropio = msg.remitente === currentUserId;
+      const nombre = getRemitenteNombre(msg);
+      return `
+        <div class="flex ${esPropio ? 'justify-end' : 'justify-start'}">
+          <div class="max-w-[80%] ${esPropio ? 'bg-yellow-400 text-yellow-900' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm">
+            ${!esPropio ? `<p class="text-xs font-semibold text-gray-500 mb-0.5">${nombre}</p>` : ''}
+            <p class="text-sm">${escapeHtml(msg.contenido)}</p>
+            <p class="text-xs ${esPropio ? 'text-yellow-800' : 'text-gray-400'} text-right mt-0.5">${formatTime(msg.created_at)}</p>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Scroll al último mensaje
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async function loadMensajes() {
+    try {
+      const estokId = getEstokActivoId();
+      if (!estokId) return;
+      const mensajes = await fetchMensajes(estokId);
+      renderMensajes(mensajes);
+    } catch (err) {
+      console.error('Error al cargar mensajes:', err);
+    }
+  }
+
+  async function updateUnreadBadge() {
+    try {
+      const estokId = getEstokActivoId();
+      if (!estokId) {
+        chatUnreadBadge.classList.add('hidden');
+        return;
+      }
+      const count = await fetchNoLeidos(estokId);
+      if (count > 0) {
+        chatUnreadBadge.textContent = count > 99 ? '99+' : String(count);
+        chatUnreadBadge.classList.remove('hidden');
+      } else {
+        chatUnreadBadge.classList.add('hidden');
+      }
+    } catch {
+      chatUnreadBadge.classList.add('hidden');
+    }
+  }
+
+  function openChat() {
+    isOpen = true;
+    chatWindow.classList.remove('hidden');
+    chatToggleBtn.classList.add('hidden');
+    loadMensajes();
+
+    // Iniciar polling cada 5 segundos
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = window.setInterval(() => {
+      if (isOpen) {
+        loadMensajes();
+      }
+      updateUnreadBadge();
+    }, 5000);
+  }
+
+  function closeChat() {
+    isOpen = false;
+    chatWindow.classList.add('hidden');
+    chatToggleBtn.classList.remove('hidden');
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+    updateUnreadBadge();
+  }
+
+  async function handleSend(e: Event) {
+    e.preventDefault();
+    const texto = chatInput.value.trim();
+    if (!texto) return;
+
+    chatSendBtn.disabled = true;
+    chatInput.disabled = true;
+
+    try {
+      await enviarMensaje(texto);
+      chatInput.value = '';
+      await loadMensajes();
+    } catch (err: any) {
+      (window as any).showError?.(err.message || 'Error al enviar mensaje');
+    } finally {
+      chatSendBtn.disabled = false;
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+  }
+
+  // ===========================================================================
+  // EVENT LISTENERS
+  // ===========================================================================
+
+  chatToggleBtn.addEventListener('click', openChat);
+  chatCloseBtn.addEventListener('click', closeChat);
+  chatForm.addEventListener('submit', handleSend);
+
+  // Enter para enviar
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      chatForm.dispatchEvent(new Event('submit'));
+    }
+  });
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  // Actualizar badge de no leídos cada 10 segundos
+  updateUnreadBadge();
+  setInterval(updateUnreadBadge, 10000);
+
+  // Escuchar cambios de Estok activo
+  window.addEventListener('estok-changed', () => {
+    updateUnreadBadge();
+    if (isOpen) {
+      loadMensajes();
+    }
+  });
+
+  // Escuchar evento para abrir desde el botón de la navbar
+  window.addEventListener('open-chat', () => {
+    openChat();
+  });
+</script>
