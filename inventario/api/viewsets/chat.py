@@ -39,7 +39,7 @@ class MensajeViewSet(viewsets.ModelViewSet):
 
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
-            return Mensaje.objects.filter(estok_id=estok_id).select_related('remitente')
+            return Mensaje.objects.filter(estok_id=estok_id).select_related('remitente').order_by('created_at')
         return Mensaje.objects.none()
 
     def perform_create(self, serializer):
