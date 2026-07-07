@@ -1132,7 +1132,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
           imagen_base64: base64Image,
           solo_analisis: true,
           es_segunda_foto: true,
-          motor: motorActual,  // <-- Usar el mismo motor que el usuario seleccionó
+          motor: 'gemini',  // <-- Siempre Gemini para la segunda foto (más rápido y confiable para ISBN)
         }),
       });
 

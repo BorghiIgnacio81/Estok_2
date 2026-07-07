@@ -209,7 +209,12 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         if ',' in imagen_base64:
             imagen_base64 = imagen_base64.split(',', 1)[1]
 
-        motor = request.data.get('motor', 'local')
+        es_segunda_foto = request.data.get('es_segunda_foto', False)
+        if isinstance(es_segunda_foto, str):
+            es_segunda_foto = es_segunda_foto.lower() == 'true'
+
+        # La segunda foto (parte trasera para ISBN) SIEMPRE usa Gemini
+        motor = 'gemini' if es_segunda_foto else request.data.get('motor', 'local')
         if motor not in ('local', 'gemini'):
             return Response(
                 {"error": "El motor debe ser 'local' o 'gemini'"},
@@ -219,10 +224,6 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         solo_analisis = request.data.get('solo_analisis', True)
         if isinstance(solo_analisis, str):
             solo_analisis = solo_analisis.lower() == 'true'
-
-        es_segunda_foto = request.data.get('es_segunda_foto', False)
-        if isinstance(es_segunda_foto, str):
-            es_segunda_foto = es_segunda_foto.lower() == 'true'
 
         ubicacion_id = request.data.get('ubicacion_id')
         contenedor_id = request.data.get('contenedor_id')

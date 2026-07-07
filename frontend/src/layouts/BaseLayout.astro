@@ -149,15 +149,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             </button>
             <div id="authSection" class="hidden flex items-center gap-3">
               <span id="userName" class="text-sm text-gray-600 font-medium"></span>
-              <!-- Botón Chat (sobre amarillo) en la barra -->
-              <button id="chatNavBtn"
-                class="p-2 rounded-lg text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 transition-base relative"
-                title="Chat del Estok">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span id="chatNavBadge" class="hidden absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
-              </button>
               <button
                 id="logoutBtn"
                 class="text-sm text-red-600 hover:text-red-700 transition-base font-medium"
@@ -780,26 +771,4 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     (window as any).installPWA?.();
   });
 
-  // ===========================================================================
-  // CHAT: BOTÓN EN LA NAVBAR
-  // ===========================================================================
-
-  const chatNavBtn = document.getElementById('chatNavBtn')!;
-  const chatNavBadge = document.getElementById('chatNavBadge')!;
-
-  // Abrir el chat flotante al hacer click en el botón de la navbar
-  chatNavBtn?.addEventListener('click', () => {
-    // Disparar evento para que ChatModal lo escuche
-    window.dispatchEvent(new CustomEvent('open-chat'));
-  });
-
-  // Escuchar actualizaciones del badge de no leídos
-  window.addEventListener('chat-unread-update', ((e: CustomEvent) => {
-    const count = e.detail?.count || 0;
-    if (count > 0) {
-      chatNavBadge.classList.remove('hidden');
-    } else {
-      chatNavBadge.classList.add('hidden');
-    }
-  }) as EventListener);
 </script>
