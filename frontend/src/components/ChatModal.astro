@@ -1,4 +1,4 @@
----
+r no ---
 // =============================================================================
 // CHAT MODAL - Chat interno entre miembros de un Estok
 // Botón amarillo en forma de sobre en la barra superior
@@ -85,7 +85,7 @@
 </div>
 
 <script>
-  import { fetchMensajes, enviarMensaje, fetchNoLeidos } from '../services/chat';
+  import { fetchMensajes, enviarMensaje, fetchNoLeidos, purgeMensajes } from '../services/chat';
   import { getEstokActivoId } from '../services/auth';
 
   // ===========================================================================
@@ -95,7 +95,7 @@
   const chatToggleBtn = document.getElementById('chatToggleBtn')!;
   const chatWindow = document.getElementById('chatWindow')!;
   const chatCloseBtn = document.getElementById('chatCloseBtn')!;
-  const chatPurgeBtn = document.getElementById('chatPurgeBtn')!;
+  const chatPurgeBtn = document.getElementById('chatPurgeBtn') as HTMLButtonElement;
   const chatMessages = document.getElementById('chatMessages')!;
   const chatForm = document.getElementById('chatForm') as HTMLFormElement;
   const chatInput = document.getElementById('chatInput') as HTMLInputElement;
@@ -262,63 +262,90 @@
     }
   }
 
-  function purgeChat() {
-    // La purga solo limpia la UI local (por seguridad visual).
-    // NO detiene el polling, NO deshabilita el input.
-    // Los mensajes nuevos que lleguen del servidor se mostrarán normalmente.
-    // Si se quiere borrar rastros definitivos, hay que eliminar del servidor.
+  async function purgeChat() {
+    // PURGA TOTAL: Elimina TODOS los mensajes del backend (base de datos)
+    // y limpia la UI local. No queda ningún rastro en el servidor.
 
-    // 1. Guardar referencia al contenedor de mensajes
-    const mensajesContainer = chatMessages;
-
-    // 2. Sobrescribir el innerHTML con null bytes para limpiar búferes del DOM
-    mensajesContainer.innerHTML = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00';
-
-    // 3. Forzar reflow del navegador para limpiar búferes gráficos
-    void mensajesContainer.offsetHeight;
-
-    // 4. Limpiar el array de mensajes en memoria
-    if ((window as any).__mensajesCache) {
-      const len = (window as any).__mensajesCache.length;
-      for (let i = 0; i < len; i++) {
-        (window as any).__mensajesCache[i] = null;
-      }
-      (window as any).__mensajesCache = null;
-    }
-
-    // 5. Mostrar chat vacío instantáneamente
-    mensajesContainer.innerHTML = `
-      <div class="text-center text-sm text-gray-400 py-8">
-        <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        <p>Chat limpiado</p>
-        <p class="text-xs text-gray-300 mt-1">Los mensajes nuevos aparecerán aquí</p>
-      </div>
+    // 1. Deshabilitar botón mientras se purga
+    chatPurgeBtn.disabled = true;
+    chatPurgeBtn.innerHTML = `
+      <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
     `;
 
-    // 6. Forzar reflow
-    void mensajesContainer.offsetHeight;
+    try {
+      // 2. Llamar al endpoint de purga en el backend (DELETE /api/mensajes/purge/)
+      const estokId = getEstokActivoId();
+      const result = await purgeMensajes(estokId || undefined);
 
-    // 7. Feedback visual (flash rojo rápido)
-    mensajesContainer.style.transition = 'background-color 0.1s';
-    mensajesContainer.style.backgroundColor = '#ff0000';
-    setTimeout(() => {
-      mensajesContainer.style.backgroundColor = '';
-    }, 100);
+      // 3. Limpiar UI local
+      const mensajesContainer = chatMessages;
 
-    // 8. Limpiar el input
-    chatInput.value = '';
+      // 4. Sobrescribir el innerHTML con null bytes para limpiar búferes del DOM
+      mensajesContainer.innerHTML = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00';
 
-    // 9. Vibración del botón como confirmación
-    chatPurgeBtn.style.transform = 'scale(0.8)';
-    setTimeout(() => {
-      chatPurgeBtn.style.transform = '';
-    }, 150);
+      // 5. Forzar reflow del navegador para limpiar búferes gráficos
+      void mensajesContainer.offsetHeight;
 
-    // NOTA: El polling sigue activo, en la próxima iteración (~5 segundos)
-    // loadMensajes() se ejecutará y mostrará los mensajes nuevos que hayan llegado.
-    // El chat sigue funcionando con normalidad.
+      // 6. Limpiar el array de mensajes en memoria
+      if ((window as any).__mensajesCache) {
+        const len = (window as any).__mensajesCache.length;
+        for (let i = 0; i < len; i++) {
+          (window as any).__mensajesCache[i] = null;
+        }
+        (window as any).__mensajesCache = null;
+      }
+
+      // 7. Mostrar chat vacío con confirmación
+      mensajesContainer.innerHTML = `
+        <div class="text-center text-sm text-green-600 py-8">
+          <svg class="w-10 h-10 mx-auto mb-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p class="font-semibold">Chat purgado</p>
+          <p class="text-xs text-green-500 mt-1">${result.eliminados} mensajes eliminados permanentemente</p>
+        </div>
+      `;
+
+      // 8. Forzar reflow
+      void mensajesContainer.offsetHeight;
+
+      // 9. Feedback visual (flash rojo rápido)
+      mensajesContainer.style.transition = 'background-color 0.1s';
+      mensajesContainer.style.backgroundColor = '#ff0000';
+      setTimeout(() => {
+        mensajesContainer.style.backgroundColor = '';
+      }, 100);
+
+      // 10. Limpiar el input
+      chatInput.value = '';
+
+      // 11. Ocultar badge de no leídos
+      hideUnreadBadge();
+
+    } catch (err: any) {
+      // Si hay error (ej: no es Admin), mostrar mensaje de error
+      const mensajesContainer = chatMessages;
+      mensajesContainer.innerHTML = `
+        <div class="text-center text-sm text-red-500 py-8">
+          <svg class="w-10 h-10 mx-auto mb-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <p class="font-semibold">Error al purgar</p>
+          <p class="text-xs text-red-400 mt-1">${escapeHtml(err.message || 'Solo un Admin del Estok puede purgar el chat')}</p>
+        </div>
+      `;
+    } finally {
+      // 12. Restaurar botón
+      chatPurgeBtn.disabled = false;
+      chatPurgeBtn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      `;
+    }
   }
 
   // ===========================================================================

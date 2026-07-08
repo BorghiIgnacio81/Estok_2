@@ -71,3 +71,23 @@ export async function fetchNoLeidos(estokId?: string): Promise<number> {
   const data = await response.json();
   return data.no_leidos || 0;
 }
+
+// =============================================================================
+// PURGAR TODOS LOS MENSAJES DEL ESTOK (elimina del backend + cache)
+// =============================================================================
+
+export async function purgeMensajes(estokId?: string): Promise<{ eliminados: number }> {
+  const headers = getAuthHeaders();
+  const params = estokId ? `?estok_id=${estokId}` : '';
+  const response = await fetch(`${API_BASE_URL}/mensajes/purge/${params}`, {
+    method: 'DELETE',
+    headers,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Error al purgar mensajes' }));
+    throw new Error(err.error || 'Error al purgar mensajes');
+  }
+
+  return response.json();
+}

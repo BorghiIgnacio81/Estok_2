@@ -74,3 +74,36 @@ class MensajeViewSet(viewsets.ModelViewSet):
         ).exclude(remitente=request.user).count()
 
         return Response({'no_leidos': count})
+
+    @action(detail=False, methods=['delete'])
+    def purge(self, request):
+        """
+        PURGA TOTAL: Elimina TODOS los mensajes del Estok activo de la base de datos.
+        Solo accesible para usuarios con rol Admin del Estok.
+        Esto borra los mensajes del servidor de forma permanente.
+        """
+        estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
+        if not estok_id:
+            return Response({'error': 'Header X-Estok-Id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verificar que el usuario sea Admin del Estok
+        from ...models import Membresia, Role
+        try:
+            role_admin = Role.objects.get(name='Admin')
+            membresia = Membresia.objects.get(usuario=request.user, estok_id=estok_id, role=role_admin)
+        except (Role.DoesNotExist, Membresia.DoesNotExist):
+            return Response({'error': 'Solo un Admin del Estok puede purgar el chat'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Contar cuántos se van a eliminar
+        count = Mensaje.objects.filter(estok_id=estok_id).count()
+
+        # Eliminar todos los mensajes del Estok
+        Mensaje.objects.filter(estok_id=estok_id).delete()
+
+        logger.warning(f"PURGA CHAT: Usuario {request.user.username} eliminó {count} mensajes del Estok {estok_id}")
+
+        return Response({
+            'status': 'ok',
+            'eliminados': count,
+            'mensaje': f'Se eliminaron {count} mensajes permanentemente'
+        })
