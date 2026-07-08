@@ -666,7 +666,7 @@ class FotoObjetoUploadSerializer(serializers.ModelSerializer):
 class MensajeSerializer(serializers.ModelSerializer):
     """Serializer para mensajes de chat interno."""
     remitente_nombre = serializers.SerializerMethodField()
-    remitente_username = serializers.CharField(source='remitente.username', read_only=True, allow_null=True)
+    remitente_username = serializers.SerializerMethodField()
 
     class Meta:
         model = Mensaje
@@ -679,6 +679,11 @@ class MensajeSerializer(serializers.ModelSerializer):
     def get_remitente_nombre(self, obj):
         if obj.remitente:
             return obj.remitente.get_full_name() or obj.remitente.username
+        return None
+
+    def get_remitente_username(self, obj):
+        if obj.remitente:
+            return obj.remitente.username
         return None
 
 

@@ -9,7 +9,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y mostrar el cartel de "Nueva versión disponible".
 // =============================================================================
-const CACHE_VERSION = 11;
+const CACHE_VERSION = 12;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
