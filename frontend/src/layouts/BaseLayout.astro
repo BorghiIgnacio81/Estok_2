@@ -1090,11 +1090,12 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   // ===========================================================================
   // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY) VÍA API
-  // Consulta /api/version/ y compara con la versión guardada.
-  // Si cambió, muestra un toast informativo.
+  // Consulta /api/version/ periódicamente y compara con la versión guardada.
+  // Si cambió, muestra un banner fijo en la parte superior (no un toast fugaz).
   // ===========================================================================
 
   const VERSION_KEY = 'estok_version_cache';
+  let versionCheckInterval: number | null = null;
 
   async function checkNewVersion() {
     try {
@@ -1110,7 +1111,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
       if (cachedVersion && cachedVersion !== currentCommit) {
         console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
-        (window as any).showSuccess?.('🆕 Estok ha sido actualizado');
 
         // Limpiar cache del navegador
         if ('caches' in window) {
@@ -1122,6 +1122,15 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             console.warn('⚠️ Error limpiando cache:', err);
           }
         }
+
+        // Mostrar banner de actualización (no toast, algo más visible y permanente)
+        mostrarBannerActualizacionAPI();
+
+        // Detener el polling periódico ya que ya detectamos el cambio
+        if (versionCheckInterval) {
+          clearInterval(versionCheckInterval);
+          versionCheckInterval = null;
+        }
       }
 
       localStorage.setItem(VERSION_KEY, currentCommit);
@@ -1130,11 +1139,65 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     }
   }
 
+  function mostrarBannerActualizacionAPI() {
+    // Evitar duplicados
+    if (document.getElementById('updateBannerAPI')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'updateBannerAPI';
+    banner.className = 'fixed top-0 left-0 right-0 z-[9999] bg-green-600 text-white px-4 py-3 shadow-2xl transform -translate-y-full transition-transform duration-500 ease-out';
+    banner.innerHTML = `
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <div>
+            <p class="text-sm font-semibold">🆕 Estok ha sido actualizado</p>
+            <p class="text-xs text-green-200">Se ha desplegado una nueva versión. Recargá la página para ver los cambios.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="updateAPILaterBtn" class="text-xs text-green-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
+            Ahora no
+          </button>
+          <button id="updateAPINowBtn" class="text-xs font-semibold bg-white text-green-700 px-4 py-1.5 rounded-lg hover:bg-green-50 transition-base shadow-sm">
+            🔄 Recargar ahora
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    // Animar entrada
+    requestAnimationFrame(() => {
+      banner.classList.remove('-translate-y-full');
+    });
+
+    // Botón "Recargar ahora"
+    document.getElementById('updateAPINowBtn')?.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    // Botón "Ahora no"
+    document.getElementById('updateAPILaterBtn')?.addEventListener('click', () => {
+      banner.classList.add('-translate-y-full');
+      setTimeout(() => banner.remove(), 500);
+    });
+  }
+
   // Ejecutar después de que la página cargue
-  if (document.readyState === 'complete') {
+  function initVersionCheck() {
     checkNewVersion();
+    // Verificar cada 30 segundos mientras la app está abierta
+    versionCheckInterval = window.setInterval(checkNewVersion, 30000);
+  }
+
+  if (document.readyState === 'complete') {
+    initVersionCheck();
   } else {
-    window.addEventListener('load', checkNewVersion);
+    window.addEventListener('load', initVersionCheck);
   }
 
 </script>

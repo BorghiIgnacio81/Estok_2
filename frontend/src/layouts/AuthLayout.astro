@@ -133,6 +133,7 @@ const { title = 'Estok - Autenticación' } = Astro.props;
     }
   }
 
-  // Ejecutar inmediatamente
+  // Ejecutar inmediatamente y luego cada 30 segundos
   checkNewVersion();
+  setInterval(checkNewVersion, 30000);
 </script>
