@@ -108,6 +108,7 @@
   // ===========================================================================
 
   let isOpen = false;
+  let isPurged = false; // Flag anti-forense: si es true, NO se recargan mensajes
   let pollingInterval: number | null = null;
   let currentUserId: string | null = null;
   // Cache de colores por usuario para mantener consistencia en la sesión
@@ -249,7 +250,25 @@
   // Sobrescribe TODAS las variables en RAM con 0x00 y limpia la UI
   // ===========================================================================
 
+  function stopAllPolling() {
+    // Detener timer con jitter
+    if ((window as any).__jitterTimer) {
+      clearTimeout((window as any).__jitterTimer);
+      (window as any).__jitterTimer = null;
+    }
+    // Detener setInterval legacy
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  }
+
   function purgeChat() {
+    // 0. DETENER TODO POLLING INMEDIATAMENTE - esto evita que loadMensajes()
+    //    se ejecute después de la purga y vuelva a traer la conversación
+    stopAllPolling();
+    isPurged = true;
+
     // 1. Guardar referencia al array de mensajes antes de destruirlo
     const mensajesContainer = chatMessages;
 
@@ -298,7 +317,13 @@
     // 9. Limpiar el input por si acaso
     chatInput.value = '';
 
-    // 10. Pequeña vibración del botón como confirmación
+    // 10. Deshabilitar el input y botón de enviar para evitar que se pueda
+    //     escribir y enviar mensajes nuevos que reactiven la conversación
+    chatInput.disabled = true;
+    chatInput.placeholder = 'Chat purgado';
+    chatSendBtn.disabled = true;
+
+    // 11. Pequeña vibración del botón como confirmación
     chatPurgeBtn.style.transform = 'scale(0.8)';
     setTimeout(() => {
       chatPurgeBtn.style.transform = '';
@@ -364,6 +389,9 @@
   // ===========================================================================
 
   async function loadMensajes() {
+    // Si el chat fue purgado, NO recargar mensajes bajo NINGUNA circunstancia
+    if (isPurged) return;
+
     try {
       const estokId = getEstokActivoId();
       if (!estokId) return;
