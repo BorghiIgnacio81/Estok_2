@@ -38,19 +38,34 @@ class MensajeViewSet(viewsets.ModelViewSet):
         return MensajeSerializer
 
     def get_queryset(self):
-        """Filtra mensajes por el Estok activo (header X-Estok-Id)."""
+        """
+        Filtra mensajes por el Estok activo (header X-Estok-Id).
+        SOLO devuelve mensajes si el usuario es miembro del Estok.
+        """
         user = self.request.user
         if user.is_superuser:
             return Mensaje.objects.all()
 
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
+            # Verificar que el usuario sea miembro del Estok
+            from ...models import Membresia
+            if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
+                return Mensaje.objects.none()
             return Mensaje.objects.filter(estok_id=estok_id).select_related('remitente').order_by('created_at')
         return Mensaje.objects.none()
 
     def perform_create(self, serializer):
         # El serializer MensajeCreateSerializer.create() ya maneja
         # la asignación de remitente y estok_id desde el request.
+        # Pero verificamos membresía aquí también por seguridad
+        user = self.request.user
+        estok_id = self.request.headers.get('X-Estok-Id')
+        if estok_id:
+            from ...models import Membresia
+            if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("No eres miembro de este Estok")
         serializer.save()
 
     @action(detail=True, methods=['patch'])

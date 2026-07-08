@@ -523,8 +523,22 @@ r no ---
 
   // Escuchar cambios de Estok activo
   window.addEventListener('estok-changed', () => {
+    // 1. Limpiar el contenedor de mensajes INMEDIATAMENTE para evitar
+    //    que se vean mensajes del Estok anterior durante la transición
+    chatMessages.innerHTML = `
+      <div class="text-center text-sm text-gray-400 py-8">
+        <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <p>Cargando mensajes...</p>
+      </div>
+    `;
+
+    // 2. Actualizar título y badge
     updateChatTitle();
     updateUnreadBadge();
+
+    // 3. Si el chat está abierto, recargar mensajes del nuevo Estok
     if (isOpen) {
       loadMensajes();
     }
