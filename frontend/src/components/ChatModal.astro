@@ -108,7 +108,6 @@
   // ===========================================================================
 
   let isOpen = false;
-  let isPurged = false; // Flag anti-forense: si es true, NO se recargan mensajes
   let pollingInterval: number | null = null;
   let currentUserId: string | null = null;
   // Cache de colores por usuario para mantener consistencia en la sesión
@@ -264,27 +263,21 @@
   }
 
   function purgeChat() {
-    // 0. DETENER TODO POLLING INMEDIATAMENTE - esto evita que loadMensajes()
-    //    se ejecute después de la purga y vuelva a traer la conversación
-    stopAllPolling();
-    isPurged = true;
+    // La purga solo limpia la UI local (por seguridad visual).
+    // NO detiene el polling, NO deshabilita el input.
+    // Los mensajes nuevos que lleguen del servidor se mostrarán normalmente.
+    // Si se quiere borrar rastros definitivos, hay que eliminar del servidor.
 
-    // 1. Guardar referencia al array de mensajes antes de destruirlo
+    // 1. Guardar referencia al contenedor de mensajes
     const mensajesContainer = chatMessages;
 
     // 2. Sobrescribir el innerHTML con null bytes para limpiar búferes del DOM
-    //    (se hace ANTES de limpiar las variables para asegurar que no quede rastro)
     mensajesContainer.innerHTML = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00';
 
-    // 3. Forzar reflow del navegador para asegurar que los búferes gráficos se limpien
+    // 3. Forzar reflow del navegador para limpiar búferes gráficos
     void mensajesContainer.offsetHeight;
 
-    // 4. Sobrescribir variables en RAM con 0x00 (null bytes) antes de reasignar
-    //    Esto evita que queden restos en la memoria volátil
-    const nullBuffer = '\x00'.repeat(1024); // 1KB de null bytes para sobrescribir
-
-    // 5. Limpiar el array de mensajes en memoria sobrescribiendo
-    //    (el garbage collector eventualmente liberará, pero sobrescribimos antes)
+    // 4. Limpiar el array de mensajes en memoria
     if ((window as any).__mensajesCache) {
       const len = (window as any).__mensajesCache.length;
       for (let i = 0; i < len; i++) {
@@ -293,41 +286,39 @@
       (window as any).__mensajesCache = null;
     }
 
-    // 6. Refrescar la UI instantáneamente - mostrar chat vacío
+    // 5. Mostrar chat vacío instantáneamente
     mensajesContainer.innerHTML = `
       <div class="text-center text-sm text-gray-400 py-8">
         <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
-        <p>Chat purgado</p>
-        <p class="text-xs text-gray-300 mt-1">No hay rastro de mensajes anteriores</p>
+        <p>Chat limpiado</p>
+        <p class="text-xs text-gray-300 mt-1">Los mensajes nuevos aparecerán aquí</p>
       </div>
     `;
 
-    // 7. Forzar otro reflow para asegurar limpieza completa de búferes
+    // 6. Forzar reflow
     void mensajesContainer.offsetHeight;
 
-    // 8. Feedback háptico visual (flash rápido)
+    // 7. Feedback visual (flash rojo rápido)
     mensajesContainer.style.transition = 'background-color 0.1s';
     mensajesContainer.style.backgroundColor = '#ff0000';
     setTimeout(() => {
       mensajesContainer.style.backgroundColor = '';
     }, 100);
 
-    // 9. Limpiar el input por si acaso
+    // 8. Limpiar el input
     chatInput.value = '';
 
-    // 10. Deshabilitar el input y botón de enviar para evitar que se pueda
-    //     escribir y enviar mensajes nuevos que reactiven la conversación
-    chatInput.disabled = true;
-    chatInput.placeholder = 'Chat purgado';
-    chatSendBtn.disabled = true;
-
-    // 11. Pequeña vibración del botón como confirmación
+    // 9. Vibración del botón como confirmación
     chatPurgeBtn.style.transform = 'scale(0.8)';
     setTimeout(() => {
       chatPurgeBtn.style.transform = '';
     }, 150);
+
+    // NOTA: El polling sigue activo, en la próxima iteración (~5 segundos)
+    // loadMensajes() se ejecutará y mostrará los mensajes nuevos que hayan llegado.
+    // El chat sigue funcionando con normalidad.
   }
 
   // ===========================================================================
@@ -389,9 +380,6 @@
   // ===========================================================================
 
   async function loadMensajes() {
-    // Si el chat fue purgado, NO recargar mensajes bajo NINGUNA circunstancia
-    if (isPurged) return;
-
     try {
       const estokId = getEstokActivoId();
       if (!estokId) return;
