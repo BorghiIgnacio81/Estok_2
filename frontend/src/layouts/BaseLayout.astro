@@ -48,8 +48,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <meta name="apple-mobile-web-app-title" content="Estok" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-    <!-- Build info: contiene el commit hash con el que fue construida esta página -->
-    <script is:inline src="/build-info.js"></script>
+    <!-- Build timestamp: se regenera en cada build de Astro -->
+    <meta name="build-timestamp" content={Date.now().toString()} />
   </head>
   <body>
     <!-- Barra de navegación -->
@@ -1079,115 +1079,32 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   invitarBtnMobile?.addEventListener('click', crearModalInvitacion);
 
   // ===========================================================================
-  // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY) VÍA API
-  // Consulta /api/version/ periódicamente y compara con el commit con el que
-  // fue construida la página (inyectado por entrypoint.sh via build-info.js).
-  // Si el backend devuelve un commit diferente, es porque hubo un nuevo deploy.
+  // DETECCIÓN DE NUEVA VERSIÓN
+  // Usa el build-timestamp del HTML (generado por Astro en cada build).
+  // Si el timestamp actual es diferente al guardado en localStorage,
+  // es porque hubo un nuevo deploy.
   // ===========================================================================
 
-  let versionCheckInterval: number | null = null;
+  function checkNewVersion() {
+    const meta = document.querySelector('meta[name="build-timestamp"]');
+    if (!meta) return;
+    const currentTimestamp = meta.getAttribute('content');
+    if (!currentTimestamp) return;
 
-  async function checkNewVersion() {
-    try {
-      // Obtener el commit con el que fue construida esta página
-      // (inyectado por entrypoint.sh en /build-info.js)
-      const buildCommit = (window as any).__ESTOK_BUILD_COMMIT__;
-      if (!buildCommit || buildCommit === 'unknown') return;
+    const KEY = 'estok_build_timestamp';
+    const saved = localStorage.getItem(KEY);
 
-      // Cache buster para evitar cualquier cache del navegador
-      const response = await fetch(`/api/version/?_t=${Date.now()}`);
-      if (!response.ok) return;
-      
-      const versionData = await response.json();
-      const serverCommit = versionData.commit;
-
-      if (!serverCommit || serverCommit === 'unknown') return;
-
-      // Si el commit del servidor es diferente al commit con el que fue
-      // construida esta página, es porque hubo un nuevo deploy.
-      if (buildCommit !== serverCommit) {
-        console.log('🆕 Nueva versión detectada!');
-        console.log('  Build commit:', buildCommit);
-        console.log('  Server commit:', serverCommit);
-
-        // Limpiar cache del navegador (Service Worker caches)
-        if ('caches' in window) {
-          try {
-            const cacheNames = await caches.keys();
-            await Promise.all(cacheNames.map(name => caches.delete(name)));
-            console.log('🗑️ Cache limpiado');
-          } catch (err) {
-            console.warn('⚠️ Error limpiando cache:', err);
-          }
-        }
-
-        // Mostrar banner de actualización
-        mostrarBannerActualizacionAPI();
-
-        // Detener el polling periódico
-        if (versionCheckInterval) {
-          clearInterval(versionCheckInterval);
-          versionCheckInterval = null;
-        }
+    if (saved && saved !== currentTimestamp) {
+      console.log('🆕 Nueva versión detectada!');
+      // Mostrar banner
+      const banner = document.getElementById('updateBanner');
+      if (banner) {
+        banner.classList.remove('translate-y-full');
       }
-    } catch (err) {
-      console.warn('⚠️ Error verificando versión:', err);
     }
-  }
 
-  function mostrarBannerActualizacionAPI() {
-    // Evitar duplicados
-    if (document.getElementById('updateBannerAPI')) return;
-
-    const banner = document.createElement('div');
-    banner.id = 'updateBannerAPI';
-    banner.className = 'fixed top-0 left-0 right-0 z-[9999] bg-green-600 text-white px-4 py-3 shadow-2xl transform -translate-y-full transition-transform duration-500 ease-out';
-    banner.innerHTML = `
-      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <svg class="w-6 h-6 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          <div>
-            <p class="text-sm font-semibold">🆕 Estok ha sido actualizado</p>
-            <p class="text-xs text-green-200">Se ha desplegado una nueva versión. Recargá la página para ver los cambios.</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <button id="updateAPILaterBtn" class="text-xs text-green-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
-            Ahora no
-          </button>
-          <button id="updateAPINowBtn" class="text-xs font-semibold bg-white text-green-700 px-4 py-1.5 rounded-lg hover:bg-green-50 transition-base shadow-sm">
-            🔄 Recargar ahora
-          </button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(banner);
-
-    // Animar entrada
-    requestAnimationFrame(() => {
-      banner.classList.remove('-translate-y-full');
-    });
-
-    // Botón "Recargar ahora"
-    document.getElementById('updateAPINowBtn')?.addEventListener('click', () => {
-      window.location.reload();
-    });
-
-    // Botón "Ahora no" - al cerrarlo, actualiza sessionStorage para no mostrar otra vez
-    document.getElementById('updateAPILaterBtn')?.addEventListener('click', () => {
-      banner.classList.add('-translate-y-full');
-      setTimeout(() => banner.remove(), 500);
-    });
-  }
-
-  // Ejecutar después de que la página cargue
-  function initVersionCheck() {
-    checkNewVersion();
-    // Verificar cada 30 segundos mientras la app está abierta
-    versionCheckInterval = window.setInterval(checkNewVersion, 30000);
+    // Siempre guardar el timestamp actual
+    localStorage.setItem(KEY, currentTimestamp);
   }
 
   // ===========================================================================
@@ -1203,11 +1120,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   if (document.readyState === 'complete') {
     initUI();
-    initVersionCheck();
+    checkNewVersion();
   } else {
     window.addEventListener('load', () => {
       initUI();
-      initVersionCheck();
+      checkNewVersion();
     });
   }
 

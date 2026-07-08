@@ -31,8 +31,8 @@ const { title = 'Estok - Autenticación' } = Astro.props;
     <meta name="apple-mobile-web-app-title" content="Estok" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-    <!-- Build info: contiene el commit hash con el que fue construida esta página -->
-    <script is:inline src="/build-info.js"></script>
+    <!-- Build timestamp: se regenera en cada build de Astro -->
+    <meta name="build-timestamp" content={Date.now().toString()} />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
