@@ -22,9 +22,15 @@ class MensajeViewSet(viewsets.ModelViewSet):
     - POST /api/mensajes/ → enviar un mensaje
     - GET /api/mensajes/{id}/ → detalle de un mensaje
     - PATCH /api/mensajes/{id}/marcar_leido/ → marcar como leído
+
+    IMPORTANTE: Sin paginación (pagination_class = None) para que el chat
+    pueda cargar TODOS los mensajes del Estok. La paginación global (PAGE_SIZE=25)
+    rompe el chat porque los mensajes nuevos quedan en páginas siguientes
+    y el frontend nunca los carga.
     """
     queryset = Mensaje.objects.all()
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
+    pagination_class = None
 
     def get_serializer_class(self):
         if self.action == 'create':

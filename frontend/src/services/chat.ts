@@ -19,8 +19,7 @@ export async function fetchMensajes(estokId?: string): Promise<Mensaje[]> {
     throw new Error('Error al obtener mensajes');
   }
 
-  const data = await response.json();
-  return data.results || data;
+  return response.json();
 }
 
 // =============================================================================
