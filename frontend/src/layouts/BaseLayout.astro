@@ -48,8 +48,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <meta name="apple-mobile-web-app-title" content="Estok" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
-    <!-- Build timestamp: se regenera en cada build de Astro -->
-    <meta name="build-timestamp" content={Date.now().toString()} />
   </head>
   <body>
     <!-- Barra de navegación -->
@@ -834,7 +832,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
     const banner = document.createElement('div');
     banner.id = 'updateBanner';
-    banner.className = 'fixed bottom-0 left-0 right-0 z-[9999] bg-blue-700 text-white px-4 py-3 shadow-2xl transform translate-y-full transition-transform duration-500 ease-out';
+    banner.className = 'fixed bottom-0 left-0 right-0 z-[9999] bg-green-600 text-white px-4 py-3 shadow-2xl transform translate-y-full transition-transform duration-500 ease-out';
     banner.innerHTML = `
       <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div class="flex items-center gap-3">
@@ -843,14 +841,14 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           </svg>
           <div>
             <p class="text-sm font-semibold">🆕 Nueva versión disponible</p>
-            <p class="text-xs text-blue-200">Hay una actualización de Estok lista para instalar.</p>
+            <p class="text-xs text-green-200">Hay una actualización de Estok lista para instalar.</p>
           </div>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
-          <button id="updateLaterBtn" class="text-xs text-blue-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
+          <button id="updateLaterBtn" class="text-xs text-green-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
             Ahora no
           </button>
-          <button id="updateNowBtn" class="text-xs font-semibold bg-white text-blue-700 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-base shadow-sm">
+          <button id="updateNowBtn" class="text-xs font-semibold bg-white text-green-700 px-4 py-1.5 rounded-lg hover:bg-green-50 transition-base shadow-sm">
             🔄 Actualizar ahora
           </button>
         </div>
@@ -1079,35 +1077,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   invitarBtnMobile?.addEventListener('click', crearModalInvitacion);
 
   // ===========================================================================
-  // DETECCIÓN DE NUEVA VERSIÓN
-  // Usa el build-timestamp del HTML (generado por Astro en cada build).
-  // Si el timestamp actual es diferente al guardado en localStorage,
-  // es porque hubo un nuevo deploy.
-  // ===========================================================================
-
-  function checkNewVersion() {
-    const meta = document.querySelector('meta[name="build-timestamp"]');
-    if (!meta) return;
-    const currentTimestamp = meta.getAttribute('content');
-    if (!currentTimestamp) return;
-
-    const KEY = 'estok_build_timestamp';
-    const saved = localStorage.getItem(KEY);
-
-    if (saved && saved !== currentTimestamp) {
-      console.log('🆕 Nueva versión detectada!');
-      // Mostrar banner
-      const banner = document.getElementById('updateBanner');
-      if (banner) {
-        banner.classList.remove('translate-y-full');
-      }
-    }
-
-    // Siempre guardar el timestamp actual
-    localStorage.setItem(KEY, currentTimestamp);
-  }
-
-  // ===========================================================================
   // INICIALIZACIÓN DE LA UI
   // Llamar después de que todas las funciones estén definidas para evitar
   // errores de TDZ (Temporal Dead Zone) al minificar con Astro.
@@ -1120,11 +1089,9 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   if (document.readyState === 'complete') {
     initUI();
-    checkNewVersion();
   } else {
     window.addEventListener('load', () => {
       initUI();
-      checkNewVersion();
     });
   }
 
