@@ -34,7 +34,7 @@ class EstokViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
     def get_permissions(self):
-        if self.action in ('unirse', 'mis_estoks'):
+        if self.action in ('unirse', 'mis_estoks', 'create'):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
