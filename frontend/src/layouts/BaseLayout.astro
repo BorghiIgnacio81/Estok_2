@@ -48,6 +48,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <meta name="apple-mobile-web-app-title" content="Estok" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 
+    <!-- Build info: contiene el commit hash con el que fue construida esta página -->
+    <script src="/build-info.js"></script>
   </head>
   <body>
     <!-- Barra de navegación -->
@@ -1078,31 +1080,35 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   // ===========================================================================
   // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY) VÍA API
-  // Consulta /api/version/ periódicamente y compara con la versión guardada.
-  // Usa sessionStorage (se borra al cerrar pestaña) + cache buster para
-  // asegurar que siempre obtenga la respuesta fresca del backend.
+  // Consulta /api/version/ periódicamente y compara con el commit con el que
+  // fue construida la página (inyectado por entrypoint.sh via build-info.js).
+  // Si el backend devuelve un commit diferente, es porque hubo un nuevo deploy.
   // ===========================================================================
 
-  const VERSION_KEY = 'estok_version_cache';
   let versionCheckInterval: number | null = null;
 
   async function checkNewVersion() {
     try {
+      // Obtener el commit con el que fue construida esta página
+      // (inyectado por entrypoint.sh en /build-info.js)
+      const buildCommit = (window as any).__ESTOK_BUILD_COMMIT__;
+      if (!buildCommit || buildCommit === 'unknown') return;
+
       // Cache buster para evitar cualquier cache del navegador
       const response = await fetch(`/api/version/?_t=${Date.now()}`);
       if (!response.ok) return;
       
       const versionData = await response.json();
-      const currentCommit = versionData.commit;
+      const serverCommit = versionData.commit;
 
-      if (!currentCommit || currentCommit === 'unknown') return;
+      if (!serverCommit || serverCommit === 'unknown') return;
 
-      // Usar sessionStorage en lugar de localStorage para que cada nueva
-      // sesión (pestaña/ventana) detecte cambios frescos
-      const cachedVersion = sessionStorage.getItem(VERSION_KEY);
-
-      if (cachedVersion && cachedVersion !== currentCommit) {
-        console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
+      // Si el commit del servidor es diferente al commit con el que fue
+      // construida esta página, es porque hubo un nuevo deploy.
+      if (buildCommit !== serverCommit) {
+        console.log('🆕 Nueva versión detectada!');
+        console.log('  Build commit:', buildCommit);
+        console.log('  Server commit:', serverCommit);
 
         // Limpiar cache del navegador (Service Worker caches)
         if ('caches' in window) {
@@ -1124,9 +1130,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           versionCheckInterval = null;
         }
       }
-
-      // Guardar versión actual para futuras comparaciones
-      sessionStorage.setItem(VERSION_KEY, currentCommit);
     } catch (err) {
       console.warn('⚠️ Error verificando versión:', err);
     }

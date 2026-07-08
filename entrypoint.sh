@@ -16,6 +16,17 @@ cat > /app/version.json << EOF
   "version": "1.0.0"
 }
 EOF
+
+# Generar archivo JS con el commit hash para que Astro lo incluya en el HTML
+# Esto permite que el frontend compare el commit con el que fue construido
+# contra el que devuelve el backend, detectando así nuevos deploys.
+cat > /app/frontend/public/build-info.js << EOF
+// GENERATED AUTOMATICALLY - DO NOT EDIT
+// Este archivo contiene el commit hash con el que fue construida esta versión.
+window.__ESTOK_BUILD_COMMIT__ = "${COMMIT_HASH}";
+window.__ESTOK_BUILD_TIMESTAMP__ = "${DEPLOY_TIMESTAMP}";
+EOF
+
 echo "Version: ${COMMIT_HASH} @ ${DEPLOY_TIMESTAMP}"
 
 # Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)
