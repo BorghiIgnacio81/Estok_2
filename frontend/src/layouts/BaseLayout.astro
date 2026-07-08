@@ -1091,7 +1091,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   // ===========================================================================
   // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY) VÍA API
   // Consulta /api/version/ periódicamente y compara con la versión guardada.
-  // Si cambió, muestra un banner fijo en la parte superior (no un toast fugaz).
+  // Usa sessionStorage (se borra al cerrar pestaña) + cache buster para
+  // asegurar que siempre obtenga la respuesta fresca del backend.
   // ===========================================================================
 
   const VERSION_KEY = 'estok_version_cache';
@@ -1099,7 +1100,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   async function checkNewVersion() {
     try {
-      const response = await fetch('/api/version/');
+      // Cache buster para evitar cualquier cache del navegador
+      const response = await fetch(`/api/version/?_t=${Date.now()}`);
       if (!response.ok) return;
       
       const versionData = await response.json();
@@ -1107,12 +1109,14 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
       if (!currentCommit || currentCommit === 'unknown') return;
 
-      const cachedVersion = localStorage.getItem(VERSION_KEY);
+      // Usar sessionStorage en lugar de localStorage para que cada nueva
+      // sesión (pestaña/ventana) detecte cambios frescos
+      const cachedVersion = sessionStorage.getItem(VERSION_KEY);
 
       if (cachedVersion && cachedVersion !== currentCommit) {
         console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
 
-        // Limpiar cache del navegador
+        // Limpiar cache del navegador (Service Worker caches)
         if ('caches' in window) {
           try {
             const cacheNames = await caches.keys();
@@ -1123,17 +1127,18 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           }
         }
 
-        // Mostrar banner de actualización (no toast, algo más visible y permanente)
+        // Mostrar banner de actualización
         mostrarBannerActualizacionAPI();
 
-        // Detener el polling periódico ya que ya detectamos el cambio
+        // Detener el polling periódico
         if (versionCheckInterval) {
           clearInterval(versionCheckInterval);
           versionCheckInterval = null;
         }
       }
 
-      localStorage.setItem(VERSION_KEY, currentCommit);
+      // Guardar versión actual para futuras comparaciones
+      sessionStorage.setItem(VERSION_KEY, currentCommit);
     } catch (err) {
       console.warn('⚠️ Error verificando versión:', err);
     }
@@ -1180,7 +1185,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       window.location.reload();
     });
 
-    // Botón "Ahora no"
+    // Botón "Ahora no" - al cerrarlo, actualiza sessionStorage para no mostrar otra vez
     document.getElementById('updateAPILaterBtn')?.addEventListener('click', () => {
       banner.classList.add('-translate-y-full');
       setTimeout(() => banner.remove(), 500);

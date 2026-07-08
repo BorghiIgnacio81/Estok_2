@@ -76,17 +76,17 @@ const { title = 'Estok - Autenticación' } = Astro.props;
 
   async function checkNewVersion() {
     try {
-      const response = await fetch('/api/version/');
+      // Cache buster para evitar cualquier cache del navegador
+      const response = await fetch(`/api/version/?_t=${Date.now()}`);
       if (!response.ok) return;
       
       const versionData = await response.json();
       const currentCommit = versionData.commit;
-      const deployTimestamp = versionData.deploy_timestamp;
 
       if (!currentCommit || currentCommit === 'unknown') return;
 
-      // Obtener versión anterior guardada
-      const cachedVersion = localStorage.getItem(VERSION_KEY);
+      // Usar sessionStorage para que cada nueva sesión detecte cambios
+      const cachedVersion = sessionStorage.getItem(VERSION_KEY);
 
       if (cachedVersion && cachedVersion !== currentCommit) {
         // ¡Nuevo deploy detectado!
@@ -126,7 +126,7 @@ const { title = 'Estok - Autenticación' } = Astro.props;
       }
 
       // Guardar versión actual para futuras comparaciones
-      localStorage.setItem(VERSION_KEY, currentCommit);
+      sessionStorage.setItem(VERSION_KEY, currentCommit);
 
     } catch (err) {
       console.warn('⚠️ Error verificando versión:', err);
