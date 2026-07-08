@@ -10,7 +10,9 @@ from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 
 
-VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'version.json')
+# version.py está en inventario/api/viewsets/version.py
+# Necesitamos subir 4 niveles para llegar a la raíz del proyecto (/app)
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), 'version.json')
 
 
 class VersionViewSet(viewsets.ViewSet):
