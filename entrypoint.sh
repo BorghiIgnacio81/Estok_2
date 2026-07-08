@@ -5,7 +5,9 @@ echo "=== Starting Estok ==="
 
 # Generar archivo de versión para detectar nuevos deploys
 echo "Generating version.json..."
-COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+# Coolify provee SOURCE_COMMIT como variable de entorno.
+# Si no está, intentar con git rev-parse, y si tampoco funciona, "unknown".
+COMMIT_HASH="${SOURCE_COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}"
 DEPLOY_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > /app/version.json << EOF
 {
