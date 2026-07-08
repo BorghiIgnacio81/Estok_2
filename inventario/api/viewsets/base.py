@@ -11,6 +11,10 @@ class HasRolePermission(permissions.BasePermission):
     Permiso basado en el rol del usuario DENTRO de un Estok.
     El estok_id se obtiene del header X-Estok-Id o query_params.
     Resuelve el rol vía Membresia (usuario + estok), NO vía user.role directo.
+
+    Los superusers (is_superuser=True) tienen acceso total a todo,
+    sin necesidad de membresía. Esto permite al administrador del sistema
+    entrar a cualquier Estok para resolver errores.
     """
 
     def _get_estok_id(self, request):
@@ -36,6 +40,10 @@ class HasRolePermission(permissions.BasePermission):
         user = request.user
         if not user.is_authenticated:
             return False
+
+        # Los superusers tienen acceso total a todo
+        if user.is_superuser:
+            return True
 
         estok_id = self._get_estok_id(request)
         membresia = self._get_membresia(user, estok_id)
@@ -63,7 +71,7 @@ class HasRolePermission(permissions.BasePermission):
 class EsAdminDelEstok(permissions.BasePermission):
     """
     Permiso: True solo si el usuario tiene Membresia con role.name='Admin'
-    en el estok_id del header X-Estok-Id.
+    en el estok_id del header X-Estok-Id, O es superuser.
     Se usa para crear/editar/borrar CodigoInvitacion.
     """
 
@@ -71,6 +79,10 @@ class EsAdminDelEstok(permissions.BasePermission):
         user = request.user
         if not user.is_authenticated:
             return False
+
+        # Los superusers pueden gestionar códigos en cualquier Estok
+        if user.is_superuser:
+            return True
 
         estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
         if not estok_id:
