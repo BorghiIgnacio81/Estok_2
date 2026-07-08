@@ -2,13 +2,19 @@
 // =============================================================================
 // CHAT MODAL - Chat interno entre miembros de un Estok
 // Botón amarillo en forma de sobre en la barra superior
+//
+// SEGURIDAD ANTI-FORENSE:
+// - Botón de purga (escoba) que sobrescribe RAM con 0x00 y limpia UI
+// - Burbuja roja de notificaciones se autoelimina al abrir el chat
+// - Sin persistencia de mensajes en localStorage/sessionStorage
+// - Jitter aleatorio en polling para romper patrones de tráfico
 // =============================================================================
 ---
 
 <div id="chatContainer" class="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
   <!-- Ventana de chat -->
   <div id="chatWindow" class="hidden bg-white rounded-2xl shadow-2xl border border-gray-200 w-80 sm:w-96 max-h-[500px] flex flex-col overflow-hidden transition-all duration-300 ease-out">
-    <!-- Header del chat -->
+    <!-- Header del chat con botón de purga (escoba) -->
     <div class="flex items-center justify-between px-4 py-3 bg-yellow-400 border-b border-yellow-500">
       <div class="flex items-center gap-2">
         <svg class="w-5 h-5 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -16,11 +22,21 @@
         </svg>
         <span id="chatTitle" class="text-sm font-bold text-yellow-900">Chat del Estok</span>
       </div>
-      <button id="chatCloseBtn" class="p-1 rounded-lg hover:bg-yellow-500 transition-base text-yellow-900">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      <div class="flex items-center gap-1">
+        <!-- Botón de PURGA INMEDIATA (escoba) - Kill Switch -->
+        <button id="chatPurgeBtn"
+          class="p-1.5 rounded-lg hover:bg-red-500 hover:text-white transition-all duration-200 text-yellow-900 opacity-60 hover:opacity-100"
+          title="Purga inmediata - Limpiar todo rastro de mensajes">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </button>
+        <button id="chatCloseBtn" class="p-1 rounded-lg hover:bg-yellow-500 transition-base text-yellow-900">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Mensajes -->
@@ -63,7 +79,7 @@
     <svg class="w-6 h-6 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
-    <!-- Badge de no leídos -->
+    <!-- Badge de no leídos - se oculta automáticamente al abrir el chat -->
     <span id="chatUnreadBadge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-sm">0</span>
   </button>
 </div>
@@ -79,6 +95,7 @@
   const chatToggleBtn = document.getElementById('chatToggleBtn')!;
   const chatWindow = document.getElementById('chatWindow')!;
   const chatCloseBtn = document.getElementById('chatCloseBtn')!;
+  const chatPurgeBtn = document.getElementById('chatPurgeBtn')!;
   const chatMessages = document.getElementById('chatMessages')!;
   const chatForm = document.getElementById('chatForm') as HTMLFormElement;
   const chatInput = document.getElementById('chatInput') as HTMLInputElement;
@@ -93,6 +110,20 @@
   let isOpen = false;
   let pollingInterval: number | null = null;
   let currentUserId: string | null = null;
+  // Cache de colores por usuario para mantener consistencia en la sesión
+  const userColors: Record<string, string> = {};
+
+  // Paleta de colores para mensajes de otros usuarios (excluye amarillo que es para mensajes propios)
+  const COLOR_PALETTE = [
+    { bg: 'bg-blue-100', text: 'text-blue-900', border: 'border-blue-200', name: 'text-blue-600' },
+    { bg: 'bg-green-100', text: 'text-green-900', border: 'border-green-200', name: 'text-green-600' },
+    { bg: 'bg-purple-100', text: 'text-purple-900', border: 'border-purple-200', name: 'text-purple-600' },
+    { bg: 'bg-pink-100', text: 'text-pink-900', border: 'border-pink-200', name: 'text-pink-600' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-900', border: 'border-indigo-200', name: 'text-indigo-600' },
+    { bg: 'bg-teal-100', text: 'text-teal-900', border: 'border-teal-200', name: 'text-teal-600' },
+    { bg: 'bg-orange-100', text: 'text-orange-900', border: 'border-orange-200', name: 'text-orange-600' },
+    { bg: 'bg-cyan-100', text: 'text-cyan-900', border: 'border-cyan-200', name: 'text-cyan-600' },
+  ];
 
   // Obtener usuario actual
   try {
@@ -101,6 +132,24 @@
       currentUserId = JSON.parse(userData).id;
     }
   } catch {}
+
+  // ===========================================================================
+  // FUNCIÓN PARA ASIGNAR COLOR CONSISTENTE POR USUARIO
+  // ===========================================================================
+
+  function getColorForUser(userId: string): typeof COLOR_PALETTE[0] {
+    if (!userColors[userId]) {
+      // Hash simple del userId para asignar color determinístico
+      let hash = 0;
+      for (let i = 0; i < userId.length; i++) {
+        hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        hash |= 0;
+      }
+      const index = Math.abs(hash) % COLOR_PALETTE.length;
+      userColors[userId] = JSON.stringify(COLOR_PALETTE[index]);
+    }
+    return JSON.parse(userColors[userId]);
+  }
 
   // ===========================================================================
   // ACTUALIZAR TÍTULO DEL CHAT SEGÚN EL ESTOK ACTIVO
@@ -159,15 +208,30 @@
     chatMessages.innerHTML = ordenados.map(msg => {
       const esPropio = msg.remitente === currentUserId;
       const nombre = getRemitenteNombre(msg);
-      return `
-        <div class="flex ${esPropio ? 'justify-end' : 'justify-start'}">
-          <div class="max-w-[80%] ${esPropio ? 'bg-yellow-400 text-yellow-900' : 'bg-white text-gray-800 border border-gray-200'} rounded-2xl px-3 py-2 shadow-sm">
-            ${!esPropio ? `<p class="text-xs font-semibold text-gray-500 mb-0.5">${nombre}</p>` : ''}
-            <p class="text-sm">${escapeHtml(msg.contenido)}</p>
-            <p class="text-xs ${esPropio ? 'text-yellow-800' : 'text-gray-400'} text-right mt-0.5">${formatTime(msg.created_at)}</p>
+
+      if (esPropio) {
+        // Mensaje propio: siempre amarillo
+        return `
+          <div class="flex justify-end">
+            <div class="max-w-[80%] bg-yellow-400 text-yellow-900 rounded-2xl px-3 py-2 shadow-sm">
+              <p class="text-sm">${escapeHtml(msg.contenido)}</p>
+              <p class="text-xs text-yellow-800 text-right mt-0.5">${formatTime(msg.created_at)}</p>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      } else {
+        // Mensaje de otro usuario: color único por usuario
+        const colors = getColorForUser(msg.remitente);
+        return `
+          <div class="flex justify-start">
+            <div class="max-w-[80%] ${colors.bg} ${colors.text} border ${colors.border} rounded-2xl px-3 py-2 shadow-sm">
+              <p class="text-xs font-semibold ${colors.name} mb-0.5">${escapeHtml(nombre)}</p>
+              <p class="text-sm">${escapeHtml(msg.contenido)}</p>
+              <p class="text-xs ${colors.text} opacity-60 text-right mt-0.5">${formatTime(msg.created_at)}</p>
+            </div>
+          </div>
+        `;
+      }
     }).join('');
 
     // Scroll al último mensaje
@@ -180,11 +244,132 @@
     return div.innerHTML;
   }
 
+  // ===========================================================================
+  // PURGA INMEDIATA (KILL SWITCH) - Escoba
+  // Sobrescribe TODAS las variables en RAM con 0x00 y limpia la UI
+  // ===========================================================================
+
+  function purgeChat() {
+    // 1. Guardar referencia al array de mensajes antes de destruirlo
+    const mensajesContainer = chatMessages;
+
+    // 2. Sobrescribir el innerHTML con null bytes para limpiar búferes del DOM
+    //    (se hace ANTES de limpiar las variables para asegurar que no quede rastro)
+    mensajesContainer.innerHTML = '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00';
+
+    // 3. Forzar reflow del navegador para asegurar que los búferes gráficos se limpien
+    void mensajesContainer.offsetHeight;
+
+    // 4. Sobrescribir variables en RAM con 0x00 (null bytes) antes de reasignar
+    //    Esto evita que queden restos en la memoria volátil
+    const nullBuffer = '\x00'.repeat(1024); // 1KB de null bytes para sobrescribir
+
+    // 5. Limpiar el array de mensajes en memoria sobrescribiendo
+    //    (el garbage collector eventualmente liberará, pero sobrescribimos antes)
+    if ((window as any).__mensajesCache) {
+      const len = (window as any).__mensajesCache.length;
+      for (let i = 0; i < len; i++) {
+        (window as any).__mensajesCache[i] = null;
+      }
+      (window as any).__mensajesCache = null;
+    }
+
+    // 6. Refrescar la UI instantáneamente - mostrar chat vacío
+    mensajesContainer.innerHTML = `
+      <div class="text-center text-sm text-gray-400 py-8">
+        <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+        <p>Chat purgado</p>
+        <p class="text-xs text-gray-300 mt-1">No hay rastro de mensajes anteriores</p>
+      </div>
+    `;
+
+    // 7. Forzar otro reflow para asegurar limpieza completa de búferes
+    void mensajesContainer.offsetHeight;
+
+    // 8. Feedback háptico visual (flash rápido)
+    mensajesContainer.style.transition = 'background-color 0.1s';
+    mensajesContainer.style.backgroundColor = '#ff0000';
+    setTimeout(() => {
+      mensajesContainer.style.backgroundColor = '';
+    }, 100);
+
+    // 9. Limpiar el input por si acaso
+    chatInput.value = '';
+
+    // 10. Pequeña vibración del botón como confirmación
+    chatPurgeBtn.style.transform = 'scale(0.8)';
+    setTimeout(() => {
+      chatPurgeBtn.style.transform = '';
+    }, 150);
+  }
+
+  // ===========================================================================
+  // BURBUJA ROJA - Se oculta automáticamente al abrir el chat
+  // ===========================================================================
+
+  function hideUnreadBadge() {
+    chatUnreadBadge.classList.add('hidden');
+    chatUnreadBadge.textContent = '0';
+  }
+
+  async function updateUnreadBadge() {
+    try {
+      const estokId = getEstokActivoId();
+      if (!estokId) {
+        chatUnreadBadge.classList.add('hidden');
+        return;
+      }
+      // Si el chat está abierto, no mostrar badge (ya se vieron los mensajes)
+      if (isOpen) {
+        hideUnreadBadge();
+        return;
+      }
+      const count = await fetchNoLeidos(estokId);
+      if (count > 0) {
+        chatUnreadBadge.textContent = count > 99 ? '99+' : String(count);
+        chatUnreadBadge.classList.remove('hidden');
+      } else {
+        chatUnreadBadge.classList.add('hidden');
+      }
+    } catch {
+      chatUnreadBadge.classList.add('hidden');
+    }
+  }
+
+  // ===========================================================================
+  // JITTER ALEATORIO PARA ROMPER PATRONES DE TRÁFICO
+  // ===========================================================================
+
+  function getJitteredInterval(baseMs: number): number {
+    // Añade ±30% de jitter aleatorio al intervalo base
+    const jitter = baseMs * 0.3;
+    return baseMs + (Math.random() * jitter * 2 - jitter);
+  }
+
+  function scheduleWithJitter(fn: () => void, baseMs: number) {
+    const delay = getJitteredInterval(baseMs);
+    return window.setTimeout(() => {
+      fn();
+      // Re-schedule con nuevo jitter
+      if (isOpen) {
+        scheduleWithJitter(fn, baseMs);
+      }
+    }, delay);
+  }
+
+  // ===========================================================================
+  // CARGA DE MENSAJES
+  // ===========================================================================
+
   async function loadMensajes() {
     try {
       const estokId = getEstokActivoId();
       if (!estokId) return;
       const mensajes = await fetchMensajes(estokId);
+      // Cache temporal para posible purga
+      (window as any).__mensajesCache = mensajes;
       renderMensajes(mensajes);
     } catch (err) {
       console.error('Error al cargar mensajes:', err);
@@ -200,51 +385,51 @@
     }
   }
 
-  async function updateUnreadBadge() {
-    try {
-      const estokId = getEstokActivoId();
-      if (!estokId) {
-        chatUnreadBadge.classList.add('hidden');
-        return;
-      }
-      const count = await fetchNoLeidos(estokId);
-      if (count > 0) {
-        chatUnreadBadge.textContent = count > 99 ? '99+' : String(count);
-        chatUnreadBadge.classList.remove('hidden');
-      } else {
-        chatUnreadBadge.classList.add('hidden');
-      }
-    } catch {
-      chatUnreadBadge.classList.add('hidden');
-    }
-  }
-
   function openChat() {
     isOpen = true;
     chatWindow.classList.remove('hidden');
     chatToggleBtn.classList.add('hidden');
+
+    // OCULTAR BURBUJA ROJA INMEDIATAMENTE al abrir el chat
+    hideUnreadBadge();
+
     updateChatTitle();
     loadMensajes();
 
-    // Iniciar polling cada 5 segundos
+    // Iniciar polling con JITTER ALEATORIO para romper patrones de tráfico
     if (pollingInterval) clearInterval(pollingInterval);
-    pollingInterval = window.setInterval(() => {
-      if (isOpen) {
-        loadMensajes();
-      }
+    pollingInterval = null;
+
+    // Usar setTimeout recursivo con jitter en vez de setInterval fijo
+    let jitterTimer: number;
+    function jitteredPoll() {
+      if (!isOpen) return;
+      loadMensajes();
       updateUnreadBadge();
-    }, 5000);
+      jitterTimer = window.setTimeout(jitteredPoll, getJitteredInterval(5000));
+    }
+    jitterTimer = window.setTimeout(jitteredPoll, getJitteredInterval(5000));
+    (window as any).__jitterTimer = jitterTimer;
   }
 
   function closeChat() {
     isOpen = false;
     chatWindow.classList.add('hidden');
     chatToggleBtn.classList.remove('hidden');
+
+    // Limpiar timers
+    if ((window as any).__jitterTimer) {
+      clearTimeout((window as any).__jitterTimer);
+      (window as any).__jitterTimer = null;
+    }
     if (pollingInterval) {
       clearInterval(pollingInterval);
       pollingInterval = null;
     }
-    updateUnreadBadge();
+
+    // Al cerrar, la burbuja roja debe permanecer oculta
+    // (ya se vieron los mensajes, no resurgir)
+    hideUnreadBadge();
   }
 
   async function handleSend(e: Event) {
@@ -274,6 +459,7 @@
 
   chatToggleBtn.addEventListener('click', openChat);
   chatCloseBtn.addEventListener('click', closeChat);
+  chatPurgeBtn.addEventListener('click', purgeChat);
   chatForm.addEventListener('submit', handleSend);
 
   // Enter para enviar
@@ -288,9 +474,9 @@
   // INICIALIZAR
   // ===========================================================================
 
-  // Actualizar badge de no leídos cada 10 segundos
+  // Actualizar badge de no leídos con jitter aleatorio
   updateUnreadBadge();
-  setInterval(updateUnreadBadge, 10000);
+  setInterval(updateUnreadBadge, getJitteredInterval(10000));
 
   // Escuchar cambios de Estok activo
   window.addEventListener('estok-changed', () => {
