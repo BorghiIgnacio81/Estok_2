@@ -11,7 +11,14 @@ import type { Mensaje } from '../types';
 // =============================================================================
 
 export async function fetchMensajes(estokId?: string): Promise<Mensaje[]> {
-  const headers = getAuthHeaders();
+  // Usamos solo el token de auth, SIN el header X-Estok-Id
+  // para evitar inconsistencias si el localStorage está desactualizado.
+  // El estokId se pasa exclusivamente como query param.
+  const token = localStorage.getItem('estok_access_token');
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   const params = estokId ? `?estok_id=${estokId}` : '';
   const response = await fetch(`${API_BASE_URL}/mensajes/${params}`, { headers });
 

@@ -39,14 +39,16 @@ class MensajeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filtra mensajes por el Estok activo (header X-Estok-Id).
+        Filtra mensajes por el Estok activo (query param estok_id).
         SOLO devuelve mensajes si el usuario es miembro del Estok.
+        NO usa el header X-Estok-Id porque el frontend ahora pasa el
+        estok_id exclusivamente como query param para evitar inconsistencias.
         """
         user = self.request.user
         if user.is_superuser:
             return Mensaje.objects.all()
 
-        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        estok_id = self.request.query_params.get('estok_id')
         if estok_id:
             # Verificar que el usuario sea miembro del Estok
             from ...models import Membresia
@@ -60,7 +62,7 @@ class MensajeViewSet(viewsets.ModelViewSet):
         # la asignación de remitente y estok_id desde el request.
         # Pero verificamos membresía aquí también por seguridad
         user = self.request.user
-        estok_id = self.request.headers.get('X-Estok-Id')
+        estok_id = self.request.query_params.get('estok_id')
         if estok_id:
             from ...models import Membresia
             if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
