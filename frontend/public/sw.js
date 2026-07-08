@@ -5,11 +5,12 @@
 // =============================================================================
 
 // =============================================================================
-// IMPORTANTE: Cuando hagas cambios en el frontend y redeploys en Coolify,
-// incrementá este número para que la PWA detecte la nueva versión
-// y le muestre un cartel de actualización al usuario.
+// CACHE VERSION - Incrementar CADA VEZ que se haga un deploy con cambios
+// en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
+// y mostrar el cartel de "Nueva versión disponible".
 // =============================================================================
-const CACHE_NAME = 'estok-cache-v11';
+const CACHE_VERSION = 11;
+const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
@@ -30,10 +31,14 @@ self.addEventListener('message', (event) => {
 
 // Strategy: Cache First for static assets, Network First for API
 // IMPORTANT: Do NOT cache navigation requests (HTML pages) to avoid flashing/reload loops
+// IMPORTANT: NO llamar a self.skipWaiting() aquí. El nuevo SW debe quedar en estado
+// "waiting" para que el frontend (BaseLayout.astro) pueda detectarlo y mostrar
+// el cartel de "Nueva versión disponible" con botón "Actualizar ahora".
+// Solo se activa cuando el usuario hace clic en "Actualizar ahora", que envía
+// el mensaje SKIP_WAITING (ver listener message arriba).
 self.addEventListener('install', (event) => {
   // Don't use cache.addAll() - it can fail if any resource is unavailable
-  // Just skip waiting and let the activate handler clean up
-  self.skipWaiting();
+  // Do NOT call self.skipWaiting() here - let the frontend control activation
 });
 
 self.addEventListener('activate', (event) => {

@@ -11,6 +11,7 @@ from .multimedia import FotoObjetoViewSet
 from .historial import HistorialPrecioViewSet, AlertaStockViewSet
 from .estok import EstokViewSet, CodigoInvitacionViewSet, CambiarEstokActivoView
 from .chat import MensajeViewSet
+from .version import VersionViewSet
 
 __all__ = [
     'HasRolePermission',
@@ -27,6 +28,7 @@ __all__ = [
     'CodigoInvitacionViewSet',
     'CambiarEstokActivoView',
     'MensajeViewSet',
+    'VersionViewSet',
 ]
 
 

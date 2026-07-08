@@ -3,6 +3,19 @@ set -e
 
 echo "=== Starting Estok ==="
 
+# Generar archivo de versión para detectar nuevos deploys
+echo "Generating version.json..."
+COMMIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+DEPLOY_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > /app/version.json << EOF
+{
+  "commit": "${COMMIT_HASH}",
+  "deploy_timestamp": "${DEPLOY_TIMESTAMP}",
+  "version": "1.0.0"
+}
+EOF
+echo "Version: ${COMMIT_HASH} @ ${DEPLOY_TIMESTAMP}"
+
 # Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)
 ESTOK_PORT="${ESTOK_PORT:-8000}"
 echo "Using ESTOK_PORT=${ESTOK_PORT}"

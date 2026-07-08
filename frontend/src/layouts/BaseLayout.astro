@@ -242,6 +242,19 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       </div>
     </nav>
 
+    <!-- Barra de Estok activo (solo mobile) -->
+    <div id="estokBarMobile" class="md:hidden hidden bg-blue-50 border-b border-blue-100">
+      <div class="max-w-7xl mx-auto px-4 py-1.5">
+        <div class="flex items-center justify-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <span id="estokBarNombre" class="text-xs font-semibold text-blue-800 truncate max-w-[200px]"></span>
+          <span id="estokBarRoleBadge" class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 font-medium"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Toast Container Global -->
     <div id="toastContainer" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
 
@@ -735,36 +748,81 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   // ===========================================================================
 
   if ('serviceWorker' in navigator) {
+    // Variable para tracking de registro
+    let swRegistration: ServiceWorkerRegistration | null = null;
+
+    // =====================================================================
+    // CONTROLLERCHANGE: Cuando el nuevo SW toma control (después de
+    // SKIP_WAITING), recargar la página automáticamente para que el
+    // usuario vea la nueva versión.
+    // =====================================================================
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('🔄 Nuevo SW tomó control, recargando...');
+      window.location.reload();
+    });
+
     // Registrar el Service Worker
     navigator.serviceWorker.register('/sw.js').then((registration) => {
+      swRegistration = registration;
       console.log('✅ SW registrado:', registration.scope);
 
-      // Detectar cuando hay un nuevo SW esperando (nuevo deploy)
+      // =====================================================================
+      // DETECCIÓN DE NUEVO SW (updatefound)
+      // Cuando el browser detecta que el sw.js cambió (porque el hash o
+      // contenido es diferente), instala el nuevo SW. Este nuevo SW queda
+      // en estado "waiting" (porque NO llamamos a self.skipWaiting() en install).
+      // Acá detectamos ese estado y mostramos el banner.
+      // =====================================================================
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // Hay una nueva versión disponible
+              console.log('🆕 Nueva versión detectada via updatefound');
               mostrarBannerActualizacion(registration);
             }
           });
         }
       });
 
-      // Verificar si ya hay un SW esperando (por si la página se cargó mientras se actualizaba)
+      // =====================================================================
+      // VERIFICACIÓN INICIAL: Si ya hay un SW esperando (por ejemplo, si
+      // la página se cargó mientras se actualizaba en segundo plano).
+      // =====================================================================
       if (registration.waiting && navigator.serviceWorker.controller) {
+        console.log('🆕 Nueva versión detectada via registration.waiting');
         mostrarBannerActualizacion(registration);
       }
+
+      // =====================================================================
+      // VERIFICACIÓN PERIÓDICA: Cada 60 segundos, checkeamos si hay un
+      // nuevo SW disponible llamando a registration.update(). Esto es
+      // necesario porque algunos browsers (especialmente en PWA/PWAs
+      // instaladas en Android) no siempre disparan 'updatefound'
+      // automáticamente.
+      // =====================================================================
+      setInterval(() => {
+        registration.update().catch((err) => {
+          console.warn('⚠️ Error en SW update check:', err);
+        });
+      }, 60000); // cada 60 segundos
+
+      // =====================================================================
+      // DETECCIÓN POST-UPDATE: Después de llamar a update(), si hay un
+      // nuevo SW, el evento 'updatefound' se dispara. Pero por si acaso
+      // el evento no se dispara, también verificamos registration.waiting
+      // después de cada update().
+      // =====================================================================
+      const originalUpdate = registration.update.bind(registration);
+      registration.update = async function() {
+        await originalUpdate();
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          console.log('🆕 Nueva versión detectada post-update()');
+          mostrarBannerActualizacion(registration);
+        }
+      };
     }).catch((err) => {
       console.warn('❌ Error registrando SW:', err);
-    });
-
-    // Escuchar mensajes del SW (como NEW_VERSION_AVAILABLE)
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'NEW_VERSION_AVAILABLE') {
-        // Ya detectado por updatefound, pero por si acaso
-      }
     });
   }
 
@@ -993,14 +1051,90 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     }
   }
 
-  // Integrar updateEstokUIMobile en updateAuthUI
+  // ===========================================================================
+  // BARRA DE ESTOK ACTIVO (SOLO MOBILE)
+  // ===========================================================================
+  const estokBarMobile = document.getElementById('estokBarMobile')!;
+  const estokBarNombre = document.getElementById('estokBarNombre')!;
+  const estokBarRoleBadge = document.getElementById('estokBarRoleBadge')!;
+
+  function updateEstokBarMobile() {
+    const user = getCachedUser();
+    const estokActivoId = getEstokActivoId();
+
+    if (!user || !estokActivoId) {
+      estokBarMobile.classList.add('hidden');
+      return;
+    }
+
+    const estokActivo = user.estoks?.find((e: any) => e.id === estokActivoId);
+    if (estokActivo) {
+      estokBarMobile.classList.remove('hidden');
+      estokBarNombre.textContent = estokActivo.nombre;
+      estokBarRoleBadge.textContent = estokActivo.role || '';
+    } else {
+      estokBarMobile.classList.add('hidden');
+    }
+  }
+
+  // Integrar updateEstokUIMobile y updateEstokBarMobile en updateAuthUI
   const originalUpdateAuthUI = updateAuthUI;
   updateAuthUI = function() {
     originalUpdateAuthUI();
     updateEstokUIMobile();
+    updateEstokBarMobile();
   };
 
   // Invitar mobile
   invitarBtnMobile?.addEventListener('click', crearModalInvitacion);
+
+  // ===========================================================================
+  // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY) VÍA API
+  // Consulta /api/version/ y compara con la versión guardada.
+  // Si cambió, muestra un toast informativo.
+  // ===========================================================================
+
+  const VERSION_KEY = 'estok_version_cache';
+
+  async function checkNewVersion() {
+    try {
+      const response = await fetch('/api/version/');
+      if (!response.ok) return;
+      
+      const versionData = await response.json();
+      const currentCommit = versionData.commit;
+
+      if (!currentCommit || currentCommit === 'unknown') return;
+
+      const cachedVersion = localStorage.getItem(VERSION_KEY);
+
+      if (cachedVersion && cachedVersion !== currentCommit) {
+        console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
+        (window as any).showSuccess?.('🆕 Estok ha sido actualizado');
+
+        // Limpiar cache del navegador
+        if ('caches' in window) {
+          try {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log('🗑️ Cache limpiado');
+          } catch (err) {
+            console.warn('⚠️ Error limpiando cache:', err);
+          }
+        }
+      }
+
+      localStorage.setItem(VERSION_KEY, currentCommit);
+    } catch (err) {
+      console.warn('⚠️ Error verificando versión:', err);
+    }
+  }
+
+  // Ejecutar después de que la página cargue
+  if (document.readyState === 'complete') {
+    checkNewVersion();
+  } else {
+    window.addEventListener('load', checkNewVersion);
+  }
 
 </script>

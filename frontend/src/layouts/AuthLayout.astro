@@ -43,6 +43,19 @@ const { title = 'Estok - Autenticación' } = Astro.props;
         <p class="text-gray-500 mt-2">Sistema de Inventario Personal</p>
       </div>
 
+      <!-- Banner de actualización -->
+      <div id="updateBanner" class="hidden mb-4 bg-green-50 border border-green-200 text-green-800 rounded-xl p-4 shadow-sm">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <div>
+            <p class="text-sm font-semibold">🆕 Estok ha sido actualizado</p>
+            <p class="text-xs text-green-600 mt-0.5">Se ha desplegado una nueva versión de la aplicación.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Contenido del formulario -->
       <div class="bg-white rounded-xl shadow-lg p-8">
         <slot />
@@ -53,17 +66,73 @@ const { title = 'Estok - Autenticación' } = Astro.props;
 
 <script>
   // ===========================================================================
-  // DESREGISTRAR SERVICE WORKER (temporalmente desactivado)
-  // El SW causaba recarga constante de la pagina.
+  // DETECCIÓN DE NUEVA VERSIÓN (POST-DEPLOY)
+  // Al cargar la página de login, consulta /api/version/ y compara con
+  // la versión guardada en localStorage. Si cambió, muestra un banner
+  // y limpia el cache del navegador.
   // ===========================================================================
 
-  if ('serviceWorker' in navigator) {
-    // Ejecutar inmediatamente, no en load, para desregistrar antes de que el SW actue
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
-        console.log('🗑️ SW desregistrado desde AuthLayout:', registration.scope);
+  const VERSION_KEY = 'estok_version_cache';
+
+  async function checkNewVersion() {
+    try {
+      const response = await fetch('/api/version/');
+      if (!response.ok) return;
+      
+      const versionData = await response.json();
+      const currentCommit = versionData.commit;
+      const deployTimestamp = versionData.deploy_timestamp;
+
+      if (!currentCommit || currentCommit === 'unknown') return;
+
+      // Obtener versión anterior guardada
+      const cachedVersion = localStorage.getItem(VERSION_KEY);
+
+      if (cachedVersion && cachedVersion !== currentCommit) {
+        // ¡Nuevo deploy detectado!
+        console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
+
+        // Mostrar banner
+        const banner = document.getElementById('updateBanner');
+        if (banner) {
+          banner.classList.remove('hidden');
+          // Auto-ocultar después de 8 segundos
+          setTimeout(() => {
+            banner.classList.add('hidden');
+          }, 8000);
+        }
+
+        // Limpiar cache del navegador
+        if ('caches' in window) {
+          try {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log('🗑️ Cache limpiado');
+          } catch (err) {
+            console.warn('⚠️ Error limpiando cache:', err);
+          }
+        }
+
+        // Desregistrar Service Workers viejos
+        if ('serviceWorker' in navigator) {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(reg => reg.unregister()));
+            console.log('🗑️ Service Workers desregistrados');
+          } catch (err) {
+            console.warn('⚠️ Error desregistrando SW:', err);
+          }
+        }
       }
-    });
+
+      // Guardar versión actual para futuras comparaciones
+      localStorage.setItem(VERSION_KEY, currentCommit);
+
+    } catch (err) {
+      console.warn('⚠️ Error verificando versión:', err);
+    }
   }
+
+  // Ejecutar inmediatamente
+  checkNewVersion();
 </script>
