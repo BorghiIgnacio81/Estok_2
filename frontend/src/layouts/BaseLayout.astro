@@ -521,10 +521,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     window.location.href = '/login';
   });
 
-  // Actualizar UI al cargar la página
-  updateAuthUI();
-  updateEstokUIMobile();
-
   // ===========================================================================
   // MODAL DE INVITACIÓN
   // ===========================================================================
@@ -1077,14 +1073,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     }
   }
 
-  // Integrar updateEstokUIMobile y updateEstokBarMobile en updateAuthUI
-  const originalUpdateAuthUI = updateAuthUI;
-  updateAuthUI = function() {
-    originalUpdateAuthUI();
-    updateEstokUIMobile();
-    updateEstokBarMobile();
-  };
-
   // Invitar mobile
   invitarBtnMobile?.addEventListener('click', crearModalInvitacion);
 
@@ -1199,10 +1187,25 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     versionCheckInterval = window.setInterval(checkNewVersion, 30000);
   }
 
+  // ===========================================================================
+  // INICIALIZACIÓN DE LA UI
+  // Llamar después de que todas las funciones estén definidas para evitar
+  // errores de TDZ (Temporal Dead Zone) al minificar con Astro.
+  // ===========================================================================
+  function initUI() {
+    updateAuthUI();
+    updateEstokUIMobile();
+    updateEstokBarMobile();
+  }
+
   if (document.readyState === 'complete') {
+    initUI();
     initVersionCheck();
   } else {
-    window.addEventListener('load', initVersionCheck);
+    window.addEventListener('load', () => {
+      initUI();
+      initVersionCheck();
+    });
   }
 
 </script>
