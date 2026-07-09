@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 01:35 - PWA cleanup: eliminar botones redundantes en desktop
+# BUILD_TIMESTAMP: 2026-07-09 01:40 - PWA cleanup: eliminar boton azul, UA detection en verde pequeño
 set -e
 
 echo "=== Starting Estok ==="
