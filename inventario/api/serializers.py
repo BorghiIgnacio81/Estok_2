@@ -696,9 +696,12 @@ class MensajeCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context.get('request')
-        estok_id = request.headers.get('X-Estok-Id') if request else None
+        # Prioridad: query_param > header X-Estok-Id
+        estok_id = request.query_params.get('estok_id') if request else None
         if not estok_id:
-            raise serializers.ValidationError({"error": "Header X-Estok-Id requerido"})
+            estok_id = request.headers.get('X-Estok-Id') if request else None
+        if not estok_id:
+            raise serializers.ValidationError({"error": "Estok ID requerido (query param estok_id o header X-Estok-Id)"})
         mensaje = Mensaje.objects.create(
             estok_id=estok_id,
             remitente=request.user,

@@ -33,11 +33,12 @@ export async function fetchMensajes(estokId?: string): Promise<Mensaje[]> {
 // ENVIAR UN MENSAJE
 // =============================================================================
 
-export async function enviarMensaje(contenido: string): Promise<Mensaje> {
+export async function enviarMensaje(contenido: string, estokId?: string): Promise<Mensaje> {
   const headers = getAuthHeaders();
   headers['Content-Type'] = 'application/json';
 
-  const response = await fetch(`${API_BASE_URL}/mensajes/`, {
+  const params = estokId ? `?estok_id=${estokId}` : '';
+  const response = await fetch(`${API_BASE_URL}/mensajes/${params}`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ contenido }),

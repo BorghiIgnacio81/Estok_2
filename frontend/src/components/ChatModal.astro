@@ -484,7 +484,8 @@ r no ---
     chatInput.disabled = true;
 
     try {
-      await enviarMensaje(texto);
+      const estokId = getEstokActivoId();
+      await enviarMensaje(texto, estokId || undefined);
       chatInput.value = '';
       await loadMensajes();
     } catch (err: any) {
