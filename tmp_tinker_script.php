@@ -1,0 +1,1 @@
+$deployments = DB::table('application_deployment_queues')->where('application_id', 4)->orderBy('id', 'desc')->limit(5)->get(); echo json_encode($deployments->toArray());

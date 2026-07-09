@@ -34,14 +34,30 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
-            'description', 'phone',
+            'description', 'phone', 'display_name',
             'is_active', 'date_joined',
         ]
         read_only_fields = ['id', 'date_joined']
+
+    def get_display_name(self, obj):
+        """
+        Retorna el nombre visible del usuario según el Estok activo.
+        Si el usuario tiene un alias configurado para el Estok actual,
+        muestra ese alias. Si no, muestra get_full_name() o username.
+        """
+        request = self.context.get('request')
+        if request and obj.alias_por_estok:
+            # Intentar obtener estok_id del header o query param
+            estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
+            if estok_id and str(estok_id) in obj.alias_por_estok:
+                return obj.alias_por_estok[str(estok_id)]
+        return obj.get_full_name() or obj.username
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -678,6 +694,12 @@ class MensajeSerializer(serializers.ModelSerializer):
 
     def get_remitente_nombre(self, obj):
         if obj.remitente:
+            # Usar alias si está configurado para este Estok
+            request = self.context.get('request')
+            if request and obj.remitente.alias_por_estok:
+                estok_id = str(obj.estok_id)
+                if estok_id in obj.remitente.alias_por_estok:
+                    return obj.remitente.alias_por_estok[estok_id]
             return obj.remitente.get_full_name() or obj.remitente.username
         return None
 

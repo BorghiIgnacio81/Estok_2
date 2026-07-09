@@ -53,6 +53,11 @@ class CustomUser(AbstractUser):
         help_text="Rol o parentesco dentro del sistema (ej: 'Hijo', 'Socio', 'Encargado de galpón')"
     )
     phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    alias_por_estok = models.JSONField(
+        default=dict, blank=True,
+        verbose_name="Alias por Estok",
+        help_text="Dict con {estok_id: 'alias'} para mostrar nombres diferentes según el Estok"
+    )
     ultimo_estok_activo = models.ForeignKey(
         'Estok',
         on_delete=models.SET_NULL,
@@ -61,6 +66,7 @@ class CustomUser(AbstractUser):
         related_name='usuarios_activos',
         verbose_name="Último Estok activo"
     )
+
 
     class Meta:
         verbose_name = "Usuario"

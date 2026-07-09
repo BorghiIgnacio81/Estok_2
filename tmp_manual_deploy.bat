@@ -1,0 +1,2 @@
+@echo off
+ssh -i "C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner" -o StrictHostKeyChecking=no root@178.156.224.212 "docker pull ghcr.io/borghiignacio81/estok_2:latest 2>&1 | tail -5 && docker run -d --name estok_test --network coolify -e ESTOK_PORT=8000 -e DB_HOST=cagtcifjoy8ydxugg4bkdll1 -e DB_PORT=5432 -e DB_NAME=estok -e DB_USER=estok -e DB_PASSWORD=estok123 -e DJANGO_SECRET_KEY=test -e DJANGO_DEBUG=True -e DJANGO_ALLOWED_HOSTS=* ghcr.io/borghiignacio81/estok_2:latest 2>&1 | head -20"
