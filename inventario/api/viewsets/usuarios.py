@@ -102,28 +102,33 @@ class UserViewSet(viewsets.ModelViewSet):
     def online(self, request):
         """
         Retorna los usuarios online (activos en los últimos ONLINE_TIMEOUT_MINUTES minutos).
-        GET /api/usuarios/online/
+        GET /api/usuarios/online/?estok_id=<uuid>
 
         REGLA:
-        - ygumy44 (superuser) ve TODOS los usuarios online de la plataforma.
-        - Usuarios normales ven solo los usuarios online que son miembros
-          de su mismo Estok activo.
+        - Si se pasa estok_id como query param, filtra por ese Estok específico.
+        - Si no se pasa estok_id, usa el ultimo_estok_activo del usuario.
+        - ygumy44 (superuser) ve TODOS los usuarios online de la plataforma
+          (a menos que se pase un estok_id específico).
         """
         user = request.user
         cutoff = timezone.now() - timezone.timedelta(minutes=ONLINE_TIMEOUT_MINUTES)
 
-        if user.username == 'ygumy44' or user.is_superuser:
-            # ygumy44 ve todos los usuarios online
-            online_users = CustomUser.objects.filter(
-                ultima_actividad__gte=cutoff,
-                is_active=True
-            )
-        else:
-            # Usuarios normales: solo los de su Estok activo
-            if not user.ultimo_estok_activo:
+        # Determinar el estok_id a usar: query param > ultimo_estok_activo
+        estok_id = request.query_params.get('estok_id') or (str(user.ultimo_estok_activo_id) if user.ultimo_estok_activo_id else None)
+
+        if not estok_id:
+            # Sin Estok definido: devolver vacío (excepto superuser)
+            if user.is_superuser:
+                online_users = CustomUser.objects.filter(
+                    ultima_actividad__gte=cutoff,
+                    is_active=True
+                )
+            else:
                 return Response([])
+        else:
+            # Filtrar por miembros del Estok específico
             miembros_ids = Membresia.objects.filter(
-                estok=user.ultimo_estok_activo
+                estok_id=estok_id
             ).values_list('usuario_id', flat=True)
             online_users = CustomUser.objects.filter(
                 id__in=miembros_ids,

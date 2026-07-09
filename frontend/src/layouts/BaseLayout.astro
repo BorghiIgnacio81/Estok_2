@@ -1176,8 +1176,9 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       return;
     }
     try {
-      const { fetchOnlineUsers } = await import('../services/auth');
-      const users = await fetchOnlineUsers();
+      const { fetchOnlineUsers, getEstokActivoId } = await import('../services/auth');
+      const estokId = getEstokActivoId();
+      const users = await fetchOnlineUsers(estokId || undefined);
       if (users.length > 0) {
         onlineUsersIndicator.classList.remove('hidden');
         onlineCount.textContent = String(users.length);

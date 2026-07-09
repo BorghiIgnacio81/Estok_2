@@ -561,14 +561,16 @@ export async function ping(): Promise<void> {
 }
 
 /**
- * Obtiene los usuarios online.
- * GET /api/usuarios/online/
+ * Obtiene los usuarios online de un Estok específico.
+ * GET /api/usuarios/online/?estok_id=<uuid>
+ * Si no se pasa estok_id, usa el ultimo_estok_activo del usuario autenticado.
  */
-export async function fetchOnlineUsers(): Promise<OnlineUser[]> {
+export async function fetchOnlineUsers(estokId?: string): Promise<OnlineUser[]> {
   const token = getToken();
   if (!token) return [];
   try {
-    const response = await fetch(`${API_BASE_URL}/usuarios/online/`, {
+    const params = estokId ? `?estok_id=${encodeURIComponent(estokId)}` : '';
+    const response = await fetch(`${API_BASE_URL}/usuarios/online/${params}`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     if (!response.ok) return [];
