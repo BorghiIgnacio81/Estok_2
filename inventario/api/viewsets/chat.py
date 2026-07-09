@@ -1,5 +1,7 @@
 """
 ViewSet para el chat interno entre miembros de un Estok.
+SEGURIDAD: Aislamiento estricto por estok_id. Ningún mensaje puede
+filtrarse entre Estoks diferentes.
 """
 
 import logging
@@ -7,8 +9,9 @@ import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 
-from ...models import Mensaje
+from ...models import Mensaje, Membresia, Role
 from ..serializers import MensajeSerializer, MensajeCreateSerializer
 from .base import HasRolePermission
 
@@ -27,10 +30,35 @@ class MensajeViewSet(viewsets.ModelViewSet):
     pueda cargar TODOS los mensajes del Estok. La paginación global (PAGE_SIZE=25)
     rompe el chat porque los mensajes nuevos quedan en páginas siguientes
     y el frontend nunca los carga.
+
+    SEGURIDAD: Aislamiento estricto por estok_id.
+    - get_queryset() SIEMPRE filtra por estok_id, incluso para superusers.
+    - perform_create() valida membresía activa antes de guardar.
+    - El estok_id se obtiene EXCLUSIVAMENTE del query param, no del header.
     """
     queryset = Mensaje.objects.all()
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
     pagination_class = None
+
+    def _get_estok_id(self):
+        """
+        Obtiene el estok_id del query param.
+        NO usa header X-Estok-Id para evitar inconsistencias.
+        Retorna None si no está presente.
+        """
+        return self.request.query_params.get('estok_id')
+
+    def _validar_membresia(self, user, estok_id):
+        """
+        Valida que el usuario tenga una membresía activa en el Estok.
+        Retorna True si es miembro, False en caso contrario.
+        Los superusers también pasan esta validación.
+        """
+        if user.is_superuser:
+            return True
+        if not estok_id:
+            return False
+        return Membresia.objects.filter(usuario=user, estok_id=estok_id).exists()
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -40,40 +68,55 @@ class MensajeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filtra mensajes por el Estok activo (query param estok_id).
-        SOLO devuelve mensajes si el usuario es miembro del Estok.
-        NO usa el header X-Estok-Id porque el frontend ahora pasa el
-        estok_id exclusivamente como query param para evitar inconsistencias.
+        AISLAMIENTO ESTRICTO: NO existe fallback global.
+        - Si el usuario no es miembro del Estok → QuerySet vacío.
+        - Si no hay estok_id → QuerySet vacío (no se filtran datos de otros Estoks).
+        - Incluso superusers deben pasar por estok_id (aunque tienen membresía virtual).
         """
         user = self.request.user
-        if user.is_superuser:
-            return Mensaje.objects.all()
+        estok_id = self._get_estok_id()
 
-        estok_id = self.request.query_params.get('estok_id')
-        if estok_id:
-            # Verificar que el usuario sea miembro del Estok
-            from ...models import Membresia
-            if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
-                return Mensaje.objects.none()
-            return Mensaje.objects.filter(estok_id=estok_id).select_related('remitente').order_by('created_at')
-        return Mensaje.objects.none()
+        if not estok_id:
+            # Sin estok_id no se devuelve NADA
+            return Mensaje.objects.none()
+
+        if not self._validar_membresia(user, estok_id):
+            return Mensaje.objects.none()
+
+        return Mensaje.objects.filter(
+            estok_id=estok_id
+        ).select_related('remitente').order_by('created_at')
 
     def perform_create(self, serializer):
-        # El serializer MensajeCreateSerializer.create() ya maneja
-        # la asignación de remitente y estok_id desde el request.
-        # Pero verificamos membresía aquí también por seguridad
+        """
+        Crea un mensaje con validación estricta de membresía.
+        El estok_id se obtiene del query param (única fuente confiable).
+        Se valida membresía ANTES de guardar para prevenir inyecciones manuales.
+        """
         user = self.request.user
-        estok_id = self.request.query_params.get('estok_id')
-        if estok_id:
-            from ...models import Membresia
-            if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("No eres miembro de este Estok")
+        estok_id = self._get_estok_id()
+
+        if not estok_id:
+            raise PermissionDenied("Estok ID requerido (query param estok_id)")
+
+        if not self._validar_membresia(user, estok_id):
+            raise PermissionDenied("No eres miembro de este Estok")
+
         serializer.save()
 
     @action(detail=True, methods=['patch'])
     def marcar_leido(self, request, pk=None):
-        """Marca un mensaje como leído."""
+        """Marca un mensaje como leído, validando que pertenezca al Estok del usuario."""
         mensaje = self.get_object()
+        estok_id = self._get_estok_id()
+
+        # Verificar que el mensaje pertenezca al Estok activo del usuario
+        if estok_id and str(mensaje.estok_id) != str(estok_id):
+            return Response(
+                {'error': 'El mensaje no pertenece al Estok activo'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         mensaje.leido = True
         mensaje.save(update_fields=['leido'])
         return Response({'status': 'ok', 'leido': True})
@@ -81,8 +124,11 @@ class MensajeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def no_leidos(self, request):
         """Retorna la cantidad de mensajes no leídos del Estok activo."""
-        estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
+        estok_id = self._get_estok_id()
         if not estok_id:
+            return Response({'no_leidos': 0})
+
+        if not self._validar_membresia(request.user, estok_id):
             return Response({'no_leidos': 0})
 
         count = Mensaje.objects.filter(
@@ -99,12 +145,11 @@ class MensajeViewSet(viewsets.ModelViewSet):
         Solo accesible para usuarios con rol Admin del Estok.
         Esto borra los mensajes del servidor de forma permanente.
         """
-        estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
+        estok_id = self._get_estok_id()
         if not estok_id:
-            return Response({'error': 'Header X-Estok-Id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Query param estok_id requerido'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verificar que el usuario sea Admin del Estok
-        from ...models import Membresia, Role
         try:
             role_admin = Role.objects.get(name='Admin')
             membresia = Membresia.objects.get(usuario=request.user, estok_id=estok_id, role=role_admin)

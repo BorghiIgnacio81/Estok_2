@@ -736,12 +736,21 @@ class MensajeCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context.get('request')
-        # Prioridad: query_param > header X-Estok-Id
-        estok_id = request.query_params.get('estok_id') if request else None
+        if not request:
+            raise serializers.ValidationError({"error": "Contexto de request requerido"})
+
+        # SOLO query param estok_id (única fuente confiable)
+        estok_id = request.query_params.get('estok_id')
         if not estok_id:
-            estok_id = request.headers.get('X-Estok-Id') if request else None
-        if not estok_id:
-            raise serializers.ValidationError({"error": "Estok ID requerido (query param estok_id o header X-Estok-Id)"})
+            raise serializers.ValidationError({"error": "Estok ID requerido (query param estok_id)"})
+
+        # Validar membresía del usuario en el Estok (doble validación con el ViewSet)
+        from ..models import Membresia
+        if not request.user.is_superuser:
+            if not Membresia.objects.filter(usuario=request.user, estok_id=estok_id).exists():
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("No eres miembro de este Estok")
+
         mensaje = Mensaje.objects.create(
             estok_id=estok_id,
             remitente=request.user,

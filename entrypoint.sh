@@ -1,5 +1,6 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 01:40 - PWA cleanup: eliminar boton azul, UA detection en verde pequeño
+# BUILD_TIMESTAMP: 2026-07-09 13:40 - UI FIX: Flexbox mobile en navbar (BaseLayout) y hero (index.astro), eliminado absolute positioning, gap/flex-wrap para evitar desbordes
+
 set -e
 
 echo "=== Starting Estok ==="
