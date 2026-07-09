@@ -326,3 +326,14 @@ export interface Mensaje {
   leido: boolean;
   created_at: string;
 }
+
+// =============================================================================
+// USUARIOS ONLINE
+// =============================================================================
+
+export interface OnlineUser {
+  id: string;
+  username: string;
+  display_name: string;
+  ultima_actividad: string;
+}

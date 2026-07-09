@@ -66,7 +66,11 @@ class CustomUser(AbstractUser):
         related_name='usuarios_activos',
         verbose_name="Último Estok activo"
     )
-
+    ultima_actividad = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name="Última actividad",
+        help_text="Timestamp del último ping/heartbeat del usuario"
+    )
 
     class Meta:
         verbose_name = "Usuario"

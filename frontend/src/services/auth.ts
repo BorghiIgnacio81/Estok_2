@@ -538,6 +538,76 @@ export async function unirseConCodigo(codigo: string): Promise<{ mensaje: string
 }
 
 // =============================================================================
+// HEARTBEAT / USUARIOS ONLINE
+// =============================================================================
+
+import type { OnlineUser } from '../types';
+
+/**
+ * Envía un ping al backend para actualizar ultima_actividad.
+ * POST /api/usuarios/ping/
+ */
+export async function ping(): Promise<void> {
+  const token = getToken();
+  if (!token) return;
+  try {
+    await fetch(`${API_BASE_URL}/usuarios/ping/`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+  } catch {
+    // Silencioso - no romper la UI si falla el ping
+  }
+}
+
+/**
+ * Obtiene los usuarios online.
+ * GET /api/usuarios/online/
+ */
+export async function fetchOnlineUsers(): Promise<OnlineUser[]> {
+  const token = getToken();
+  if (!token) return [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/usuarios/online/`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) return [];
+    return response.json();
+  } catch {
+    return [];
+  }
+}
+
+// =============================================================================
+// VERSIÓN DE LA APP
+// =============================================================================
+
+export interface VersionInfo {
+  commit: string;
+  deploy_timestamp: string | null;
+  version: string;
+}
+
+let cachedVersion: VersionInfo | null = null;
+
+/**
+ * Obtiene la versión actual del deploy desde /api/version/
+ */
+export async function fetchVersion(): Promise<VersionInfo> {
+  if (cachedVersion) return cachedVersion;
+  try {
+    const response = await fetch(`${API_BASE_URL}/version/`);
+    if (response.ok) {
+      cachedVersion = await response.json();
+      return cachedVersion!;
+    }
+  } catch {
+    // Silencioso
+  }
+  return { commit: 'unknown', deploy_timestamp: null, version: '0.0.0' };
+}
+
+// =============================================================================
 // EXPORTACIÓN POR DEFECTO
 // =============================================================================
 
@@ -555,6 +625,9 @@ const auth = {
   getEstokActivoId,
   setEstokActivoId,
   cambiarEstokActivo,
+  ping,
+  fetchOnlineUsers,
+  fetchVersion,
 };
 
 export default auth;

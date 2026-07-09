@@ -70,6 +70,37 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
           <!-- Acciones derecha (siempre visibles) -->
           <div class="flex items-center space-x-1 sm:space-x-3">
+            <!-- Indicador de usuarios online -->
+            <div id="onlineUsersIndicator" class="hidden relative group">
+              <button id="onlineUsersBtn"
+                class="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-green-700 bg-green-50 hover:bg-green-100 transition-base"
+                title="Usuarios online">
+                <span class="w-2 h-2 rounded-full bg-green-500 inline-block animate-pulse"></span>
+                <span id="onlineCount" class="font-semibold">0</span>
+              </button>
+              <!-- Tooltip con lista de usuarios online -->
+              <div id="onlineUsersTooltip"
+                class="hidden absolute top-full right-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
+                <div class="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                  Usuarios online
+                </div>
+                <div id="onlineUsersList" class="max-h-48 overflow-y-auto py-1">
+                  <!-- Se llena dinámicamente -->
+                </div>
+              </div>
+            </div>
+            <!-- Botón Chat -->
+            <button id="chatNavBtn"
+              class="p-2 rounded-lg text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 transition-base relative group"
+              title="Chat del Estok">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span id="chatNavBadge" class="hidden absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-sm">0</span>
+              <span class="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                Chat
+              </span>
+            </button>
             <!-- Botón Instalar App (PWA) -->
             <button id="installAppBtn"
               class="p-2 rounded-lg text-blue-700 hover:text-blue-900 hover:bg-blue-50 transition-base relative group"
@@ -810,13 +841,15 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       // después de cada update().
       // =====================================================================
       const originalUpdate = registration.update.bind(registration);
-      registration.update = async function() {
+      const wrappedUpdate = async function(): Promise<ServiceWorkerRegistration> {
         await originalUpdate();
         if (registration.waiting && navigator.serviceWorker.controller) {
           console.log('🆕 Nueva versión detectada post-update()');
           mostrarBannerActualizacion(registration);
         }
+        return registration;
       };
+      registration.update = wrappedUpdate;
     }).catch((err) => {
       console.warn('❌ Error registrando SW:', err);
     });
@@ -1093,6 +1126,197 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     window.addEventListener('load', () => {
       initUI();
     });
+  }
+
+  // ===========================================================================
+  // HEARTBEAT (PING) - Enviar ping cada 30 segundos
+  // ===========================================================================
+
+  let heartbeatInterval: number | null = null;
+
+  async function startHeartbeat() {
+    if (heartbeatInterval) return; // Ya iniciado
+    const { ping } = await import('../services/auth');
+    // Enviar ping inmediatamente al iniciar
+    ping();
+    // Luego cada 30 segundos
+    heartbeatInterval = window.setInterval(() => {
+      ping();
+    }, 30000);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+
+  // Iniciar heartbeat si el usuario está autenticado
+  const token = localStorage.getItem('estok_access_token');
+  if (token) {
+    startHeartbeat();
+  }
+
+  // ===========================================================================
+  // USUARIOS ONLINE - Actualizar cada 30 segundos
+  // ===========================================================================
+
+  const onlineUsersIndicator = document.getElementById('onlineUsersIndicator')!;
+  const onlineCount = document.getElementById('onlineCount')!;
+  const onlineUsersBtn = document.getElementById('onlineUsersBtn')!;
+  const onlineUsersTooltip = document.getElementById('onlineUsersTooltip')!;
+  const onlineUsersList = document.getElementById('onlineUsersList')!;
+
+  let onlineUsersInterval: number | null = null;
+
+  async function updateOnlineUsers() {
+    if (!token) {
+      onlineUsersIndicator.classList.add('hidden');
+      return;
+    }
+    try {
+      const { fetchOnlineUsers } = await import('../services/auth');
+      const users = await fetchOnlineUsers();
+      if (users.length > 0) {
+        onlineUsersIndicator.classList.remove('hidden');
+        onlineCount.textContent = String(users.length);
+        onlineUsersList.innerHTML = users.map(u => `
+          <div class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700">
+            <span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>
+            <span class="truncate">${u.display_name}</span>
+          </div>
+        `).join('');
+      } else {
+        onlineUsersIndicator.classList.add('hidden');
+      }
+    } catch {
+      // Silencioso
+    }
+  }
+
+  function startOnlineUsersPolling() {
+    if (onlineUsersInterval) return;
+    updateOnlineUsers();
+    onlineUsersInterval = window.setInterval(updateOnlineUsers, 30000);
+  }
+
+  function stopOnlineUsersPolling() {
+    if (onlineUsersInterval) {
+      clearInterval(onlineUsersInterval);
+      onlineUsersInterval = null;
+    }
+  }
+
+  // Toggle tooltip
+  onlineUsersBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onlineUsersTooltip?.classList.toggle('hidden');
+  });
+
+  // Cerrar tooltip al hacer clic fuera
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest('#onlineUsersIndicator')) {
+      onlineUsersTooltip?.classList.add('hidden');
+    }
+  });
+
+  if (token) {
+    startOnlineUsersPolling();
+  }
+
+  // ===========================================================================
+  // REDEPLOY BANNER - Detectar si hay un nuevo deploy
+  // ===========================================================================
+
+  let redeployCheckInterval: number | null = null;
+  let lastKnownVersion: string | null = localStorage.getItem('estok_version');
+
+  async function checkForNewDeploy() {
+    try {
+      const { fetchVersion } = await import('../services/auth');
+      const versionInfo = await fetchVersion();
+      const currentVersion = versionInfo.version || versionInfo.commit;
+
+      if (!lastKnownVersion) {
+        // Primera vez: guardar versión actual
+        lastKnownVersion = currentVersion;
+        localStorage.setItem('estok_version', currentVersion);
+        return;
+      }
+
+      // Si la versión cambió, mostrar banner de redeploy
+      if (currentVersion !== lastKnownVersion) {
+        mostrarBannerRedeploy(versionInfo);
+        lastKnownVersion = currentVersion;
+        localStorage.setItem('estok_version', currentVersion);
+      }
+    } catch {
+      // Silencioso
+    }
+  }
+
+  function mostrarBannerRedeploy(versionInfo: { version: string; commit: string; deploy_timestamp: string | null }) {
+    if (document.getElementById('redeployBanner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'redeployBanner';
+    banner.className = 'fixed bottom-0 left-0 right-0 z-[9999] bg-blue-600 text-white px-4 py-3 shadow-2xl transform translate-y-full transition-transform duration-500 ease-out';
+    banner.innerHTML = `
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 flex-shrink-0 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <div>
+            <p class="text-sm font-semibold">🚀 Nueva versión desplegada</p>
+            <p class="text-xs text-blue-200">Versión ${versionInfo.version} — Se recomienda recargar para ver los cambios.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button id="redeployLaterBtn" class="text-xs text-blue-200 hover:text-white px-3 py-1.5 rounded-lg transition-base">
+            Ahora no
+          </button>
+          <button id="redeployNowBtn" class="text-xs font-semibold bg-white text-blue-700 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-base shadow-sm">
+            🔄 Recargar ahora
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    requestAnimationFrame(() => {
+      banner.classList.remove('translate-y-full');
+    });
+
+    document.getElementById('redeployNowBtn')?.addEventListener('click', () => {
+      window.location.reload();
+    });
+
+    document.getElementById('redeployLaterBtn')?.addEventListener('click', () => {
+      banner.classList.add('translate-y-full');
+      setTimeout(() => banner.remove(), 500);
+    });
+  }
+
+  function startRedeployCheck() {
+    if (redeployCheckInterval) return;
+    // Checkear cada 2 minutos
+    checkForNewDeploy();
+    redeployCheckInterval = window.setInterval(checkForNewDeploy, 120000);
+  }
+
+  function stopRedeployCheck() {
+    if (redeployCheckInterval) {
+      clearInterval(redeployCheckInterval);
+      redeployCheckInterval = null;
+    }
+  }
+
+  if (token) {
+    startRedeployCheck();
   }
 
 </script>

@@ -4,8 +4,21 @@ set -e
 echo "=== Starting Estok ==="
 
 # Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)
-ESTOK_PORT="${ESTOK_PORT:-8000}"
+ESTOC_PORT="${ESTOK_PORT:-8000}"
 echo "Using ESTOK_PORT=${ESTOK_PORT}"
+
+# Generar version.json con timestamp y versión
+echo "Generating version.json..."
+COMMIT_HASH=$(git log -1 --format=%H 2>/dev/null || echo "unknown")
+DEPLOY_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+cat > /app/version.json <<EOF
+{
+  "commit": "${COMMIT_HASH}",
+  "deploy_timestamp": "${DEPLOY_TIMESTAMP}",
+  "version": "1.1.0"
+}
+EOF
+echo "Version: 1.1.0, Commit: ${COMMIT_HASH}"
 
 echo "Running migrations..."
 python manage.py migrate --noinput

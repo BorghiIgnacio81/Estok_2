@@ -2,13 +2,18 @@
 ViewSets para usuarios y roles.
 """
 
-from rest_framework import viewsets, permissions
+from django.utils import timezone
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ...models import Role, CustomUser, Membresia
 from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
+
+
+# Tiempo máximo desde última actividad para considerar a un usuario "online"
+ONLINE_TIMEOUT_MINUTES = 2
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -44,11 +49,12 @@ class UserViewSet(viewsets.ModelViewSet):
         Permisos dinámicos:
         - 'create' (registro público): AllowAny
         - 'me' (perfil propio): solo IsAuthenticated (sin HasRolePermission)
+        - 'ping', 'online': solo IsAuthenticated (sin HasRolePermission)
         - El resto (list, retrieve, update, delete): IsAuthenticated + HasRolePermission
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action == 'me':
+        if self.action in ('me', 'ping', 'online'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -79,5 +85,60 @@ class UserViewSet(viewsets.ModelViewSet):
         data['estoks'] = estoks_data
         data['ultimo_estok_activo_id'] = str(user.ultimo_estok_activo_id) if user.ultimo_estok_activo_id else None
 
+        return Response(data)
+
+    @action(detail=False, methods=['post'])
+    def ping(self, request):
+        """
+        Heartbeat: actualiza ultima_actividad del usuario autenticado.
+        POST /api/usuarios/ping/
+        El frontend llama a esto cada ~30 segundos.
+        """
+        request.user.ultima_actividad = timezone.now()
+        request.user.save(update_fields=['ultima_actividad'])
+        return Response({'status': 'ok'})
+
+    @action(detail=False, methods=['get'])
+    def online(self, request):
+        """
+        Retorna los usuarios online (activos en los últimos ONLINE_TIMEOUT_MINUTES minutos).
+        GET /api/usuarios/online/
+
+        REGLA:
+        - ygumy44 (superuser) ve TODOS los usuarios online de la plataforma.
+        - Usuarios normales ven solo los usuarios online que son miembros
+          de su mismo Estok activo.
+        """
+        user = request.user
+        cutoff = timezone.now() - timezone.timedelta(minutes=ONLINE_TIMEOUT_MINUTES)
+
+        if user.username == 'ygumy44' or user.is_superuser:
+            # ygumy44 ve todos los usuarios online
+            online_users = CustomUser.objects.filter(
+                ultima_actividad__gte=cutoff,
+                is_active=True
+            )
+        else:
+            # Usuarios normales: solo los de su Estok activo
+            if not user.ultimo_estok_activo:
+                return Response([])
+            miembros_ids = Membresia.objects.filter(
+                estok=user.ultimo_estok_activo
+            ).values_list('usuario_id', flat=True)
+            online_users = CustomUser.objects.filter(
+                id__in=miembros_ids,
+                ultima_actividad__gte=cutoff,
+                is_active=True
+            )
+
+        data = [
+            {
+                "id": str(u.id),
+                "username": u.username,
+                "display_name": u.get_full_name() or u.username,
+                "ultima_actividad": u.ultima_actividad.isoformat() if u.ultima_actividad else None,
+            }
+            for u in online_users
+        ]
         return Response(data)
 

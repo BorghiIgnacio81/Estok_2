@@ -50,13 +50,24 @@ class UserSerializer(serializers.ModelSerializer):
         Retorna el nombre visible del usuario según el Estok activo.
         Si el usuario tiene un alias configurado para el Estok actual,
         muestra ese alias. Si no, muestra get_full_name() o username.
+
+        REGLA DE PRIVACIDAD:
+        - Si el usuario que CONSULTA es SoledadMartinez, y el usuario
+          consultado tiene apellido "Borghi", se oculta el apellido
+          reemplazándolo por "Oculto".
+        - ygumy44 (superuser/admin global) siempre ve los datos completos.
         """
         request = self.context.get('request')
         if request and obj.alias_por_estok:
-            # Intentar obtener estok_id del header o query param
             estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
             if estok_id and str(estok_id) in obj.alias_por_estok:
                 return obj.alias_por_estok[str(estok_id)]
+
+        # Regla de privacidad: SoledadMartinez no debe ver apellido Borghi
+        if request and request.user.username == 'SoledadMartinez':
+            if obj.last_name and 'Borghi' in obj.last_name:
+                return f"{obj.first_name or obj.username} Oculto"
+
         return obj.get_full_name() or obj.username
 
 
