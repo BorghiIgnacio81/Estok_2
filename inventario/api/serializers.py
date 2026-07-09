@@ -705,6 +705,13 @@ class MensajeSerializer(serializers.ModelSerializer):
 
     def get_remitente_nombre(self, obj):
         if obj.remitente:
+            # REGLA DE PRIVACIDAD ABSOLUTA: SoledadMartinez NO debe ver "Borghi" ni "Ignacio"
+            request = self.context.get('request')
+            if request and request.user.username == 'SoledadMartinez':
+                remitente_str = f"{obj.remitente.username} {obj.remitente.first_name} {obj.remitente.last_name}".lower()
+                if 'ygumy44' in remitente_str or 'borghi' in remitente_str or 'ignacio' in remitente_str:
+                    return 'Yamza'
+
             # Usar alias si está configurado para este Estok
             request = self.context.get('request')
             if request and obj.remitente.alias_por_estok:

@@ -71,6 +71,11 @@ class UserViewSet(viewsets.ModelViewSet):
 
         # Incluir datos de Estok activo y membresías
         membresias = Membresia.objects.filter(usuario=user).select_related('estok', 'role')
+
+        # REGLA DE PRIVACIDAD: SoledadMartinez solo debe ver "El camarin"
+        if user.username == 'SoledadMartinez':
+            membresias = membresias.filter(estok__nombre='El camarin')
+
         estoks_data = [
             {
                 "id": str(m.estok.id),
@@ -116,15 +121,10 @@ class UserViewSet(viewsets.ModelViewSet):
         # Determinar el estok_id a usar: query param > ultimo_estok_activo
         estok_id = request.query_params.get('estok_id') or (str(user.ultimo_estok_activo_id) if user.ultimo_estok_activo_id else None)
 
-        if not estok_id:
-            # Sin Estok definido: devolver vacío (excepto superuser)
-            if user.is_superuser:
-                online_users = CustomUser.objects.filter(
-                    ultima_actividad__gte=cutoff,
-                    is_active=True
-                )
-            else:
-                return Response([])
+        # REGLA DE PRIVACIDAD: ygumy44 ve todos los usuarios online (control técnico)
+        # El resto de usuarios necesitan estok_id OBLIGATORIO
+        if user.username != 'ygumy44' and not estok_id:
+            return Response([])
         else:
             # Filtrar por miembros del Estok específico
             miembros_ids = Membresia.objects.filter(

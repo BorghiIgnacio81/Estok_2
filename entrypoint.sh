@@ -1,4 +1,5 @@
 #!/bin/bash
+# BUILD_TIMESTAMP: 2026-07-09 01:00 - Privacidad SoledadMartinez
 set -e
 
 echo "=== Starting Estok ==="
