@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 01:15 - Privacidad SoledadMartinez + online sanitize
+# BUILD_TIMESTAMP: 2026-07-09 01:35 - PWA cleanup: eliminar botones redundantes en desktop
 set -e
 
 echo "=== Starting Estok ==="
