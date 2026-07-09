@@ -29,6 +29,18 @@ class UbicacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(estok_id=estok_id)
         return qs
 
+    def perform_create(self, serializer):
+        """
+        Asigna automáticamente el estok_id al crear una ubicación.
+        El estok_id se obtiene del header X-Estok-Id o del query param estok_id.
+        Si no hay estok_id, la ubicación se crea sin Estok (no debería pasar en producción).
+        """
+        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        if estok_id:
+            serializer.save(estok_id=estok_id)
+        else:
+            serializer.save()
+
 
 class ContenedorViewSet(viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()
