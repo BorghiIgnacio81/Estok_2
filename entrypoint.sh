@@ -4,7 +4,7 @@ set -e
 echo "=== Starting Estok ==="
 
 # Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)
-ESTOC_PORT="${ESTOK_PORT:-8000}"
+ESTOK_PORT="${ESTOK_PORT:-8000}"
 echo "Using ESTOK_PORT=${ESTOK_PORT}"
 
 # Generar version.json con timestamp y versión
