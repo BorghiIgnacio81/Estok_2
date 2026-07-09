@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 13:40 - UI FIX: Flexbox mobile en navbar (BaseLayout) y hero (index.astro), eliminado absolute positioning, gap/flex-wrap para evitar desbordes
+# BUILD_TIMESTAMP: 2026-07-09 15:35 - FIX: Error al crear Estok (catch suave en cambiarEstokActivo) + Boton Eliminar en lista de Estoks (solo Admin) + UI Flexbox mobile
 
 set -e
 

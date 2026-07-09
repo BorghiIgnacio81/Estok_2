@@ -212,7 +212,9 @@ import AuthGuard from '../../components/AuthGuard.astro';
     sinEstoksSection.classList.add('hidden');
     listaEstoksSection.classList.remove('hidden');
 
-    estoksList.innerHTML = estoks.map(e => `
+    estoksList.innerHTML = estoks.map(e => {
+      const esAdmin = e.role === 'Admin';
+      return `
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center justify-between hover:shadow-md transition-base">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-xl">
@@ -225,15 +227,29 @@ import AuthGuard from '../../components/AuthGuard.astro';
             </span>
           </div>
         </div>
-        <button
-          data-estok-id="${e.id}"
-          data-estok-nombre="${e.nombre}"
-          class="entrarBtn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
-        >
-          Entrar
-        </button>
+        <div class="flex items-center gap-2">
+          ${esAdmin ? `
+            <button
+              data-estok-id="${e.id}"
+              data-estok-nombre="${e.nombre}"
+              class="eliminarBtn px-3 py-2 bg-red-100 text-red-700 text-sm font-medium rounded-lg hover:bg-red-200 transition-base shadow-sm"
+              title="Eliminar este Estok"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          ` : ''}
+          <button
+            data-estok-id="${e.id}"
+            data-estok-nombre="${e.nombre}"
+            class="entrarBtn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
+          >
+            Entrar
+          </button>
+        </div>
       </div>
-    `).join('');
+    `}).join('');
 
     // Agregar event listeners a los botones "Entrar"
     document.querySelectorAll('.entrarBtn').forEach(btn => {
@@ -246,6 +262,36 @@ import AuthGuard from '../../components/AuthGuard.astro';
           window.location.href = '/';
         } catch (err: any) {
           (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
+        }
+      });
+    });
+
+    // Agregar event listeners a los botones "Eliminar"
+    document.querySelectorAll('.eliminarBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const estokId = (btn as HTMLElement).dataset.estokId!;
+        const estokNombre = (btn as HTMLElement).dataset.estokNombre!;
+        if (!confirm(`¿Estás seguro de eliminar "${estokNombre}"? Se eliminarán todos sus objetos, ubicaciones y datos asociados.`)) {
+          return;
+        }
+        try {
+          const token = localStorage.getItem('estok_access_token');
+          const response = await fetch(`/api/estoks/${estokId}/`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `Error del servidor (${response.status})`);
+          }
+          (window as any).showSuccess?.(`✅ Estok "${estokNombre}" eliminado correctamente`);
+          // Recargar la lista
+          cargarEstoks();
+        } catch (err: any) {
+          (window as any).showError?.(err.message || 'Error al eliminar el Estok');
         }
       });
     });
@@ -299,7 +345,12 @@ import AuthGuard from '../../components/AuthGuard.astro';
       const nuevoEstok = await crearEstok(nombre);
 
       // Establecer como activo y redirigir al dashboard
-      await cambiarEstokActivo(nuevoEstok.id);
+      try {
+        await cambiarEstokActivo(nuevoEstok.id);
+      } catch (err: any) {
+        // El estok se creó correctamente aunque cambiarEstokActivo falle
+        console.warn('Estok creado pero falló cambiar activo:', err);
+      }
       (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado correctamente`);
       window.location.href = '/';
     } catch (err: any) {
@@ -336,7 +387,11 @@ import AuthGuard from '../../components/AuthGuard.astro';
       const resultado = await unirseConCodigo(codigo);
 
       // Establecer como activo y redirigir al dashboard
-      await cambiarEstokActivo(resultado.estok.id);
+      try {
+        await cambiarEstokActivo(resultado.estok.id);
+      } catch (err: any) {
+        console.warn('Unido al Estok pero falló cambiar activo:', err);
+      }
       (window as any).showSuccess?.(`✅ ${resultado.mensaje}`);
       window.location.href = '/';
     } catch (err: any) {
