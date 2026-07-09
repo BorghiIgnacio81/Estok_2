@@ -136,14 +136,32 @@ class UserViewSet(viewsets.ModelViewSet):
                 is_active=True
             )
 
-        data = [
-            {
+        # Construir lista de usuarios online, excluyendo al propio usuario
+        data = []
+        for u in online_users:
+            # No incluir al propio usuario que hace la petición
+            if u.id == user.id:
+                continue
+
+            user_data = {
                 "id": str(u.id),
                 "username": u.username,
+                "first_name": u.first_name or '',
+                "last_name": u.last_name or '',
                 "display_name": u.get_full_name() or u.username,
                 "ultima_actividad": u.ultima_actividad.isoformat() if u.ultima_actividad else None,
             }
-            for u in online_users
-        ]
+
+            # REGLA DE PRIVACIDAD ABSOLUTA: SoledadMartinez NO debe ver "Borghi" ni "Ignacio"
+            if request.user.username == 'SoledadMartinez':
+                remitente_str = f"{u.username} {u.first_name or ''} {u.last_name or ''}".lower()
+                if 'ygumy44' in remitente_str or 'borghi' in remitente_str or 'ignacio' in remitente_str:
+                    user_data['username'] = 'Yamza'
+                    user_data['first_name'] = 'Yamza'
+                    user_data['last_name'] = ''
+                    user_data['display_name'] = 'Yamza'
+
+            data.append(user_data)
+
         return Response(data)
 
