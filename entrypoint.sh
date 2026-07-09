@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 15:35 - FIX: Error al crear Estok (catch suave en cambiarEstokActivo) + Boton Eliminar en lista de Estoks (solo Admin) + UI Flexbox mobile
+# BUILD_TIMESTAMP: 2026-07-09 16:15 - FIX: ubicaciones.astro usaba getToken() sin X-Estok-Id (causaba "no tienes permiso") + Eliminado boton chat amarillo duplicado de navbar
 
 set -e
 

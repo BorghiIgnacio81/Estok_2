@@ -324,9 +324,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       if (alto) formData.append('alto', alto);
       if (fotoFile) formData.append('foto', fotoFile);
 
-      const headers: Record<string, string> = {};
-      const token = getToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = getAuthHeaders();
 
       const res = await fetch(`${API_BASE_URL}/ubicaciones/`, {
         method: 'POST',
