@@ -70,11 +70,11 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(user)
 
         # Incluir datos de Estok activo y membresías
-        membresias = Membresia.objects.filter(usuario=user).select_related('estok', 'role')
-
-        # REGLA DE PRIVACIDAD: SoledadMartinez solo debe ver "El camarin"
-        if user.username == 'SoledadMartinez':
-            membresias = membresias.filter(estok__nombre='El camarin')
+        # SOLO membresías con privacidad 'compartido' (las 'privado' son internas/ocultas)
+        membresias = Membresia.objects.filter(
+            usuario=user,
+            privacidad='compartido'
+        ).select_related('estok', 'role')
 
         estoks_data = [
             {

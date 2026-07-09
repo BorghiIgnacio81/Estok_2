@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 16:15 - FIX: ubicaciones.astro usaba getToken() sin X-Estok-Id (causaba "no tienes permiso") + Eliminado boton chat amarillo duplicado de navbar
+# BUILD_TIMESTAMP: 2026-07-09 13:30 - FIX: Aislamiento estricto chat por estok_id + privacidad membresias + fix SoledadMartinez redirigida a /estoks
 
 set -e
 

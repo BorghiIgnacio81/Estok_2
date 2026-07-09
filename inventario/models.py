@@ -130,6 +130,13 @@ class Membresia(models.Model):
         related_name='membresias',
         verbose_name="Rol en el Estok"
     )
+    privacidad = models.CharField(
+        max_length=20,
+        choices=[('compartido', 'Compartido'), ('privado', 'Privado')],
+        default='compartido',
+        verbose_name="Privacidad de la membresía",
+        help_text="'compartido' = visible para el usuario, 'privado' = oculto (uso interno)"
+    )
     joined_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de unión")
 
     class Meta:
