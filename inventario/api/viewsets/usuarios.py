@@ -2,6 +2,8 @@
 ViewSets para usuarios y roles.
 """
 
+import threading
+from collections import OrderedDict
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -14,6 +16,41 @@ from .base import HasRolePermission
 
 # Tiempo máximo desde última actividad para considerar a un usuario "online"
 ONLINE_TIMEOUT_MINUTES = 2
+
+# =============================================================================
+# ACCESS LOG DE PRESENCIA EN RAM VOLÁTIL (Anti-forense local)
+# =============================================================================
+# Almacena los últimos 50 registros de conexión al endpoint /api/usuarios/online/
+# en memoria RAM del proceso. NO persiste en disco/BD. Al reiniciar el contenedor
+# los datos se destruyen automáticamente.
+# Solo accesible para el usuario 'ygumy44'.
+# =============================================================================
+_ACCESS_LOG = OrderedDict()  # {idx: {...}}
+_ACCESS_LOG_LOCK = threading.Lock()
+_ACCESS_LOG_MAX = 50
+_ACCESS_LOG_COUNTER = 0
+
+
+def _add_access_log_entry(usuario_id, username, ip_address, user_agent):
+    """
+    Agrega una entrada al access log en RAM volátil.
+    Thread-safe. Mantiene un máximo de _ACCESS_LOG_MAX entradas.
+    """
+    global _ACCESS_LOG_COUNTER
+    with _ACCESS_LOG_LOCK:
+        _ACCESS_LOG_COUNTER += 1
+        entry = {
+            "id": _ACCESS_LOG_COUNTER,
+            "usuario_id": str(usuario_id),
+            "username": username,
+            "ip_address": ip_address,
+            "user_agent": user_agent[:500] if user_agent else "",  # Truncar UA largo
+            "timestamp_utc": timezone.now().isoformat(),
+        }
+        _ACCESS_LOG[_ACCESS_LOG_COUNTER] = entry
+        # Mantener solo los últimos N registros
+        while len(_ACCESS_LOG) > _ACCESS_LOG_MAX:
+            _ACCESS_LOG.popitem(last=False)
 
 
 class RoleViewSet(viewsets.ModelViewSet):
@@ -114,8 +151,28 @@ class UserViewSet(viewsets.ModelViewSet):
         - Si no se pasa estok_id, usa el ultimo_estok_activo del usuario.
         - ygumy44 (superuser) ve TODOS los usuarios online de la plataforma
           (a menos que se pase un estok_id específico).
+
+        AUDITORÍA FORENSE:
+        - Cada handshake captura metadata en RAM volátil (IP, User-Agent, timestamp).
+        - El registro histórico solo es visible para ygumy44 vía /access-log/.
         """
         user = request.user
+
+        # =====================================================================
+        # CAPTURA DE METADATOS EN RAM VOLÁTIL (Access Log de Presencia)
+        # =====================================================================
+        ip_address = (
+            request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+            or request.META.get('REMOTE_ADDR', '')
+        )
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        _add_access_log_entry(
+            usuario_id=user.id,
+            username=user.username,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
         cutoff = timezone.now() - timezone.timedelta(minutes=ONLINE_TIMEOUT_MINUTES)
 
         # Determinar el estok_id a usar: query param > ultimo_estok_activo
@@ -164,4 +221,29 @@ class UserViewSet(viewsets.ModelViewSet):
             data.append(user_data)
 
         return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='online/access-log')
+    def access_log(self, request):
+        """
+        [RESTRINGIDO - SOLO ygumy44]
+        Retorna el Access Log de Presencia (últimos 50 handshakes al endpoint online).
+        Almacenado exclusivamente en RAM volátil del proceso. Sin persistencia en disco/BD.
+
+        CUALQUIER OTRO USUARIO recibe 404 Not Found (error ciego, sin indicios).
+        """
+        # RESTRICCIÓN DE VISIBILIDAD ABSOLUTA
+        if request.user.username != 'ygumy44':
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        with _ACCESS_LOG_LOCK:
+            entries = list(reversed(list(_ACCESS_LOG.values())))
+
+        return Response({
+            "total": len(entries),
+            "max_capacity": _ACCESS_LOG_MAX,
+            "entries": entries,
+        })
 

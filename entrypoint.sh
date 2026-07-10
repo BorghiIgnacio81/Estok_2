@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 13:30 - FIX: Aislamiento estricto chat por estok_id + privacidad membresias + fix SoledadMartinez redirigida a /estoks
+# BUILD_TIMESTAMP: 2026-07-09 22:10 - FEATURE: Access Log de Presencia en RAM volátil + restricción ygumy44
 
 set -e
 
