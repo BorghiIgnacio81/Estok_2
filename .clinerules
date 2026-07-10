@@ -1,5 +1,11 @@
 # Reglas de arquitectura - Estok (NO ROMPER SIN VERIFICAR)
 
+## REGLA DE TERMINAL DE WINDOWS
+- El entorno local del usuario opera estrictamente sobre Windows PowerShell.
+- Está TERMINANTEMENTE PROHIBIDO concatenar comandos utilizando el token '&&'.
+- Cada instrucción de Git, Docker, Python o del sistema debe ejecutarse como un comando individual e independiente en la terminal.
+- No uses cadenas de texto Bash.
+
 ## Base de datos
 - El hostname real de PostgreSQL en Coolify es: cagtcifjoy8ydxugg4bkdll1
   (SIN prefijo "postgresql-database-". Ese prefijo es solo el nombre visual
