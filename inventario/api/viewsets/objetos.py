@@ -638,8 +638,14 @@ class ObjetoViewSet(viewsets.ModelViewSet):
             for o in ultimos
         ]
 
-        total_ubicaciones = Ubicacion.objects.count()
-        total_contenedores = Contenedor.objects.count()
+        # Filtrar ubicaciones y contenedores por el mismo estok que los objetos
+        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        if estok_id:
+            total_ubicaciones = Ubicacion.objects.filter(estok_id=estok_id).count()
+            total_contenedores = Contenedor.objects.filter(ubicacion__estok_id=estok_id).count()
+        else:
+            total_ubicaciones = Ubicacion.objects.count()
+            total_contenedores = Contenedor.objects.count()
 
         return Response({
             "total_objetos": total_objetos,
