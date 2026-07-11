@@ -1,0 +1,41 @@
+---
+// =============================================================================
+// COMPONENTE: ConfirmDialog
+// Diálogo de confirmación modal reutilizable
+// =============================================================================
+
+export interface Props {
+  id?: string;
+  titulo?: string;
+  mensaje?: string;
+  confirmarTexto?: string;
+  cancelarTexto?: string;
+  confirmarId?: string;
+  cancelarId?: string;
+}
+
+const {
+  id = 'confirmDialog',
+  titulo = 'Confirmar acción',
+  mensaje = '¿Estás seguro?',
+  confirmarTexto = 'Confirmar',
+  cancelarTexto = 'Cancelar',
+  confirmarId = 'confirmBtn',
+  cancelarId = 'cancelDialogBtn',
+} = Astro.props;
+---
+
+<div id={id} class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-2">{titulo}</h3>
+    <p class="text-sm text-gray-600 mb-6">{mensaje}</p>
+    <div class="flex gap-3">
+      <button id={confirmarId} class="flex-1 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-base">
+        {confirmarTexto}
+      </button>
+      <button id={cancelarId} class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+        {cancelarTexto}
+      </button>
+    </div>
+  </div>
+</div>

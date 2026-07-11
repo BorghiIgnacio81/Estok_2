@@ -1,0 +1,49 @@
+---
+// =============================================================================
+// COMPONENTE: EmptyState
+// Muestra un estado vacío con icono, mensaje y acción opcional
+// =============================================================================
+
+export interface Props {
+  titulo: string;
+  descripcion: string;
+  icono?: string;
+  accionTexto?: string;
+  accionHref?: string;
+  accionId?: string;
+  id?: string;
+}
+
+const {
+  titulo,
+  descripcion,
+  icono = '📦',
+  accionTexto,
+  accionHref,
+  accionId,
+  id = 'emptyState',
+} = Astro.props;
+---
+
+<div id={id} class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+  <div class="text-6xl mb-4">{icono}</div>
+  <p class="text-xl font-medium text-gray-400 mb-2">{titulo}</p>
+  <p class="text-gray-400 mb-6">{descripcion}</p>
+  {accionTexto && (
+    accionHref ? (
+      <a href={accionHref} class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        {accionTexto}
+      </a>
+    ) : (
+      <button id={accionId} class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        {accionTexto}
+      </button>
+    )
+  )}
+</div>

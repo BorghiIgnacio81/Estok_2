@@ -1,7 +1,7 @@
-# Progreso de Modularización Backend
+# Progreso de Modularización Backend + Frontend
 
 ## Resumen
-Se completaron las 3 fases de modularización del backend Django.
+Se completaron las 6 fases de modularización del backend Django y frontend Astro.
 
 ## Fase 1: Separar viewsets.py ✅
 - `inventario/api/viewsets/` creado con 7 módulos
@@ -26,7 +26,19 @@ Se completaron las 3 fases de modularización del backend Django.
 - `frontend/src/services/aiHeartbeat.ts` → eliminado
 - `frontend/src/components/Card.astro` → eliminado
 
-## Pendiente (Frontend)
-- Fase 4: Crear frontend/src/lib/ (api.ts, toast.ts, ui.ts, constants.ts)
-- Fase 5: Crear componentes reutilizables
-- Fase 6: Refactorizar páginas
+## Fase 4: Crear frontend/src/lib/ ✅
+- `frontend/src/lib/api.ts` → Cliente HTTP genérico con autenticación, manejo de errores y paginación
+
+## Fase 5: Crear componentes reutilizables ✅
+- `LoadingState.astro` → Spinner de carga con mensaje personalizable
+- `ErrorState.astro` → Mensaje de error con botón de reintentar
+- `EmptyState.astro` → Estado vacío con icono, mensaje y acción opcional
+- `BackButton.astro` → Botón de "Volver" reutilizable
+- `PageHeader.astro` → Encabezado de página con título y descripción
+- `ConfirmDialog.astro` → Diálogo de confirmación modal
+
+## Fase 6: Refactorizar páginas ✅
+- `ubicaciones.astro` → Usa LoadingState, ErrorState, EmptyState
+- `contenedores.astro` → Usa LoadingState, ErrorState, EmptyState
+- `objetos.astro` → Usa LoadingState, ErrorState, EmptyState
+- `estoks/index.astro` → Usa LoadingState, ErrorState

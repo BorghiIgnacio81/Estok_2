@@ -1,0 +1,27 @@
+---
+// =============================================================================
+// COMPONENTE: ErrorState
+// Muestra un mensaje de error con botón de reintentar
+// =============================================================================
+
+export interface Props {
+  mensaje?: string;
+  id?: string;
+  mensajeId?: string;
+  btnId?: string;
+}
+
+const {
+  mensaje = 'Error al cargar los datos.',
+  id = 'errorState',
+  mensajeId = 'errorMessage',
+  btnId = 'retryBtn',
+} = Astro.props;
+---
+
+<div id={id} class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+  <p id={mensajeId} class="font-medium">{mensaje}</p>
+  <button id={btnId} class="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+    Reintentar
+  </button>
+</div>
