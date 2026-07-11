@@ -24,14 +24,10 @@ class MensajeSerializer(serializers.ModelSerializer):
         if obj.remitente:
             request = self.context.get('request')
 
-            # REGLA DE PRIVACIDAD ABSOLUTA: ygumy44 SIEMPRE es "Yamza" para los demás
-            if request and request.user.username != 'ygumy44' and obj.remitente.username == 'ygumy44':
-                return 'Yamza'
-
-            # REGLA DE PRIVACIDAD: SoledadMartinez NO debe ver "Borghi" ni "Ignacio"
+            # REGLA DE PRIVACIDAD: Solo SoledadMartinez ve "Yamza" para ygumy44
             if request and request.user.username == 'SoledadMartinez':
                 remitente_str = f"{obj.remitente.username} {obj.remitente.first_name} {obj.remitente.last_name}".lower()
-                if 'borghi' in remitente_str or 'ignacio' in remitente_str:
+                if obj.remitente.username == 'ygumy44' or 'borghi' in remitente_str or 'ignacio' in remitente_str:
                     return 'Yamza'
 
             # Usar alias si está configurado para este Estok

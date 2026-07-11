@@ -209,16 +209,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 "ultima_actividad": u.ultima_actividad.isoformat() if u.ultima_actividad else None,
             }
 
-            # REGLA DE PRIVACIDAD ABSOLUTA: ygumy44 SIEMPRE es "Yamza" para los demás
-            if request.user.username != 'ygumy44' and u.username == 'ygumy44':
-                user_data['username'] = 'Yamza'
-                user_data['first_name'] = 'Yamza'
-                user_data['last_name'] = ''
-                user_data['display_name'] = 'Yamza'
-            # REGLA DE PRIVACIDAD: SoledadMartinez NO debe ver "Borghi" ni "Ignacio"
-            elif request.user.username == 'SoledadMartinez':
+            # REGLA DE PRIVACIDAD: Solo SoledadMartinez ve "Yamza" para ygumy44
+            if request.user.username == 'SoledadMartinez':
                 remitente_str = f"{u.username} {u.first_name or ''} {u.last_name or ''}".lower()
-                if 'borghi' in remitente_str or 'ignacio' in remitente_str:
+                if u.username == 'ygumy44' or 'borghi' in remitente_str or 'ignacio' in remitente_str:
                     user_data['username'] = 'Yamza'
                     user_data['first_name'] = 'Yamza'
                     user_data['last_name'] = ''
