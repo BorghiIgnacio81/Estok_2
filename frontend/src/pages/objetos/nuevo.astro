@@ -139,14 +139,14 @@ import ImageEditor from '../../components/ImageEditor.astro';
                 </div>
               </div>
             </button>
-            <button type="button" id="motorLocalBtn" data-motor="local"
+            <button type="button" id="motorLocalBtn" disabled
               class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
-              border-gray-200 bg-white text-gray-600 hover:border-gray-300">
+              border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed">
               <div class="flex items-center gap-2">
                 <span class="text-lg">🖥️</span>
                 <div>
                   <div class="font-semibold">Local (LM Studio)</div>
-                  <div class="text-xs opacity-75 mt-0.5">Privado — tus fotos nunca salen de tu red. Requiere que tu PC esté encendida y conectada.</div>
+                  <div class="text-xs mt-0.5 text-amber-500 font-medium">🔜 Próximamente disponible</div>
                 </div>
               </div>
             </button>
@@ -384,13 +384,17 @@ import ImageEditor from '../../components/ImageEditor.astro';
   
 
   // ===========================================================================
-  // SELECTOR DE MOTOR IA (Local / Gemini)
+  // SELECTOR DE MOTOR IA (Gemini únicamente - Local próximamente)
   // ===========================================================================
   const motorLocalBtn = document.getElementById('motorLocalBtn');
   const motorGeminiBtn = document.getElementById('motorGeminiBtn');
   const motorSeleccionado = document.getElementById('motorSeleccionado');
 
   let motorActual = 'gemini';
+  // IA Local deshabilitada - próximamente disponible
+  if (motorLocalBtn) {
+    motorLocalBtn.style.pointerEvents = 'none';
+  }
 
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad del motor IA seleccionado

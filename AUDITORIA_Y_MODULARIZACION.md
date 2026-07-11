@@ -6,42 +6,38 @@
 
 #### ✅ Código activo y bien:
 - `models.py` (594 líneas) - Modelos bien estructurados con herencia multi-tabla
-- `api/viewsets.py` (1121 líneas) - ViewSets completos con acciones personalizadas
-- `api/serializers.py` (437 líneas) - Serializers con lógica de creación multi-tabla
+- `api/viewsets/` (paquete) - ViewSets separados en módulos ✅
+- `api/serializers/` (paquete) - Serializers separados en módulos ✅
 - `api/urls.py` (42 líneas) - Rutas bien configuradas
-- `services/ai_vision_service.py` (748 líneas) - Servicio de IA completo
+- `services/ai_vision_service.py` (~900 líneas) - Servicio de IA completo
+- `services/rag_service.py` (nuevo) - RAG extraído de ai_vision_service ✅
 - `services/stock_service.py` (380 líneas) - Servicio de stock y valoración
 - `services/marketing_service.py` (426 líneas) - Generación de anuncios
 - `services/qr_service.py` (222 líneas) - Generación de QR
 
 #### ⚠️ Problemas detectados:
 
-1. **`viewsets.py` (1121 líneas) - DEMASIADO GRANDE**
-   - Mezcla 7 ViewSets en un solo archivo
-   - Lógica de negocio mezclada con controladores
-   - `ObjetoViewSet` tiene 1121 líneas solo él
+1. ~~**`viewsets.py` (1121 líneas) - DEMASIADO GRANDE**~~ ✅ **RESUELTO** - Separado en `api/viewsets/` (7 módulos)
 
-2. **`serializers.py` (437 líneas) - Grande pero aceptable**
-   - `ObjetoCreateSerializer` tiene lógica de creación compleja
-   - Los campos específicos están hardcodeados en 3 lugares diferentes
+2. ~~**`serializers.py` (437 líneas) - Grande pero aceptable**~~ ✅ **RESUELTO** - Separado en `api/serializers/` (7 módulos)
 
 3. **`models.py` (594 líneas) - Bien pero mejorable**
    - El `save()` de Contenedor importa QRService inline (acoplamiento)
    - Se podría separar en archivos por dominio
 
-4. **`ai_vision_service.py` (748 líneas) - Grande pero cohesivo**
-   - LMStudioClient y AIVisionService en el mismo archivo
-   - Lógica de RAG mezclada con el servicio principal
+4. ~~**`ai_vision_service.py` (748 líneas) - Grande pero cohesivo**~~ ✅ **RESUELTO PARCIALMENTE**
+   - RAG extraído a `rag_service.py` ✅
+   - LMStudioClient y AIVisionService siguen en el mismo archivo (cohesivo)
 
 5. **Código MUERTO confirmado:**
-   - `inventario/views.py` - Solo tiene `from django.shortcuts import render` y un comentario. **ELIMINAR.**
-   - `inventario/tests.py` - Vacío. **POBLAR o ELIMINAR.**
-   - `frontend/src/services/aiHeartbeat.ts` - No se importa en ninguna página. El heartbeat está inline en index.astro y objetos/nuevo.astro. **ELIMINAR.**
-   - `frontend/src/components/Card.astro` - Componente genérico de tarjeta. No se importa en ninguna página. **ELIMINAR.**
+   - ~~`inventario/views.py`~~ ✅ **ELIMINADO**
+   - ~~`inventario/tests.py`~~ ✅ **ELIMINADO**
+   - ~~`frontend/src/services/aiHeartbeat.ts`~~ ✅ **ELIMINADO**
+   - ~~`frontend/src/components/Card.astro`~~ ✅ **ELIMINADO**
 
 6. **Código ACTIVO confirmado:**
-   - `frontend/src/components/CategoryFields.astro` - Se importa y usa en `objetos/nuevo.astro` (línea 9). **CONSERVAR.**
-   - `frontend/src/components/ImageEditor.astro` - Se importa y usa en `objetos/nuevo.astro` (línea 11). Editor de imagen completo con Canvas API (781 líneas). **CONSERVAR.**
+   - `frontend/src/components/CategoryFields.astro` - Se importa y usa en `objetos/nuevo.astro`. **CONSERVAR.**
+   - `frontend/src/components/ImageEditor.astro` - Se importa y usa en `objetos/nuevo.astro`. Editor de imagen completo con Canvas API (781 líneas). **CONSERVAR.**
 
 ### Frontend (Astro)
 
@@ -167,24 +163,27 @@ import Componentes...
 
 ---
 
-## 3. ORDEN DE EJECUCIÓN RECOMENDADO
+## 3. ORDEN DE EJECUCIÓN (ESTADO ACTUAL)
 
-1. **FASE 1** - Separar viewsets.py (prioridad máxima - 1121 líneas)
-2. **FASE 4** - Crear lib/ compartido (desbloquea frontend)
-3. **FASE 5** - Crear componentes reutilizables
-4. **FASE 6** - Refactorizar páginas
-5. **FASE 2** - Separar serializers.py
-6. **FASE 3** - Extraer RAG service
+### ✅ COMPLETADO:
+1. **FASE 1** - Separar viewsets.py ✅
+2. **FASE 2** - Separar serializers.py ✅
+3. **FASE 3** - Extraer RAG service ✅
+
+### ⬜ PENDIENTE (Frontend):
+4. **FASE 4** - Crear lib/ compartido (api.ts, toast.ts, ui.ts, constants.ts)
+5. **FASE 5** - Crear componentes reutilizables (DashboardKPI, ObjetoCard, etc.)
+6. **FASE 6** - Refactorizar páginas (index.astro, objetos.astro, etc.)
 
 ---
 
-## 4. CÓDIGO MUERTO A ELIMINAR/REVISAR (CONFIRMADO)
+## 4. CÓDIGO MUERTO (ESTADO ACTUAL)
 
-| Archivo | Estado | Acción |
-|---------|--------|--------|
-| `inventario/views.py` | ✅ MUERTO | Solo tiene `from django.shortcuts import render`. ELIMINAR. |
-| `inventario/tests.py` | ✅ MUERTO | Vacío. POBLAR o ELIMINAR. |
-| `frontend/src/services/aiHeartbeat.ts` | ✅ MUERTO | No se importa en ninguna página. ELIMINAR. |
-| `frontend/src/components/Card.astro` | ✅ MUERTO | No se importa en ninguna página. ELIMINAR. |
-| `frontend/src/components/CategoryFields.astro` | ✅ ACTIVO | Se usa en objetos/nuevo.astro. CONSERVAR. |
-| `frontend/src/components/ImageEditor.astro` | ✅ ACTIVO | Se usa en objetos/nuevo.astro. CONSERVAR. |
+| Archivo | Estado | Acción Realizada |
+|---------|--------|-----------------|
+| `inventario/views.py` | ✅ ELIMINADO | Eliminado - no contenía lógica útil |
+| `inventario/tests.py` | ✅ ELIMINADO | Eliminado - estaba vacío |
+| `frontend/src/services/aiHeartbeat.ts` | ✅ ELIMINADO | No se importaba en ninguna página |
+| `frontend/src/components/Card.astro` | ✅ ELIMINADO | No se importaba en ninguna página |
+| `frontend/src/components/CategoryFields.astro` | ✅ CONSERVADO | Se usa en objetos/nuevo.astro |
+| `frontend/src/components/ImageEditor.astro` | ✅ CONSERVADO | Se usa en objetos/nuevo.astro |
