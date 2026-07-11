@@ -37,13 +37,20 @@ class UserSerializer(serializers.ModelSerializer):
         Si el usuario tiene un alias configurado para el Estok actual,
         muestra ese alias. Si no, muestra get_full_name() o username.
 
-        REGLA DE PRIVACIDAD:
+        REGLA DE PRIVACIDAD ABSOLUTA:
+        - ygumy44 SIEMPRE se muestra como "Yamza" para CUALQUIER usuario
+          que no sea el propio ygumy44 (máscara global de identidad).
         - Si el usuario que CONSULTA es SoledadMartinez, y el usuario
           consultado tiene apellido "Borghi", se oculta el apellido
           reemplazándolo por "Oculto".
-        - ygumy44 (superuser/admin global) siempre ve los datos completos.
         """
         request = self.context.get('request')
+
+        # REGLA DE PRIVACIDAD ABSOLUTA: ygumy44 siempre es "Yamza" para los demás
+        if request and request.user.username != 'ygumy44':
+            if obj.username == 'ygumy44':
+                return 'Yamza'
+
         if request and obj.alias_por_estok:
             estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
             if estok_id and str(estok_id) in obj.alias_por_estok:

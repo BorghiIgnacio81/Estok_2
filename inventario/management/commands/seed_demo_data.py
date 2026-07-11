@@ -151,7 +151,6 @@ class Command(BaseCommand):
         objetos_data = [
             # Objeto genérico
             {
-                'id': uuid.UUID('d2fb1aee-dede-4d86-bcbc-65b5fcd8a249'),
                 'nombre': 'Jarrón Chino',
                 'descripcion': 'Jarrón de porcelana china decorado con dragones. Herencia familiar.',
                 'estok': estok_demo,
