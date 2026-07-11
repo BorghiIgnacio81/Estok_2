@@ -88,11 +88,19 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
 
     def get_dueno_original_nombre(self, obj):
         if obj.dueno_original:
+            request = self.context.get('request')
+            # REGLA DE PRIVACIDAD ABSOLUTA: ygumy44 siempre es "Yamza" para los demás
+            if request and request.user.username != 'ygumy44' and obj.dueno_original.username == 'ygumy44':
+                return 'Yamza'
             return str(obj.dueno_original)
         return None
 
     def get_beneficiario_nombre(self, obj):
         if obj.beneficiario:
+            request = self.context.get('request')
+            # REGLA DE PRIVACIDAD ABSOLUTA: ygumy44 siempre es "Yamza" para los demás
+            if request and request.user.username != 'ygumy44' and obj.beneficiario.username == 'ygumy44':
+                return 'Yamza'
             return str(obj.beneficiario)
         return None
 
