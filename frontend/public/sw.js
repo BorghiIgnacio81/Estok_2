@@ -1,15 +1,19 @@
 // =============================================================================
 // Service Worker - Estok PWA
-// Caches static assets for offline support
-// Handles push notifications
+// Estrategia: Stale-While-Revalidate (Network First con fallback a caché)
+// - Siempre intenta obtener la versión más reciente de la red
+// - Si la red falla, sirve desde la caché
+// - En segundo plano, actualiza la caché con la respuesta de la red
+// - Se auto-activa inmediatamente al detectar un nuevo SW (self.skipWaiting())
+// - Recarga la página automáticamente cuando el SW toma el control
 // =============================================================================
 
 // =============================================================================
 // CACHE VERSION - Incrementar CADA VEZ que se haga un deploy con cambios
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
-// y mostrar el cartel de "Nueva versión disponible".
+// y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 12;
+const CACHE_VERSION = 13;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
@@ -21,67 +25,113 @@ const STATIC_ASSETS = [
   '/icons/apple-touch-icon.png',
 ];
 
-// Listen for SKIP_WAITING message from the client (BaseLayout.astro)
-// This allows the new SW to activate immediately when a new version is detected
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-// Strategy: Cache First for static assets, Network First for API
-// IMPORTANT: Do NOT cache navigation requests (HTML pages) to avoid flashing/reload loops
-// IMPORTANT: NO llamar a self.skipWaiting() aquí. El nuevo SW debe quedar en estado
-// "waiting" para que el frontend (BaseLayout.astro) pueda detectarlo y mostrar
-// el cartel de "Nueva versión disponible" con botón "Actualizar ahora".
-// Solo se activa cuando el usuario hace clic en "Actualizar ahora", que envía
-// el mensaje SKIP_WAITING (ver listener message arriba).
+// =============================================================================
+// INSTALL - Precargar assets críticos y activarse inmediatamente
+// =============================================================================
 self.addEventListener('install', (event) => {
-  // Don't use cache.addAll() - it can fail if any resource is unavailable
-  // Do NOT call self.skipWaiting() here - let the frontend control activation
+  // Auto-activar este SW inmediatamente, sin esperar a que el usuario cierre
+  // todas las pestañas. Esto evita que quede un SW viejo sirviendo contenido
+  // cacheado mientras el nuevo espera en estado "waiting".
+  self.skipWaiting();
+
+  // Precargar assets críticos en la caché para que estén disponibles offline
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.warn('[SW] No se pudieron precargar todos los assets estáticos:', err);
+      });
+    })
+  );
 });
 
+// =============================================================================
+// ACTIVATE - Limpiar cachés viejas y tomar control de todas las pestañas
+// =============================================================================
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('[SW] Eliminando caché vieja:', name);
+            return caches.delete(name);
+          })
       );
+    }).then(() => {
+      // Tomar control de todas las pestañas abiertas inmediatamente
+      // para que el nuevo SW empiece a interceptar requests
+      return self.clients.claim();
+    }).then(() => {
+      // Notificar a todas las pestañas que el SW se actualizó
+      // para que puedan recargar la página automáticamente
+      return self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'SW_UPDATED' });
+        });
+      });
     })
   );
-  // Take control of all pages immediately so the new SW is active
-  // This is safe now because we don't intercept navigation requests
-  self.clients.claim();
 });
 
+// =============================================================================
+// FETCH - Estrategia Stale-While-Revalidate
+// =============================================================================
+// 1. Para navegación (HTML): siempre va a la red, NUNCA usa caché
+// 2. Para API calls: siempre va a la red, NUNCA usa caché
+// 3. Para assets estáticos: intenta red primero, si falla usa caché
+//    (Stale-While-Revalidate)
+// =============================================================================
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle same-origin requests
+  // Solo manejar requests del mismo origen
   if (url.origin !== self.location.origin) return;
 
-  // Do NOT intercept navigation requests (HTML pages) - let them load from network
-  // This prevents flashing/reload loops when the SW takes control
-  if (request.mode === 'navigate') return;
+  // =====================================================================
+  // NAVEGACIÓN (HTML) - Siempre red, nunca caché
+  // =====================================================================
+  // Las páginas HTML deben cargarse siempre desde la red para garantizar
+  // que el usuario vea la versión más reciente después de un deploy.
+  // Si la red falla, mostrar página de error (no servir HTML cacheado).
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => {
+        // Si la red falla, intentar servir la página principal desde caché
+        // como fallback de emergencia (offline total)
+        return caches.match('/').then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Si no hay nada en caché, devolver un error 503
+          return new Response('Sin conexión', { status: 503, statusText: 'Service Unavailable' });
+        });
+      })
+    );
+    return;
+  }
 
-  // Do NOT intercept API calls - let them go to network normally
+  // =====================================================================
+  // API CALLS - Siempre red, nunca caché
+  // =====================================================================
   if (url.pathname.startsWith('/api/')) return;
-
-  // Do NOT intercept MercadoLibre OAuth callback
   if (url.pathname.startsWith('/ml-callback/')) return;
 
-  // Only cache static assets (CSS, JS, images, fonts, icons)
+  // =====================================================================
+  // ASSETS ESTÁTICOS - Stale-While-Revalidate
+  // =====================================================================
+  // Estrategia: intentar red primero. Si la red responde, actualizar caché
+  // y devolver la respuesta. Si la red falla, devolver desde caché.
+  // Esto asegura que los assets siempre estén actualizados cuando hay red,
+  // pero la app sigue funcionando offline.
   const isStaticAsset = /\.(css|js|json|ico|png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot)$/i.test(url.pathname);
   if (!isStaticAsset) return;
 
-  // Static assets - Cache First
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      return cachedResponse || fetch(request).then((response) => {
-        // Only cache successful responses
+    fetch(request)
+      .then((response) => {
+        // Si la respuesta es válida, actualizar la caché en segundo plano
         if (response.ok) {
           const clonedResponse = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -89,15 +139,37 @@ self.addEventListener('fetch', (event) => {
           });
         }
         return response;
-      });
-    })
+      })
+      .catch(() => {
+        // Si la red falla, servir desde caché
+        return caches.match(request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Si no está en caché ni en red, devolver un 404
+          return new Response('', { status: 404, statusText: 'Not Found' });
+        });
+      })
   );
+});
+
+// =============================================================================
+// MENSAJES DESDE LA PÁGINA (cliente)
+// =============================================================================
+// Escuchar mensajes del frontend (BaseLayout.astro) para:
+// - SKIP_WAITING: legacy, ya no es necesario porque usamos self.skipWaiting()
+// - SW_UPDATED: el frontend puede reaccionar si lo desea
+// =============================================================================
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    // Legacy: mantener por compatibilidad con versiones anteriores del frontend
+    self.skipWaiting();
+  }
 });
 
 // =============================================================================
 // PUSH NOTIFICATIONS
 // =============================================================================
-
 self.addEventListener('push', (event) => {
   let data = { title: 'Estok', body: 'System notification', icon: '/icons/icon-192x192.png' };
 

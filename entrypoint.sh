@@ -1,5 +1,5 @@
 #!/bin/bash
-# BUILD_TIMESTAMP: 2026-07-09 22:10 - FEATURE: Access Log de Presencia en RAM volátil + restricción ygumy44
+# BUILD_TIMESTAMP: 2026-07-11 00:35 - FIX: PWA Service Worker con recarga en caliente
 
 set -e
 
