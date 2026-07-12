@@ -451,6 +451,21 @@ class Objeto(models.Model):
         help_text="Lista de campos que la IA no pudo determinar y requiere input del usuario"
     )
 
+    # Acción del dueño original (Vender / Recuperar / Tirar)
+    OWNER_ACTION_CHOICES = [
+        ('vender', 'Vender'),
+        ('recuperar', 'Recuperar'),
+        ('tirar', 'Tirar / Desechar'),
+    ]
+    owner_action = models.CharField(
+        max_length=20,
+        choices=OWNER_ACTION_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name="Acción del dueño original",
+        help_text="Decisión del dueño original sobre qué hacer con el objeto: Vender, Recuperar o Tirar"
+    )
+
     # Publicación en marketplaces
     plataformas_publicadas = models.JSONField(
         blank=True,

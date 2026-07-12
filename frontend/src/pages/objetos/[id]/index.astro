@@ -158,6 +158,38 @@ export const prerender = false;
             <p id="beneficiarioObj" class="text-gray-800 font-medium">—</p>
           </div>
         </div>
+        <!-- Acción del dueño original -->
+        <div id="ownerActionSection" class="hidden mt-4 border-t border-gray-100 pt-4">
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Decisión del dueño original</h3>
+          <div id="ownerActionPending" class="hidden">
+            <p class="text-sm text-gray-500 mb-3">Eres el dueño original de este objeto. ¿Qué deseas hacer con él?</p>
+            <div class="flex flex-wrap gap-2">
+              <button class="owner-action-btn px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-base text-sm font-medium" data-action="vender">
+                💰 Vender
+              </button>
+              <button class="owner-action-btn px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-base text-sm font-medium" data-action="recuperar">
+                ↩️ Recuperar
+              </button>
+              <button class="owner-action-btn px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium" data-action="tirar">
+                🗑️ Tirar / Desechar
+              </button>
+            </div>
+          </div>
+          <div id="ownerActionDone" class="hidden">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm text-gray-500">Decisión tomada:</p>
+                <p id="ownerActionLabel" class="text-base font-semibold mt-1"></p>
+              </div>
+              <button id="clearOwnerActionBtn" class="px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-base">
+                Limpiar decisión
+              </button>
+            </div>
+          </div>
+          <div id="ownerActionNotOwner" class="hidden">
+            <p class="text-sm text-gray-400 italic">Solo el dueño original puede tomar una decisión sobre este objeto.</p>
+          </div>
+        </div>
       </div>
 
       <!-- Historial de precios -->
@@ -359,10 +391,132 @@ export const prerender = false;
   }
 
   // ===========================================================================
+  // ACCIÓN DEL DUEÑO ORIGINAL
+  // ===========================================================================
+
+  const OWNER_ACTION_LABELS: Record<string, string> = {
+    vender: '💰 Vender',
+    recuperar: '↩️ Recuperar',
+    tirar: '🗑️ Tirar / Desechar',
+  };
+
+  async function handleOwnerAction(action: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/owner_action/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({ action: action }),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        alert(`❌ Error: ${err.detail || err.error || 'No se pudo registrar la acción'}`);
+        return;
+      }
+
+      // Recargar detalle para reflejar el cambio
+      cargarDetalle();
+    } catch {
+      alert('❌ Error de conexión al registrar la acción.');
+    }
+  }
+
+  async function handleClearOwnerAction() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/clear_owner_action/`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        alert(`❌ Error: ${err.detail || err.error || 'No se pudo limpiar la acción'}`);
+        return;
+      }
+
+      cargarDetalle();
+    } catch {
+      alert('❌ Error de conexión al limpiar la acción.');
+    }
+  }
+
+  function renderOwnerAction(obj: any) {
+    const section = document.getElementById('ownerActionSection')!;
+    const pendingDiv = document.getElementById('ownerActionPending')!;
+    const doneDiv = document.getElementById('ownerActionDone')!;
+    const notOwnerDiv = document.getElementById('ownerActionNotOwner')!;
+    const actionLabel = document.getElementById('ownerActionLabel')!;
+
+    // Si no tiene dueño original, ocultar toda la sección
+    if (!obj.dueno_original) {
+      section.classList.add('hidden');
+      return;
+    }
+
+    section.classList.remove('hidden');
+
+    // Obtener el usuario actual desde el token
+    const token = getToken();
+    let currentUserId: string | null = null;
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        currentUserId = payload.user_id || null;
+      } catch {}
+    }
+
+    const isOwner = currentUserId === obj.dueno_original;
+    const hasAction = obj.owner_action && obj.owner_action !== null;
+
+    if (!isOwner) {
+      // No es el dueño original - mostrar mensaje
+      pendingDiv.classList.add('hidden');
+      doneDiv.classList.add('hidden');
+      notOwnerDiv.classList.remove('hidden');
+      if (hasAction) {
+        actionLabel.textContent = `${OWNER_ACTION_LABELS[obj.owner_action] || obj.owner_action} (decidido por el dueño)`;
+        doneDiv.classList.remove('hidden');
+        notOwnerDiv.classList.add('hidden');
+      }
+      return;
+    }
+
+    // Es el dueño original
+    notOwnerDiv.classList.add('hidden');
+
+    if (hasAction) {
+      // Ya tomó una decisión
+      pendingDiv.classList.add('hidden');
+      doneDiv.classList.remove('hidden');
+      actionLabel.textContent = OWNER_ACTION_LABELS[obj.owner_action] || obj.owner_action;
+    } else {
+      // Pendiente de decisión
+      pendingDiv.classList.remove('hidden');
+      doneDiv.classList.add('hidden');
+    }
+  }
+
+  // ===========================================================================
   // CARGA DEL DETALLE
   // ===========================================================================
 
   async function cargarDetalle() {
+
     loadingState.classList.remove('hidden');
     errorState.classList.add('hidden');
     detailContent.classList.add('hidden');
@@ -415,6 +569,9 @@ export const prerender = false;
 
       // === Renderizar historial de precios ===
       renderHistorial(obj.historial_precios);
+
+      // === Renderizar sección de acción del dueño original ===
+      renderOwnerAction(obj);
 
       // === Mostrar contenido ===
       loadingState.classList.add('hidden');
@@ -506,6 +663,19 @@ export const prerender = false;
 
   retryBtn?.addEventListener('click', cargarDetalle);
 
+
+  // ===========================================================================
+  // EVENTOS: ACCIÓN DEL DUEÑO ORIGINAL
+  // ===========================================================================
+
+  document.querySelectorAll('.owner-action-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.getAttribute('data-action');
+      if (action) handleOwnerAction(action);
+    });
+  });
+
+  document.getElementById('clearOwnerActionBtn')?.addEventListener('click', handleClearOwnerAction);
 
   // ===========================================================================
   // INICIALIZAR

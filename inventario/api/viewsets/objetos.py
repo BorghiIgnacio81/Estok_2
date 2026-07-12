@@ -457,6 +457,76 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         })
 
     # =========================================================================
+    # ACCIÓN DEL DUEÑO ORIGINAL (Vender / Recuperar / Tirar)
+    # =========================================================================
+    @action(detail=True, methods=['post'])
+    def owner_action(self, request, pk=None):
+        """
+        Permite al dueño original decidir qué hacer con el objeto.
+        Body: {"action": "vender" | "recuperar" | "tirar"}
+        Solo el dueño original puede ejecutar esta acción.
+        """
+        objeto = self.get_object()
+        action = request.data.get('action', '').strip().lower()
+
+        valid_actions = [c[0] for c in Objeto.OWNER_ACTION_CHOICES]
+        if action not in valid_actions:
+            return Response(
+                {"error": f"Acción no válida. Opciones: {', '.join(valid_actions)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verificar que el usuario autenticado sea el dueño original
+        if not objeto.dueno_original:
+            return Response(
+                {"error": "Este objeto no tiene un dueño original asignado"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if objeto.dueno_original_id != str(request.user.id):
+            return Response(
+                {"error": "Solo el dueño original puede decidir sobre este objeto"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        objeto.owner_action = action
+        objeto.save(update_fields=['owner_action'])
+
+        action_labels = dict(Objeto.OWNER_ACTION_CHOICES)
+        return Response({
+            "mensaje": f"Acción '{action_labels[action]}' registrada correctamente",
+            "owner_action": action,
+        })
+
+    @action(detail=True, methods=['delete'])
+    def clear_owner_action(self, request, pk=None):
+        """
+        Limpia la decisión del dueño original (la vuelve a null/pendiente).
+        Solo el dueño original puede ejecutar esta acción.
+        """
+        objeto = self.get_object()
+
+        if not objeto.dueno_original:
+            return Response(
+                {"error": "Este objeto no tiene un dueño original asignado"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if objeto.dueno_original_id != str(request.user.id):
+            return Response(
+                {"error": "Solo el dueño original puede modificar esta decisión"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        objeto.owner_action = None
+        objeto.save(update_fields=['owner_action'])
+
+        return Response({
+            "mensaje": "Decisión eliminada. El objeto vuelve a estado pendiente.",
+            "owner_action": None,
+        })
+
+    # =========================================================================
     # ACCIONES DE EXPORTACIÓN Y ESTADÍSTICAS
     # =========================================================================
     @action(detail=False, methods=['get'])

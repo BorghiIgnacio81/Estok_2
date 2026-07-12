@@ -33,6 +33,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
+            'owner_action',
         ]
 
     def get_tipo(self, obj):

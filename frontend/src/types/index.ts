@@ -13,6 +13,8 @@ export type EstadoConservacion = 'excelente' | 'bueno' | 'regular' | 'malo' | 'm
 
 export type EstadoCarga = 'completo' | 'incompleto' | 'pendiente_ia';
 
+export type OwnerAction = 'vender' | 'recuperar' | 'tirar' | null;
+
 export type PlataformaPublicacion = 'facebook' | 'instagram' | 'mercadolibre';
 
 // =============================================================================
@@ -122,6 +124,7 @@ export interface ObjetoListItem {
   estado_carga: EstadoCarga;
   fecha_registro: string;
   deleted_at: string | null;
+  owner_action: OwnerAction;
 }
 
 // =============================================================================
@@ -188,6 +191,7 @@ export interface ObjetoDetail extends ObjetoBase {
   fotos: FotoInfo[];
   datos_especificos: DatosEspecificos;
   historial_precios: HistorialPrecioInfo[];
+  owner_action: OwnerAction;
 }
 
 // =============================================================================
