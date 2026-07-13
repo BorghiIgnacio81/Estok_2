@@ -11,7 +11,16 @@ echo "Using ESTOK_PORT=${ESTOK_PORT}"
 
 # Generar version.json con timestamp y versión
 echo "Generating version.json..."
-COMMIT_HASH=$(git log -1 --format=%H 2>/dev/null || echo "unknown")
+# Prioridad: 1) Variable de entorno GIT_COMMIT (Coolify la inyecta automáticamente)
+#            2) git log (si el repo está disponible)
+#            3) "unknown" como fallback
+if [ -n "$GIT_COMMIT" ]; then
+    COMMIT_HASH="$GIT_COMMIT"
+elif command -v git &> /dev/null; then
+    COMMIT_HASH=$(git log -1 --format=%H 2>/dev/null || echo "unknown")
+else
+    COMMIT_HASH="unknown"
+fi
 DEPLOY_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > /app/version.json <<EOF
 {

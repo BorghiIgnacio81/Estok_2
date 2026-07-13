@@ -1190,7 +1190,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   async function checkForNewDeploy() {
     try {
       const { fetchVersion } = await import('../services/auth');
-      const versionInfo = await fetchVersion();
+      // forceRefresh=true para evitar caché HTTP y detectar cambios reales
+      const versionInfo = await fetchVersion(true);
       const currentVersion = versionInfo.version || versionInfo.commit;
 
       if (!lastKnownVersion) {
@@ -1257,9 +1258,9 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 
   function startRedeployCheck() {
     if (redeployCheckInterval) return;
-    // Checkear cada 2 minutos
+    // Checkear cada 30 segundos para detectar cambios rápido
     checkForNewDeploy();
-    redeployCheckInterval = window.setInterval(checkForNewDeploy, 120000);
+    redeployCheckInterval = window.setInterval(checkForNewDeploy, 30000);
   }
 
   function stopRedeployCheck() {

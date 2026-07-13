@@ -590,18 +590,17 @@ export interface VersionInfo {
   version: string;
 }
 
-let cachedVersion: VersionInfo | null = null;
-
 /**
  * Obtiene la versión actual del deploy desde /api/version/
+ * NO cachea el resultado para permitir detección de cambios de versión.
+ * Usa un timestamp como cache buster para evitar caché HTTP del navegador.
  */
-export async function fetchVersion(): Promise<VersionInfo> {
-  if (cachedVersion) return cachedVersion;
+export async function fetchVersion(forceRefresh: boolean = false): Promise<VersionInfo> {
   try {
-    const response = await fetch(`${API_BASE_URL}/version/`);
+    const cacheBuster = forceRefresh ? `?_=${Date.now()}` : '';
+    const response = await fetch(`${API_BASE_URL}/version/${cacheBuster}`);
     if (response.ok) {
-      cachedVersion = await response.json();
-      return cachedVersion!;
+      return await response.json();
     }
   } catch {
     // Silencioso
