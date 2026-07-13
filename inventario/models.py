@@ -454,7 +454,7 @@ class Objeto(models.Model):
     # Acción del dueño original (Vender / Recuperar / Tirar)
     OWNER_ACTION_CHOICES = [
         ('vender', 'Vender'),
-        ('recuperar', 'Recuperar'),
+        ('conservar', 'Conservar'),
         ('tirar', 'Tirar / Desechar'),
     ]
     owner_action = models.CharField(
@@ -463,7 +463,7 @@ class Objeto(models.Model):
         null=True,
         blank=True,
         verbose_name="Acción del dueño original",
-        help_text="Decisión del dueño original sobre qué hacer con el objeto: Vender, Recuperar o Tirar"
+        help_text="Decisión del dueño original sobre qué hacer con el objeto: Vender, Conservar o Tirar"
     )
 
     # Publicación en marketplaces

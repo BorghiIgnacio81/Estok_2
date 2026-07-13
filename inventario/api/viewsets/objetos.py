@@ -457,13 +457,13 @@ class ObjetoViewSet(viewsets.ModelViewSet):
         })
 
     # =========================================================================
-    # ACCIÓN DEL DUEÑO ORIGINAL (Vender / Recuperar / Tirar)
+    # ACCIÓN DEL DUEÑO ORIGINAL (Vender / Conservar / Tirar)
     # =========================================================================
     @action(detail=True, methods=['post'])
     def owner_action(self, request, pk=None):
         """
         Permite al dueño original decidir qué hacer con el objeto.
-        Body: {"action": "vender" | "recuperar" | "tirar"}
+        Body: {"action": "vender" | "conservar" | "tirar"}
         Solo el dueño original puede ejecutar esta acción.
         """
         objeto = self.get_object()
@@ -483,7 +483,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if objeto.dueno_original_id != str(request.user.id):
+        if str(objeto.dueno_original_id) != str(request.user.id):
             return Response(
                 {"error": "Solo el dueño original puede decidir sobre este objeto"},
                 status=status.HTTP_403_FORBIDDEN
@@ -512,7 +512,7 @@ class ObjetoViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if objeto.dueno_original_id != str(request.user.id):
+        if str(objeto.dueno_original_id) != str(request.user.id):
             return Response(
                 {"error": "Solo el dueño original puede modificar esta decisión"},
                 status=status.HTTP_403_FORBIDDEN
