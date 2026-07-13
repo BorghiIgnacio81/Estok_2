@@ -51,11 +51,14 @@ class UserSerializer(serializers.ModelSerializer):
                 return obj.alias_por_estok[str(estok_id)]
 
         # REGLA DE PRIVACIDAD: Solo SoledadMartinez ve "Yamza" para ygumy44
+        # NUNCA debe poder leer "Ignacio Borghi" ni ninguna variante
         if request and request.user.username == 'SoledadMartinez':
             if obj.username == 'ygumy44':
                 return 'Yamza'
             if obj.last_name and 'Borghi' in obj.last_name:
-                return f"{obj.first_name or obj.username} Oculto"
+                return 'Yamza'
+            if obj.first_name and 'Ignacio' in obj.first_name:
+                return 'Yamza'
 
         return obj.get_full_name() or obj.username
 
