@@ -87,21 +87,38 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
             return 'ropa'
         return 'objeto'
 
+    def _ocultar_nombre_si_borghi(self, request, user):
+        """
+        REGLA DE PRIVACIDAD (SOLO para SoledadMartinez):
+        Si el usuario que CONSULTA es SoledadMartinez, y el usuario
+        consultado tiene apellido "Borghi" o nombre "Ignacio",
+        se oculta completamente mostrando "Yamza" en lugar del nombre real.
+        Para cualquier otro usuario, se muestra el nombre real.
+        """
+        if request and request.user.username == 'SoledadMartinez':
+            if user.username == 'ygumy44':
+                return 'Yamza'
+            if user.last_name and 'Borghi' in user.last_name:
+                return 'Yamza'
+            if user.first_name and 'Ignacio' in user.first_name:
+                return 'Yamza'
+        return None
+
     def get_dueno_original_nombre(self, obj):
         if obj.dueno_original:
             request = self.context.get('request')
-            # REGLA DE PRIVACIDAD: Solo SoledadMartinez ve "Yamza" para ygumy44
-            if request and request.user.username == 'SoledadMartinez' and obj.dueno_original.username == 'ygumy44':
-                return 'Yamza'
+            oculto = self._ocultar_nombre_si_borghi(request, obj.dueno_original)
+            if oculto:
+                return oculto
             return str(obj.dueno_original)
         return None
 
     def get_beneficiario_nombre(self, obj):
         if obj.beneficiario:
             request = self.context.get('request')
-            # REGLA DE PRIVACIDAD: Solo SoledadMartinez ve "Yamza" para ygumy44
-            if request and request.user.username == 'SoledadMartinez' and obj.beneficiario.username == 'ygumy44':
-                return 'Yamza'
+            oculto = self._ocultar_nombre_si_borghi(request, obj.beneficiario)
+            if oculto:
+                return oculto
             return str(obj.beneficiario)
         return None
 
