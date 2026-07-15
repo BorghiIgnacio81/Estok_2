@@ -209,7 +209,8 @@ import EmptyState from '../components/EmptyState.astro';
             <div class="flex flex-wrap gap-1.5 mb-2">
               ${estadoBadge}
               ${cargaBadge}
-              ${getOwnerActionBadge(obj.owner_action)}
+      ${getOwnerActionBadge(obj.owner_action)}
+              ${obj.alerta_stock ? '<span class="text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-700">🔴 Stock bajo</span>' : ''}
             </div>
             <div class="text-xs text-gray-500 space-y-1">
               ${obj.ubicacion_nombre ? `<p>📍 ${obj.ubicacion_nombre}</p>` : ''}

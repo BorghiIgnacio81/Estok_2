@@ -73,6 +73,7 @@ def buscar_en_mercadolibre(q: str) -> Optional[Dict[str, Any]]:
 
     Returns:
         Dict con titulo, precio, link o None si no encuentra nada.
+        En caso de error de red/timeout, incluye "fuente_error": "error_red".
     """
     url = f"https://listado.mercadolibre.com.ar/search?q={requests.utils.quote(q)}"
     logger.info("Scraping ML: %s", url)
@@ -81,7 +82,7 @@ def buscar_en_mercadolibre(q: str) -> Optional[Dict[str, Any]]:
         resp = requests.get(url, headers=HEADERS_NAVEGADOR, timeout=15)
         if resp.status_code != 200:
             logger.warning("ML respondió con status %s", resp.status_code)
-            return None
+            return {"fuente_error": "error_red"}
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -134,10 +135,13 @@ def buscar_en_mercadolibre(q: str) -> Optional[Dict[str, Any]]:
 
     except requests.Timeout:
         logger.error("Timeout al scrapear ML")
-        return None
+        return {"fuente_error": "error_red"}
+    except requests.ConnectionError:
+        logger.error("Error de conexión al scrapear ML")
+        return {"fuente_error": "error_red"}
     except Exception as e:
         logger.error("Error al scrapear ML: %s", e)
-        return None
+        return {"fuente_error": "error_red"}
 
 
 def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
@@ -194,7 +198,8 @@ def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
         match = re.search(r'(\d+)', texto)
         if match:
             precio = float(match.group(1))
-            if precio > 0:
+            # Validación de cordura: precio positivo y menor a $50M ARS
+            if 0 < precio <= 50_000_000:
                 logger.info("Gemini estimó $%.2f para '%s' (%s)", precio, nombre, estado)
                 # Generar link de búsqueda en ML para que el usuario pueda ver resultados reales
                 ml_search_url = f"https://listado.mercadolibre.com.ar/{requests.utils.quote(nombre)}"
@@ -203,6 +208,11 @@ def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
                     "precio": precio,
                     "link": ml_search_url,
                 }
+            else:
+                logger.warning(
+                    "Gemini devolvió precio fuera de rango: $%.2f para '%s'. Descartado.",
+                    precio, nombre,
+                )
 
         logger.warning("Gemini no pudo estimar precio. Respuesta: %s", texto)
         return None
@@ -229,7 +239,24 @@ def buscar_precio_referencia(nombre: str, estado: str = "bueno") -> Dict[str, An
     # Intentar scraping de ML
     resultado_ml = buscar_en_mercadolibre(nombre)
 
-    if resultado_ml:
+    # Si el scraper devolvió un error de red, propagarlo sin intentar Gemini
+    if isinstance(resultado_ml, dict) and resultado_ml.get("fuente_error") == "error_red":
+        logger.warning(
+            "Error de red al scrapear ML para '%s', omitiendo Gemini fallback", nombre
+        )
+        return {
+            "encontrado": False,
+            "fuente": None,
+            "fuente_error": "error_red",
+            "titulo": None,
+            "precio_original": None,
+            "precio_ajustado": None,
+            "link": None,
+            "estado_aplicado": estado,
+            "porcentaje_aplicado": None,
+        }
+
+    if resultado_ml and "precio" in resultado_ml:
         precio_original = resultado_ml["precio"]
         precio_ajustado = _ajustar_precio(precio_original, estado)
         factor = FACTORES_AJUSTE.get(estado, 0.9)
@@ -271,6 +298,7 @@ def buscar_precio_referencia(nombre: str, estado: str = "bueno") -> Dict[str, An
     return {
         "encontrado": False,
         "fuente": None,
+        "fuente_error": None,
         "titulo": None,
         "precio_original": None,
         "precio_ajustado": None,

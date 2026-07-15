@@ -54,3 +54,14 @@ logs/
 
 # Coolify specific
 .coolify/
+
+# Temporary diagnostic/deploy scripts (never commit)
+tmp_*
+tmp_ml_response.json
+generate_icons.py
+archivador.png
+favicon.ico
+
+# Legacy files (not used in production)
+nginx.conf
+inventario/api/serializers.py

@@ -6,6 +6,10 @@
 - Cada instrucción de Git, Docker, Python o del sistema debe ejecutarse como un comando individual e independiente en la terminal.
 - No uses cadenas de texto Bash.
 
+## REGLA DE COMPATIBILIDAD DE TERMINAL (OBLIGATORIA)
+- Operamos en un entorno Windows con PowerShell. Está ESTRICTAMENTE PROHIBIDO utilizar el operador de encadenamiento de Linux '&&'.
+- Cada comando de Git o de sistema debe ser ejecutado en una línea de comandos independiente o separado de forma nativa para PowerShell.
+
 ## Base de datos
 - El hostname real de PostgreSQL en Coolify es: cagtcifjoy8ydxugg4bkdll1
   (SIN prefijo "postgresql-database-". Ese prefijo es solo el nombre visual
@@ -77,6 +81,45 @@
   eliminarlo antes de cerrar la sesión. Usar "docker ps -a" para confirmar
   que no quedan contenedores huérfanos después de cualquier sesión de debug.
 
+## Reglas de comportamiento durante el desarrollo
+
+### NO tocar lo que no te pidieron
+Si el pedido es "arreglá el botón X en archivo A", solo tocás archivo A.
+Si mientras trabajás encontrás algo "mejorable" en archivo B, lo anotás
+como pendiente en un comentario o lo mencionás, pero NO lo cambiás.
+Cambios no solicitados son la causa más común de regresiones en este proyecto.
+
+### Límite de 3 intentos
+Si después de 3 intentos algo no funciona (mismo enfoque, misma estrategia),
+PARAR. Reportar el problema con evidencia real (outputs concretos) y pedir
+instrucciones antes de seguir. No gastar más de 3 intentos en variaciones
+del mismo approach.
+
+### Redeploy lo hace el usuario
+Nunca intentar hacer Redeploy en Coolify por CLI, API, webhook o cualquier
+otro método automatizado. El usuario lo dispara manualmente desde la UI.
+Tu trabajo termina en commit + push a origin/main. Siempre terminar con
+"Avisame cuando quieras hacer el Redeploy".
+
+### Reportar honestamente qué se verificó
+Distinguir siempre entre:
+- "El código es correcto" (leí el archivo y parece bien)
+- "Funciona en producción" (hice una prueba real y vi el resultado)
+Nunca marcar algo como ✅ sin haber hecho una prueba real con evidencia.
+Si no pudiste verificar en producción, decir explícitamente "NO VERIFICADO".
+
+### Auth centralizado — nunca duplicar
+getAuthHeaders() y getToken() viven ÚNICAMENTE en frontend/src/services/auth.ts
+Ninguna página .astro ni ningún servicio puede definir su propia versión.
+Antes de escribir headers de auth en cualquier archivo nuevo, verificar
+que ya no existe esa función en auth.ts e importarla desde ahí.
+
+### URL de producción — siempre la misma
+Nunca corre el backend localmente. La URL de producción es siempre:
+https://eeestok.duckdns.org
+Cualquier script de diagnóstico o prueba que use 127.0.0.1 o localhost
+para el backend está mal y va a dar resultados falsos.
+
 ## Metodología de código limpio
 - Al terminar cualquier feature o fix, antes de considerarlo "completo":
   revisar si la lógica nueva debería vivir en un módulo/servicio reusable
@@ -94,3 +137,18 @@
 - Mantener los archivos grandes (>400-500 líneas) bajo revisión para
   modularizar cuando crezcan demasiado, en vez de seguir agregando código
   a un archivo ya extenso.
+
+## REGLA DE CIERRE DE SESIÓN (OBLIGATORIA)
+Al final de cada sesión de trabajo, o cuando el usuario indique que se va a retirar,
+DEBES ejecutar un comando de "Check-out" automático que consista en:
+
+1. Validar el tamaño de los archivos modificados durante la sesión (ninguno debe
+   superar las 400-500 líneas).
+2. Verificar la limpieza del repositorio: asegurar que no queden archivos temporales
+   del tipo 'tmp_*', '.bat', '.php' o logs sueltos en la raíz.
+3. Ejecutar 'python manage.py check' en el backend para garantizar que no haya
+   errores de importación o sintaxis.
+4. Generar un micro-reporte de cierre de 3 líneas:
+   - Archivos modificados y su estado de modularidad.
+   - Deuda técnica detectada (si la hay).
+   - Estado del check de salud del sistema.

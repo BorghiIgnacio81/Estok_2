@@ -1,0 +1,248 @@
+---
+// =============================================================================
+// PÁGINA DE ALERTAS DE STOCK
+// Muestra objetos que necesitan reposición y alertas activas
+// =============================================================================
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+import LoadingState from '../../components/LoadingState.astro';
+import ErrorState from '../../components/ErrorState.astro';
+import EmptyState from '../../components/EmptyState.astro';
+
+export const prerender = false;
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Alertas de Stock | Inventario">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Alertas de Stock</h1>
+        <p class="mt-1 text-gray-500">Objetos que necesitan reposición o tienen alertas activas</p>
+      </div>
+      <a
+        href="/objetos"
+        class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-base"
+      >
+        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a Objetos
+      </a>
+    </div>
+
+    <!-- Tabs: A reponer / Todas las alertas -->
+    <div class="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
+      <button id="tabReponer" class="tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base">
+        ⚠️ A reponer
+      </button>
+      <button id="tabTodas" class="tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base">
+        🔔 Todas las alertas
+      </button>
+    </div>
+
+    <LoadingState mensaje="Cargando alertas de stock..." />
+    <ErrorState mensaje="Error al cargar alertas de stock." />
+    <EmptyState
+      titulo="No hay alertas de stock"
+      descripcion="Todos los objetos tienen stock suficiente. Las alertas aparecerán cuando un objeto esté por debajo de su nivel mínimo."
+      icono="✅"
+    />
+
+    <!-- Tabla de alertas -->
+    <div id="alertasContainer" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-200 bg-gray-50">
+              <th class="text-left py-3 px-4 text-gray-500 font-medium">Objeto</th>
+              <th class="text-center py-3 px-4 text-gray-500 font-medium">Stock actual</th>
+              <th class="text-center py-3 px-4 text-gray-500 font-medium">Mínimo</th>
+              <th class="text-center py-3 px-4 text-gray-500 font-medium">Faltantes</th>
+              <th class="text-center py-3 px-4 text-gray-500 font-medium">Estado</th>
+              <th class="text-right py-3 px-4 text-gray-500 font-medium">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="alertasBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  // ===========================================================================
+  // ALERTAS DE STOCK
+  // ===========================================================================
+
+  import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
+
+  const loadingState = document.getElementById('loadingState')!;
+  const emptyState = document.getElementById('emptyState')!;
+  const errorState = document.getElementById('errorState')!;
+  const errorMessage = document.getElementById('errorMessage')!;
+  const retryBtn = document.getElementById('retryBtn')!;
+  const alertasContainer = document.getElementById('alertasContainer')!;
+  const alertasBody = document.getElementById('alertasBody')!;
+  const tabReponer = document.getElementById('tabReponer')!;
+  const tabTodas = document.getElementById('tabTodas')!;
+
+  let currentTab: 'reponer' | 'todas' = 'reponer';
+
+  function showLoading() {
+    loadingState.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    alertasContainer.classList.add('hidden');
+  }
+
+  function showError(msg: string) {
+    loadingState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.remove('hidden');
+    alertasContainer.classList.add('hidden');
+    errorMessage.textContent = msg;
+  }
+
+  function showEmpty() {
+    loadingState.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    alertasContainer.classList.add('hidden');
+  }
+
+  function renderAlertas(alertas: any[]) {
+    if (alertas.length === 0) {
+      showEmpty();
+      return;
+    }
+
+    loadingState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    alertasContainer.classList.remove('hidden');
+
+    alertasBody.innerHTML = alertas.map((a) => {
+      const faltantes = a.faltantes ?? (a.nivel_minimo - a.cantidad_actual);
+      const esCritico = faltantes > 0;
+      const estadoHtml = esCritico
+        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">🔴 Crítico</span>'
+        : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">🟡 Activa</span>';
+
+      return `
+        <tr class="border-b border-gray-100 hover:bg-gray-50 transition-base">
+          <td class="py-3 px-4">
+            <a href="/objetos/${a.objeto_id}" class="font-medium text-blue-700 hover:text-blue-900 hover:underline">
+              ${a.objeto_nombre}
+            </a>
+          </td>
+          <td class="py-3 px-4 text-center font-semibold ${esCritico ? 'text-red-600' : 'text-gray-800'}">
+            ${a.cantidad_actual}
+          </td>
+          <td class="py-3 px-4 text-center text-gray-600">${a.nivel_minimo}</td>
+          <td class="py-3 px-4 text-center">
+            ${esCritico
+              ? `<span class="font-semibold text-red-600">${faltantes}</span>`
+              : '<span class="text-gray-400">—</span>'
+            }
+          </td>
+          <td class="py-3 px-4 text-center">${estadoHtml}</td>
+          <td class="py-3 px-4 text-right">
+            <div class="flex justify-end gap-2">
+              <a href="/objetos/${a.objeto_id}/editar" class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-base">
+                Editar stock
+              </a>
+              <button class="desactivar-btn px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-base" data-id="${a.objeto_id}">
+                Desactivar
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Eventos: desactivar alerta
+    alertasBody.querySelectorAll('.desactivar-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const objetoId = btn.getAttribute('data-id');
+        if (!objetoId) return;
+        if (!confirm('¿Desactivar esta alerta de stock?')) return;
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/desactivar_alerta/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders(),
+            },
+          });
+
+          if (res.status === 401) {
+            window.location.href = '/login';
+            return;
+          }
+
+          if (res.ok) {
+            cargarAlertas(currentTab);
+          } else {
+            const err = await res.json().catch(() => ({}));
+            alert(`❌ Error: ${err.error || 'No se pudo desactivar'}`);
+          }
+        } catch {
+          alert('❌ Error de conexión');
+        }
+      });
+    });
+  }
+
+  async function cargarAlertas(tab: 'reponer' | 'todas') {
+    showLoading();
+    currentTab = tab;
+
+    try {
+      const endpoint = tab === 'reponer' ? 'a_reponer' : 'alertas_stock';
+      const response = await fetch(`${API_BASE_URL}/objetos/${endpoint}/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (response.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+
+      if (!response.ok) {
+        showError(`Error del servidor (${response.status})`);
+        return;
+      }
+
+      const data = await response.json();
+      const alertas = tab === 'reponer' ? (data.objetos || []) : (data || []);
+      renderAlertas(alertas);
+    } catch (err) {
+      console.error('Error al cargar alertas:', err);
+      showError('Error de conexión. Verifica que el servidor esté corriendo.');
+    }
+  }
+
+  // Tabs
+  tabReponer?.addEventListener('click', () => {
+    tabReponer.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base';
+    tabTodas.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base';
+    cargarAlertas('reponer');
+  });
+
+  tabTodas?.addEventListener('click', () => {
+    tabTodas.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base';
+    tabReponer.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base';
+    cargarAlertas('todas');
+  });
+
+  // Retry
+  retryBtn?.addEventListener('click', () => cargarAlertas(currentTab));
+
+  // Cargar al inicio
+  cargarAlertas('reponer');
+</script>

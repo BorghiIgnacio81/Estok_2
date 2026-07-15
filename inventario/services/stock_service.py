@@ -350,6 +350,7 @@ class StockValuationService:
                 "id": str(a.id),
                 "objeto_id": str(a.objeto.id),
                 "objeto_nombre": a.objeto.nombre,
+                "objeto_estok_id": str(a.objeto.estok_id) if a.objeto.estok_id else None,
                 "cantidad_actual": a.cantidad_actual,
                 "nivel_minimo": a.nivel_minimo,
                 "faltantes": a.nivel_minimo - a.cantidad_actual,

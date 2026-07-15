@@ -379,6 +379,41 @@ import ImageEditor from '../../components/ImageEditor.astro';
   import {comprimirImagenBase64} from '../../services/image';
 
   // ===========================================================================
+  // HELPERS DE TIPADO (eliminan ~240 errores TS de null/type)
+  // ===========================================================================
+  /** Tipa getElementById con el tipo de elemento HTML específico */
+  function $id<T extends HTMLElement>(id: string): T | null {
+    return document.getElementById(id) as T | null;
+  }
+
+  /** Tipa querySelector con el tipo de elemento HTML específico */
+  function $qs<T extends HTMLElement>(selector: string): T | null {
+    return document.querySelector(selector) as T | null;
+  }
+
+  /** showToast tipado para window */
+  function showToast(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    showToast(msg, type);
+  }
+
+  /** Extrae mensaje de error de un catch */
+  function getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return getErrorMessage(err);
+    if (typeof err === 'string') return err;
+    return 'Error desconocido';
+  }
+
+  /** Tipa e.target como HTMLInputElement en eventos change/input */
+  function inputTarget(e: Event): HTMLInputElement | null {
+    return e.target as HTMLInputElement | null;
+  }
+
+  /** Tipa e.target como HTMLFormElement en eventos submit */
+  function formTarget(e: Event): HTMLFormElement | null {
+    return e.target as HTMLFormElement | null;
+  }
+
+  // ===========================================================================
   // CONSTANTES
   // ===========================================================================
   
@@ -386,9 +421,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // SELECTOR DE MOTOR IA (Gemini únicamente - Local próximamente)
   // ===========================================================================
-  const motorLocalBtn = document.getElementById('motorLocalBtn');
-  const motorGeminiBtn = document.getElementById('motorGeminiBtn');
-  const motorSeleccionado = document.getElementById('motorSeleccionado');
+  const motorLocalBtn = $id<HTMLButtonElement>('motorLocalBtn');
+  const motorGeminiBtn = $id<HTMLButtonElement>('motorGeminiBtn');
+  const motorSeleccionado = $id<HTMLInputElement>('motorSeleccionado');
 
   let motorActual = 'gemini';
   // IA Local deshabilitada - próximamente disponible
@@ -399,12 +434,12 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // AI HEARTBEAT - Verificar disponibilidad del motor IA seleccionado
   // ===========================================================================
-  const aiStatusBadge = document.getElementById('aiStatusBadge');
-  const aiStatusDot = document.getElementById('aiStatusDot');
-  const aiStatusText = document.getElementById('aiStatusText');
-  const iaSection = document.getElementById('iaSection');
-  const analizarIaBtn = document.getElementById('analizarIaBtn');
-  const iaStatus = document.getElementById('iaStatus');
+  const aiStatusBadge = $id<HTMLElement>('aiStatusBadge')!;
+  const aiStatusDot = $id<HTMLElement>('aiStatusDot')!;
+  const aiStatusText = $id<HTMLElement>('aiStatusText')!;
+  const iaSection = $id<HTMLElement>('iaSection')!;
+  const analizarIaBtn = $id<HTMLButtonElement>('analizarIaBtn')!;
+  const iaStatus = $id<HTMLElement>('iaStatus')!;
 
   let iaAvailable = false;
 
@@ -493,15 +528,15 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // MANEJO DE CAPTURA DE FOTO + Editor de imagen
   // ===========================================================================
-  const cameraInput = document.getElementById('cameraInput');
-  const galleryInput = document.getElementById('galleryInput');
-  const photoPreview = document.getElementById('photoPreview');
-  const photoPlaceholder = document.getElementById('photoPlaceholder');
-  const photoImage = document.getElementById('photoImage');
-  const imagenBase64 = document.getElementById('imagenBase64');
-  const editPhotoBtn = document.getElementById('editPhotoBtn');
-  const iaBtnText = document.getElementById('iaBtnText');
-  const iaBtnSpinner = document.getElementById('iaBtnSpinner');
+  const cameraInput = $id<HTMLInputElement>('cameraInput')!;
+  const galleryInput = $id<HTMLInputElement>('galleryInput')!;
+  const photoPreview = $id<HTMLElement>('photoPreview')!;
+  const photoPlaceholder = $id<HTMLElement>('photoPlaceholder')!;
+  const photoImage = $id<HTMLImageElement>('photoImage')!;
+  const imagenBase64 = $id<HTMLInputElement>('imagenBase64')!;
+  const editPhotoBtn = $id<HTMLButtonElement>('editPhotoBtn')!;
+  const iaBtnText = $id<HTMLElement>('iaBtnText')!;
+  const iaBtnSpinner = $id<HTMLElement>('iaBtnSpinner')!;
 
   let savedObjectId = null;
 
@@ -540,7 +575,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       photoPlaceholder.classList.remove('hidden');
       imagenBase64.value = '';
       editPhotoBtn.classList.add('hidden');
-      const clearBtn = document.getElementById('clearPhotoBtn');
+      const clearBtn = $id<HTMLElement>('clearPhotoBtn')!;
       if (clearBtn) clearBtn.classList.add('hidden');
       analizarIaBtn.disabled = true;
       iaStatus.classList.add('hidden');
@@ -556,7 +591,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const result = e.target.result;
+      const result = (e.target as FileReader).result as string;
       // Comprimir antes de guardar
       let compressed: string;
       try {
@@ -586,13 +621,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
   }
 
   cameraInput.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
+    const file = inputTarget(e)?.files?.[0];
     if (file) handleFileSelected(file);
     e.target.value = '';
   });
 
   galleryInput.addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
+    const file = inputTarget(e)?.files?.[0];
     if (file) handleFileSelected(file);
     e.target.value = '';
   });
@@ -615,14 +650,14 @@ import ImageEditor from '../../components/ImageEditor.astro';
     }
     if (!editorFn) {
       console.warn('ImageEditor no disponible');
-      window.showToast?.('⚠️ Editor de imagen no disponible. Intenta de nuevo.', 'warning');
+      showToast('⚠️ Editor de imagen no disponible. Intenta de nuevo.', 'warning');
       return;
     }
     const editedImage = await editorFn(imagenBase64.value);
     if (editedImage) {
       imagenBase64.value = editedImage;
       photoImage.src = editedImage;
-      window.showToast?.('✅ Imagen editada correctamente', 'success');
+      showToast('✅ Imagen editada correctamente', 'success');
     }
   }
 
@@ -631,7 +666,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // LIMPIAR FOTO - Boton para quitar la foto actual
   // ===========================================================================
-  const clearPhotoBtn2 = document.getElementById('clearPhotoBtn');
+  const clearPhotoBtn2 = $id<HTMLButtonElement>('clearPhotoBtn')!;
   clearPhotoBtn2?.addEventListener('click', () => {
     photoImage.src = '';
     photoImage.classList.add('hidden');
@@ -642,17 +677,17 @@ import ImageEditor from '../../components/ImageEditor.astro';
     analizarIaBtn.disabled = true;
     iaStatus.classList.add('hidden');
     try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
-    window.showToast?.('🗑️ Foto eliminada', 'info');
+    showToast('🗑️ Foto eliminada', 'info');
   });
 
   // ===========================================================================
   // ESTIMAR PRECIO DE REFERENCIA (scraping backend + Gemini fallback)
   // ===========================================================================
-  const estimarPrecioBtn = document.getElementById('estimarPrecioBtn');
-  const estimarPrecioText = document.getElementById('estimarPrecioText');
-  const estimarPrecioSpinner = document.getElementById('estimarPrecioSpinner');
-  const precioReferencia = document.getElementById('precioReferencia');
-  const nombreInput = document.getElementById('nombre');
+  const estimarPrecioBtn = $id<HTMLButtonElement>('estimarPrecioBtn')!;
+  const estimarPrecioText = $id<HTMLElement>('estimarPrecioText')!;
+  const estimarPrecioSpinner = $id<HTMLElement>('estimarPrecioSpinner')!;
+  const precioReferencia = $id<HTMLElement>('precioReferencia')!;
+  const nombreInput = $id<HTMLInputElement>('nombre')!;
 
   function getEstadoLabel(estado: string): string {
     const labels: Record<string, string> = {
@@ -673,7 +708,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
   estimarPrecioBtn.addEventListener('click', async () => {
     const nombre = nombreInput?.value?.trim();
     if (!nombre) {
-      window.showToast?.('Primero escribe el nombre del objeto.', 'error');
+      showToast('Primero escribe el nombre del objeto.', 'error');
       nombreInput?.focus();
       return;
     }
@@ -682,7 +717,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
     estimarPrecioSpinner.classList.remove('hidden');
     precioReferencia.classList.add('hidden');
     try {
-      const estadoActual = (document.getElementById('estado_conservacion') as HTMLSelectElement)?.value || 'bueno';
+      const estadoActual = ($id<HTMLSelectElement>('estado_conservacion')! as HTMLSelectElement)?.value || 'bueno';
 
       // Llamar al nuevo endpoint de precio referencia (scraping + Gemini fallback)
       const response = await fetch(
@@ -698,7 +733,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       if (data.encontrado) {
         // Autocompletar valor estimado con el precio ajustado
-        const valorEstimado = document.getElementById('valor_estimado') as HTMLInputElement;
+        const valorEstimado = $id<HTMLInputElement>('valor_estimado')! as HTMLInputElement;
         if (valorEstimado) {
           valorEstimado.value = data.precio_ajustado.toFixed(2);
           valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
@@ -743,13 +778,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
           }
         }
 
-        window.showToast?.(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
+        showToast(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
       } else {
         // No se encontró precio de referencia
         precioReferencia.className = 'mt-2 text-xs text-amber-600';
         precioReferencia.textContent = '💡 No se encontró precio de referencia para este objeto.';
         precioReferencia.classList.remove('hidden');
-        window.showToast?.('No se encontró precio de referencia.', 'info');
+        showToast('No se encontró precio de referencia.', 'info');
       }
     } catch (err) {
       console.error('Error al buscar precio de referencia:', err);
@@ -774,7 +809,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (response.ok) {
         const data = await response.json();
         const ubicaciones = data.results || data;
-        const select = document.getElementById('ubicacion');
+        const select = $id<HTMLSelectElement>('ubicacion')!;
         ubicaciones.forEach((u) => {
           const opt = document.createElement('option');
           opt.value = u.id;
@@ -795,7 +830,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (response.ok) {
         const data = await response.json();
         const contenedores = data.results || data;
-        const select = document.getElementById('contenedor');
+        const select = $id<HTMLSelectElement>('contenedor')!;
         contenedores.forEach((c) => {
           const opt = document.createElement('option');
           opt.value = c.id;
@@ -816,8 +851,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (response.ok) {
         const data = await response.json();
         const usuarios = data.results || data;
-        const duenoSelect = document.getElementById('dueno_original');
-        const benSelect = document.getElementById('beneficiario');
+        const duenoSelect = $id<HTMLSelectElement>('dueno_original')!;
+        const benSelect = $id<HTMLSelectElement>('beneficiario')!;
         usuarios.forEach((u) => {
           const opt1 = document.createElement('option');
           opt1.value = u.id;
@@ -841,8 +876,8 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // CAMBIAR CATEGORÍA - Actualizar campos específicos
   // ===========================================================================
-  const tipoSelect = document.getElementById('tipo');
-  const categoryContainer = document.getElementById('categoryFieldsContainer');
+  const tipoSelect = $id<HTMLSelectElement>('tipo')!;
+  const categoryContainer = $id<HTMLElement>('categoryFieldsContainer')!;
 
   tipoSelect.addEventListener('change', () => {
     const tipo = tipoSelect.value || 'objeto';
@@ -855,11 +890,11 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // ANALIZAR CON IA - Enviar imagen Base64 al backend para análisis ANTES de guardar
   // ===========================================================================
-  const iaProgressContainer = document.getElementById('iaProgressContainer');
-  const iaProgressText = document.getElementById('iaProgressText');
-  const iaProgressSubtext = document.getElementById('iaProgressSubtext');
-  const iaProgressBar = document.getElementById('iaProgressBar');
-  const iaProgressPercent = document.getElementById('iaProgressPercent');
+  const iaProgressContainer = $id<HTMLElement>('iaProgressContainer')!;
+  const iaProgressText = $id<HTMLElement>('iaProgressText')!;
+  const iaProgressSubtext = $id<HTMLElement>('iaProgressSubtext')!;
+  const iaProgressBar = $id<HTMLElement>('iaProgressBar')!;
+  const iaProgressPercent = $id<HTMLElement>('iaProgressPercent')!;
 
   analizarIaBtn.addEventListener('click', async () => {
     // =====================================================================
@@ -882,7 +917,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       // Validar que haya foto cargada
       const base64Image = imagenBase64.value;
       if (!base64Image) {
-        window.showToast?.('❌ Primero toma o selecciona una foto.', 'error');
+        showToast('❌ Primero toma o selecciona una foto.', 'error');
         return;
       }
 
@@ -891,7 +926,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         const msg = motorActual === 'gemini'
           ? '❌ Gemini no está disponible. Verificá que la API key esté configurada en el servidor.'
           : '❌ La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
-        window.showToast?.(msg, 'error');
+        showToast(msg, 'error');
         return;
       }
 
@@ -950,19 +985,19 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       // Autocompletar campos en el formulario
       if (datos.nombre) {
-        document.getElementById('nombre').value = datos.nombre;
+        $id<HTMLInputElement>('nombre')!.value = datos.nombre;
       }
       if (datos.descripcion) {
-        document.getElementById('descripcion').value = datos.descripcion;
+        $id<HTMLTextAreaElement>('descripcion')!.value = datos.descripcion;
       }
       if (datos.estado_conservacion) {
-        const estadoSelect = document.getElementById('estado_conservacion');
+        const estadoSelect = $id<HTMLSelectElement>('estado_conservacion')!;
         if ([...estadoSelect.options].some(o => o.value === datos.estado_conservacion)) {
           estadoSelect.value = datos.estado_conservacion;
         }
       }
       if (datos.color) {
-        document.getElementById('color').value = datos.color;
+        $id<HTMLInputElement>('color')!.value = datos.color;
       }
       if (datos.categoria) {
         const tipoMap = { libro: 'libro', tecnologia: 'tecnologia', mueble: 'mueble', ropa: 'ropa' };
@@ -973,7 +1008,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         }
       }
       if (datos.precio_estimado_mercado) {
-        document.getElementById('valor_estimado').value = datos.precio_estimado_mercado;
+        $id<HTMLInputElement>('valor_estimado')!.value = datos.precio_estimado_mercado;
       }
 
       // Campos específicos
@@ -1025,28 +1060,28 @@ import ImageEditor from '../../components/ImageEditor.astro';
               // Éxito total: todos los campos se autocompletaron
               iaStatus.className = 'mt-3 text-sm text-green-600';
               iaStatus.textContent = '✅ Todos los campos fueron completados por la IA.';
-              window.showToast?.('🤖 Todos los campos autocompletados por IA correctamente.', 'success');
+              showToast('🤖 Todos los campos autocompletados por IA correctamente.', 'success');
             } else if (camposCompletados.length > 0) {
               // Éxito parcial: algunos campos se autocompletaron, otros no
               iaStatus.className = 'mt-3 text-sm text-amber-600';
               iaStatus.innerHTML = `⚠️ Se autocompletaron: <strong>${camposCompletados.join(', ')}</strong>. Quedaron pendientes: <strong>${camposPendientes.join(', ')}</strong>. Revisalos manualmente.`;
-              window.showToast?.(`🤖 Se autocompletaron ${camposCompletados.length} campo(s). Revisá los pendientes.`, 'info');
+              showToast(`🤖 Se autocompletaron ${camposCompletados.length} campo(s). Revisá los pendientes.`, 'info');
             } else {
               // No se autocompletó nada
               iaStatus.className = 'mt-3 text-sm text-red-600';
               iaStatus.textContent = '❌ La IA no pudo determinar ningún campo. Revisá la foto e intentá de nuevo.';
-              window.showToast?.('❌ La IA no pudo autocompletar ningún campo.', 'error');
+              showToast('❌ La IA no pudo autocompletar ningún campo.', 'error');
             }
             iaStatus.classList.remove('hidden');
 
             // Verificar si la IA detectó que es un libro y necesita segunda foto
             if (result.necesita_segunda_foto) {
-              const segundaFotoSection = document.getElementById('segundaFotoSection');
-              const segundaFotoMotivo = document.getElementById('segundaFotoMotivo');
+              const segundaFotoSection = $id<HTMLElement>('segundaFotoSection')!;
+              const segundaFotoMotivo = $id<HTMLElement>('segundaFotoMotivo')!;
               if (segundaFotoSection && segundaFotoMotivo) {
                 segundaFotoMotivo.textContent = result.motivo_segunda_foto || 'Toma una foto de la parte trasera para capturar el código ISBN.';
                 segundaFotoSection.classList.remove('hidden');
-                window.showToast?.('📖 Libro detectado. Toma una foto de la parte trasera para obtener el ISBN.', 'info');
+                showToast('📖 Libro detectado. Toma una foto de la parte trasera para obtener el ISBN.', 'info');
               }
             }
 
@@ -1055,10 +1090,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
               const isbnInput = document.querySelector('[name="isbn_issn"]');
               if (isbnInput) {
                 isbnInput.value = result.isbn_detectado;
-                window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
+                showToast(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
               }
               // Ocultar la sección de segunda foto
-              const segundaFotoSection = document.getElementById('segundaFotoSection');
+              const segundaFotoSection = $id<HTMLElement>('segundaFotoSection')!;
               if (segundaFotoSection) {
                 segundaFotoSection.classList.add('hidden');
               }
@@ -1067,14 +1102,14 @@ import ImageEditor from '../../components/ImageEditor.astro';
     } catch (err) {
       console.error('[IA] Error en handler de Analizar IA:', err);
       let mensaje = 'Error al analizar con IA';
-      if (err.name === 'AbortError') {
+      if (getErrorMessage(err) === 'AbortError') {
         mensaje = 'El análisis está tardando más de lo esperado. La IA puede estar ocupada o no disponible. Intentá de nuevo.';
       } else if (err instanceof Error) {
-        mensaje = err.message;
+        mensaje = getErrorMessage(err);
       }
       if (iaProgressText) iaProgressText.textContent = '❌ Error en el análisis';
       if (iaProgressSubtext) iaProgressSubtext.textContent = mensaje;
-      window.showToast?.(`❌ ${mensaje}`, 'error');
+      showToast(`❌ ${mensaje}`, 'error');
     } finally {
       setTimeout(() => {
         if (iaProgressContainer) iaProgressContainer.classList.add('hidden');
@@ -1088,12 +1123,12 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // SEGUNDA FOTO PARA LIBROS - Manejar captura de parte trasera
   // ===========================================================================
-  const segundaFotoInput = document.getElementById('segundaFotoInput');
-  const saltarSegundaFotoBtn = document.getElementById('saltarSegundaFotoBtn');
-  const segundaFotoSection = document.getElementById('segundaFotoSection');
+  const segundaFotoInput = $id<HTMLInputElement>('segundaFotoInput')!;
+  const saltarSegundaFotoBtn = $id<HTMLButtonElement>('saltarSegundaFotoBtn')!;
+  const segundaFotoSection = $id<HTMLElement>('segundaFotoSection')!;
 
   segundaFotoInput?.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
+    const file = inputTarget(e)?.files?.[0];
     if (!file) return;
 
     // Mostrar progreso
@@ -1155,7 +1190,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
         const isbnInput = document.querySelector('[name="isbn_issn"]');
         if (isbnInput) {
           isbnInput.value = result.isbn_detectado;
-          window.showToast?.(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
+          showToast(`✅ ISBN detectado: ${result.isbn_detectado}`, 'success');
         }
         // Ocultar la sección de segunda foto
         if (segundaFotoSection) {
@@ -1169,7 +1204,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
           const isbnInput = document.querySelector('[name="isbn_issn"]');
           if (isbnInput) {
             isbnInput.value = datos.isbn_issn;
-            window.showToast?.(`✅ ISBN detectado: ${datos.isbn_issn}`, 'success');
+            showToast(`✅ ISBN detectado: ${datos.isbn_issn}`, 'success');
           }
           if (segundaFotoSection) {
             segundaFotoSection.classList.add('hidden');
@@ -1177,15 +1212,15 @@ import ImageEditor from '../../components/ImageEditor.astro';
           iaProgressText.textContent = '✅ ISBN capturado correctamente';
         } else {
           iaProgressText.textContent = '⚠️ No se pudo detectar el ISBN. Puedes ingresarlo manualmente.';
-          window.showToast?.('⚠️ No se detectó ISBN en la parte trasera. Intenta de nuevo o ingrésalo manualmente.', 'warning');
+          showToast('⚠️ No se detectó ISBN en la parte trasera. Intenta de nuevo o ingrésalo manualmente.', 'warning');
         }
       }
     } catch (err) {
       iaProgressBar.style.width = '0%';
       iaProgressPercent.textContent = 'Error';
       iaProgressText.textContent = '❌ Error al analizar segunda foto';
-      iaProgressSubtext.textContent = err.message;
-      window.showToast?.(`❌ ${err.message}`, 'error');
+      iaProgressSubtext.textContent = getErrorMessage(err);
+      showToast(`❌ ${getErrorMessage(err)}`, 'error');
     } finally {
       setTimeout(() => {
         iaProgressContainer.classList.add('hidden');
@@ -1202,17 +1237,17 @@ import ImageEditor from '../../components/ImageEditor.astro';
     if (segundaFotoSection) {
       segundaFotoSection.classList.add('hidden');
     }
-    window.showToast?.('👍 Puedes ingresar el ISBN manualmente en el campo correspondiente.', 'info');
+    showToast('👍 Puedes ingresar el ISBN manualmente en el campo correspondiente.', 'info');
   });
 
   // ===========================================================================
   // ENVÍO DEL FORMULARIO - Guardar objeto + subir foto
   // ===========================================================================
-  const submitBtn = document.getElementById('submitBtn');
-  const submitText = document.getElementById('submitText');
-  const submitSpinner = document.getElementById('submitSpinner');
+  const submitBtn = $id<HTMLButtonElement>('submitBtn')!;
+  const submitText = $id<HTMLElement>('submitText')!;
+  const submitSpinner = $id<HTMLElement>('submitSpinner')!;
 
-  document.getElementById('objetoForm').addEventListener('submit', async (e) => {
+  $id<HTMLFormElement>('objetoForm')!.addEventListener('submit', async (e) => {
     e.preventDefault();
     submitBtn.disabled = true;
     submitText.classList.add('hidden');
@@ -1312,13 +1347,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
 
       // 3. Limpiar sessionStorage (foto temporal) y redirigir
       try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch {}
-      window.showToast?.('✅ Objeto guardado correctamente', 'success');
+      showToast('✅ Objeto guardado correctamente', 'success');
       setTimeout(() => {
         window.location.href = `/objetos/${savedObjectId}`;
       }, 1000);
 
     } catch (err) {
-      window.showToast?.(`❌ ${err.message}`, 'error');
+      showToast(`❌ ${getErrorMessage(err)}`, 'error');
       submitBtn.disabled = false;
       submitText.classList.remove('hidden');
       submitSpinner.classList.add('hidden');

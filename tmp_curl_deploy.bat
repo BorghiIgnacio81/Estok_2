@@ -1,2 +1,0 @@
-@echo off
-ssh -i "C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner" -o StrictHostKeyChecking=no root@178.156.224.212 "docker exec coolify sh -c 'wget -q -O- --post-data=\"{\"uuid\":\"sq641axhkdx4oz4oss522ht9\"}\" --header=\"Content-Type: application/json\" http://localhost/api/v1/deploy 2>&1 || curl -s -X POST -H \"Content-Type: application/json\" -d \"{\"uuid\":\"sq641axhkdx4oz4oss522ht9\"}\" http://localhost/api/v1/deploy 2>&1 || echo \"NO_CURL_OR_WGET\"'"
