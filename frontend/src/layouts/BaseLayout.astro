@@ -762,9 +762,10 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     let swRegistration: ServiceWorkerRegistration | null = null;
 
     // =====================================================================
-    // CONTROLLERCHANGE: Cuando el nuevo SW toma control (después de
-    // SKIP_WAITING), recargar la página automáticamente para que el
-    // usuario vea la nueva versión.
+    // CONTROLLERCHANGE: Cuando el nuevo SW toma control (después de que
+    // el usuario hizo clic en "Actualizar ahora" y se llamó a
+    // registration.waiting.postMessage({ type: 'SKIP_WAITING' })),
+    // recargar la página para que el usuario vea la nueva versión.
     // =====================================================================
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       console.log('🔄 Nuevo SW tomó control, recargando...');

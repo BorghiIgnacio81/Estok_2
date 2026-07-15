@@ -4,8 +4,8 @@
 // - Siempre intenta obtener la versión más reciente de la red
 // - Si la red falla, sirve desde la caché
 // - En segundo plano, actualiza la caché con la respuesta de la red
-// - Se auto-activa inmediatamente al detectar un nuevo SW (self.skipWaiting())
-// - Recarga la página automáticamente cuando el SW toma el control
+// - El nuevo SW queda en "waiting" hasta que el usuario acepte actualizar
+// - Al hacer clic en "Actualizar ahora", el SW toma control y recarga
 // =============================================================================
 
 // =============================================================================
@@ -13,7 +13,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 13;
+const CACHE_VERSION = 14;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
@@ -26,14 +26,16 @@ const STATIC_ASSETS = [
 ];
 
 // =============================================================================
-// INSTALL - Precargar assets críticos y activarse inmediatamente
+// INSTALL - Precargar assets críticos
+// =============================================================================
+// IMPORTANTE: NO llamar a self.skipWaiting() aquí. El nuevo SW debe quedar
+// en estado "waiting" para que el frontend pueda mostrar el banner de
+// "Nueva versión disponible" y darle al usuario la opción de actualizar.
+// Si skipWaiting() se llama en install, el SW se activa inmediatamente,
+// el controllerchange se dispara y la página se recarga sin que el usuario
+// vea el banner.
 // =============================================================================
 self.addEventListener('install', (event) => {
-  // Auto-activar este SW inmediatamente, sin esperar a que el usuario cierre
-  // todas las pestañas. Esto evita que quede un SW viejo sirviendo contenido
-  // cacheado mientras el nuevo espera en estado "waiting".
-  self.skipWaiting();
-
   // Precargar assets críticos en la caché para que estén disponibles offline
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -157,12 +159,13 @@ self.addEventListener('fetch', (event) => {
 // MENSAJES DESDE LA PÁGINA (cliente)
 // =============================================================================
 // Escuchar mensajes del frontend (BaseLayout.astro) para:
-// - SKIP_WAITING: legacy, ya no es necesario porque usamos self.skipWaiting()
+// - SKIP_WAITING: el usuario hizo clic en "Actualizar ahora" en el banner.
+//   El SW salta del estado "waiting" a "activating", toma control y
+//   dispara controllerchange, que recarga la página.
 // - SW_UPDATED: el frontend puede reaccionar si lo desea
 // =============================================================================
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    // Legacy: mantener por compatibilidad con versiones anteriores del frontend
     self.skipWaiting();
   }
 });
