@@ -87,6 +87,21 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         if contenedor:
             qs = qs.filter(contenedor_id=contenedor)
 
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            qs = qs.filter(categoria_id=categoria)
+
+        es_contenedor = self.request.query_params.get('es_contenedor')
+        if es_contenedor is not None:
+            if es_contenedor.lower() in ('true', '1', 'yes'):
+                qs = qs.filter(es_contenedor=True)
+            elif es_contenedor.lower() in ('false', '0', 'no'):
+                qs = qs.filter(es_contenedor=False)
+
+        objeto_padre = self.request.query_params.get('objeto_padre')
+        if objeto_padre:
+            qs = qs.filter(objeto_padre_id=objeto_padre)
+
         estado = self.request.query_params.get('estado')
         if estado:
             qs = qs.filter(estado_conservacion=estado)

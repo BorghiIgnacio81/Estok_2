@@ -11,8 +11,9 @@ from rest_framework import serializers
 from django.db import connection
 
 from ...models import (
-    Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
+    Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa, Categoria,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     foto_principal = serializers.SerializerMethodField()
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
     contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True)
+    categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
+    objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
 
     class Meta:
         model = Objeto
@@ -32,6 +35,8 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'id', 'nombre', 'tipo', 'estado_conservacion',
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre',
+            'categoria', 'categoria_nombre',
+            'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action',
         ]
@@ -66,11 +71,15 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     tipo = serializers.SerializerMethodField()
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
     contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True)
+    categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
+    objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     dueno_original_nombre = serializers.SerializerMethodField()
     beneficiario_nombre = serializers.SerializerMethodField()
     fotos = serializers.SerializerMethodField()
     datos_especificos = serializers.SerializerMethodField()
     historial_precios = serializers.SerializerMethodField()
+    total_objetos_contenidos = serializers.SerializerMethodField()
+    distribucion_por_categorias = serializers.SerializerMethodField()
 
     class Meta:
         model = Objeto
@@ -189,6 +198,27 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
             for h in historial
         ]
 
+    def get_total_objetos_contenidos(self, obj):
+        """Si el objeto es contenedor, cuenta cuántos objetos contiene (sin soft-delete)."""
+        if obj.es_contenedor:
+            return obj.objetos_contenidos.filter(deleted_at__isnull=True).count()
+        return 0
+
+    def get_distribucion_por_categorias(self, obj):
+        """
+        Si el objeto es contenedor, devuelve un dict con la distribución
+        de categorías de los objetos contenidos.
+        Ej: {"Electrónica": 3, "Ropa": 2, None: 1}
+        """
+        if not obj.es_contenedor:
+            return {}
+        contenidos = obj.objetos_contenidos.filter(deleted_at__isnull=True)
+        distribucion = {}
+        for o in contenidos:
+            cat_nombre = o.categoria.nombre if o.categoria else "Sin categoría"
+            distribucion[cat_nombre] = distribucion.get(cat_nombre, 0) + 1
+        return distribucion
+
 
 class ObjetoCreateSerializer(serializers.ModelSerializer):
     """
@@ -231,6 +261,7 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nombre', 'descripcion',
             'ubicacion', 'contenedor',
+            'categoria', 'es_contenedor', 'objeto_padre',
             'estado_conservacion', 'valor_estimado', 'color',
             'dueno_original', 'beneficiario',
             'tipo',

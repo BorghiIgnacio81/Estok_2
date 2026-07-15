@@ -18,6 +18,7 @@ from .estok import (
 from .historial import HistorialPrecioSerializer, AlertaStockSerializer
 from .multimedia import FotoObjetoSerializer, FotoObjetoUploadSerializer
 from .chat import MensajeSerializer, MensajeCreateSerializer
+from .categorias import CategoriaSerializer
 
 __all__ = [
     'RoleSerializer', 'UserSerializer', 'UserCreateSerializer',
@@ -29,4 +30,7 @@ __all__ = [
     'HistorialPrecioSerializer', 'AlertaStockSerializer',
     'FotoObjetoSerializer', 'FotoObjetoUploadSerializer',
     'MensajeSerializer', 'MensajeCreateSerializer',
+    'CategoriaSerializer',
 ]
+
+

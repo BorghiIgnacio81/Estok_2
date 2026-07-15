@@ -231,6 +231,36 @@ class CodigoInvitacion(models.Model):
 
 
 # =============================================================================
+# CATEGORÍAS (organización por tipo definida por el usuario)
+# =============================================================================
+class Categoria(models.Model):
+    """
+    Categoría definida por el usuario para organizar objetos.
+    Pertenece a un Estok (aislada por tenant).
+    No tiene flujo de venta, fotos ni estados — solo organización y filtros.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=200, verbose_name="Nombre de la categoría")
+    estok = models.ForeignKey(
+        Estok,
+        on_delete=models.CASCADE,
+        related_name='categorias',
+        verbose_name="Estok"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+
+    class Meta:
+        verbose_name = "Categoría"
+        verbose_name_plural = "Categorías"
+        ordering = ['nombre']
+        unique_together = [('nombre', 'estok')]
+
+    def __str__(self):
+        return self.nombre
+
+
+# =============================================================================
 # ORGANIZACIÓN ESPACIAL
 # =============================================================================
 class Ubicacion(models.Model):
@@ -389,6 +419,32 @@ class Objeto(models.Model):
         blank=True,
         related_name='objetos',
         verbose_name="Contenedor"
+    )
+
+    # Categoría definida por el usuario (organización)
+    categoria = models.ForeignKey(
+        'Categoria',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='objetos',
+        verbose_name="Categoría"
+    )
+
+    # Relación de contención entre objetos (objeto_padre = contenedor lógico)
+    es_contenedor = models.BooleanField(
+        default=False,
+        verbose_name="Es contenedor",
+        help_text="Si está marcado, este objeto puede contener otros objetos dentro"
+    )
+    objeto_padre = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='objetos_contenidos',
+        verbose_name="Objeto contenedor padre",
+        help_text="Si este objeto está dentro de otro objeto que actúa como contenedor"
     )
 
     # Estado y valoración

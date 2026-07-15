@@ -21,7 +21,9 @@ from .viewsets import (
     CambiarEstokActivoView,
     MensajeViewSet,
     VersionViewSet,
+    CategoriaViewSet,
 )
+
 
 
 
@@ -44,8 +46,10 @@ router.register(r'codigos-invitacion', CodigoInvitacionViewSet, basename='codigo
 router.register(r'cambiar-estok-activo', CambiarEstokActivoView, basename='cambiar-estok-activo')
 router.register(r'mensajes', MensajeViewSet, basename='mensaje')
 router.register(r'version', VersionViewSet, basename='version')
+router.register(r'categorias', CategoriaViewSet, basename='categoria')
 
 # =============================================================================
+
 # URL PATTERNS
 # =============================================================================
 urlpatterns = [
