@@ -91,7 +91,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'ping', 'online'):
+        if self.action in ('me', 'ping', 'online', 'admin_delete_user'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -245,5 +245,50 @@ class UserViewSet(viewsets.ModelViewSet):
             "total": len(entries),
             "max_capacity": _ACCESS_LOG_MAX,
             "entries": entries,
+        })
+
+    @action(detail=True, methods=['delete'], url_path='admin-delete')
+    def admin_delete_user(self, request, pk=None):
+        """
+        [RESTRINGIDO - SOLO ygumy44]
+        Elimina físicamente a cualquier usuario del sistema.
+        DELETE /api/usuarios/{id}/admin-delete/
+
+        CUALQUIER OTRO USUARIO recibe 404 Not Found (error ciego, sin indicios).
+        El usuario ygumy44 NO puede eliminarse a sí mismo.
+        """
+        # RESTRICCIÓN DE VISIBILIDAD ABSOLUTA
+        if request.user.username != 'ygumy44':
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            target_user = self.get_object()
+        except Exception:
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # No permitir que ygumy44 se elimine a sí mismo
+        if target_user.id == request.user.id:
+            return Response(
+                {"error": "No puedes eliminarte a ti mismo."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        username = target_user.username
+        user_id = str(target_user.id)
+
+        # Eliminar físicamente al usuario (CASCADE eliminará membresías, etc.)
+        target_user.delete()
+
+        return Response({
+            "success": True,
+            "mensaje": f"Usuario '{username}' eliminado correctamente.",
+            "usuario_id": user_id,
+            "username": username,
         })
 

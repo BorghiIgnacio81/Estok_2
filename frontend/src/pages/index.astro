@@ -215,6 +215,45 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         Agregar Nuevo Objeto
       </a>
     </div>
+
+    <!-- ================================================================ -->
+    <!-- ADMIN PANEL - Solo visible para ygumy44 -->
+    <!-- ================================================================ -->
+    <div id="adminPanel" class="hidden mt-8">
+      <div class="bg-white rounded-xl shadow-sm border-2 border-red-200 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-red-900">Panel de Administración</h2>
+            <p class="text-sm text-red-500">Gestión de usuarios del sistema</p>
+          </div>
+        </div>
+
+        <!-- Loading -->
+        <div id="adminLoading" class="text-center py-4">
+          <svg class="animate-spin h-6 w-6 mx-auto text-red-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="text-sm text-gray-500">Cargando usuarios...</p>
+        </div>
+
+        <!-- Error -->
+        <div id="adminError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4"></div>
+
+        <!-- Success -->
+        <div id="adminSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4"></div>
+
+        <!-- User list -->
+        <div id="adminUserList" class="hidden space-y-2">
+          <!-- Se llena dinámicamente -->
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -606,8 +645,150 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   retryBtn?.addEventListener('click', cargarEstadisticas);
 
   // ===========================================================================
+  // ADMIN PANEL - Solo visible para ygumy44
+  // ===========================================================================
+
+  const adminPanel = document.getElementById('adminPanel')!;
+  const adminLoading = document.getElementById('adminLoading')!;
+  const adminError = document.getElementById('adminError')!;
+  const adminSuccess = document.getElementById('adminSuccess')!;
+  const adminUserList = document.getElementById('adminUserList')!;
+
+  function showAdminError(msg: string) {
+    adminError.textContent = msg;
+    adminError.classList.remove('hidden');
+    setTimeout(() => adminError.classList.add('hidden'), 5000);
+  }
+
+  function showAdminSuccess(msg: string) {
+    adminSuccess.textContent = msg;
+    adminSuccess.classList.remove('hidden');
+    setTimeout(() => adminSuccess.classList.add('hidden'), 5000);
+  }
+
+  async function cargarAdminUsuarios() {
+    adminLoading.classList.remove('hidden');
+    adminUserList.classList.add('hidden');
+    adminError.classList.add('hidden');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/usuarios/`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor (${response.status})`);
+      }
+
+      const usuarios = await response.json();
+      const results = usuarios.results || usuarios;
+
+      if (results.length === 0) {
+        adminUserList.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No hay usuarios registrados.</p>';
+      } else {
+        adminUserList.innerHTML = results.map((u: any) => {
+          const displayName = u.display_name || u.username;
+          const isSelf = u.id === JSON.parse(localStorage.getItem('estok_user') || '{}').id;
+          return `
+            <div class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-700 flex-shrink-0">
+                  ${(displayName.charAt(0) || '?').toUpperCase()}
+                </div>
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-900 truncate">${displayName}</p>
+                  <p class="text-xs text-gray-500">@${u.username} ${u.email ? `· ${u.email}` : ''}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                ${u.is_active ? '<span class="text-xs text-green-600 font-medium">Activo</span>' : '<span class="text-xs text-red-600 font-medium">Inactivo</span>'}
+                ${!isSelf ? `
+                  <button
+                    data-user-id="${u.id}"
+                    data-user-name="${displayName}"
+                    data-user-username="${u.username}"
+                    class="adminDeleteBtn px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base shadow-sm flex items-center gap-1"
+                    title="Eliminar este usuario"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Eliminar
+                  </button>
+                ` : '<span class="text-xs text-gray-400 italic">Tú</span>'}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Event listeners para botones de eliminar
+        document.querySelectorAll('.adminDeleteBtn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const userId = (btn as HTMLElement).dataset.userId!;
+            const userName = (btn as HTMLElement).dataset.userName!;
+            const userUsername = (btn as HTMLElement).dataset.userUsername!;
+
+            if (!confirm(`⚠️ ¿Estás SEGURO de eliminar a "${userName}" (@${userUsername})?\n\nEsta acción eliminará físicamente al usuario y TODOS sus datos asociados (membresías, objetos, etc.).\n\nNO SE PUEDE DESHACER.`)) {
+              return;
+            }
+
+            if (!confirm(`CONFIRMACIÓN FINAL:\n¿Eliminar permanentemente a "${userName}" (@${userUsername})?`)) {
+              return;
+            }
+
+            try {
+              const token = localStorage.getItem('estok_access_token');
+              const response = await fetch(`${API_BASE_URL}/usuarios/${userId}/admin-delete/`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || errData.detail || `Error del servidor (${response.status})`);
+              }
+
+              const result = await response.json();
+              showAdminSuccess(`✅ ${result.mensaje}`);
+              // Recargar lista
+              cargarAdminUsuarios();
+            } catch (err: any) {
+              showAdminError(err.message || 'Error al eliminar usuario');
+            }
+          });
+        });
+      }
+
+      adminLoading.classList.add('hidden');
+      adminUserList.classList.remove('hidden');
+    } catch (err: any) {
+      console.error('Error al cargar usuarios admin:', err);
+      adminLoading.classList.add('hidden');
+      adminUserList.innerHTML = '<p class="text-sm text-red-500 text-center py-4">Error al cargar usuarios.</p>';
+      adminUserList.classList.remove('hidden');
+    }
+  }
+
+  // Verificar si el usuario es ygumy44 y mostrar el panel
+  function initAdminPanel() {
+    try {
+      const cachedUser = JSON.parse(localStorage.getItem('estok_user') || '{}');
+      if (cachedUser.username === 'ygumy44') {
+        adminPanel.classList.remove('hidden');
+        cargarAdminUsuarios();
+      }
+    } catch {
+      // Silencioso
+    }
+  }
+
+  // ===========================================================================
   // INICIALIZAR
   // ===========================================================================
 
   cargarEstadisticas();
+  initAdminPanel();
 </script>
