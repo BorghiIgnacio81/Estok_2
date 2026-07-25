@@ -680,20 +680,28 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
   async function cargarAdminRecursos() {
     try {
-      // Cargar Estoks
-      const respEstoks = await fetch(`${API_BASE_URL}/estoks/mis-estoks/`, { headers: getAuthHeaders() });
+      // Cargar Estoks (usar lista completa /api/estoks/ que soporta paginación)
+      const respEstoks = await fetch(`${API_BASE_URL}/estoks/`, { headers: getAuthHeaders() });
       if (respEstoks.ok) {
-        adminEstoksDisponibles = await respEstoks.json();
+        const data = await respEstoks.json();
+        // DRF puede devolver array o {results: [...], count, next, previous}
+        adminEstoksDisponibles = Array.isArray(data) ? data : (data.results || []);
+        console.log('Admin: Estoks cargados:', adminEstoksDisponibles.length, adminEstoksDisponibles);
+      } else {
+        console.error('Admin: Error HTTP al cargar estoks:', respEstoks.status);
       }
 
       // Cargar Roles
       const respRoles = await fetch(`${API_BASE_URL}/roles/`, { headers: getAuthHeaders() });
       if (respRoles.ok) {
         const rolesData = await respRoles.json();
-        adminRolesDisponibles = rolesData.results || rolesData;
+        adminRolesDisponibles = Array.isArray(rolesData) ? rolesData : (rolesData.results || []);
+        console.log('Admin: Roles cargados:', adminRolesDisponibles.length, adminRolesDisponibles);
+      } else {
+        console.error('Admin: Error HTTP al cargar roles:', respRoles.status);
       }
     } catch (err) {
-      console.error('Error al cargar recursos admin:', err);
+      console.error('Admin: Error al cargar recursos:', err);
     }
   }
 
