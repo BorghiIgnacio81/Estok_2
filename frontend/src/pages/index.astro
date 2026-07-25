@@ -227,10 +227,17 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <div>
+          <div class="flex-1">
             <h2 class="text-lg font-bold text-red-900">Panel de Administración</h2>
-            <p class="text-sm text-red-500">Gestión de usuarios del sistema</p>
+            <p class="text-sm text-red-500">Gestión de usuarios y asignación a Estoks</p>
           </div>
+          <!-- Botón recargar -->
+          <button id="adminRefreshBtn" class="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base flex items-center gap-1" title="Recargar lista">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Recargar
+          </button>
         </div>
 
         <!-- Loading -->
@@ -249,7 +256,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         <div id="adminSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mb-4"></div>
 
         <!-- User list -->
-        <div id="adminUserList" class="hidden space-y-2">
+        <div id="adminUserList" class="hidden space-y-3">
           <!-- Se llena dinámicamente -->
         </div>
       </div>
@@ -645,7 +652,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   retryBtn?.addEventListener('click', cargarEstadisticas);
 
   // ===========================================================================
-  // ADMIN PANEL - Solo visible para ygumy44
+  // ADMIN PANEL - Solo visible para ygumy44 (con Estoks disponibles)
   // ===========================================================================
 
   const adminPanel = document.getElementById('adminPanel')!;
@@ -653,6 +660,11 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   const adminError = document.getElementById('adminError')!;
   const adminSuccess = document.getElementById('adminSuccess')!;
   const adminUserList = document.getElementById('adminUserList')!;
+  const adminRefreshBtn = document.getElementById('adminRefreshBtn')!;
+
+  // Cache de Estoks disponibles y Roles para el panel admin
+  let adminEstoksDisponibles: any[] = [];
+  let adminRolesDisponibles: any[] = [];
 
   function showAdminError(msg: string) {
     adminError.textContent = msg;
@@ -666,12 +678,209 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     setTimeout(() => adminSuccess.classList.add('hidden'), 5000);
   }
 
+  async function cargarAdminRecursos() {
+    try {
+      // Cargar Estoks
+      const respEstoks = await fetch(`${API_BASE_URL}/estoks/mis-estoks/`, { headers: getAuthHeaders() });
+      if (respEstoks.ok) {
+        adminEstoksDisponibles = await respEstoks.json();
+      }
+
+      // Cargar Roles
+      const respRoles = await fetch(`${API_BASE_URL}/roles/`, { headers: getAuthHeaders() });
+      if (respRoles.ok) {
+        const rolesData = await respRoles.json();
+        adminRolesDisponibles = rolesData.results || rolesData;
+      }
+    } catch (err) {
+      console.error('Error al cargar recursos admin:', err);
+    }
+  }
+
+  function renderEstoksDropdown(userId: string, estokIdActual: string, currentRoleId: string | null, rowId: string) {
+    const opciones = adminEstoksDisponibles.map(e => `
+      <option value="${e.id}" ${e.id === estokIdActual ? 'selected' : ''}>
+        ${e.nombre}
+      </option>
+    `).join('');
+
+    const rolesOpciones = adminRolesDisponibles.map(r => `
+      <option value="${r.id}" ${(r.id === currentRoleId) ? 'selected' : ''}>
+        ${r.name}
+      </option>
+    `).join('');
+
+    return `
+      <select id="select-estok-${rowId}" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white max-w-[140px]" onchange="window._adminEstokChanged && window._adminEstokChanged('${rowId}', '${userId}')">
+        <option value="">-- Sin Estok --</option>
+        ${opciones}
+      </select>
+      <select id="select-role-${rowId}" class="text-xs border border-gray-300 rounded px-2 py-1 bg-white max-w-[120px]">
+        <option value="">-- Sin rol --</option>
+        ${rolesOpciones}
+      </select>
+      <button
+        id="btn-asignar-${rowId}"
+        data-user-id="${userId}"
+        data-estok-select="select-estok-${rowId}"
+        data-role-select="select-role-${rowId}"
+        class="adminAsignarBtn px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded hover:bg-blue-200 transition-base flex items-center gap-1"
+        title="Asignar usuario a este Estok"
+      >
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Asignar
+      </button>
+    `;
+  }
+
+  function renderMembresiaBadge(m: any, userId: string, idx: number) {
+    return `
+      <div class="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded border border-gray-200 text-xs">
+        <span class="text-gray-700 font-medium">${m.estok_nombre}</span>
+        ${m.role_nombre ? `<span class="text-gray-400">(${m.role_nombre})</span>` : ''}
+        <button
+          data-membresia-estok-id="${m.estok_id}"
+          data-user-id="${userId}"
+          data-estok-nombre="${m.estok_nombre}"
+          class="adminRemoverBtn text-red-400 hover:text-red-600 transition-base ml-1"
+          title="Quitar de ${m.estok_nombre}"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    `;
+  }
+
+  function bindAdminEventListeners(userId: string) {
+    // Botones de eliminar usuario
+    document.querySelectorAll('.adminDeleteBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = (btn as HTMLElement).dataset.userId!;
+        const userName = (btn as HTMLElement).dataset.userName!;
+        const userUsername = (btn as HTMLElement).dataset.userUsername!;
+
+        if (!confirm(`⚠️ ¿Estás SEGURO de eliminar a "${userName}" (@${userUsername})?\n\nEsta acción eliminará físicamente al usuario y TODOS sus datos asociados (membresías, objetos, etc.).\n\nNO SE PUEDE DESHACER.`)) {
+          return;
+        }
+        if (!confirm(`CONFIRMACIÓN FINAL:\n¿Eliminar permanentemente a "${userName}" (@${userUsername})?`)) {
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem('estok_access_token');
+          const response = await fetch(`${API_BASE_URL}/usuarios/${uid}/admin-delete/`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.detail || `Error del servidor (${response.status})`);
+          }
+
+          const result = await response.json();
+          showAdminSuccess(`✅ ${result.mensaje}`);
+          cargarAdminUsuarios();
+        } catch (err: any) {
+          showAdminError(err.message || 'Error al eliminar usuario');
+        }
+      });
+    });
+
+    // Botones de asignar a Estok
+    document.querySelectorAll('.adminAsignarBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = (btn as HTMLElement).dataset.userId!;
+        const estokSelectId = (btn as HTMLElement).dataset.estokSelect!;
+        const roleSelectId = (btn as HTMLElement).dataset.roleSelect!;
+
+        const estokSelect = document.getElementById(estokSelectId) as HTMLSelectElement;
+        const roleSelect = document.getElementById(roleSelectId) as HTMLSelectElement;
+
+        const estokId = estokSelect?.value;
+        const roleId = roleSelect?.value || null;
+
+        if (!estokId) {
+          showAdminError('Debes seleccionar un Estok.');
+          return;
+        }
+
+        try {
+          const token = localStorage.getItem('estok_access_token');
+          const response = await fetch(`${API_BASE_URL}/usuarios/${uid}/asignar-estok/`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ estok_id: estokId, role_id: roleId }),
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.detail || `Error del servidor (${response.status})`);
+          }
+
+          const result = await response.json();
+          showAdminSuccess(`✅ ${result.mensaje}`);
+          cargarAdminUsuarios();
+        } catch (err: any) {
+          showAdminError(err.message || 'Error al asignar usuario a Estok');
+        }
+      });
+    });
+
+    // Botones de remover membresía
+    document.querySelectorAll('.adminRemoverBtn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = (btn as HTMLElement).dataset.userId!;
+        const estokId = (btn as HTMLElement).dataset.membresiaEstokId!;
+        const estokNombre = (btn as HTMLElement).dataset.estokNombre!;
+
+        if (!confirm(`¿Quitar al usuario de "${estokNombre}"?`)) return;
+
+        try {
+          const token = localStorage.getItem('estok_access_token');
+          const response = await fetch(`${API_BASE_URL}/usuarios/${uid}/remover-estok/?estok_id=${estokId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.detail || `Error del servidor (${response.status})`);
+          }
+
+          const result = await response.json();
+          showAdminSuccess(`✅ ${result.mensaje}`);
+          cargarAdminUsuarios();
+        } catch (err: any) {
+          showAdminError(err.message || 'Error al remover usuario del Estok');
+        }
+      });
+    });
+  }
+
   async function cargarAdminUsuarios() {
     adminLoading.classList.remove('hidden');
     adminUserList.classList.add('hidden');
     adminError.classList.add('hidden');
+    adminSuccess.classList.add('hidden');
 
     try {
+      // Cargar recursos primero (estoks, roles)
+      await cargarAdminRecursos();
+
       const response = await fetch(`${API_BASE_URL}/usuarios/`, {
         headers: getAuthHeaders(),
       });
@@ -686,80 +895,62 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       if (results.length === 0) {
         adminUserList.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No hay usuarios registrados.</p>';
       } else {
+        const cachedUserJson = JSON.parse(localStorage.getItem('estok_user') || '{}');
+
         adminUserList.innerHTML = results.map((u: any) => {
           const displayName = u.display_name || u.username;
-          const isSelf = u.id === JSON.parse(localStorage.getItem('estok_user') || '{}').id;
+          const isSelf = u.id === cachedUserJson.id;
+          const membresias = u.membresias || [];
+          const rowId = `user-${u.id}`;
+
+          // Mostrar badges de membresías existentes
+          const badgesHtml = membresias.length > 0
+            ? `<div class="flex flex-wrap gap-1 mt-1.5">${membresias.map((m: any, i: number) => renderMembresiaBadge(m, u.id, i)).join('')}</div>`
+            : '<p class="text-xs text-gray-400 mt-1">Sin Estok asignado</p>';
+
+          // Dropdown de asignación (oculto para el propio ygumy44 para evitar auto-remoción)
+          const asignarHtml = !isSelf
+            ? `<div class="flex items-center gap-1 mt-1.5">${renderEstoksDropdown(u.id, '', null, rowId)}</div>`
+            : '';
+
           return `
-            <div class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
-              <div class="flex items-center gap-3 min-w-0">
-                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-700 flex-shrink-0">
-                  ${(displayName.charAt(0) || '?').toUpperCase()}
+            <div class="p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-700 flex-shrink-0">
+                    ${(displayName.charAt(0) || '?').toUpperCase()}
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">${displayName}</p>
+                    <p class="text-xs text-gray-500">@${u.username} ${u.email ? `· ${u.email}` : ''}</p>
+                  </div>
                 </div>
-                <div class="min-w-0">
-                  <p class="text-sm font-medium text-gray-900 truncate">${displayName}</p>
-                  <p class="text-xs text-gray-500">@${u.username} ${u.email ? `· ${u.email}` : ''}</p>
+                <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                  ${u.is_active ? '<span class="text-xs text-green-600 font-medium">Activo</span>' : '<span class="text-xs text-red-600 font-medium">Inactivo</span>'}
+                  ${!isSelf ? `
+                    <button
+                      data-user-id="${u.id}"
+                      data-user-name="${displayName}"
+                      data-user-username="${u.username}"
+                      class="adminDeleteBtn px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base shadow-sm flex items-center gap-1"
+                      title="Eliminar este usuario"
+                    >
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Eliminar
+                    </button>
+                  ` : '<span class="text-xs text-gray-400 italic">Tú</span>'}
                 </div>
               </div>
-              <div class="flex items-center gap-2 flex-shrink-0">
-                ${u.is_active ? '<span class="text-xs text-green-600 font-medium">Activo</span>' : '<span class="text-xs text-red-600 font-medium">Inactivo</span>'}
-                ${!isSelf ? `
-                  <button
-                    data-user-id="${u.id}"
-                    data-user-name="${displayName}"
-                    data-user-username="${u.username}"
-                    class="adminDeleteBtn px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base shadow-sm flex items-center gap-1"
-                    title="Eliminar este usuario"
-                  >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Eliminar
-                  </button>
-                ` : '<span class="text-xs text-gray-400 italic">Tú</span>'}
-              </div>
+              ${badgesHtml}
+              ${asignarHtml}
             </div>
           `;
         }).join('');
 
-        // Event listeners para botones de eliminar
-        document.querySelectorAll('.adminDeleteBtn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const userId = (btn as HTMLElement).dataset.userId!;
-            const userName = (btn as HTMLElement).dataset.userName!;
-            const userUsername = (btn as HTMLElement).dataset.userUsername!;
-
-            if (!confirm(`⚠️ ¿Estás SEGURO de eliminar a "${userName}" (@${userUsername})?\n\nEsta acción eliminará físicamente al usuario y TODOS sus datos asociados (membresías, objetos, etc.).\n\nNO SE PUEDE DESHACER.`)) {
-              return;
-            }
-
-            if (!confirm(`CONFIRMACIÓN FINAL:\n¿Eliminar permanentemente a "${userName}" (@${userUsername})?`)) {
-              return;
-            }
-
-            try {
-              const token = localStorage.getItem('estok_access_token');
-              const response = await fetch(`${API_BASE_URL}/usuarios/${userId}/admin-delete/`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              });
-
-              if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || errData.detail || `Error del servidor (${response.status})`);
-              }
-
-              const result = await response.json();
-              showAdminSuccess(`✅ ${result.mensaje}`);
-              // Recargar lista
-              cargarAdminUsuarios();
-            } catch (err: any) {
-              showAdminError(err.message || 'Error al eliminar usuario');
-            }
-          });
-        });
+        // Bind eventos
+        bindAdminEventListeners('');
       }
 
       adminLoading.classList.add('hidden');
@@ -771,6 +962,9 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       adminUserList.classList.remove('hidden');
     }
   }
+
+  // Recargar con botón refresh
+  adminRefreshBtn?.addEventListener('click', () => cargarAdminUsuarios());
 
   // Verificar si el usuario es ygumy44 y mostrar el panel
   function initAdminPanel() {

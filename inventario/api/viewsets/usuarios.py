@@ -9,7 +9,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ...models import Role, CustomUser, Membresia
+from ...models import Role, CustomUser, Membresia, Estok
 from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
 
@@ -65,13 +65,15 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filtra los usuarios según el Estok activo del usuario autenticado.
+        - Superusers ven TODOS los usuarios (para panel de administración).
         - Si el usuario tiene un Estok activo (ultimo_estok_activo), solo devuelve
           los usuarios que son miembros de ese mismo Estok.
         - Si no tiene Estok activo, devuelve todos los usuarios (comportamiento legacy).
-        - Incluso superusers/staff respetan el filtro del Estok activo, para que
-          en los combobox de dueño/beneficiario solo aparezcan los miembros del Estok.
         """
         user = self.request.user
+        # Superusers ven todos los usuarios (admin panel)
+        if user.is_superuser:
+            return CustomUser.objects.all()
         # Si tiene Estok activo, filtrar por miembros de ese Estok
         if user.ultimo_estok_activo:
             miembros_ids = Membresia.objects.filter(
@@ -91,7 +93,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'ping', 'online', 'admin_delete_user'):
+        if self.action in ('me', 'ping', 'online', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -292,3 +294,137 @@ class UserViewSet(viewsets.ModelViewSet):
             "username": username,
         })
 
+    @action(detail=True, methods=['post'], url_path='asignar-estok')
+    def asignar_estok(self, request, pk=None):
+        """
+        [RESTRINGIDO - SOLO ygumy44]
+        Asigna un usuario a un Estok con un rol específico.
+        POST /api/usuarios/{id}/asignar-estok/
+        Body: { "estok_id": "<uuid>", "role_id": "<uuid>" }
+
+        CUALQUIER OTRO USUARIO recibe 404 Not Found.
+        """
+        if request.user.username != 'ygumy44':
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            user = self.get_object()
+        except Exception:
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        estok_id = request.data.get('estok_id')
+        role_id = request.data.get('role_id')
+
+        if not estok_id:
+            return Response(
+                {"error": "estok_id es requerido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verificar que el Estok existe
+        try:
+            estok = Estok.objects.get(id=estok_id)
+        except Estok.DoesNotExist:
+            return Response(
+                {"error": "El Estok especificado no existe."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verificar que el Role existe (si se especificó)
+        role = None
+        if role_id:
+            try:
+                role = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                return Response(
+                    {"error": "El Role especificado no existe."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Verificar si ya es miembro
+        if Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
+            return Response(
+                {"error": "El usuario ya es miembro de este Estok."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Crear membresía
+        membresia = Membresia.objects.create(
+            usuario=user,
+            estok=estok,
+            role=role,
+        )
+
+        return Response({
+            "success": True,
+            "mensaje": f"Usuario '{user.username}' asignado a '{estok.nombre}' correctamente.",
+            "membresia": {
+                "id": str(membresia.id),
+                "estok_id": str(estok_id),
+                "estok_nombre": estok.nombre,
+                "role": role.name if role else None,
+                "role_id": str(role_id) if role_id else None,
+                "joined_at": membresia.joined_at.isoformat() if membresia.joined_at else None,
+            },
+        })
+
+    @action(detail=True, methods=['delete'], url_path='remover-estok')
+    def remover_estok(self, request, pk=None):
+        """
+        [RESTRINGIDO - SOLO ygumy44]
+        Quita un usuario de un Estok (elimina la membresía).
+        DELETE /api/usuarios/{id}/remover-estok/?estok_id=<uuid>
+
+        CUALQUIER OTRO USUARIO recibe 404 Not Found.
+        El usuario ygumy44 NO puede quitarse a sí mismo.
+        """
+        if request.user.username != 'ygumy44':
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            user = self.get_object()
+        except Exception:
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # No permitir que ygumy44 se quite a sí mismo
+        if user.id == request.user.id:
+            return Response(
+                {"error": "No puedes quitarte a ti mismo de un Estok."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        estok_id = request.query_params.get('estok_id') or request.data.get('estok_id')
+
+        if not estok_id:
+            return Response(
+                {"error": "estok_id es requerido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_count, _ = Membresia.objects.filter(
+            usuario=user,
+            estok_id=estok_id,
+        ).delete()
+
+        if deleted_count == 0:
+            return Response(
+                {"error": "El usuario no es miembro de ese Estok."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            "success": True,
+            "mensaje": f"Usuario '{user.username}' removido del Estok correctamente.",
+        })

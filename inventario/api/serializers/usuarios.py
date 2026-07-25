@@ -21,15 +21,16 @@ class RoleSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+    membresias = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'description', 'phone', 'display_name',
-            'is_active', 'date_joined',
+            'is_active', 'date_joined', 'membresias',
         ]
-        read_only_fields = ['id', 'date_joined']
+        read_only_fields = ['id', 'date_joined', 'membresias']
 
     def get_display_name(self, obj):
         """
@@ -61,6 +62,33 @@ class UserSerializer(serializers.ModelSerializer):
                 return 'Yamza'
 
         return obj.get_full_name() or obj.username
+
+    def get_membresias(self, obj):
+        """
+        Retorna las membresías del usuario con información del Estok y rol.
+        Solo visible para superusers (ygumy44) en el panel de administración.
+        """
+        request = self.context.get('request')
+        # Solo incluir membresías si el request existe y es superuser
+        if not request or not request.user.is_superuser:
+            return []
+
+        from ...models import Membresia
+        membresias = Membresia.objects.filter(
+            usuario=obj
+        ).select_related('estok', 'role')
+
+        return [
+            {
+                "id": str(m.id),
+                "estok_id": str(m.estok.id),
+                "estok_nombre": m.estok.nombre,
+                "role_id": str(m.role.id) if m.role else None,
+                "role_nombre": m.role.name if m.role else None,
+                "joined_at": m.joined_at.isoformat() if m.joined_at else None,
+            }
+            for m in membresias
+        ]
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
