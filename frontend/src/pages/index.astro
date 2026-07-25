@@ -321,54 +321,39 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
-  // PWA INSTALL - Botón de instalación (Android nativo, iOS instructivo)
+  // PWA INSTALL - Android nativo (1 tap) + iOS Safari (2 taps guiados)
+  // ===========================================================================
+  //
+  // IMPORTANTE TÉCNICO: Apple NO permite beforeinstallprompt en iOS Safari.
+  // Es una restricción de la plataforma, no del código. Todas las PWAs
+  // (Twitter, Uber, Starbucks, Pinterest) tienen la misma limitación.
+  // El flujo iOS usa el botón nativo "Compartir" de Safari, que es el
+  // método oficial documentado por Apple.
   // ===========================================================================
 
   let deferredPrompt: any = null;
 
-  // Referencia al único botón PWA (solo visible en móvil)
   const installPwaBtn = document.getElementById('installPwaBtn')!;
 
-  // Detectar iOS (iPhone/iPad)
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  // Detectar si está en standalone (ya instalada como PWA)
+  const isSafari = /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS|mercury/i.test(navigator.userAgent);
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as any).standalone === true; // iOS standalone mode
+    || (navigator as any).standalone === true;
 
-  // Si ya está instalada, ocultar botón
   if (isStandalone) {
     installPwaBtn?.classList.add('hidden');
   } else {
-    // Mostrar botón (adaptar texto para iOS)
-    if (isIOS) {
-      installPwaBtn.innerHTML = `
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Cómo instalar
-      `;
-    }
     installPwaBtn?.classList.remove('hidden');
   }
 
-  // Escuchar el evento beforeinstallprompt (SOLO Android Chrome/Edge)
+  // Android Chrome/Edge: capturar beforeinstallprompt para instalar en 1 tap
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     e.preventDefault();
     deferredPrompt = e;
-    console.log('📲 beforeinstallprompt capturado (Android)');
-    // Cambiar texto del botón a "Instalar App"
-    if (!isIOS) {
-      installPwaBtn.innerHTML = `
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        Instalar App
-      `;
-    }
+    console.log('📲 PWA: beforeinstallprompt listo (1-tap)');
     window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
   });
 
-  // Escuchar cuando se instala la app
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     installPwaBtn?.classList.add('hidden');
@@ -376,116 +361,107 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     console.log('✅ Estok instalada como PWA');
   });
 
-  // Modal de instrucciones para iOS (se crea solo cuando se necesita)
-  function mostrarInstruccionesIOS() {
+  function mostrarPromptIOS() {
     // Evitar duplicados
-    if (document.getElementById('iosInstallModal')) return;
+    if (document.getElementById('iosPrompt')) return;
+
+    const esChrome = /CriOS/i.test(navigator.userAgent);
 
     const overlay = document.createElement('div');
-    overlay.id = 'iosInstallModal';
-    overlay.className = 'fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4';
+    overlay.id = 'iosPrompt';
+    overlay.className = 'fixed inset-0 z-[9999] flex items-end justify-center bg-black/40 backdrop-blur-sm animate-fade-in';
     overlay.innerHTML = `
-      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto overflow-hidden transform transition-all">
-        <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h3 class="text-lg font-bold text-gray-900">📱 Instalar Estok en iPhone</h3>
-          <button id="cerrarIosModalBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      <div class="bg-white rounded-t-3xl w-full max-w-md mx-auto px-6 pt-6 pb-8 shadow-2xl animate-slide-up">
+        <!-- Handle bar -->
+        <div class="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-5"></div>
+
+        <!-- Icon + Title -->
+        <div class="text-center mb-5">
+          <img src="/icons/apple-touch-icon.png" alt="Estok" class="w-16 h-16 rounded-2xl mx-auto mb-3 shadow-md" />
+          <h3 class="text-lg font-bold text-gray-900">Instalar Estok</h3>
+          <p class="text-sm text-gray-500 mt-1">Agregá Estok a tu pantalla de inicio para usarla como una app.</p>
         </div>
-        <!-- Contenido con instrucciones visuales -->
-        <div class="p-6 space-y-4">
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0 font-bold text-blue-700">1</div>
-            <div>
-              <p class="text-sm font-medium text-gray-900">Abrí esta página en <span class="text-blue-700 font-semibold">Safari</span></p>
-              <p class="text-xs text-gray-500 mt-0.5">Si estás en Chrome, copiá el enlace y abrilo en Safari.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0 font-bold text-blue-700">2</div>
-            <div>
-              <p class="text-sm font-medium text-gray-900">Tocá el botón <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs font-medium">📤 Compartir</span></p>
-              <p class="text-xs text-gray-500 mt-0.5">Está en la barra inferior de Safari (el cuadro con la flecha hacia arriba).</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0 font-bold text-blue-700">3</div>
-            <div>
-              <p class="text-sm font-medium text-gray-900">Seleccioná <span class="text-blue-700 font-semibold">"Agregar a pantalla de inicio"</span></p>
-              <p class="text-xs text-gray-500 mt-0.5">Deslizá hacia abajo en el menú si no lo ves. Tiene un ícono de ➕.</p>
-            </div>
-          </div>
-          <div class="flex items-start gap-4">
-            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0 font-bold text-blue-700">4</div>
-            <div>
-              <p class="text-sm font-medium text-gray-900">Tocá <span class="text-blue-700 font-semibold">"Agregar"</span> en la esquina superior derecha</p>
-              <p class="text-xs text-gray-500 mt-0.5">¡Listo! Estok aparecerá en tu pantalla de inicio como una app.</p>
-            </div>
-          </div>
-          <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p class="text-xs text-amber-800">
-              ⚠️ <strong>Importante:</strong> Solo funciona en <strong>Safari</strong>. Chrome en iPhone no permite instalar PWAs. Si estás en Chrome, abrí esta misma página en Safari.
-            </p>
-          </div>
-          <button id="abrirEnSafariBtn" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm">
+
+        ${esChrome ? `
+        <!-- Usuario en Chrome: necesita Safari -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-center">
+          <p class="text-sm font-semibold text-amber-800 mb-2">⚠️ Necesitás Safari</p>
+          <p class="text-xs text-amber-700 mb-3">Chrome en iPhone no permite instalar apps. Abrí esta página en Safari para continuar.</p>
+          <button id="iosCopiarEnlaceBtn" class="w-full px-4 py-2.5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-xl transition-base shadow-sm">
             📋 Copiar enlace para abrir en Safari
           </button>
         </div>
+        ` : `
+        <!-- Usuario en Safari: mostrar instrucción simple -->
+        <div class="text-center space-y-3">
+          <div class="flex items-center justify-center gap-3 p-4 bg-blue-50 rounded-xl">
+            <div class="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <p class="text-sm font-semibold text-blue-800 text-left leading-snug">
+              Tocá <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white rounded text-xs font-bold border border-blue-200">📤 Compartir</span><br>
+              y luego <span class="font-bold">"Agregar a inicio"</span>
+            </p>
+          </div>
+        </div>
+        `}
+
+        <button id="iosCerrarBtn" class="w-full mt-4 px-4 py-3 text-sm font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-base">
+          ${esChrome ? 'Cerrar' : 'Entendido'}
+        </button>
       </div>
     `;
 
     document.body.appendChild(overlay);
 
-    // Cerrar modal
-    const cerrar = () => overlay.remove();
-    document.getElementById('cerrarIosModalBtn')?.addEventListener('click', cerrar);
+    const cerrar = () => {
+      overlay.classList.add('animate-fade-out');
+      setTimeout(() => overlay.remove(), 200);
+    };
+
+    document.getElementById('iosCerrarBtn')?.addEventListener('click', cerrar);
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) cerrar();
     });
 
-    // Botón copiar enlace
-    document.getElementById('abrirEnSafariBtn')?.addEventListener('click', () => {
+    // Copiar enlace (solo Chrome)
+    document.getElementById('iosCopiarEnlaceBtn')?.addEventListener('click', () => {
       navigator.clipboard.writeText(window.location.href).then(() => {
-        (window as any).showSuccess?.('✅ Enlace copiado. Abrilo en Safari y seguí los pasos.');
+        (window as any).showSuccess?.('✅ Enlace copiado. Pegalo en Safari para instalar.');
       }).catch(() => {
-        (window as any).showInfo?.('Copiá manualmente el enlace de esta página y abrilo en Safari.');
+        (window as any).showInfo?.('Copiá manualmente el enlace y abrilo en Safari.');
       });
       cerrar();
     });
   }
 
-  // Función de instalación
   async function installPWA(): Promise<boolean> {
     if (deferredPrompt) {
-      // Android Chrome/Edge: usar beforeinstallprompt nativo
+      // Android: 1-tap install vía beforeinstallprompt nativo
       deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
       deferredPrompt = null;
       if (result.outcome === 'accepted') {
-        (window as any).showSuccess?.('✅ Estok instalada en tu dispositivo');
+        (window as any).showSuccess?.('✅ Estok instalada');
         return true;
-      } else {
-        (window as any).showInfo?.('Instalación cancelada');
-        return false;
       }
-    } else if (isIOS) {
-      // iOS: mostrar instrucciones visuales
-      mostrarInstruccionesIOS();
-      return false;
-    } else {
-      // Otros navegadores (desktop, etc.)
-      (window as any).showInfo?.('Para instalar Estok, usá el menú del navegador: "Agregar a pantalla de inicio" o "Instalar app"');
       return false;
     }
+
+    if (isIOS) {
+      // iOS: mostrar prompt profesional con instrucción mínima
+      mostrarPromptIOS();
+      return false;
+    }
+
+    // Desktop / otros
+    (window as any).showInfo?.('Usá el menú del navegador para instalar esta app.');
+    return false;
   }
 
-  // Exponer globalmente para otros componentes (navbar)
   (window as any).installPWA = installPWA;
-
-  // Click handler
   installPwaBtn?.addEventListener('click', () => installPWA());
 
   // ===========================================================================
