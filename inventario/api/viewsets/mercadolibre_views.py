@@ -30,7 +30,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
     def get_permissions(self):
-        if self.action in ('auth_status', 'auth_url', 'disconnect', 'callback'):
+        if self.action in ('auth_status', 'auth_url', 'disconnect', 'callback', 'status'):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
@@ -39,10 +39,48 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         """
         Verifica si el usuario actual tiene una cuenta de MercadoLibre conectada.
         GET /api/mercadolibre/auth-status/
+        Retorna info del usuario de ML si está conectado.
         """
+        from ...models import MercadoLibreToken
         conectado = has_valid_token(request.user)
+        data = {"conectado": conectado}
+
+        if conectado:
+            try:
+                token = MercadoLibreToken.objects.get(usuario=request.user)
+                data["ml_user_id"] = token.ml_user_id
+                data["ml_nickname"] = token.scope or "Conectado"
+                data["connected_at"] = token.created_at.isoformat() if token.created_at else None
+            except MercadoLibreToken.DoesNotExist:
+                pass
+
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """
+        Devuelve el estado de conexión con MercadoLibre y datos del usuario ML.
+        GET /api/mercadolibre/status/
+        Llama a /users/me para obtener nombre y email reales del usuario ML.
+        """
+        from ...services.mercadolibre_api import _api_request
+        from ...services.mercadolibre_oauth import get_valid_access_token
+
+        access_token = get_valid_access_token(request.user)
+        if not access_token:
+            return Response({"conectado": False})
+
+        ml_user = _api_request("GET", "/users/me", access_token)
+        if not ml_user or "id" not in ml_user:
+            return Response({"conectado": False, "error": "No se pudo obtener datos del usuario ML"})
+
         return Response({
-            "conectado": conectado,
+            "conectado": True,
+            "ml_user_id": ml_user.get("id"),
+            "nickname": ml_user.get("nickname", ""),
+            "nombre": ml_user.get("first_name", ""),
+            "apellido": ml_user.get("last_name", ""),
+            "email": ml_user.get("email", ""),
         })
 
     @action(detail=False, methods=['get'])
@@ -235,12 +273,17 @@ def ml_callback(request):
             status=404,
         )
 
-    # Redirigir al frontend con mensaje de éxito
     return HttpResponse(
-        """
+        f"""
         <html><head><meta charset="utf-8"><title>Estok - Conexión exitosa</title>
-        <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;}div{text-align:center;background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 6px rgba(0,0,0,.1);}h2{color:#166534;}p{color:#4b5563;}</style></head>
-        <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><p style="font-size:14px;color:#9ca3af;">Ya podés cerrar esta pestaña y volver a Estok.</p></div></body></html>
+        <style>body{{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;}}div{{text-align:center;background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 6px rgba(0,0,0,.1);}}h2{{color:#166534;}}p{{color:#4b5563;}}.btn{{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#1d4ed8;color:white;text-decoration:none;border-radius:.5rem;font-weight:600;font-size:14px;}}</style></head>
+        <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><a href="/integraciones" class="btn">← Volver a Estok</a><p style="font-size:12px;color:#9ca3af;margin-top:1rem;">Redirigiendo a Integraciones...</p></div>
+        <script>
+        if (window.opener) {{
+            window.opener.postMessage({{ type: 'ml_connected', success: true }}, '*');
+        }}
+        setTimeout(function() {{ window.location.href = '/integraciones'; }}, 1500);
+        </script></body></html>
         """,
         content_type='text/html; charset=utf-8',
     )

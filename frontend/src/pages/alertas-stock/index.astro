@@ -480,7 +480,7 @@ export const prerender = false;
               });
               if (respUrl.ok) {
                 const data = await respUrl.json();
-                window.open(data.auth_url, '_blank');
+                window.open(data.auth_url, 'ml_oauth_popup');
               }
             });
             return;
@@ -664,6 +664,17 @@ export const prerender = false;
 
   // Cargar al inicio
   cargarDecisiones();
+
+  // Escuchar notificación postMessage desde el popup/callback de OAuth de ML
+  // Si se conectó la cuenta exitosamente, refrescar el modal automáticamente
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'ml_connected' && event.data.success) {
+      // Si el modal está abierto y estamos en ML, refrescar el paso 2
+      if (!publicarModal.classList.contains('hidden') && publicarPlataforma === 'mercadolibre') {
+        irAPaso2('mercadolibre');
+      }
+    }
+  });
 </script>
 </write_to_file>
 <task_progress>
