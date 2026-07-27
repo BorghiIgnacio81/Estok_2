@@ -22,6 +22,7 @@ from .viewsets import (
     MensajeViewSet,
     VersionViewSet,
     CategoriaViewSet,
+    MercadoLibreViewSet,
 )
 
 
@@ -47,6 +48,7 @@ router.register(r'cambiar-estok-activo', CambiarEstokActivoView, basename='cambi
 router.register(r'mensajes', MensajeViewSet, basename='mensaje')
 router.register(r'version', VersionViewSet, basename='version')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
+router.register(r'mercadolibre', MercadoLibreViewSet, basename='mercadolibre')
 
 # =============================================================================
 

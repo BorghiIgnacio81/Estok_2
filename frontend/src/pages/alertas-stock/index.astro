@@ -70,54 +70,86 @@ export const prerender = false;
     </div>
   </div>
 
-  <!-- Modal de Publicación -->
-  <div id="publicarModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all">
+  <!-- Modal de Publicación (2 pasos: elegir plataforma → formulario) -->
+  <div id="publicarModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden transform transition-all my-auto">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <h3 class="text-lg font-bold text-gray-900">📢 Publicar objeto</h3>
+        <h3 id="modalTitulo" class="text-lg font-bold text-gray-900">📢 Publicar objeto</h3>
         <button id="cerrarPublicarModalBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div class="p-6">
+
+      <!-- Paso 1: Elegir plataforma -->
+      <div id="modalPaso1" class="p-6">
         <p id="publicarObjetoNombre" class="text-sm font-medium text-gray-900 mb-1"></p>
         <p id="publicarObjetoValor" class="text-xs text-gray-500 mb-4"></p>
-
         <p class="text-sm font-semibold text-gray-700 mb-3">¿Dónde querés publicarlo?</p>
-
         <div class="space-y-3">
-          <!-- Mercado Libre -->
-          <button id="btnPublicarML" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 transition-base text-left">
-            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">
-              🛒
-            </div>
-            <div>
-              <p class="text-sm font-semibold text-gray-900">Mercado Libre</p>
-              <p class="text-xs text-gray-500">Mayor visibilidad, gestión de envíos integrada</p>
-            </div>
-            <div id="badgeML" class="ml-auto hidden">
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✅ Publicado</span>
-            </div>
+          <button id="btnElegirML" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 transition-base text-left">
+            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">🛒</div>
+            <div><p class="text-sm font-semibold text-gray-900">Mercado Libre</p><p class="text-xs text-gray-500">Mayor visibilidad, gestión de envíos integrada</p></div>
           </button>
-
-          <!-- Facebook Marketplace -->
-          <button id="btnPublicarFB" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-base text-left">
-            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">
-              📘
-            </div>
-            <div>
-              <p class="text-sm font-semibold text-gray-900">Facebook Marketplace</p>
-              <p class="text-xs text-gray-500">Venta local, sin comisiones, contacto directo</p>
-            </div>
-            <div id="badgeFB" class="ml-auto hidden">
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✅ Publicado</span>
-            </div>
+          <button id="btnElegirFB" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-base text-left">
+            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">📘</div>
+            <div><p class="text-sm font-semibold text-gray-900">Facebook Marketplace</p><p class="text-xs text-gray-500">Venta local, sin comisiones, contacto directo</p></div>
           </button>
         </div>
+      </div>
 
-        <div id="publicarStatus" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+      <!-- Paso 2: Formulario de publicación -->
+      <div id="modalPaso2" class="hidden p-6">
+        <!-- Loading del preview -->
+        <div id="previewLoading" class="text-center py-8">
+          <svg class="animate-spin h-8 w-8 mx-auto text-blue-600 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <p class="text-sm text-gray-500">Generando vista previa...</p>
+        </div>
+
+        <!-- Formulario -->
+        <div id="previewForm" class="hidden space-y-4">
+          <!-- Foto -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Foto principal</label>
+            <div id="fotoSelector" class="flex gap-2 overflow-x-auto pb-1"></div>
+          </div>
+
+          <!-- Título -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
+            <input id="inputTitulo" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <!-- Precio -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Precio (USD)</label>
+            <input id="inputPrecio" type="number" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+            <p id="precioRefInfo" class="text-xs text-gray-400 mt-0.5"></p>
+          </div>
+
+          <!-- Descripción -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <textarea id="inputDescripcion" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"></textarea>
+          </div>
+
+          <!-- Mensaje de estado / error -->
+          <div id="publicarStatus" class="hidden p-3 rounded-lg text-sm"></div>
+
+          <!-- Botón de acción -->
+          <button id="btnPublicarAhora" class="w-full px-4 py-2.5 text-sm font-semibold text-white rounded-lg transition-base shadow-sm">
+            Publicar ahora
+          </button>
+
+          <!-- Volver -->
+          <button id="btnVolverPaso1" class="w-full px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-base">
+            ← Elegir otra plataforma
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -352,46 +384,35 @@ export const prerender = false;
   retryBtn?.addEventListener('click', () => cargarDecisiones());
 
   // =========================================================================
-  // MODAL DE PUBLICACIÓN
+  // MODAL DE PUBLICACIÓN (2 pasos: elegir plataforma → formulario preview)
   // =========================================================================
   const publicarModal = document.getElementById('publicarModal')!;
-  const publicarObjetoNombre = document.getElementById('publicarObjetoNombre')!;
-  const publicarObjetoValor = document.getElementById('publicarObjetoValor')!;
-  const publicarStatus = document.getElementById('publicarStatus')!;
-  const badgeML = document.getElementById('badgeML')!;
-  const badgeFB = document.getElementById('badgeFB')!;
-  const btnPublicarML = document.getElementById('btnPublicarML')!;
-  const btnPublicarFB = document.getElementById('btnPublicarFB')!;
+  const modalPaso1 = document.getElementById('modalPaso1')!;
+  const modalPaso2 = document.getElementById('modalPaso2')!;
+  const modalTitulo = document.getElementById('modalTitulo')!;
+  const previewLoading = document.getElementById('previewLoading')!;
+  const previewForm = document.getElementById('previewForm')!;
+  const publicarStatusEl = document.getElementById('publicarStatus')!;
   const cerrarPublicarModalBtn = document.getElementById('cerrarPublicarModalBtn')!;
 
   let publicarObjetoId: string | null = null;
+  let publicarPlataforma: 'mercadolibre' | 'facebook' | null = null;
 
-  function abrirModalPublicar(objId: string, nombre: string, valor: string, plataformas: string[]) {
-    publicarObjetoId = objId;
-    publicarObjetoNombre.textContent = nombre;
-    publicarObjetoValor.textContent = valor ? `Valor estimado: ${formatUSD(valor)}` : '';
-    publicarStatus.classList.add('hidden');
-    publicarStatus.textContent = '';
-
-    // Mostrar/ocultar badges según estado actual
-    if (plataformas.includes('mercadolibre')) {
-      badgeML.classList.remove('hidden');
-    } else {
-      badgeML.classList.add('hidden');
-    }
-    if (plataformas.includes('facebook')) {
-      badgeFB.classList.remove('hidden');
-    } else {
-      badgeFB.classList.add('hidden');
-    }
-
-    publicarModal.classList.remove('hidden');
+  function resetModal() {
+    modalPaso1.classList.remove('hidden');
+    modalPaso2.classList.add('hidden');
+    previewLoading.classList.add('hidden');
+    previewForm.classList.add('hidden');
+    publicarStatusEl.classList.add('hidden');
+    publicarStatusEl.textContent = '';
+    modalTitulo.textContent = '📢 Publicar objeto';
   }
 
   function cerrarModalPublicar() {
     publicarModal.classList.add('hidden');
     publicarObjetoId = null;
-    // Recargar datos para actualizar badges
+    publicarPlataforma = null;
+    resetModal();
     cargarDecisiones();
   }
 
@@ -400,12 +421,185 @@ export const prerender = false;
     if (e.target === publicarModal) cerrarModalPublicar();
   });
 
+  // Abrir modal paso 1 desde botones "Publicar"
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const btn = target.closest('.publicarBtn') as HTMLElement | null;
+    if (!btn) return;
+
+    const objId = btn.dataset.objetoId!;
+    const nombre = btn.dataset.objetoNombre!;
+    const valor = btn.dataset.objetoValor!;
+
+    publicarObjetoId = objId;
+    resetModal();
+    document.getElementById('publicarObjetoNombre')!.textContent = nombre;
+    document.getElementById('publicarObjetoValor')!.textContent = valor ? `Valor estimado: ${formatUSD(valor)}` : '';
+    publicarModal.classList.remove('hidden');
+  });
+
+  // Elegir plataforma → paso 2
+  document.getElementById('btnElegirML')!.addEventListener('click', () => irAPaso2('mercadolibre'));
+  document.getElementById('btnElegirFB')!.addEventListener('click', () => irAPaso2('facebook'));
+  document.getElementById('btnVolverPaso1')!.addEventListener('click', () => resetModal());
+
+  async function irAPaso2(plataforma: 'mercadolibre' | 'facebook') {
+    if (!publicarObjetoId) return;
+    publicarPlataforma = plataforma;
+    modalTitulo.textContent = plataforma === 'mercadolibre' ? '🛒 Publicar en Mercado Libre' : '📘 Publicar en Facebook Marketplace';
+
+    modalPaso1.classList.add('hidden');
+    modalPaso2.classList.remove('hidden');
+    previewLoading.classList.remove('hidden');
+    previewForm.classList.add('hidden');
+    publicarStatusEl.classList.add('hidden');
+
+    try {
+      // Verificar conexión ML si es necesario
+      if (plataforma === 'mercadolibre') {
+        const token = localStorage.getItem('estok_access_token');
+        const respAuth = await fetch(`${API_BASE_URL}/mercadolibre/auth-status/`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (respAuth.ok) {
+          const authData = await respAuth.json();
+          if (!authData.conectado) {
+            previewLoading.classList.add('hidden');
+            publicarStatusEl.classList.remove('hidden');
+            publicarStatusEl.className = 'p-3 rounded-lg text-sm bg-amber-50 text-amber-700';
+            publicarStatusEl.innerHTML = `
+              <p class="font-semibold mb-2">⚠️ No tenés tu cuenta de Mercado Libre conectada.</p>
+              <p class="text-xs mb-3">Para publicar directamente necesitás vincular tu cuenta.</p>
+              <button id="btnConectarML" class="px-4 py-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm w-full">
+                🔗 Conectar cuenta de Mercado Libre
+              </button>
+            `;
+            document.getElementById('btnConectarML')?.addEventListener('click', async () => {
+              const respUrl = await fetch(`${API_BASE_URL}/mercadolibre/auth-url/`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              if (respUrl.ok) {
+                const data = await respUrl.json();
+                window.open(data.auth_url, '_blank');
+              }
+            });
+            return;
+          }
+        }
+      }
+
+      // Cargar preview
+      const respPreview = await fetch(`${API_BASE_URL}/objetos/${publicarObjetoId}/preview_publicacion/`, {
+        headers: getAuthHeaders(),
+      });
+      if (!respPreview.ok) throw new Error(`Error ${respPreview.status}`);
+
+      const preview = await respPreview.json();
+      llenarFormulario(preview, plataforma);
+    } catch (err: any) {
+      previewLoading.classList.add('hidden');
+      mostrarStatus('error', `❌ ${err.message || 'Error al cargar vista previa'}`);
+    }
+  }
+
+  let fotoSeleccionadaUrl: string | null = null;
+
+  function llenarFormulario(preview: any, plataforma: string) {
+    previewLoading.classList.add('hidden');
+    previewForm.classList.remove('hidden');
+
+    // Fotos
+    const fotoSelector = document.getElementById('fotoSelector')!;
+    if (preview.fotos && preview.fotos.length > 0) {
+      fotoSeleccionadaUrl = preview.fotos[0].url;
+      fotoSelector.innerHTML = preview.fotos.map((f: any, i: number) => `
+        <div class="foto-thumb flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden cursor-pointer ${i === 0 ? 'border-blue-500' : 'border-gray-200 hover:border-gray-400'}" data-url="${f.url || ''}">
+          ${f.url ? `<img src="${f.url}" alt="Foto ${i+1}" class="w-full h-full object-cover" />` : '<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Sin foto</div>'}
+        </div>
+      `).join('');
+
+      // Selección de foto
+      fotoSelector.querySelectorAll('.foto-thumb').forEach((thumb) => {
+        thumb.addEventListener('click', () => {
+          fotoSelector.querySelectorAll('.foto-thumb').forEach(t => {
+            t.classList.remove('border-blue-500');
+            t.classList.add('border-gray-200');
+          });
+          thumb.classList.add('border-blue-500');
+          thumb.classList.remove('border-gray-200');
+          fotoSeleccionadaUrl = (thumb as HTMLElement).dataset.url || null;
+        });
+      });
+    } else {
+      fotoSelector.innerHTML = '<p class="text-xs text-gray-400">Sin fotos disponibles</p>';
+    }
+
+    // Título y descripción desde IA
+    const anuncio = preview.anuncios?.[plataforma];
+    const inputTitulo = document.getElementById('inputTitulo') as HTMLInputElement;
+    const inputDescripcion = document.getElementById('inputDescripcion') as HTMLTextAreaElement;
+    inputTitulo.value = anuncio?.titulo || preview.objeto.nombre;
+    inputDescripcion.value = anuncio?.descripcion || preview.objeto.descripcion || '';
+
+    // Precio
+    const inputPrecio = document.getElementById('inputPrecio') as HTMLInputElement;
+    const precioRefInfo = document.getElementById('precioRefInfo')!;
+    if (preview.precio_referencia?.precio_ajustado) {
+      inputPrecio.value = String(preview.precio_referencia.precio_ajustado);
+      precioRefInfo.textContent = `Precio de referencia ajustado por estado (${preview.precio_referencia.fuente || 'ML'})`;
+    } else {
+      inputPrecio.value = preview.objeto.valor_estimado || '';
+      precioRefInfo.textContent = 'Precio estimado del inventario';
+    }
+
+    // Botón publicar
+    const btnPublicar = document.getElementById('btnPublicarAhora')!;
+    btnPublicar.className = plataforma === 'mercadolibre'
+      ? 'w-full px-4 py-2.5 text-sm font-semibold text-white bg-yellow-500 hover:bg-yellow-600 rounded-lg transition-base shadow-sm'
+      : 'w-full px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-base shadow-sm';
+    btnPublicar.textContent = plataforma === 'mercadolibre' ? '🛒 Publicar en Mercado Libre' : '📘 Marcar como publicado en Facebook';
+    btnPublicar.onclick = () => publicarAhora();
+  }
+
+  function mostrarStatus(tipo: 'success' | 'error' | 'info', msg: string) {
+    publicarStatusEl.classList.remove('hidden');
+    publicarStatusEl.className = `p-3 rounded-lg text-sm ${
+      tipo === 'success' ? 'bg-green-50 text-green-700' :
+      tipo === 'error' ? 'bg-red-50 text-red-700' :
+      'bg-blue-50 text-blue-700'
+    }`;
+    publicarStatusEl.innerHTML = msg;
+  }
+
+  async function publicarAhora() {
+    if (!publicarObjetoId || !publicarPlataforma) return;
+
+    if (publicarPlataforma === 'facebook') {
+      // Facebook: copiar al portapapeles y marcar
+      const titulo = (document.getElementById('inputTitulo') as HTMLInputElement).value;
+      const precio = (document.getElementById('inputPrecio') as HTMLInputElement).value;
+      const descripcion = (document.getElementById('inputDescripcion') as HTMLTextAreaElement).value;
+
+      const texto = `${titulo}\n\n💰 $${precio} USD\n\n${descripcion}\n\n📸 ${fotoSeleccionadaUrl || 'Sin foto'}`;
+      try {
+        await navigator.clipboard.writeText(texto);
+        mostrarStatus('success', '✅ Texto copiado al portapapeles. Ahora pegalo en Facebook Marketplace.');
+      } catch {
+        mostrarStatus('info', '📋 No se pudo copiar automáticamente. Seleccioná el texto manualmente.');
+      }
+
+      // Marcar como publicado
+      await publicarEnPlataforma('facebook');
+      return;
+    }
+
+    // Mercado Libre: marcar como publicado
+    await publicarEnPlataforma('mercadolibre');
+  }
+
   async function publicarEnPlataforma(plataforma: 'mercadolibre' | 'facebook') {
     if (!publicarObjetoId) return;
-
-    publicarStatus.classList.remove('hidden');
-    publicarStatus.className = 'mt-4 p-3 rounded-lg text-sm bg-blue-50 text-blue-700';
-    publicarStatus.textContent = '⏳ Publicando...';
+    mostrarStatus('info', '⏳ Registrando publicación...');
 
     try {
       const token = localStorage.getItem('estok_access_token');
@@ -424,41 +618,11 @@ export const prerender = false;
       }
 
       const result = await response.json();
-
-      publicarStatus.className = 'mt-4 p-3 rounded-lg text-sm bg-green-50 text-green-700';
-      publicarStatus.textContent = `✅ ${result.message}`;
-
-      // Actualizar badges visualmente sin recargar
-      if (plataforma === 'mercadolibre') badgeML.classList.remove('hidden');
-      if (plataforma === 'facebook') badgeFB.classList.remove('hidden');
+      mostrarStatus('success', `✅ ${result.message}`);
     } catch (err: any) {
-      publicarStatus.className = 'mt-4 p-3 rounded-lg text-sm bg-red-50 text-red-700';
-      publicarStatus.textContent = `❌ ${err.message || 'Error al publicar'}`;
+      mostrarStatus('error', `❌ ${err.message || 'Error al publicar'}`);
     }
   }
-
-  btnPublicarML.addEventListener('click', () => publicarEnPlataforma('mercadolibre'));
-  btnPublicarFB.addEventListener('click', () => publicarEnPlataforma('facebook'));
-
-  // Delegación de eventos para botones "Publicar" en cards dinámicas
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    const btn = target.closest('.publicarBtn') as HTMLElement | null;
-    if (!btn) return;
-
-    const objId = btn.dataset.objetoId!;
-    const nombre = btn.dataset.objetoNombre!;
-    const valor = btn.dataset.objetoValor!;
-    // Obtener plataformas actuales de los badges en la misma card
-    const card = btn.closest('.flex.items-center.gap-3') as HTMLElement | null;
-    const mlBadge = card?.querySelector('.bg-yellow-100');
-    const fbBadge = card?.querySelector('.bg-blue-100');
-    const plataformas: string[] = [];
-    if (mlBadge) plataformas.push('mercadolibre');
-    if (fbBadge) plataformas.push('facebook');
-
-    abrirModalPublicar(objId, nombre, valor, plataformas);
-  });
 
   // Cargar al inicio
   cargarDecisiones();

@@ -13,6 +13,7 @@ from .estok import EstokViewSet, CodigoInvitacionViewSet, CambiarEstokActivoView
 from .chat import MensajeViewSet
 from .version import VersionViewSet
 from .categorias import CategoriaViewSet
+from .mercadolibre_views import MercadoLibreViewSet
 
 __all__ = [
     'HasRolePermission',
@@ -31,6 +32,7 @@ __all__ = [
     'MensajeViewSet',
     'VersionViewSet',
     'CategoriaViewSet',
+    'MercadoLibreViewSet',
 ]
 
 

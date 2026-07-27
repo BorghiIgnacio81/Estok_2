@@ -98,3 +98,95 @@ class MarketingActionsMixin:
         objeto = self.get_object()
         service = MarketingService()
         return Response(service.obtener_estado_publicacion(objeto))
+
+    @action(detail=True, methods=['get'])
+    def preview_publicacion(self, request, pk=None):
+        """
+        Devuelve los datos necesarios para el formulario de publicación:
+        - Fotos del objeto (URLs)
+        - Título, descripción y precio sugeridos (IA + precio referencia)
+        - Datos del objeto
+        GET /api/objetos/{id}/preview_publicacion/
+        """
+        objeto = self.get_object()
+
+        # Fotos
+        fotos = [
+            {
+                "id": str(f.id),
+                "url": request.build_absolute_uri(f.imagen.url) if f.imagen else None,
+                "es_principal": f.es_principal,
+                "descripcion": f.descripcion,
+            }
+            for f in objeto.fotos.all().order_by('-es_principal', 'fecha_subida')
+        ]
+
+        # Datos del objeto para marketing
+        objeto_data = {
+            "nombre": objeto.nombre,
+            "descripcion": objeto.descripcion,
+            "valor_estimado": float(objeto.valor_estimado) if objeto.valor_estimado else None,
+            "estado_conservacion": objeto.estado_conservacion,
+            "color": objeto.color,
+        }
+        if hasattr(objeto, 'tecnologia'):
+            objeto_data["categoria"] = "tecnologia"
+            objeto_data["marca"] = objeto.tecnologia.marca
+            objeto_data["modelo"] = objeto.tecnologia.modelo
+        elif hasattr(objeto, 'librorevista'):
+            objeto_data["categoria"] = "libro"
+            objeto_data["autor"] = objeto.librorevista.autor
+            objeto_data["anio"] = objeto.librorevista.anio
+            objeto_data["nombre_serie"] = objeto.librorevista.nombre_serie
+            objeto_data["titulo_tomo"] = objeto.librorevista.titulo_tomo
+            objeto_data["numero_tomo"] = objeto.librorevista.numero_tomo
+            objeto_data["editorial"] = objeto.librorevista.editorial
+            objeto_data["idioma"] = objeto.librorevista.idioma
+        elif hasattr(objeto, 'mueblearte'):
+            objeto_data["categoria"] = "mueble"
+        elif hasattr(objeto, 'ropa'):
+            objeto_data["categoria"] = "ropa"
+        else:
+            objeto_data["categoria"] = "otro"
+
+        # Generar anuncios con IA
+        try:
+            service = MarketingService()
+            paquete = service.generar_paquete_anuncios(objeto_data)
+        except Exception as e:
+            logger.error("Error al generar anuncios: %s", e)
+            paquete = None
+
+        # Precio de referencia
+        from ....services.precio_referencia_service import buscar_precio_referencia
+        try:
+            precio_ref = buscar_precio_referencia(objeto.nombre, estado=objeto.estado_conservacion)
+        except Exception:
+            precio_ref = None
+
+        data = {
+            "fotos": fotos,
+            "objeto": objeto_data,
+            "plataformas_publicadas": objeto.plataformas_publicadas or [],
+        }
+
+        if paquete:
+            anuncios = paquete.to_dict()
+            data["anuncios"] = {
+                "mercadolibre": anuncios.get("mercadolibre"),
+                "facebook": anuncios.get("facebook"),
+            }
+        else:
+            data["anuncios"] = None
+
+        if precio_ref and precio_ref.get("encontrado"):
+            data["precio_referencia"] = {
+                "precio_original": precio_ref.get("precio_original"),
+                "precio_ajustado": precio_ref.get("precio_ajustado"),
+                "fuente": precio_ref.get("fuente"),
+                "link": precio_ref.get("link"),
+            }
+        else:
+            data["precio_referencia"] = None
+
+        return Response(data)
