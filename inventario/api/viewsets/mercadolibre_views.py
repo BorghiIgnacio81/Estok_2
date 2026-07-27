@@ -13,6 +13,8 @@ from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token,
 )
+from ...services.mercadolibre_api import upload_picture, create_item
+from ...models import Objeto
 from .base import HasRolePermission
 
 logger = logging.getLogger(__name__)
@@ -72,6 +74,112 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         return Response(
             {"error": "No tenías una cuenta conectada."},
             status=status.HTTP_404_NOT_FOUND,
+        )
+
+    @action(detail=False, methods=['post'])
+    def publicar_item(self, request):
+        """
+        Publica un objeto en MercadoLibre usando la API real.
+        POST /api/mercadolibre/publicar_item/
+        Body: {
+            objeto_id: "<uuid>",
+            title: "iPhone 14 Pro Max 256GB",
+            price: 850.00,
+            description: "...",
+            foto_url: "https://...",  (opcional, URL pública de la foto)
+            category_id: "MLU1055",   (opcional, default "MLU3530")
+            currency_id: "USD"        (opcional, default "USD")
+        }
+        """
+        if not has_valid_token(request.user):
+            return Response(
+                {
+                    "error": "No tenés tu cuenta de MercadoLibre conectada. "
+                             "Usá /api/mercadolibre/auth-url/ para obtener la URL de autorización."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        objeto_id = request.data.get('objeto_id')
+        title = request.data.get('title', '').strip()
+        price = request.data.get('price')
+        description = request.data.get('description', '').strip()
+        foto_url = request.data.get('foto_url')
+        category_id = request.data.get('category_id', 'MLU3530')
+        currency_id = request.data.get('currency_id', 'USD')
+
+        if not objeto_id or not title or not price:
+            return Response(
+                {"error": "objeto_id, title y price son requeridos."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verificar que el objeto existe
+        try:
+            objeto = Objeto.objects.get(id=objeto_id)
+        except Objeto.DoesNotExist:
+            return Response(
+                {"error": "Objeto no encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Subir foto si hay URL
+        pictures = []
+        if foto_url:
+            picture_id = upload_picture(request.user, foto_url)
+            if picture_id:
+                pictures.append({"id": picture_id})
+            else:
+                # Intentar con la URL directa (source)
+                pictures.append({"source": foto_url})
+
+        # Crear ítem en ML
+        item_data = {
+            "title": title,
+            "category_id": category_id,
+            "price": float(price),
+            "currency_id": currency_id,
+            "description": description,
+            "condition": "used",
+            "buying_mode": "buy_it_now",
+            "listing_type_id": "gold_special",
+            "pictures": pictures,
+        }
+
+        result = create_item(request.user, item_data)
+
+        if result and "id" in result:
+            # Marcar como publicado en plataformas_publicadas
+            plataformas = list(objeto.plataformas_publicadas or [])
+            if "mercadolibre" not in plataformas:
+                plataformas.append("mercadolibre")
+                objeto.plataformas_publicadas = plataformas
+                objeto.save(update_fields=["plataformas_publicadas"])
+
+            return Response({
+                "success": True,
+                "mensaje": "✅ Publicado exitosamente en Mercado Libre",
+                "ml_item_id": result["id"],
+                "permalink": result.get("permalink", ""),
+                "status": result.get("status", ""),
+            })
+
+        # Error de ML
+        error_msg = result.get("message", "") if result else "Error desconocido"
+        if not error_msg and result:
+            error_details = []
+            for cause in (result.get("cause") or []):
+                error_details.append(cause.get("message", str(cause)))
+            error_msg = "; ".join(error_details) if error_details else json.dumps(result)
+
+        logger.error("Error al publicar en ML: %s", result)
+        return Response(
+            {
+                "success": False,
+                "error": f"Error al publicar en Mercado Libre: {error_msg}",
+                "ml_response": result,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
 

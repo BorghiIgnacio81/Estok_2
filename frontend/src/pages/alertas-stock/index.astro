@@ -588,22 +588,20 @@ export const prerender = false;
         mostrarStatus('info', '📋 No se pudo copiar automáticamente. Seleccioná el texto manualmente.');
       }
 
-      // Marcar como publicado
-      await publicarEnPlataforma('facebook');
+      // Marcar como publicado localmente
+      await marcarPublicado('facebook');
       return;
     }
 
-    // Mercado Libre: marcar como publicado
-    await publicarEnPlataforma('mercadolibre');
+    // Mercado Libre: publicar vía API real
+    await publicarEnMLReal();
   }
 
-  async function publicarEnPlataforma(plataforma: 'mercadolibre' | 'facebook') {
+  async function marcarPublicado(plataforma: 'mercadolibre' | 'facebook') {
     if (!publicarObjetoId) return;
-    mostrarStatus('info', '⏳ Registrando publicación...');
-
     try {
       const token = localStorage.getItem('estok_access_token');
-      const response = await fetch(`${API_BASE_URL}/objetos/${publicarObjetoId}/publicar_en/`, {
+      await fetch(`${API_BASE_URL}/objetos/${publicarObjetoId}/publicar_en/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -611,16 +609,56 @@ export const prerender = false;
         },
         body: JSON.stringify({ plataforma }),
       });
+    } catch {
+      // Silencioso, no crítico
+    }
+  }
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Error del servidor (${response.status})`);
+  async function publicarEnMLReal() {
+    if (!publicarObjetoId) return;
+    mostrarStatus('info', '⏳ Publicando en Mercado Libre...');
+
+    const titulo = (document.getElementById('inputTitulo') as HTMLInputElement).value;
+    const precio = (document.getElementById('inputPrecio') as HTMLInputElement).value;
+    const descripcion = (document.getElementById('inputDescripcion') as HTMLTextAreaElement).value;
+    const token = localStorage.getItem('estok_access_token');
+
+    try {
+      const body: any = {
+        objeto_id: publicarObjetoId,
+        title: titulo,
+        price: parseFloat(precio),
+        description: descripcion,
+        currency_id: 'USD',
+        category_id: 'MLU3530',
+      };
+
+      // Si hay foto seleccionada, incluirla
+      if (fotoSeleccionadaUrl) {
+        body.foto_url = fotoSeleccionadaUrl;
       }
 
+      const response = await fetch(`${API_BASE_URL}/mercadolibre/publicar_item/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
       const result = await response.json();
-      mostrarStatus('success', `✅ ${result.message}`);
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.ml_response?.message || `Error del servidor (${response.status})`);
+      }
+
+      mostrarStatus(
+        'success',
+        `✅ ¡Publicado en Mercado Libre!<br><a href="${result.permalink}" target="_blank" class="underline text-blue-700">Ver publicación →</a>`
+      );
     } catch (err: any) {
-      mostrarStatus('error', `❌ ${err.message || 'Error al publicar'}`);
+      mostrarStatus('error', `❌ ${err.message || 'Error al publicar en Mercado Libre'}`);
     }
   }
 
