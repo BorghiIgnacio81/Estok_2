@@ -114,6 +114,80 @@ class UtilsActionsMixin:
     # EXPORTACIÓN Y ESTADÍSTICAS
     # =========================================================================
     @action(detail=False, methods=['get'])
+    def owner_actions(self, request):
+        """
+        Lista objetos agrupados por la decisión del dueño (owner_action).
+        GET /api/objetos/owner_actions/?action=vender (opcional, filtra por tipo)
+        GET /api/objetos/owner_actions/ → devuelve todos agrupados
+        """
+        estok_id = (
+            request.headers.get('X-Estok-Id')
+            or request.query_params.get('estok_id')
+        )
+
+        qs = Objeto.objects.select_related(
+            'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
+            'categoria',
+        ).filter(deleted_at__isnull=True)
+
+        if estok_id:
+            qs = qs.filter(estok_id=estok_id)
+
+        # Filtro opcional por acción específica
+        action_filter = request.query_params.get('action', '').strip().lower()
+        if action_filter in ['vender', 'conservar', 'tirar']:
+            qs = qs.filter(owner_action=action_filter)
+        else:
+            # Solo objetos que tienen una decisión tomada
+            qs = qs.filter(owner_action__isnull=False)
+
+        action_labels = dict(Objeto.OWNER_ACTION_CHOICES)
+
+        objetos = []
+        for obj in qs:
+            tipo = self._get_tipo(obj)
+            objetos.append({
+                "id": str(obj.id),
+                "nombre": obj.nombre,
+                "tipo": tipo,
+                "valor_estimado": str(obj.valor_estimado) if obj.valor_estimado else None,
+                "estado_conservacion": obj.estado_conservacion,
+                "owner_action": obj.owner_action,
+                "owner_action_label": action_labels.get(obj.owner_action, obj.owner_action) if obj.owner_action else None,
+                "dueno_original": str(obj.dueno_original) if obj.dueno_original else None,
+                "dueno_original_nombre": obj.dueno_original.get_full_name() if obj.dueno_original else None,
+                "beneficiario": str(obj.beneficiario) if obj.beneficiario else None,
+                "beneficiario_nombre": obj.beneficiario.get_full_name() if obj.beneficiario else None,
+                "ubicacion": obj.ubicacion.nombre if obj.ubicacion else None,
+                "contenedor": obj.contenedor.nombre if obj.contenedor else None,
+                "categoria": obj.categoria.nombre if obj.categoria else None,
+                "fecha_registro": obj.fecha_registro.isoformat() if obj.fecha_registro else None,
+            })
+
+        # Agrupar por acción
+        grupos = {"vender": [], "conservar": [], "tirar": []}
+        for obj in objetos:
+            action = obj["owner_action"]
+            if action in grupos:
+                grupos[action].append(obj)
+
+        # Calcular totales por grupo
+        resumen = {}
+        for action, items in grupos.items():
+            valores = [float(i["valor_estimado"]) for i in items if i["valor_estimado"]]
+            resumen[action] = {
+                "label": action_labels.get(action, action),
+                "count": len(items),
+                "valor_total": sum(valores),
+            }
+
+        return Response({
+            "resumen": resumen,
+            "grupos": grupos,
+            "objetos": objetos,  # lista plana también
+        })
+
+    @action(detail=False, methods=['get'])
     def exportar_csv(self, request):
         """Exporta el inventario completo a CSV."""
         objetos = self.get_queryset().select_related(

@@ -1,7 +1,7 @@
 ---
 // =============================================================================
-// PÁGINA DE ALERTAS DE STOCK
-// Muestra objetos que necesitan reposición y alertas activas
+// PÁGINA DE DECISIONES (owner_action)
+// Muestra objetos agrupados por decisión del dueño: Vender, Conservar, Tirar
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -15,13 +15,13 @@ export const prerender = false;
 
 <AuthGuard />
 
-<BaseLayout title="Estok - Alertas de Stock | Inventario">
+<BaseLayout title="Estok - Decisiones de Objetos | Inventario">
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Encabezado -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">Alertas de Stock</h1>
-        <p class="mt-1 text-gray-500">Objetos que necesitan reposición o tienen alertas activas</p>
+        <h1 class="text-3xl font-bold text-gray-900">Decisiones de Objetos</h1>
+        <p class="mt-1 text-gray-500">Objetos con decisión del dueño: Vender, Conservar o Tirar</p>
       </div>
       <a
         href="/objetos"
@@ -34,48 +34,46 @@ export const prerender = false;
       </a>
     </div>
 
-    <!-- Tabs: A reponer / Todas las alertas -->
-    <div class="flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit">
-      <button id="tabReponer" class="tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base">
-        ⚠️ A reponer
-      </button>
-      <button id="tabTodas" class="tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base">
-        🔔 Todas las alertas
-      </button>
-    </div>
-
-    <LoadingState mensaje="Cargando alertas de stock..." />
-    <ErrorState mensaje="Error al cargar alertas de stock." />
+    <LoadingState mensaje="Cargando decisiones..." />
+    <ErrorState mensaje="Error al cargar decisiones." />
     <EmptyState
-      titulo="No hay alertas de stock"
-      descripcion="Todos los objetos tienen stock suficiente. Las alertas aparecerán cuando un objeto esté por debajo de su nivel mínimo."
-      icono="✅"
+      titulo="No hay decisiones tomadas"
+      descripcion="Acá aparecerán los objetos cuando el dueño original decida si vender, conservar o tirar cada objeto."
+      icono="📋"
     />
 
-    <!-- Tabla de alertas -->
-    <div id="alertasContainer" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-gray-200 bg-gray-50">
-              <th class="text-left py-3 px-4 text-gray-500 font-medium">Objeto</th>
-              <th class="text-center py-3 px-4 text-gray-500 font-medium">Stock actual</th>
-              <th class="text-center py-3 px-4 text-gray-500 font-medium">Mínimo</th>
-              <th class="text-center py-3 px-4 text-gray-500 font-medium">Faltantes</th>
-              <th class="text-center py-3 px-4 text-gray-500 font-medium">Estado</th>
-              <th class="text-right py-3 px-4 text-gray-500 font-medium">Acción</th>
-            </tr>
-          </thead>
-          <tbody id="alertasBody"></tbody>
-        </table>
+    <!-- KPI Cards de resumen -->
+    <div id="resumenCards" class="hidden grid grid-cols-3 gap-4 mb-6">
+      <div id="cardVender" class="bg-red-50 border border-red-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
+        <div class="text-2xl mb-1">💰</div>
+        <div id="countVender" class="text-2xl font-bold text-red-700">0</div>
+        <div class="text-xs text-red-500 mt-1">Para Vender</div>
+        <div id="valorVender" class="text-xs font-medium text-red-600 mt-0.5">—</div>
       </div>
+      <div id="cardConservar" class="bg-green-50 border border-green-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
+        <div class="text-2xl mb-1">📦</div>
+        <div id="countConservar" class="text-2xl font-bold text-green-700">0</div>
+        <div class="text-xs text-green-500 mt-1">Conservar</div>
+        <div id="valorConservar" class="text-xs font-medium text-green-600 mt-0.5">—</div>
+      </div>
+      <div id="cardTirar" class="bg-gray-100 border border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
+        <div class="text-2xl mb-1">🗑️</div>
+        <div id="countTirar" class="text-2xl font-bold text-gray-700">0</div>
+        <div class="text-xs text-gray-500 mt-1">Tirar / Desechar</div>
+        <div id="valorTirar" class="text-xs font-medium text-gray-600 mt-0.5">—</div>
+      </div>
+    </div>
+
+    <!-- Contenido agrupado por decisión -->
+    <div id="decisionesContainer" class="hidden space-y-6">
+      <!-- Se llena dinámicamente -->
     </div>
   </div>
 </BaseLayout>
 
 <script>
   // ===========================================================================
-  // ALERTAS DE STOCK
+  // DECISIONES DE OBJETOS (owner_action)
   // ===========================================================================
 
   import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
@@ -85,25 +83,35 @@ export const prerender = false;
   const errorState = document.getElementById('errorState')!;
   const errorMessage = document.getElementById('errorMessage')!;
   const retryBtn = document.getElementById('retryBtn')!;
-  const alertasContainer = document.getElementById('alertasContainer')!;
-  const alertasBody = document.getElementById('alertasBody')!;
-  const tabReponer = document.getElementById('tabReponer')!;
-  const tabTodas = document.getElementById('tabTodas')!;
+  const resumenCards = document.getElementById('resumenCards')!;
+  const decisionesContainer = document.getElementById('decisionesContainer')!;
 
-  let currentTab: 'reponer' | 'todas' = 'reponer';
+  // Elementos KPI
+  const cardVender = document.getElementById('cardVender')!;
+  const cardConservar = document.getElementById('cardConservar')!;
+  const cardTirar = document.getElementById('cardTirar')!;
+
+  const countVender = document.getElementById('countVender')!;
+  const countConservar = document.getElementById('countConservar')!;
+  const countTirar = document.getElementById('countTirar')!;
+  const valorVender = document.getElementById('valorVender')!;
+  const valorConservar = document.getElementById('valorConservar')!;
+  const valorTirar = document.getElementById('valorTirar')!;
 
   function showLoading() {
     loadingState.classList.remove('hidden');
     emptyState.classList.add('hidden');
     errorState.classList.add('hidden');
-    alertasContainer.classList.add('hidden');
+    resumenCards.classList.add('hidden');
+    decisionesContainer.classList.add('hidden');
   }
 
   function showError(msg: string) {
     loadingState.classList.add('hidden');
     emptyState.classList.add('hidden');
     errorState.classList.remove('hidden');
-    alertasContainer.classList.add('hidden');
+    resumenCards.classList.add('hidden');
+    decisionesContainer.classList.add('hidden');
     errorMessage.textContent = msg;
   }
 
@@ -111,11 +119,97 @@ export const prerender = false;
     loadingState.classList.add('hidden');
     emptyState.classList.remove('hidden');
     errorState.classList.add('hidden');
-    alertasContainer.classList.add('hidden');
+    resumenCards.classList.add('hidden');
+    decisionesContainer.classList.add('hidden');
   }
 
-  function renderAlertas(alertas: any[]) {
-    if (alertas.length === 0) {
+  const TIPO_ICONOS: Record<string, string> = {
+    libro: '📚',
+    tecnologia: '💻',
+    mueble: '🖼️',
+    ropa: '👕',
+    objeto: '📦',
+  };
+
+  const ESTADO_COLORS: Record<string, string> = {
+    excelente: 'bg-green-100 text-green-700',
+    bueno: 'bg-blue-100 text-blue-700',
+    regular: 'bg-yellow-100 text-yellow-700',
+    malo: 'bg-orange-100 text-orange-700',
+    muy_malo: 'bg-red-100 text-red-700',
+  };
+
+  function formatUSD(val: string | null): string {
+    if (!val) return '—';
+    const num = parseFloat(val);
+    return `$${num.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+  }
+
+  function renderObjetoCard(obj: any): string {
+    const icono = TIPO_ICONOS[obj.tipo] || '📦';
+    const estadoColor = ESTADO_COLORS[obj.estado_conservacion] || 'bg-gray-100 text-gray-700';
+
+    return `
+      <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
+        <span class="text-xl flex-shrink-0">${icono}</span>
+        <div class="flex-1 min-w-0">
+          <a href="/objetos/${obj.id}" class="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline truncate block">
+            ${obj.nombre}
+          </a>
+          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
+            ${obj.ubicacion ? `<span class="text-xs text-gray-400">📍 ${obj.ubicacion}</span>` : ''}
+            ${obj.categoria ? `<span class="text-xs text-gray-400">🏷️ ${obj.categoria}</span>` : ''}
+            <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${estadoColor}">
+              ${obj.estado_conservacion}
+            </span>
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="text-sm font-semibold text-gray-800">${formatUSD(obj.valor_estimado)}</div>
+          ${obj.dueno_original_nombre ? `<div class="text-xs text-gray-400">👤 ${obj.dueno_original_nombre}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderGrupo(label: string, icono: string, colorClass: string, objetos: any[]): string {
+    if (objetos.length === 0) {
+      return `
+        <div class="bg-gray-50 rounded-xl border border-gray-200 p-6 text-center">
+          <p class="text-gray-400 text-sm">No hay objetos en esta categoría</p>
+        </div>
+      `;
+    }
+
+    const valorTotal = objetos.reduce((sum, o) => sum + (parseFloat(o.valor_estimado) || 0), 0);
+
+    return `
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span>${icono}</span>
+            <span>${label}</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-sm font-semibold ${colorClass}">
+              ${objetos.length}
+            </span>
+          </h2>
+          <span class="text-sm font-medium text-gray-600">
+            Valor total: ${formatUSD(valorTotal.toFixed(2))}
+          </span>
+        </div>
+        <div class="space-y-2">
+          ${objetos.map(renderObjetoCard).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderDecisiones(data: any) {
+    const grupos = data.grupos || { vender: [], conservar: [], tirar: [] };
+    const resumen = data.resumen || {};
+    const totalObjetos = (grupos.vender.length + grupos.conservar.length + grupos.tirar.length);
+
+    if (totalObjetos === 0) {
       showEmpty();
       return;
     }
@@ -123,88 +217,45 @@ export const prerender = false;
     loadingState.classList.add('hidden');
     emptyState.classList.add('hidden');
     errorState.classList.add('hidden');
-    alertasContainer.classList.remove('hidden');
+    resumenCards.classList.remove('hidden');
+    decisionesContainer.classList.remove('hidden');
 
-    alertasBody.innerHTML = alertas.map((a) => {
-      const faltantes = a.faltantes ?? (a.nivel_minimo - a.cantidad_actual);
-      const esCritico = faltantes > 0;
-      const estadoHtml = esCritico
-        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">🔴 Crítico</span>'
-        : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">🟡 Activa</span>';
+    // Actualizar KPIs
+    const rVender = resumen.vender || { count: 0, valor_total: 0 };
+    const rConservar = resumen.conservar || { count: 0, valor_total: 0 };
+    const rTirar = resumen.tirar || { count: 0, valor_total: 0 };
 
-      return `
-        <tr class="border-b border-gray-100 hover:bg-gray-50 transition-base">
-          <td class="py-3 px-4">
-            <a href="/objetos/${a.objeto_id}" class="font-medium text-blue-700 hover:text-blue-900 hover:underline">
-              ${a.objeto_nombre}
-            </a>
-          </td>
-          <td class="py-3 px-4 text-center font-semibold ${esCritico ? 'text-red-600' : 'text-gray-800'}">
-            ${a.cantidad_actual}
-          </td>
-          <td class="py-3 px-4 text-center text-gray-600">${a.nivel_minimo}</td>
-          <td class="py-3 px-4 text-center">
-            ${esCritico
-              ? `<span class="font-semibold text-red-600">${faltantes}</span>`
-              : '<span class="text-gray-400">—</span>'
-            }
-          </td>
-          <td class="py-3 px-4 text-center">${estadoHtml}</td>
-          <td class="py-3 px-4 text-right">
-            <div class="flex justify-end gap-2">
-              <a href="/objetos/${a.objeto_id}/editar" class="px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-base">
-                Editar stock
-              </a>
-              <button class="desactivar-btn px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-base" data-id="${a.objeto_id}">
-                Desactivar
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    countVender.textContent = String(rVender.count);
+    countConservar.textContent = String(rConservar.count);
+    countTirar.textContent = String(rTirar.count);
+    valorVender.textContent = formatUSD(String(rVender.valor_total));
+    valorConservar.textContent = formatUSD(String(rConservar.valor_total));
+    valorTirar.textContent = formatUSD(String(rTirar.valor_total));
 
-    // Eventos: desactivar alerta
-    alertasBody.querySelectorAll('.desactivar-btn').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const objetoId = btn.getAttribute('data-id');
-        if (!objetoId) return;
-        if (!confirm('¿Desactivar esta alerta de stock?')) return;
+    // Render grupos
+    decisionesContainer.innerHTML = `
+      ${renderGrupo('Para Vender', '💰', 'bg-red-100 text-red-700', grupos.vender)}
+      ${renderGrupo('Conservar', '📦', 'bg-green-100 text-green-700', grupos.conservar)}
+      ${renderGrupo('Tirar / Desechar', '🗑️', 'bg-gray-200 text-gray-700', grupos.tirar)}
+    `;
 
-        try {
-          const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/desactivar_alerta/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeaders(),
-            },
-          });
-
-          if (res.status === 401) {
-            window.location.href = '/login';
-            return;
-          }
-
-          if (res.ok) {
-            cargarAlertas(currentTab);
-          } else {
-            const err = await res.json().catch(() => ({}));
-            alert(`❌ Error: ${err.error || 'No se pudo desactivar'}`);
-          }
-        } catch {
-          alert('❌ Error de conexión');
-        }
-      });
-    });
+    // Scroll al tocar una KPI card
+    cardVender.onclick = () => {
+      document.getElementById('grupo-vender')?.scrollIntoView({ behavior: 'smooth' });
+    };
+    cardConservar.onclick = () => {
+      document.getElementById('grupo-conservar')?.scrollIntoView({ behavior: 'smooth' });
+    };
+    cardTirar.onclick = () => {
+      document.getElementById('grupo-tirar')?.scrollIntoView({ behavior: 'smooth' });
+    };
   }
 
-  async function cargarAlertas(tab: 'reponer' | 'todas') {
+  async function cargarDecisiones() {
     showLoading();
-    currentTab = tab;
 
     try {
-      const endpoint = tab === 'reponer' ? 'a_reponer' : 'alertas_stock';
-      const response = await fetch(`${API_BASE_URL}/objetos/${endpoint}/`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/owner_actions/`, {
         headers: getAuthHeaders(),
       });
 
@@ -219,30 +270,24 @@ export const prerender = false;
       }
 
       const data = await response.json();
-      const alertas = tab === 'reponer' ? (data.objetos || []) : (data || []);
-      renderAlertas(alertas);
+      renderDecisiones(data);
     } catch (err) {
-      console.error('Error al cargar alertas:', err);
+      console.error('Error al cargar decisiones:', err);
       showError('Error de conexión. Verifica que el servidor esté corriendo.');
     }
   }
 
-  // Tabs
-  tabReponer?.addEventListener('click', () => {
-    tabReponer.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base';
-    tabTodas.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base';
-    cargarAlertas('reponer');
-  });
-
-  tabTodas?.addEventListener('click', () => {
-    tabTodas.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md bg-white text-gray-900 shadow-sm transition-base';
-    tabReponer.className = 'tab-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 transition-base';
-    cargarAlertas('todas');
-  });
-
   // Retry
-  retryBtn?.addEventListener('click', () => cargarAlertas(currentTab));
+  retryBtn?.addEventListener('click', () => cargarDecisiones());
 
   // Cargar al inicio
-  cargarAlertas('reponer');
+  cargarDecisiones();
 </script>
+</write_to_file>
+<task_progress>
+- [x] Backend: Agregar endpoint owner_actions (GET /api/objetos/owner_actions/)
+- [ ] Frontend: Reescribir alertas-stock como panel de decisiones (Vender/Conservar/Tirar)
+- [ ] Verificar con python manage.py check
+- [ ] Commit y push
+</task_progress>
+</write_to_file>
