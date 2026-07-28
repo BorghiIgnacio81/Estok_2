@@ -187,7 +187,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "price": float(price),
             "currency_id": currency_id,
             "description": description,
-            "condition": "used",
+            "condition": "new",
             "buying_mode": "buy_it_now",
             "listing_type_id": "free",
             "pictures": pictures,
