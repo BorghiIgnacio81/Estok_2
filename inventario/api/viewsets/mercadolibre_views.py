@@ -2,7 +2,9 @@
 ViewSet para autenticación y publicación en MercadoLibre.
 """
 
+import json
 import logging
+import traceback
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -231,59 +233,85 @@ def ml_callback(request):
     from inventario.models import CustomUser
     from inventario.services.mercadolibre_oauth import exchange_code_for_token, save_token
 
-    code = request.GET.get('code')
-    state = request.GET.get('state', '')
+    try:
+        code = request.GET.get('code')
+        state = request.GET.get('state', '')
 
-    if not code:
+        logger.info("ml_callback recibido: code=%s..., state=%s...", 
+                     (code or '')[:15], (state or '')[:30])
+
+        if not code:
+            return HttpResponse(
+                '<h2>Error de autorización</h2><p>No se recibió el código de autorización de MercadoLibre.</p>',
+                content_type='text/html; charset=utf-8',
+                status=400,
+            )
+
+        # Decodificar state: estok_ml_auth:user_id:code_verifier
+        parts = state.split(':')
+        user_id = parts[1] if len(parts) > 1 else None
+        code_verifier = parts[2] if len(parts) > 2 else None
+
+        logger.info("ml_callback parseado: user_id=%s, code_verifier_len=%s, parts_count=%s",
+                     user_id, len(code_verifier) if code_verifier else 0, len(parts))
+
+        if not user_id:
+            return HttpResponse(
+                '<h2>Error</h2><p>No se pudo identificar al usuario. State: {}</p>'.format(state[:50]),
+                content_type='text/html; charset=utf-8',
+                status=400,
+            )
+
+        # Intercambiar código por token
+        token_data = exchange_code_for_token(code, code_verifier)
+        if not token_data:
+            logger.error("ml_callback: exchange_code_for_token retornó None para user_id=%s", user_id)
+            return HttpResponse(
+                '<h2>Error</h2><p>No se pudo obtener el token de MercadoLibre. '
+                'Esto puede deberse a que el código de autorización expiró o ya fue usado. '
+                'Volvé a intentar desde la página de Integraciones.</p>'
+                '<p style="font-size:12px;color:#9ca3af;">User ID: {}</p>'.format(user_id[:20]),
+                content_type='text/html; charset=utf-8',
+                status=500,
+            )
+
+        # Guardar token asociado al usuario
+        try:
+            user = CustomUser.objects.get(id=user_id)
+            save_token(user, token_data)
+        except CustomUser.DoesNotExist:
+            logger.error("ml_callback: usuario no encontrado: %s", user_id)
+            return HttpResponse(
+                '<h2>Error</h2><p>Usuario no encontrado.</p>',
+                content_type='text/html; charset=utf-8',
+                status=404,
+            )
+
+        logger.info("ml_callback: Token guardado exitosamente para user_id=%s, ml_user_id=%s",
+                     user_id, token_data.get('user_id'))
+
         return HttpResponse(
-            '<h2>Error de autorización</h2><p>No se recibió el código de autorización de MercadoLibre.</p>',
+            f"""
+            <html><head><meta charset="utf-8"><title>Estok - Conexión exitosa</title>
+            <style>body{{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;}}div{{text-align:center;background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 6px rgba(0,0,0,.1);}}h2{{color:#166534;}}p{{color:#4b5563;}}.btn{{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#1d4ed8;color:white;text-decoration:none;border-radius:.5rem;font-weight:600;font-size:14px;}}</style></head>
+            <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><a href="/integraciones" class="btn">← Volver a Estok</a><p style="font-size:12px;color:#9ca3af;margin-top:1rem;">Redirigiendo a Integraciones...</p></div>
+            <script>
+            if (window.opener) {{
+                window.opener.postMessage({{ type: 'ml_connected', success: true }}, '*');
+            }}
+            setTimeout(function() {{ window.location.href = '/integraciones'; }}, 1500);
+            </script></body></html>
+            """,
             content_type='text/html; charset=utf-8',
-            status=400,
         )
 
-    # Decodificar state: estok_ml_auth:user_id:code_verifier
-    parts = state.split(':')
-    user_id = parts[1] if len(parts) > 1 else None
-    code_verifier = parts[2] if len(parts) > 2 else None
-
-    if not user_id:
+    except Exception as e:
+        logger.exception("ml_callback: EXCEPCIÓN NO MANEJADA: %s", e)
         return HttpResponse(
-            '<h2>Error</h2><p>No se pudo identificar al usuario.</p>',
-            content_type='text/html; charset=utf-8',
-            status=400,
-        )
-
-    # Intercambiar código por token
-    token_data = exchange_code_for_token(code, code_verifier)
-    if not token_data:
-        return HttpResponse(
-            '<h2>Error</h2><p>No se pudo obtener el token de MercadoLibre. Reintentá.</p>',
+            '<h2>Error interno</h2><p>Ocurrió un error inesperado: {}</p>'
+            '<pre style="font-size:10px;color:#999;">{}</pre>'.format(
+                str(e)[:200], traceback.format_exc()[-500:]
+            ),
             content_type='text/html; charset=utf-8',
             status=500,
         )
-
-    # Guardar token asociado al usuario
-    try:
-        user = CustomUser.objects.get(id=user_id)
-        save_token(user, token_data)
-    except CustomUser.DoesNotExist:
-        return HttpResponse(
-            '<h2>Error</h2><p>Usuario no encontrado.</p>',
-            content_type='text/html; charset=utf-8',
-            status=404,
-        )
-
-    return HttpResponse(
-        f"""
-        <html><head><meta charset="utf-8"><title>Estok - Conexión exitosa</title>
-        <style>body{{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;}}div{{text-align:center;background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 6px rgba(0,0,0,.1);}}h2{{color:#166534;}}p{{color:#4b5563;}}.btn{{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#1d4ed8;color:white;text-decoration:none;border-radius:.5rem;font-weight:600;font-size:14px;}}</style></head>
-        <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><a href="/integraciones" class="btn">← Volver a Estok</a><p style="font-size:12px;color:#9ca3af;margin-top:1rem;">Redirigiendo a Integraciones...</p></div>
-        <script>
-        if (window.opener) {{
-            window.opener.postMessage({{ type: 'ml_connected', success: true }}, '*');
-        }}
-        setTimeout(function() {{ window.location.href = '/integraciones'; }}, 1500);
-        </script></body></html>
-        """,
-        content_type='text/html; charset=utf-8',
-    )
