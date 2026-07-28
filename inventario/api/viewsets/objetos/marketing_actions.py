@@ -110,11 +110,12 @@ class MarketingActionsMixin:
         """
         objeto = self.get_object()
 
-        # Fotos
+        # Fotos - usar URL pública del frontend (ML necesita HTTPS público)
+        frontend_base = 'https://eeestok.duckdns.org'
         fotos = [
             {
                 "id": str(f.id),
-                "url": request.build_absolute_uri(f.imagen.url) if f.imagen else None,
+                "url": f"{frontend_base}{f.imagen.url}" if f.imagen else None,
                 "es_principal": f.es_principal,
                 "descripcion": f.descripcion,
             }

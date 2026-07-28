@@ -144,7 +144,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         title = request.data.get('title', '').strip()
         price = request.data.get('price')
         description = request.data.get('description', '').strip()
-        foto_url = request.data.get('foto_url')
+        foto_url = request.data.get('foto_url') or ''
+        # Asegurar que la URL de la foto sea HTTPS pública accesible para ML
+        if foto_url:
+            foto_url = foto_url.replace('http://', 'https://', 1)
         category_id = request.data.get('category_id', 'MLA1747')
         currency_id = request.data.get('currency_id', 'ARS')
 
