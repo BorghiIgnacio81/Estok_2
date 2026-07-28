@@ -152,33 +152,47 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     if item_data.get("warranty"):
         body["warranty"] = item_data["warranty"]
 
-    result = _api_request("POST", "/items", access_token, body)
+    MAX_RETRIES = 3
+    retry_count = 0
     
-    # Si falla por categoría inválida, intentar predecir automáticamente
-    if result and not result.get("id"):
-        causes = result.get("cause", [])
+    while retry_count < MAX_RETRIES:
+        result = _api_request("POST", "/items", access_token, body)
+        retry_count += 1
+        
+        if result and result.get("id"):
+            break  # Éxito
+        
+        if retry_count >= MAX_RETRIES:
+            logger.error("Agotados %d reintentos. Último error: %s", MAX_RETRIES, result)
+            break
+        
+        causes = result.get("cause", []) if result else []
+        
+        # Intento 1: predecir categoría hoja desde el título
         is_category_error = any(
             c.get("code") == "item.category_id.invalid" for c in causes
         )
         if is_category_error:
             title = item_data.get("title", "")
             predicted = predict_category(title) if title else None
-            if predicted and predicted != body["category_id"]:
-                logger.info("Reintentando con categoría predicha: %s → %s", 
-                            body["category_id"], predicted)
+            if predicted and predicted != body.get("category_id"):
+                logger.info("Reintento %d: categoría predicha %s → %s", 
+                            retry_count, body.get("category_id"), predicted)
                 body["category_id"] = predicted
-                result = _api_request("POST", "/items", access_token, body)
+                continue
         
-        # Si la categoría predicha solo acepta "new" pero enviamos "used", reintentar con "new"
-        if result and not result.get("id"):
-            is_condition_error = any(
-                c.get("code") == "item.condition.invalid" for c in causes
-            )
-            if is_condition_error and body.get("condition") == "used":
-                logger.info("Categoría %s solo acepta 'new'. Reintentando con condition='new'.", 
-                            body.get("category_id"))
-                body["condition"] = "new"
-                result = _api_request("POST", "/items", access_token, body)
+        # Intento 2: cambiar condition de used a new
+        is_condition_error = any(
+            c.get("code") == "item.condition.invalid" for c in causes
+        )
+        if is_condition_error and body.get("condition") == "used":
+            logger.info("Reintento %d: condition used → new (cat %s solo acepta new)",
+                        retry_count, body.get("category_id"))
+            body["condition"] = "new"
+            continue
+        
+        # Si el error no es de los que sabemos manejar, salir
+        break
     
     if result and "id" in result:
         logger.info(
