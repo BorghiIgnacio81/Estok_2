@@ -182,7 +182,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "description": description,
             "condition": "used",
             "buying_mode": "buy_it_now",
-            "listing_type_id": "gold_special",
+            "listing_type_id": "free",
             "pictures": pictures,
         }
 

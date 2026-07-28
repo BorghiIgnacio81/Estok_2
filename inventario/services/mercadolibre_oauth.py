@@ -69,6 +69,7 @@ def get_auth_url(user_id: str, state: str = "estok_ml_auth") -> tuple[str, str]:
         "client_id": client_id,
         "redirect_uri": CALLBACK_URL,
         "state": state_with_data,
+        "scope": "offline_access read write",
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "prompt": "consent",

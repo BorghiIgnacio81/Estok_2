@@ -109,7 +109,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         "currency_id": item_data.get("currency_id", "USD"),
         "available_quantity": item_data.get("available_quantity", 1),
         "buying_mode": item_data.get("buying_mode", "buy_it_now"),
-        "listing_type_id": item_data.get("listing_type_id", "gold_special"),
+        "listing_type_id": item_data.get("listing_type_id", "free"),
         "condition": item_data.get("condition", "used"),
     }
 
