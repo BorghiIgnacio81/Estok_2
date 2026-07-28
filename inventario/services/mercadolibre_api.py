@@ -72,6 +72,33 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
+def predict_category(title: str, site: str = "MLA") -> Optional[str]:
+    """
+    Predice la categoría de MercadoLibre más adecuada según el título del producto.
+    Usa la API pública de ML (no requiere autenticación).
+    Retorna el category_id de una categoría hoja, o None si no puede predecir.
+    """
+    import urllib.parse
+    try:
+        q = urllib.parse.quote(title[:200])
+        url = f"https://api.mercadolibre.com/sites/{site}/domain_discovery/search?q={q}&limit=1"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        
+        if data and isinstance(data, list):
+            for item in data:
+                cat_id = item.get("category_id")
+                if cat_id:
+                    logger.info("Categoría predicha para '%s': %s (%s)", 
+                                title[:50], cat_id, item.get("category_name", ""))
+                    return cat_id
+    except Exception as e:
+        logger.warning("No se pudo predecir categoría: %s", e)
+    
+    return None
+
+
 def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     """
     Crea una publicación en MercadoLibre.
@@ -126,6 +153,22 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         body["warranty"] = item_data["warranty"]
 
     result = _api_request("POST", "/items", access_token, body)
+    
+    # Si falla por categoría inválida, intentar predecir automáticamente
+    if result and not result.get("id"):
+        causes = result.get("cause", [])
+        is_category_error = any(
+            c.get("code") == "item.category_id.invalid" for c in causes
+        )
+        if is_category_error:
+            title = item_data.get("title", "")
+            predicted = predict_category(title) if title else None
+            if predicted and predicted != body["category_id"]:
+                logger.info("Reintentando con categoría predicha: %s → %s", 
+                            body["category_id"], predicted)
+                body["category_id"] = predicted
+                result = _api_request("POST", "/items", access_token, body)
+    
     if result and "id" in result:
         logger.info(
             "Ítem creado en ML: id=%s, permalink=%s",
