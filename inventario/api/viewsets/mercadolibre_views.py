@@ -173,6 +173,13 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 # Intentar con la URL directa (source)
                 pictures.append({"source": foto_url})
 
+        # Predecir categoría hoja desde el título si no se especificó una válida
+        if not request.data.get('category_id') or category_id == 'MLA1747':
+            from ...services.mercadolibre_api import predict_category
+            predicted = predict_category(title)
+            if predicted:
+                category_id = predicted
+
         # Crear ítem en ML
         item_data = {
             "title": title,
