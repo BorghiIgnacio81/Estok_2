@@ -168,6 +168,17 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
                             body["category_id"], predicted)
                 body["category_id"] = predicted
                 result = _api_request("POST", "/items", access_token, body)
+        
+        # Si la categoría predicha solo acepta "new" pero enviamos "used", reintentar con "new"
+        if result and not result.get("id"):
+            is_condition_error = any(
+                c.get("code") == "item.condition.invalid" for c in causes
+            )
+            if is_condition_error and body.get("condition") == "used":
+                logger.info("Categoría %s solo acepta 'new'. Reintentando con condition='new'.", 
+                            body.get("category_id"))
+                body["condition"] = "new"
+                result = _api_request("POST", "/items", access_token, body)
     
     if result and "id" in result:
         logger.info(
