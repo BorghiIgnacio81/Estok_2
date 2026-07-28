@@ -36,7 +36,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='auth-status')
     def auth_status(self, request):
         """
         Verifica si el usuario actual tiene una cuenta de MercadoLibre conectada.
@@ -146,7 +146,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         description = request.data.get('description', '').strip()
         foto_url = request.data.get('foto_url')
         category_id = request.data.get('category_id', 'MLA1747')
-        currency_id = request.data.get('currency_id', 'USD')
+        currency_id = request.data.get('currency_id', 'ARS')
 
         if not objeto_id or not title or not price:
             return Response(

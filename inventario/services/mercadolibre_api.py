@@ -106,7 +106,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         "title": item_data.get("title", ""),
         "category_id": item_data.get("category_id", "MLA1747"),  # Argentina - Otros por defecto
         "price": item_data.get("price", 0),
-        "currency_id": item_data.get("currency_id", "USD"),
+        "currency_id": item_data.get("currency_id", "ARS"),
         "available_quantity": item_data.get("available_quantity", 1),
         "buying_mode": item_data.get("buying_mode", "buy_it_now"),
         "listing_type_id": item_data.get("listing_type_id", "free"),
