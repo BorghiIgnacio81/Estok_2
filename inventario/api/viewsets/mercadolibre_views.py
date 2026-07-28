@@ -83,7 +83,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "email": ml_user.get("email", ""),
         })
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='auth-url')
     def auth_url(self, request):
         """
         Devuelve la URL de autorización de MercadoLibre para que el usuario conecte su cuenta.
