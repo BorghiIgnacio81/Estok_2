@@ -104,7 +104,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     # Valores por defecto
     body = {
         "title": item_data.get("title", ""),
-        "category_id": item_data.get("category_id", "MLU3530"),  # Notebooks por defecto
+        "category_id": item_data.get("category_id", "MLA1747"),  # Argentina - Otros por defecto
         "price": item_data.get("price", 0),
         "currency_id": item_data.get("currency_id", "USD"),
         "available_quantity": item_data.get("available_quantity", 1),

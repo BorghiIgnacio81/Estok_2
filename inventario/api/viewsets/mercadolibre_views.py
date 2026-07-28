@@ -145,7 +145,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         price = request.data.get('price')
         description = request.data.get('description', '').strip()
         foto_url = request.data.get('foto_url')
-        category_id = request.data.get('category_id', 'MLU3530')
+        category_id = request.data.get('category_id', 'MLA1747')
         currency_id = request.data.get('currency_id', 'USD')
 
         if not objeto_id or not title or not price:
@@ -206,13 +206,22 @@ class MercadoLibreViewSet(viewsets.ViewSet):
 
         # Error de ML
         error_msg = result.get("message", "") if result else "Error desconocido"
+        error_details = []
         if not error_msg and result:
-            error_details = []
             for cause in (result.get("cause") or []):
-                error_details.append(cause.get("message", str(cause)))
+                detail = cause.get("message", str(cause))
+                # Agregar info del atributo en cuestión si existe
+                attr = cause.get("attribute")
+                if attr:
+                    detail = f"[{attr}] {detail}"
+                error_details.append(detail)
             error_msg = "; ".join(error_details) if error_details else json.dumps(result)
+        
+        # Si hay cause pero no message, construir desde cause
+        if not error_msg and result and (result.get("cause") or result.get("error")):
+            error_msg = result.get("error", json.dumps(result))
 
-        logger.error("Error al publicar en ML: %s", result)
+        logger.error("Error al publicar en ML. Resultado completo: %s", json.dumps(result, ensure_ascii=False))
         return Response(
             {
                 "success": False,
