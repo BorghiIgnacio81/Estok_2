@@ -900,7 +900,7 @@ class MercadoLibreToken(models.Model):
     refresh_token = models.TextField(verbose_name="Token de refresh")
     token_type = models.CharField(max_length=50, default='Bearer')
     expires_in = models.IntegerField(default=21600, verbose_name="Segundos hasta expirar")
-    scope = models.CharField(max_length=255, blank=True)
+    scope = models.TextField(blank=True, verbose_name="Scopes autorizados")
     ml_user_id = models.BigIntegerField(null=True, blank=True, verbose_name="User ID de ML")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
