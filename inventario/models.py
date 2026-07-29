@@ -241,6 +241,7 @@ class Categoria(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, verbose_name="Nombre de la categoría")
+    icono = models.CharField(max_length=10, default='🏷️', verbose_name="Ícono (emoji)")
     estok = models.ForeignKey(
         Estok,
         on_delete=models.CASCADE,

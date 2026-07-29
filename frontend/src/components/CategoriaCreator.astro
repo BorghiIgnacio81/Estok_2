@@ -71,6 +71,25 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
         <!-- Body -->
         <div class="p-6 space-y-4">
           <div>
+            <label for="inputIconoCategoria" class="block text-sm font-medium text-gray-700 mb-1">
+              Ícono
+            </label>
+            <div class="flex gap-2 items-center">
+              <input
+                id="inputIconoCategoria"
+                type="text"
+                value="🏷️"
+                maxlength="4"
+                class="w-16 px-3 py-2.5 border border-gray-300 rounded-lg text-center text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+              <div id="emojiPicker" class="flex flex-wrap gap-1">
+                ${['📦', '🏷️', '📚', '💻', '🖼️', '👕', '🔧', '🛠️', '🏠', '🍳', '🎮', '🎵', '🎨', '⚽', '🚗', '💎', '🪴', '📱', '⌚', '🎁', '🪑', '💡', '🔑', '🧸'].map(
+                  e => `<button type="button" class="emoji-option w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-200 transition-base text-lg ${e === '🏷️' ? 'bg-blue-100 ring-2 ring-blue-400' : ''}" data-emoji="${e}">${e}</button>`
+                ).join('')}
+              </div>
+            </div>
+          </div>
+          <div>
             <label for="inputNombreCategoria" class="block text-sm font-medium text-gray-700 mb-1">
               Nombre de la categoría <span class="text-red-500">*</span>
             </label>
@@ -104,6 +123,7 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
 
     document.body.appendChild(overlay);
 
+    const inputIcono = document.getElementById('inputIconoCategoria') as HTMLInputElement;
     const inputNombre = document.getElementById('inputNombreCategoria') as HTMLInputElement;
     const errorDiv = document.getElementById('errorCategoria')!;
     const successDiv = document.getElementById('successCategoria')!;
@@ -122,6 +142,18 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
     });
 
     // Enter key submits
+    // Emoji picker
+    document.querySelectorAll('.emoji-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const emoji = (btn as HTMLElement).dataset.emoji!;
+        inputIcono.value = emoji;
+        document.querySelectorAll('.emoji-option').forEach(b => {
+          b.className = 'emoji-option w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-200 transition-base text-lg';
+        });
+        (btn as HTMLElement).className = 'emoji-option w-9 h-9 flex items-center justify-center rounded-lg bg-blue-100 ring-2 ring-blue-400 transition-base text-lg';
+      });
+    });
+
     inputNombre.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') guardarBtn.click();
     });
@@ -151,10 +183,11 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
           headers['X-Estok-Id'] = estokId;
         }
 
+        const icono = inputIcono.value.trim() || '🏷️';
         const response = await fetch(`${API_BASE_URL}/categorias/`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ nombre }),
+          body: JSON.stringify({ nombre, icono }),
         });
 
         if (!response.ok) {
