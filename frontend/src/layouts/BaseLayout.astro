@@ -1205,7 +1205,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       const { fetchVersion } = await import('../services/auth');
       // forceRefresh=true para evitar caché HTTP y detectar cambios reales
       const versionInfo = await fetchVersion(true);
-      const currentVersion = versionInfo.version || versionInfo.commit;
+      // Usar deploy_timestamp (siempre cambia) + version como identificador único de deploy
+      const currentVersion = versionInfo.deploy_timestamp || versionInfo.version || versionInfo.commit;
 
       if (!lastKnownVersion) {
         // Primera vez: guardar versión actual

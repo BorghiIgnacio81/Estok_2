@@ -60,6 +60,8 @@ def upload_picture(user, image_url: str) -> Optional[str]:
         logger.warning("No hay access_token para el usuario %s", user.username)
         return None
 
+    logger.info("Intentando subir foto a ML desde URL: %s", image_url[:150])
+
     # ML acepta imágenes por URL en el campo "source"
     body = {"source": image_url}
 
@@ -68,7 +70,7 @@ def upload_picture(user, image_url: str) -> Optional[str]:
         logger.info("Foto subida a ML: picture_id=%s", result["id"])
         return result["id"]
 
-    logger.error("Error al subir foto a ML: %s", result)
+    logger.error("Error al subir foto a ML. URL=%s, Response=%s", image_url[:150], result)
     return None
 
 
