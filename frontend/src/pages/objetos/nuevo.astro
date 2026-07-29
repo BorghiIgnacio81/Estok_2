@@ -10,6 +10,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import CategoryFields from '../../components/CategoryFields.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
 import ImageEditor from '../../components/ImageEditor.astro';
+import CategoriaCreator from '../../components/CategoriaCreator.astro';
 ---
 
 <AuthGuard />
@@ -241,6 +242,9 @@ import ImageEditor from '../../components/ImageEditor.astro';
               <option value="ropa">👕 Ropa / Accesorio</option>
               <option value="objeto">📦 Otro / Genérico</option>
             </select>
+            <div class="mt-2">
+              <CategoriaCreator texto="+ Nueva Categoría" />
+            </div>
           </div>
           <div>
             <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">Estado de conservación</label>

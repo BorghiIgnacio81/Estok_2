@@ -1,0 +1,198 @@
+---
+// =============================================================================
+// COMPONENTE CategoriaCreator - Botón y modal para crear nuevas categorías
+// Reusable en cualquier página. POST a /api/categorias/ con X-Estok-Id.
+// =============================================================================
+
+export interface Props {
+  /** Clases adicionales para el botón (opcional) */
+  class?: string;
+  /** Texto del botón (opcional, default: "+ Nueva Categoría") */
+  texto?: string;
+}
+
+const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
+---
+
+<button
+  id="btnNuevaCategoria"
+  class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm {extraClass}"
+  type="button"
+>
+  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+  </svg>
+  {texto}
+</button>
+
+<!-- Modal overlay (creado dinámicamente en el script para evitar duplicados) -->
+
+<script>
+  import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
+
+  function initCategoriaCreator() {
+    const btn = document.getElementById('btnNuevaCategoria');
+    if (!btn) return;
+
+    // Evitar múltiples inicializaciones
+    if ((btn as any).__categoriaCreatorInit) return;
+    (btn as any).__categoriaCreatorInit = true;
+
+    btn.addEventListener('click', abrirModalNuevaCategoria);
+  }
+
+  function showToast(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    const fn = (window as any).showToast;
+    if (fn) fn(msg, type);
+    else alert(`${type}: ${msg}`);
+  }
+
+  function abrirModalNuevaCategoria() {
+    // Evitar duplicados
+    if (document.getElementById('modalNuevaCategoria')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modalNuevaCategoria';
+    overlay.className = 'fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span class="text-xl">🏷️</span> Nueva Categoría
+          </h3>
+          <button id="cerrarModalCategoriaBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-6 space-y-4">
+          <div>
+            <label for="inputNombreCategoria" class="block text-sm font-medium text-gray-700 mb-1">
+              Nombre de la categoría <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="inputNombreCategoria"
+              type="text"
+              placeholder="Ej: Electrónicos, Herramientas, Coleccionables..."
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              autofocus
+            />
+            <p class="mt-1 text-xs text-gray-400">Las categorías te permiten organizar objetos más allá del tipo base (libro, tecnología, etc.).</p>
+          </div>
+
+          <div id="errorCategoria" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+          <div id="successCategoria" class="hidden p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button id="cancelarCategoriaBtn"
+            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-base">
+            Cancelar
+          </button>
+          <button id="guardarCategoriaBtn"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            Guardar
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const inputNombre = document.getElementById('inputNombreCategoria') as HTMLInputElement;
+    const errorDiv = document.getElementById('errorCategoria')!;
+    const successDiv = document.getElementById('successCategoria')!;
+    const guardarBtn = document.getElementById('guardarCategoriaBtn') as HTMLButtonElement;
+    const cerrarBtn = document.getElementById('cerrarModalCategoriaBtn')!;
+    const cancelarBtn = document.getElementById('cancelarCategoriaBtn')!;
+
+    function cerrar() {
+      overlay.remove();
+    }
+
+    cerrarBtn.addEventListener('click', cerrar);
+    cancelarBtn.addEventListener('click', cerrar);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cerrar();
+    });
+
+    // Enter key submits
+    inputNombre.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') guardarBtn.click();
+    });
+
+    guardarBtn.addEventListener('click', async () => {
+      const nombre = inputNombre.value.trim();
+      if (!nombre) {
+        errorDiv.textContent = 'El nombre de la categoría es obligatorio.';
+        errorDiv.classList.remove('hidden');
+        successDiv.classList.add('hidden');
+        inputNombre.focus();
+        return;
+      }
+
+      errorDiv.classList.add('hidden');
+      successDiv.classList.add('hidden');
+      guardarBtn.disabled = true;
+      guardarBtn.textContent = 'Guardando...';
+
+      try {
+        const estokId = getEstokActivoId();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        };
+        if (estokId) {
+          headers['X-Estok-Id'] = estokId;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/categorias/`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ nombre }),
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const msg = errData.nombre?.[0] || errData.detail || `Error del servidor (${response.status})`;
+          throw new Error(msg);
+        }
+
+        const data = await response.json();
+
+        successDiv.textContent = `✅ Categoría "${data.nombre}" creada exitosamente. Ya podés usarla para organizar tus objetos.`;
+        successDiv.classList.remove('hidden');
+        inputNombre.value = '';
+        guardarBtn.textContent = 'Creada ✅';
+        showToast(`🏷️ Categoría "${data.nombre}" creada`, 'success');
+
+        // Emitir evento para que otras partes de la UI puedan reaccionar
+        window.dispatchEvent(new CustomEvent('categoriaCreada', { detail: data }));
+
+        // Cerrar después de 1.5s
+        setTimeout(cerrar, 1500);
+      } catch (err: any) {
+        errorDiv.textContent = err.message || 'Error al crear la categoría.';
+        errorDiv.classList.remove('hidden');
+        successDiv.classList.add('hidden');
+        guardarBtn.disabled = false;
+        guardarBtn.textContent = 'Guardar';
+      }
+    });
+
+    // Focus automático
+    setTimeout(() => inputNombre.focus(), 100);
+  }
+
+  // Inicializar cuando el DOM esté listo
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCategoriaCreator);
+  } else {
+    initCategoriaCreator();
+  }
+</script>
