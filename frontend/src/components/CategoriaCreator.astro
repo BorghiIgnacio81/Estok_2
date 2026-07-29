@@ -82,8 +82,8 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
                 maxlength="4"
                 class="w-16 px-3 py-2.5 border border-gray-300 rounded-lg text-center text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
               />
-              <div id="emojiPicker" class="flex flex-wrap gap-1">
-                ${['📦', '🏷️', '📚', '💻', '🖼️', '👕', '🔧', '🛠️', '🏠', '🍳', '🎮', '🎵', '🎨', '⚽', '🚗', '💎', '🪴', '📱', '⌚', '🎁', '🪑', '💡', '🔑', '🧸'].map(
+            <div id="emojiPicker" class="flex flex-wrap gap-1">
+                ${['📦', '🏷️', '📚', '💻', '🖼️', '👕', '🔧', '🛠️', '🏠', '🍳', '🍲', '🥘', '🎮', '🎵', '🎨', '⚽', '🚗', '💎', '🪴', '📱', '⌚', '🎁', '🪑', '💡', '🔑', '🧸'].map(
                   e => `<button type="button" class="emoji-option w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-200 transition-base text-lg ${e === '🏷️' ? 'bg-blue-100 ring-2 ring-blue-400' : ''}" data-emoji="${e}">${e}</button>`
                 ).join('')}
               </div>
