@@ -8,12 +8,13 @@ from ...models import Categoria
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
+    estok = serializers.PrimaryKeyRelatedField(read_only=True)
     objetos_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Categoria
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'estok']
 
     def get_objetos_count(self, obj):
         """Cuenta solo objetos NO eliminados (excluye soft-delete)."""
