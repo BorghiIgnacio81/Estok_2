@@ -64,6 +64,26 @@ export async function marcarLeido(mensajeId: string): Promise<void> {
 }
 
 // =============================================================================
+// MARCAR TODOS LOS MENSAJES COMO LEÍDOS (batch)
+// =============================================================================
+
+export async function marcarTodosLeidos(estokId?: string): Promise<number> {
+  const headers = getAuthHeaders();
+  const params = estokId ? `?estok_id=${estokId}` : '';
+  const response = await fetch(`${API_BASE_URL}/mensajes/marcar_todos_leidos/${params}`, {
+    method: 'PATCH',
+    headers,
+  });
+
+  if (!response.ok) {
+    return 0;
+  }
+
+  const data = await response.json();
+  return data.marcados_leidos || 0;
+}
+
+// =============================================================================
 // OBTENER CANTIDAD DE MENSAJES NO LEÍDOS
 // =============================================================================
 

@@ -85,7 +85,7 @@ r no ---
 </div>
 
 <script>
-  import { fetchMensajes, enviarMensaje, fetchNoLeidos, purgeMensajes } from '../services/chat';
+  import { fetchMensajes, enviarMensaje, fetchNoLeidos, marcarTodosLeidos, purgeMensajes } from '../services/chat';
   import { getEstokActivoId } from '../services/auth';
 
   // ===========================================================================
@@ -428,13 +428,30 @@ r no ---
     }
   }
 
-  function openChat() {
+  async function openChat() {
     isOpen = true;
     chatWindow.classList.remove('hidden');
     chatToggleBtn.classList.add('hidden');
 
     // OCULTAR BURBUJA ROJA INMEDIATAMENTE al abrir el chat
     hideUnreadBadge();
+
+    // MARCAR TODOS LOS MENSAJES COMO LEÍDOS EN EL BACKEND
+    // (antes solo se ocultaba la burbuja visualmente, pero el backend
+    //  seguía reportando mensajes no leídos, haciendo que la burbuja
+    //  reapareciera al recargar o en el siguiente polling)
+    try {
+      const estokId = getEstokActivoId();
+      if (estokId) {
+        const marcados = await marcarTodosLeidos(estokId);
+        if (marcados > 0) {
+          console.log(`[Chat] ${marcados} mensajes marcados como leídos`);
+        }
+      }
+    } catch (e) {
+      // No bloqueante: si falla, el badge se actualizará en el próximo polling
+      console.warn('[Chat] Error al marcar mensajes como leídos:', e);
+    }
 
     updateChatTitle();
     loadMensajes();

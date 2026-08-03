@@ -121,6 +121,27 @@ class MensajeViewSet(viewsets.ModelViewSet):
         mensaje.save(update_fields=['leido'])
         return Response({'status': 'ok', 'leido': True})
 
+    @action(detail=False, methods=['patch'])
+    def marcar_todos_leidos(self, request):
+        """
+        Marca TODOS los mensajes no leídos del Estok activo como leídos.
+        Batch: evita N llamadas individuales al abrir el chat.
+        Excluye los mensajes del propio usuario (no puede marcarse a sí mismo).
+        """
+        estok_id = self._get_estok_id()
+        if not estok_id:
+            return Response({'error': 'Query param estok_id requerido'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not self._validar_membresia(request.user, estok_id):
+            return Response({'error': 'No eres miembro de este Estok'}, status=status.HTTP_403_FORBIDDEN)
+
+        updated = Mensaje.objects.filter(
+            estok_id=estok_id,
+            leido=False,
+        ).exclude(remitente=request.user).update(leido=True)
+
+        return Response({'status': 'ok', 'marcados_leidos': updated})
+
     @action(detail=False, methods=['get'])
     def no_leidos(self, request):
         """Retorna la cantidad de mensajes no leídos del Estok activo."""
