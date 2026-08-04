@@ -166,15 +166,28 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Subir foto si hay URL
+        # Subir foto si hay URL pública (ML no puede acceder a URLs internas)
         pictures = []
         if foto_url:
-            picture_id = upload_picture(request.user, foto_url)
-            if picture_id:
-                pictures.append({"id": picture_id})
+            # Solo intentar subir la foto si es una URL pública externa
+            # (no interna de nuestra API, que requiere autenticación)
+            es_url_interna = (
+                'eeestok.duckdns.org' in foto_url or
+                '/api/' in foto_url or
+                not foto_url.startswith('http')
+            )
+            if es_url_interna:
+                logger.warning(
+                    "Foto URL es interna, ML no puede accederla. Publicando sin foto. URL: %s",
+                    foto_url[:200]
+                )
             else:
-                # Intentar con la URL directa (source)
-                pictures.append({"source": foto_url})
+                picture_id = upload_picture(request.user, foto_url)
+                if picture_id:
+                    pictures.append({"id": picture_id})
+                else:
+                    # URL externa pero upload falló; intentar con source directo
+                    pictures.append({"source": foto_url})
 
         # Predecir categoría hoja desde el título si no se especificó una válida
         if not request.data.get('category_id') or category_id == 'MLA1747':
