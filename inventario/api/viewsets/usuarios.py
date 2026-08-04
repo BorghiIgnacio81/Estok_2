@@ -65,23 +65,41 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filtra los usuarios según el Estok activo del usuario autenticado.
-        - Superusers ven TODOS los usuarios (para panel de administración).
-        - Si el usuario tiene un Estok activo (ultimo_estok_activo), solo devuelve
-          los usuarios que son miembros de ese mismo Estok.
-        - Si no tiene Estok activo, devuelve todos los usuarios (comportamiento legacy).
+        - Superusers ven TODOS los usuarios (solo para panel de administración).
+        - El Estok se determina en este orden:
+          1. Header X-Estok-Id o HTTP_X_ESTOK_ID (enviado por getAuthHeaders())
+          2. Query param 'estok_id' (explícito desde el frontend)
+          3. user.ultimo_estok_activo (sesión del backend)
+        - Si no hay ningún contexto de Estok, devuelve queryset vacío (.none())
+          para garantizar el aislamiento multi-tenant.
         """
         user = self.request.user
+        
         # Superusers ven todos los usuarios (admin panel)
         if user.is_superuser:
             return CustomUser.objects.all()
-        # Si tiene Estok activo, filtrar por miembros de ese Estok
-        if user.ultimo_estok_activo:
-            miembros_ids = Membresia.objects.filter(
-                estok=user.ultimo_estok_activo
-            ).values_list('usuario_id', flat=True)
-            return CustomUser.objects.filter(id__in=miembros_ids)
-        # Fallback: todos los usuarios
-        return CustomUser.objects.all()
+            
+        # Determinar el Estok de forma robusta con la convención de Django/DRF
+        estok_id = (
+            self.request.headers.get('x-estok-id')
+            or self.request.META.get('HTTP_X_ESTOK_ID')
+            or self.request.query_params.get('estok_id')
+        )
+        
+        if not estok_id and user.ultimo_estok_activo:
+            estok_id = str(user.ultimo_estok_activo_id)
+            
+        # Si no hay contexto de Estok, devolver vacío (aislamiento multi-tenant)
+        if not estok_id:
+            return CustomUser.objects.none()
+            
+        # Filtrar por miembros de ese Estok
+        miembros_ids = Membresia.objects.filter(
+            estok_id=estok_id
+        ).values_list('usuario_id', flat=True)
+        
+        return CustomUser.objects.filter(id__in=miembros_ids)
+
 
     def get_permissions(self):
         """
