@@ -79,12 +79,14 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return CustomUser.objects.all()
             
-        # Determinar el Estok de forma robusta con la convención de Django/DRF
-        estok_id = (
-            self.request.headers.get('x-estok-id')
-            or self.request.META.get('HTTP_X_ESTOK_ID')
-            or self.request.query_params.get('estok_id')
-        )
+        # Determinar el Estok: QUERY PARAM tiene prioridad absoluta
+        estok_id = self.request.query_params.get('estok_id')
+        
+        if not estok_id:
+            estok_id = (
+                self.request.headers.get('x-estok-id')
+                or self.request.META.get('HTTP_X_ESTOK_ID')
+            )
         
         if not estok_id and user.ultimo_estok_activo:
             estok_id = str(user.ultimo_estok_activo_id)

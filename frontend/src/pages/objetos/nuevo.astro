@@ -553,10 +553,10 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
   let savedObjectId = null;
 
   // ===========================================================================
-  // RESTAURAR FOTO DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
+  // RESTAURAR FOTO Y DATOS DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
   // ===========================================================================
-  (function restaurarFoto() {
-    // Restaurar foto solo si viene de un F5 (sessionStorage aun existe)
+  (function restaurarEstadoCompleto() {
+    // 1) Restaurar foto
     const fotoGuardada = sessionStorage.getItem('nuevo_objeto_foto');
     if (fotoGuardada) {
       photoImage.src = fotoGuardada;
@@ -568,11 +568,50 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
       if (iaAvailable) {
         analizarIaBtn.disabled = false;
       }
-      // Limpiar sessionStorage inmediatamente para que NO sobreviva a navegacion
-      // Solo F5 la mantiene porque el script se ejecuta antes de que se borre el storage
       try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
     }
+    // 2) Restaurar datos del formulario
+    const datosGuardados = sessionStorage.getItem('nuevo_objeto_form');
+    if (datosGuardados) {
+      try {
+        const campos = JSON.parse(datosGuardados);
+        Object.entries(campos).forEach(([name, value]) => {
+          const el = document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
+          if (el && value !== null && value !== undefined) {
+            el.value = String(value);
+            // Disparar change para que CategoryFields se actualice si es tipo
+            if (name === 'tipo') el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+      } catch (e) { /* ignorar JSON corrupto */ }
+      try { sessionStorage.removeItem('nuevo_objeto_form'); } catch (e) {}
+    }
   })();
+
+  // ===========================================================================
+  // PERSISTIR DATOS DEL FORMULARIO EN SESSIONSTORAGE (input/change)
+  // ===========================================================================
+  function persistirDatosFormulario() {
+    const form = $id<HTMLFormElement>('objetoForm');
+    if (!form) return;
+    const fd = new FormData(form);
+    const datos: Record<string, string> = {};
+    fd.forEach((value, key) => {
+      datos[key] = value as string;
+    });
+    try {
+      sessionStorage.setItem('nuevo_objeto_form', JSON.stringify(datos));
+    } catch (e) {
+      // Puede fallar si el objeto es muy grande; no es crítico
+    }
+  }
+
+  // Escuchar cambios en todo el formulario para persistir
+  const objetoForm = $id<HTMLFormElement>('objetoForm');
+  if (objetoForm) {
+    objetoForm.addEventListener('input', () => persistirDatosFormulario());
+    objetoForm.addEventListener('change', () => persistirDatosFormulario());
+  }
 
   // ===========================================================================
   // MANEJAR BFCACHE - Cuando el navegador restaura la pagina desde cache
@@ -981,12 +1020,12 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
       iaProgressSubtext.textContent = motorActual === 'gemini' ? '☁️ Procesando en Google Gemini (nube)' : '🖥️ Procesando en LM Studio (local)';
       iaStatus.classList.add('hidden');
 
-      // AbortController con timeout de 210s (mayor que Gunicorn 200s y Nginx 200s)
+      // AbortController con timeout de 250s (mayor que Gunicorn 240s y Nginx 200s)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn('[IA] Timeout de 210s alcanzado, abortando fetch');
+        console.warn('[IA] Timeout de 250s alcanzado, abortando fetch');
         controller.abort();
-      }, 210000);
+      }, 250000);
 
       // Mensajes de expectativa para el usuario mientras espera
       const expectativaId = setTimeout(() => {
@@ -998,7 +1037,7 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
         iaProgressSubtext.textContent = 'Si no responde en 2 minutos más, se cancelará automáticamente.';
       }, 90000);
 
-      console.log('[IA] Enviando fetch a analizar_imagen con timeout de 210s');
+      console.log('[IA] Enviando fetch a analizar_imagen con timeout de 250s');
       const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {
@@ -1184,6 +1223,13 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
     iaProgressPercent.textContent = '10%';
     iaStatus.classList.add('hidden');
 
+    // AbortController con timeout de 250s para el fetch de segunda foto
+    const segundaFotoController = new AbortController();
+    const segundaFotoTimeoutId = setTimeout(() => {
+      console.warn('[SEGUNDA FOTO] Timeout de 250s alcanzado, abortando fetch');
+      segundaFotoController.abort();
+    }, 250000);
+
     try {
       const reader = new FileReader();
       const rawBase64 = await new Promise((resolve) => {
@@ -1215,7 +1261,10 @@ import CategoriaCreator from '../../components/CategoriaCreator.astro';
           es_segunda_foto: true,
           motor: 'gemini',  // <-- Siempre Gemini para la segunda foto (más rápido y confiable para ISBN)
         }),
+        signal: segundaFotoController.signal,
       });
+
+      clearTimeout(segundaFotoTimeoutId);
 
       iaProgressBar.style.width = '100%';
       iaProgressPercent.textContent = '100%';
