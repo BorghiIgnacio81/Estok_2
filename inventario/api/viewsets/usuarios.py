@@ -12,6 +12,8 @@ from rest_framework.response import Response
 from ...models import Role, CustomUser, Membresia, Estok
 from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 
 # Tiempo máximo desde última actividad para considerar a un usuario "online"
@@ -59,6 +61,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class UserViewSet(viewsets.ModelViewSet):
     queryset = CustomUser.objects.all()
 
