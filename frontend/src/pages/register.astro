@@ -153,8 +153,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   // ===========================================================================
   // MANEJO DEL FORMULARIO DE REGISTRO
   // ===========================================================================
-
-  
+  import { API_BASE_URL } from '../services/auth';
 
   const form = document.getElementById('registerForm') as HTMLFormElement;
   const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
