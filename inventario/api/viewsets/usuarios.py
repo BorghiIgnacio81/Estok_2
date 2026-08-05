@@ -74,11 +74,6 @@ class UserViewSet(viewsets.ModelViewSet):
           para garantizar el aislamiento multi-tenant.
         """
         user = self.request.user
-        
-        # Superusers ven todos los usuarios (admin panel)
-        if user.is_superuser:
-            return CustomUser.objects.all()
-            
         # Determinar el Estok: QUERY PARAM tiene prioridad absoluta
         estok_id = self.request.query_params.get('estok_id')
         
@@ -91,11 +86,13 @@ class UserViewSet(viewsets.ModelViewSet):
         if not estok_id and user.ultimo_estok_activo:
             estok_id = str(user.ultimo_estok_activo_id)
             
-        # Si no hay contexto de Estok, devolver vacío (aislamiento multi-tenant)
+        # Si no hay contexto de Estok:
+        # - Superusers ven todos los usuarios (solo para admin panel sin filtro)
+        # - Usuarios normales ven vacio (aislamiento multi-tenant)
         if not estok_id:
+            if user.is_superuser:
+                return CustomUser.objects.all()
             return CustomUser.objects.none()
-            
-        # Filtrar por miembros de ese Estok
         miembros_ids = Membresia.objects.filter(
             estok_id=estok_id
         ).values_list('usuario_id', flat=True)
