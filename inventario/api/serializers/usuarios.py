@@ -106,4 +106,19 @@ class UserCreateSerializer(serializers.ModelSerializer):
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
+
+        # Envío de email de bienvenida (Gmail SMTP)
+        try:
+            from django.core.mail import send_mail
+            send_mail(
+                subject='¡Bienvenido a Estok!',
+                message=f'Hola {user.first_name or user.username},\n\nTe damos la bienvenida a Estok. Ya podés empezar a gestionar tu inventario.\n\nSaludos,\nEl equipo de Estok',
+                from_email=None,  # Usa DEFAULT_FROM_EMAIL
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+            logger.info(f'Email de bienvenida enviado a {user.email}')
+        except Exception as e:
+            logger.warning(f'No se pudo enviar email de bienvenida a {user.email}: {e}')
+
         return user
