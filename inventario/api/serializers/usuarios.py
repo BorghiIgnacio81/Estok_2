@@ -102,6 +102,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        username = validated_data.get('username')
         password = validated_data.pop('password')
         user = CustomUser(**validated_data)
         user.set_password(password)
@@ -110,29 +111,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
         # Envío de email de bienvenida (Gmail SMTP)
         try:
             from django.core.mail import send_mail
-            nombre = user.first_name or user.username
+            nombre = user.first_name or username
             send_mail(
                 subject='¡Bienvenido a Estok!',
                 message=(
-                    f'¡Hola, {nombre}!
-
-'
-                    f'Te damos la bienvenida oficial a Estok, tu sistema inteligente de inventario y reventa.
-'
-                    f'Tu cuenta ha sido creada con éxito. Aquí tienes tus datos de acceso para ingresar a la aplicación:
-
-'
-                    f'👤 Usuario: {user.username}
-'
-                    f'🔑 Contraseña: {password}
-
-'
-                    f'Puedes iniciar sesión en cualquier momento desde aquí: https://duckdns.org
-
-'
-                    f'¡Gracias por confiar en Estok!
-'
-                    f'El equipo de Estok App.'
+                    f'¡Hola, {nombre}!\n'
+                    f'Tu cuenta ha sido creada con éxito. Aquí tienes tus datos de acceso:\n'
+                    f'👤 Usuario: {username}\n'
+                    f'🔑 Contraseña: {password}\n'
+                    f'Link de acceso: https://duckdns.org'
                 ),
                 from_email=None,
                 recipient_list=[user.email],
