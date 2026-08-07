@@ -9,19 +9,21 @@ from ...models import Membresia
 class HasRolePermission(permissions.BasePermission):
     """
     Permiso basado en el rol del usuario DENTRO de un Estok.
-    El estok_id se obtiene del header X-Estok-Id o query_params.
-    Resuelve el rol vía Membresia (usuario + estok), NO vía user.role directo.
+    El estok_id se obtiene del header X-Estok-Id, query_params, o request body.
+    Resuelve el rol via Membresia (usuario + estok), NO via user.role directo.
 
     Los superusers (is_superuser=True) tienen acceso total a todo,
-    sin necesidad de membresía. Esto permite al administrador del sistema
+    sin necesidad de membresia. Esto permite al administrador del sistema
     entrar a cualquier Estok para resolver errores.
     """
 
     def _get_estok_id(self, request):
-        """Obtiene el estok_id del header X-Estok-Id o query param."""
+        """Obtiene el estok_id del header X-Estok-Id, query param, o request body."""
         estok_id = request.headers.get('X-Estok-Id')
         if not estok_id:
             estok_id = request.query_params.get('estok_id')
+        if not estok_id and hasattr(request, 'data') and isinstance(request.data, dict):
+            estok_id = request.data.get('estok_id')
         return estok_id
 
     def _get_membresia(self, user, estok_id):
@@ -80,7 +82,7 @@ class EsAdminDelEstok(permissions.BasePermission):
         if not user.is_authenticated:
             return False
 
-        # Los superusers pueden gestionar códigos en cualquier Estok
+        # Los superusers pueden gestionar codigos en cualquier Estok
         if user.is_superuser:
             return True
 

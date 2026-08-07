@@ -27,14 +27,14 @@ class EstokViewSet(viewsets.ModelViewSet):
     - GET /api/estoks/{id}/ → detalle del Estok
     - PUT/PATCH /api/estoks/{id}/ → actualizar Estok
     - DELETE /api/estoks/{id}/ → eliminar Estok
-    - POST /api/estoks/unirse/ → unirse con código de invitación
+    - POST /api/estoks/unirse/ → unirse con codigo de invitacion
     - GET /api/estoks/mis-estoks/ → lista Estoks del usuario
     """
     queryset = Estok.objects.all()
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
     def get_permissions(self):
-        if self.action in ('unirse', 'mis_estoks', 'create'):
+        if self.action in ('unirse', 'mis_estoks', 'create', 'list', 'retrieve'):
             return [permissions.IsAuthenticated()]
         return super().get_permissions()
 
@@ -60,7 +60,7 @@ class EstokViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def unirse(self, request):
         """
-        Se une a un Estok usando un código de invitación.
+        Se une a un Estok usando un codigo de invitacion.
         POST /api/estoks/unirse/ con {codigo: "EST-XXXXXX"}
         """
         serializer = UnirseConCodigoSerializer(data=request.data)
@@ -76,14 +76,14 @@ class EstokViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Usar el código (incremento atómico)
+        # Usar el codigo (incremento atomico)
         if not invitacion.usar():
             return Response(
-                {"error": "El código de invitación ya no es válido."},
+                {"error": "El codigo de invitacion ya no es valido."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Crear Membresia con el rol del código
+        # Crear Membresia con el rol del codigo
         Membresia.objects.create(
             usuario=request.user,
             estok=invitacion.estok,
@@ -98,9 +98,9 @@ class EstokViewSet(viewsets.ModelViewSet):
 
 class CodigoInvitacionViewSet(viewsets.ModelViewSet):
     """
-    CRUD de códigos de invitación.
+    CRUD de codigos de invitacion.
     Solo Admin del Estok puede crear/editar/borrar.
-    Cualquier miembro puede listar los códigos de SU Estok.
+    Cualquier miembro puede listar los codigos de SU Estok.
     """
     queryset = CodigoInvitacion.objects.all()
     serializer_class = CodigoInvitacionSerializer

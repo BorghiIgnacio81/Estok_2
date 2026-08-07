@@ -1,5 +1,5 @@
 """
-ViewSets para organización espacial: Ubicaciones y Contenedores.
+ViewSets para organizacion espacial: Ubicaciones y Contenedores.
 """
 
 import logging
@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from ...models import Ubicacion, Contenedor, Objeto
+from ...models import Ubicacion, Contenedor, Objeto, Membresia
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
 from ...services.qr_service import QRService
 from .base import HasRolePermission
@@ -22,6 +22,11 @@ class UbicacionViewSet(viewsets.ModelViewSet):
     serializer_class = UbicacionSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         qs = super().get_queryset()
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
@@ -31,12 +36,24 @@ class UbicacionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Asigna automáticamente el estok_id al crear una ubicación.
-        El estok_id se obtiene del header X-Estok-Id o del query param estok_id.
-        Si no hay estok_id, la ubicación se crea sin Estok (no debería pasar en producción).
+        Asigna automaticamente el estok_id al crear una ubicacion.
+        El estok_id se obtiene del header X-Estok-Id, query param, o body.
+        Valida que el usuario tenga membresia en el Estok destino.
         """
-        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        estok_id = (
+            self.request.headers.get('X-Estok-Id')
+            or self.request.query_params.get('estok_id')
+            or self.request.data.get('estok_id')
+        )
         if estok_id:
+            # Validar membresia (seguridad sin depender de HasRolePermission)
+            if not self.request.user.is_superuser:
+                if not Membresia.objects.filter(
+                    usuario=self.request.user,
+                    estok_id=estok_id
+                ).exists():
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied("No tienes membresia en este Estok.")
             serializer.save(estok_id=estok_id)
         else:
             serializer.save()
@@ -47,21 +64,55 @@ class ContenedorViewSet(viewsets.ModelViewSet):
     serializer_class = ContenedorSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
 
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         qs = super().get_queryset()
         ubicacion_id = self.request.query_params.get('ubicacion')
         if ubicacion_id:
             qs = qs.filter(ubicacion_id=ubicacion_id)
-        # Filtrar por estok vía ubicacion.estok
+        # Filtrar por estok via ubicacion.estok
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(ubicacion__estok_id=estok_id)
         return qs
 
+    def perform_create(self, serializer):
+        """
+        Asigna automaticamente la ubicacion y valida membresia al Estok.
+        El estok_id se resuelve desde la ubicacion enviada en el body.
+        """
+        ubicacion_id = (
+            self.request.data.get('ubicacion')
+            or self.request.query_params.get('ubicacion')
+        )
+        if ubicacion_id:
+            try:
+                ubicacion = Ubicacion.objects.select_related('estok').get(id=ubicacion_id)
+            except Ubicacion.DoesNotExist:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError("La ubicacion especificada no existe.")
+
+            # Validar membresia (seguridad sin depender de HasRolePermission)
+            if not self.request.user.is_superuser:
+                if not Membresia.objects.filter(
+                    usuario=self.request.user,
+                    estok_id=ubicacion.estok_id
+                ).exists():
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied("No tienes membresia en el Estok de esta ubicacion.")
+
+            serializer.save(ubicacion_id=ubicacion_id)
+        else:
+            serializer.save()
+
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):
         """
-        Obtiene la URL del código QR del contenedor.
+        Obtiene la URL del codigo QR del contenedor.
         """
         contenedor = self.get_object()
         qr_service = QRService()
@@ -76,7 +127,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def regenerar_qr(self, request, pk=None):
         """
-        Regenera el código QR del contenedor.
+        Regenera el codigo QR del contenedor.
         """
         contenedor = self.get_object()
         qr_service = QRService()
