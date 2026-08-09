@@ -1,0 +1,316 @@
+---
+// Componente atomico: campos del formulario de nuevo objeto.
+// Generado desde nuevo.astro (refactor conservador de maquetacion).
+// La logica de submit y sessionStorage sigue viviendo en nuevo.astro.
+import CategoryFields from '../CategoryFields.astro';
+import CategoriaCreator from '../CategoriaCreator.astro';
+---
+
+      <!-- ============================================================================== -->
+      <!-- SECCION: CAPTURA DE FOTO (Mobile-First con camara + Editor) -->
+      <!-- ============================================================================== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Foto del Objeto
+          <span class="text-xs text-gray-400 font-normal">(toca para editar)</span>
+        </h2>
+
+        <!-- Preview de la foto -->
+        <div class="mb-4">
+          <div
+            id="photoPreview"
+            class="w-full h-48 sm:h-64 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden cursor-pointer"
+          >
+            <div id="photoPlaceholder" class="text-center text-gray-400">
+              <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <p class="text-sm">Toca para tomar o seleccionar foto</p>
+              <p class="text-xs mt-1">Podrás editarla antes de guardar</p>
+            </div>
+            <img id="photoImage" class="hidden w-full h-full object-cover" alt="Preview" />
+          </div>
+        </div>
+
+        <!-- Botones de cámara / galería -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            </svg>
+            Tomar Foto
+            <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+          </label>
+          <label class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Seleccionar de Galería
+            <input id="galleryInput" type="file" accept="image/*" class="hidden" />
+          </label>
+        </div>
+
+        <!-- Botón para editar foto (visible solo cuando hay foto) -->
+        <button type="button" id="editPhotoBtn"
+          class="mt-3 hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+          ✏️ Editar Foto
+        </button>
+
+        <input type="hidden" name="imagen_base64" id="imagenBase64" />
+        <!-- Boton para quitar la foto actual -->
+        <button type="button" id="clearPhotoBtn"
+          class="mt-3 hidden w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 transition-base">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Quitar Foto
+        </button>
+      </div>
+      <!-- ============================================================================== -->
+      <!-- SECCION: IA - Analizar / Autocompletar -->
+      <!-- ============================================================================== -->
+      <div id="iaSection" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+          Análisis con Inteligencia Artificial
+        </h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Toma o selecciona una foto, edítala si lo deseas, y presiona "Analizar con IA" para llenar los campos automáticamente.
+        </p>
+
+        <!-- Selector de motor IA -->
+        <div class="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Motor de análisis:</label>
+          <div class="flex gap-2">
+            <button type="button" id="motorGeminiBtn" data-motor="gemini"
+              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
+              border-blue-500 bg-blue-50 text-blue-800">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">☁️</span>
+                <div>
+                  <div class="font-semibold">Gemini (nube)</div>
+                  <div class="text-xs opacity-75 mt-0.5">Más rápido y disponible siempre. Tus fotos se procesan en servidores de Google.</div>
+                </div>
+              </div>
+            </button>
+            <button type="button" id="motorLocalBtn" disabled
+              class="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left
+              border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🖥️</span>
+                <div>
+                  <div class="font-semibold">Local (LM Studio)</div>
+                  <div class="text-xs mt-0.5 text-amber-500 font-medium">🔜 Próximamente disponible</div>
+                </div>
+              </div>
+            </button>
+          </div>
+          <input type="hidden" id="motorSeleccionado" value="gemini" />
+        </div>
+
+        <!-- Indicador de progreso (indeterminado - no simula porcentaje) -->
+        <div id="iaProgressContainer" class="hidden mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 border-4 border-purple-200 border-t-purple-700 rounded-full animate-spin"></div>
+            <div>
+              <p id="iaProgressText" class="text-sm font-medium text-purple-800">Analizando imagen con IA...</p>
+              <p id="iaProgressSubtext" class="text-xs text-purple-600">Procesando en GPU Radeon RX 9060 XT</p>
+            </div>
+          </div>
+          <!-- Barra indeterminada (animación continua, sin porcentaje falso) -->
+          <div class="w-full bg-purple-200 rounded-full h-2 overflow-hidden mt-3">
+            <div class="bg-purple-700 h-2 rounded-full animate-indeterminate" style="width: 40%"></div>
+          </div>
+        </div>
+
+        <!-- Botón: Analizar con IA (antes de guardar) -->
+        <button type="button" id="analizarIaBtn" disabled
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 bg-purple-700 text-white font-medium rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+          <span id="iaBtnText">
+            <svg class="w-5 h-5 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Analizar con IA
+          </span>
+          <span id="iaBtnSpinner" class="hidden">
+            <svg class="animate-spin h-5 w-5 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Analizando...
+          </span>
+        </button>
+
+        <!-- Sección de segunda foto para libros (oculta inicialmente) -->
+        <div id="segundaFotoSection" class="hidden mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div class="flex items-start gap-3">
+            <div class="text-2xl">📖</div>
+            <div>
+              <h3 class="font-semibold text-amber-800 text-sm">¡Libro detectado!</h3>
+              <p id="segundaFotoMotivo" class="text-sm text-amber-700 mt-1"></p>
+              <div class="mt-3 flex flex-col sm:flex-row gap-2">
+                <label class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-base cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  </svg>
+                  Tomar foto de la parte trasera
+                  <input id="segundaFotoInput" type="file" accept="image/*" capture="environment" class="hidden" />
+                </label>
+                <button type="button" id="saltarSegundaFotoBtn"
+                  class="px-4 py-2 text-sm text-amber-700 font-medium hover:text-amber-900 transition-base">
+                  Saltar, ya tengo el ISBN
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="iaStatus" class="mt-3 text-sm hidden"></div>
+      </div>
+      <!-- ============================================================================== -->
+      <!-- SECCION: DATOS BASICOS -->
+      <!-- ============================================================================== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Datos Básicos</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre del objeto <span class="text-red-500">*</span></label>
+            <input id="nombre" name="nombre" type="text" required placeholder="Ej: iPhone 14 Pro, El Principito, Sillón de cuero"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div class="sm:col-span-2">
+            <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <textarea id="descripcion" name="descripcion" rows={3} placeholder="Describe el objeto, su estado, historia o cualquier detalle relevante..."
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
+          </div>
+          <div>
+            <label for="tipo" class="block text-sm font-medium text-gray-700 mb-1">Tipo de objeto <span class="text-red-500">*</span></label>
+            <select id="tipo" name="tipo" required
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Seleccionar tipo...</option>
+              <option value="libro">📚 Libro / Revista</option>
+              <option value="tecnologia">💻 Tecnología</option>
+              <option value="mueble">🖼️ Mueble / Arte</option>
+              <option value="ropa">👕 Ropa / Accesorio</option>
+              <option value="objeto">📦 Otro / Genérico</option>
+            </select>
+          </div>
+          <div>
+            <label for="categoria" class="block text-sm font-medium text-gray-700 mb-1">Categoría (organización)</label>
+            <div class="flex gap-2">
+              <select id="categoria" name="categoria"
+                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+                <option value="">Sin categoría</option>
+              </select>
+              <CategoriaCreator texto="+ Nueva" />
+            </div>
+            <p class="mt-1 text-xs text-gray-400">Agrupa objetos por categorías personalizadas (ej: Cocina, Herramientas, Decoración).</p>
+          </div>
+          <div>
+            <label for="estado_conservacion" class="block text-sm font-medium text-gray-700 mb-1">Estado de conservación</label>
+            <select id="estado_conservacion" name="estado_conservacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="excelente">Excelente</option>
+              <option value="bueno" selected>Bueno</option>
+              <option value="regular">Regular</option>
+              <option value="malo">Malo</option>
+              <option value="muy_malo">Muy malo</option>
+            </select>
+          </div>
+          <div>
+            <label for="color" class="block text-sm font-medium text-gray-700 mb-1">Color</label>
+            <input id="color" name="color" type="text" placeholder="Ej: Rojo, Negro, Plateado"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="valor_estimado" class="block text-sm font-medium text-gray-700 mb-1">Valor estimado (USD)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+              <input id="valor_estimado" name="valor_estimado" type="number" step="0.01" min="0" placeholder="0.00"
+                class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+            </div>
+            <button type="button" id="estimarPrecioBtn"
+              class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-base disabled:opacity-50 disabled:cursor-not-allowed">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span id="estimarPrecioText">Buscar precio de referencia</span>
+              <span id="estimarPrecioSpinner" class="hidden">
+                <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </span>
+            </button>
+            <div id="precioReferencia" class="mt-2 text-xs hidden"></div>
+          </div>
+        </div>
+      </div>
+      <!-- ============================================================================== -->
+      <!-- SECCION: CAMPOS ESPECIFICOS POR CATEGORIA -->
+      <!-- ============================================================================== -->
+      <div id="categoryFieldsContainer">
+        <CategoryFields tipo="objeto" />
+      </div>
+      <!-- ============================================================================== -->
+      <!-- SECCION: UBICACION -->
+      <!-- ============================================================================== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Ubicación</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+            <select id="ubicacion" name="ubicacion"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Sin ubicación</option>
+            </select>
+          </div>
+          <div>
+            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">Contenedor</label>
+            <select id="contenedor" name="contenedor"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Sin contenedor</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- ============================================================================== -->
+      <!-- SECCION: LEGADO Y TRAZABILIDAD -->
+      <!-- ============================================================================== -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Legado y Trazabilidad
+        </h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Estos campos son fundamentales para el sistema de planificación sucesoria familiar.
+          Definen quién fue el dueño original del objeto y quién es el beneficiario designado.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="dueno_original" class="block text-sm font-medium text-gray-700 mb-1">Dueño original</label>
+            <select id="dueno_original" name="dueno_original"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Seleccionar dueño original...</option>
+            </select>
+          </div>
+          <div>
+            <label for="beneficiario" class="block text-sm font-medium text-gray-700 mb-1">Beneficiario</label>
+            <select id="beneficiario" name="beneficiario"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+              <option value="">Seleccionar beneficiario...</option>
+            </select>
+          </div>
+        </div>
+      </div>
