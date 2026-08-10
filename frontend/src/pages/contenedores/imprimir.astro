@@ -1,0 +1,301 @@
+---
+// =============================================================================
+// PÁGINA DE IMPRESIÓN DE ETIQUETAS A4
+// Recibe ?ids=1,2,3 (o lista todos si no se especifica) y renderiza
+// una grilla 4x5 (máx 20 etiquetas por hoja A4) de 4cm x 5cm cada una.
+// =============================================================================
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+
+export const prerender = false;
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Imprimir Etiquetas | Inventario">
+  <div class="bg-gray-100 min-h-screen py-8 print:py-0">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <!-- Toolbar (solo pantalla, se oculta al imprimir) -->
+      <div class="print-toolbar mb-6 flex flex-wrap items-center justify-between gap-4">
+        <a href="/contenedores"
+          class="inline-flex items-center px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-base shadow-sm">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+          Volver a contenedores
+        </a>
+        <div class="flex items-center gap-4">
+          <span id="etiquetaCount" class="text-sm text-gray-600 font-medium"></span>
+          <button id="imprimirBtn"
+            class="inline-flex items-center px-5 py-2.5 bg-blue-700 text-white font-semibold rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+            🖨️ Imprimir Etiquetas
+          </button>
+        </div>
+      </div>
+
+      <!-- Estado de carga -->
+      <div id="loadingState" class="text-center py-20">
+        <svg class="animate-spin h-12 w-12 mx-auto text-blue-700 mb-4" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="text-gray-500">Cargando contenedores...</p>
+      </div>
+
+      <!-- Estado de error -->
+      <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
+        <p id="errorMessage" class="font-medium">Error al cargar los contenedores.</p>
+        <a href="/contenedores" class="mt-3 inline-block px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+          Volver a contenedores
+        </a>
+      </div>
+
+      <!-- Hojas A4 -->
+      <div id="hojas" class="space-y-8"></div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  /* =========================================================================
+     VISTA PREVIA (pantalla)
+     ========================================================================= */
+  .hoja-a4 {
+    width: 210mm;
+    height: 297mm;
+    padding: 5mm;
+    margin: 0 auto;
+    background: #ffffff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    box-sizing: border-box;
+  }
+
+  .etiqueta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 4cm);
+    grid-template-rows: repeat(5, 5cm);
+    height: 287mm;
+    justify-content: space-between;
+    align-content: space-between;
+  }
+
+  .etiqueta {
+    width: 4cm;
+    height: 5cm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2mm;
+    border: 0.2mm dashed #cbd5e1;
+    border-radius: 2mm;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .qr-img {
+    width: 2.6cm;
+    height: 2.6cm;
+    object-fit: contain;
+    display: block;
+  }
+
+  .qr-placeholder {
+    width: 2.6cm;
+    height: 2.6cm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4cm;
+    color: #cbd5e1;
+  }
+
+  .etiqueta .nombre {
+    font-size: 10pt;
+    font-weight: 600;
+    color: #111827;
+    margin-top: 1mm;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .etiqueta .ubicacion {
+    font-size: 7.5pt;
+    color: #6b7280;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* =========================================================================
+     IMPRESIÓN A4
+     ========================================================================= */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  @media print {
+    nav,
+    footer,
+    #chatContainer,
+    #toastContainer,
+    .print-toolbar {
+      display: none !important;
+    }
+
+    body,
+    main {
+      background: #ffffff !important;
+    }
+
+    main {
+      min-height: 0 !important;
+    }
+
+    .hoja-a4 {
+      box-shadow: none !important;
+      margin: 0 !important;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .hoja-a4:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    * {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+
+<script>
+  // ===========================================================================
+  // CARGA DE CONTENEDORES Y RENDER DE HOJAS A4
+  // ===========================================================================
+
+  import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
+
+  const hojasEl = document.getElementById('hojas')!;
+  const loadingEl = document.getElementById('loadingState')!;
+  const errorEl = document.getElementById('errorState')!;
+  const errorMsg = document.getElementById('errorMessage')!;
+  const countEl = document.getElementById('etiquetaCount')!;
+
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
+  function chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  function escapar(texto: string): string {
+    return texto.replace(/[&<>"']/g, (c) =>
+      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c] || c)
+    );
+  }
+
+  // ===========================================================================
+  // RENDER DE ETIQUETAS (máx 20 por hoja A4)
+  // ===========================================================================
+
+  function renderEtiquetas(contenedores: any[]) {
+    loadingEl.classList.add('hidden');
+    errorEl.classList.add('hidden');
+
+    if (contenedores.length === 0) {
+      hojasEl.innerHTML = '<div class="text-center py-16 text-gray-500">No hay contenedores para imprimir.</div>';
+      return;
+    }
+
+    const totalHojas = Math.ceil(contenedores.length / 20);
+    countEl.textContent = `${contenedores.length} etiqueta${contenedores.length !== 1 ? 's' : ''} · ${totalHojas} hoja${totalHojas !== 1 ? 's' : ''} A4`;
+
+    const grupos = chunk(contenedores, 20);
+    hojasEl.innerHTML = grupos.map((grupo) => `
+      <section class="hoja-a4">
+        <div class="etiqueta-grid">
+          ${grupo.map((c) => `
+            <div class="etiqueta">
+              ${c.qr_code_url
+                ? `<img class="qr-img" src="${c.qr_code_url}" alt="QR ${escapar(c.nombre)}" loading="lazy" />`
+                : `<div class="qr-placeholder">📦</div>`}
+              <p class="nombre">${escapar(c.nombre)}</p>
+              ${c.ubicacion_nombre ? `<p class="ubicacion">${escapar(c.ubicacion_nombre)}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </section>
+    `).join('');
+  }
+
+  // ===========================================================================
+  // CARGA DE DATOS
+  // ===========================================================================
+
+  async function cargarEtiquetas() {
+    const params = new URLSearchParams(window.location.search);
+    const idsRaw = (params.get('ids') || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+    try {
+      let contenedores: any[] = [];
+
+      if (idsRaw.length > 0) {
+        // Cargar los contenedores solicitados por ID
+        const promises = idsRaw.map(async (id) => {
+          const res = await fetch(`${API_BASE_URL}/contenedores/${encodeURIComponent(id)}/`, {
+            headers: getAuthHeaders(),
+          });
+          return res.ok ? res.json() : null;
+        });
+        const results = await Promise.all(promises);
+        contenedores = results.filter(Boolean);
+      } else {
+        // Listar todos (paginación con límite de seguridad de 200)
+        let url: string | null = `${API_BASE_URL}/contenedores/?page_size=100`;
+        let guard = 0;
+        while (url && guard < 10) {
+          const res = await fetch(url, { headers: getAuthHeaders() });
+          if (res.status === 401) { window.location.href = '/login'; return; }
+          if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
+          const data = await res.json();
+          contenedores.push(...(data.results || []));
+          url = data.next;
+          guard += 1;
+        }
+        contenedores = contenedores.slice(0, 200);
+      }
+
+      renderEtiquetas(contenedores);
+    } catch (err: any) {
+      console.error('Error al cargar etiquetas:', err);
+      loadingEl.classList.add('hidden');
+      hojasEl.innerHTML = '';
+      errorEl.classList.remove('hidden');
+      errorMsg.textContent = err.message || 'Error de conexión. Verifica que el servidor esté corriendo.';
+    }
+  }
+
+  // ===========================================================================
+  // CONTROLES
+  // ===========================================================================
+
+  document.getElementById('imprimirBtn')?.addEventListener('click', () => window.print());
+
+  // ===========================================================================
+  // INICIALIZAR
+  // ===========================================================================
+
+  cargarEtiquetas();
+</script>

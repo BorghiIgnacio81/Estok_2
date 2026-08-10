@@ -275,18 +275,29 @@ import AuthGuard from '../../components/AuthGuard.astro';
     resultText.textContent = 'QR detectado. Buscando contenedor...';
 
     try {
-      // Intentar parsear el QR como JSON con ID de contenedor
+      // Intentar extraer el ID del contenedor desde el QR
       let contenedorId: string | null = null;
 
-      try {
-        const parsed = JSON.parse(qrData);
-        contenedorId = parsed.contenedor_id || parsed.id || null;
-      } catch {
-        // Si no es JSON, asumir que es un UUID directo
-        if (qrData.match(/^[0-9a-f-]{36}$/i)) {
-          contenedorId = qrData;
+      // 1) URL de contenedor (ej: https://eeestok.duckdns.org/api/objetos/?contenedor=<id>)
+      //    Extrae el ID limpio del query param para redirigir al detalle específico.
+      const urlMatch = qrData.match(/[?&]contenedor=([a-f0-9-]+)/i);
+      if (urlMatch) {
+        contenedorId = urlMatch[1];
+      }
+
+      // 2) JSON con ID de contenedor
+      if (!contenedorId) {
+        try {
+          const parsed = JSON.parse(qrData);
+          contenedorId = parsed.contenedor_id || parsed.id || null;
+        } catch {
+          // 3) UUID directo
+          if (qrData.match(/^[0-9a-f-]{36}$/i)) {
+            contenedorId = qrData;
+          }
         }
       }
+
 
       if (contenedorId) {
         // REDIRECCIÓN INSTANTÁNEA: Si está en caché, redirigir sin esperar verificación

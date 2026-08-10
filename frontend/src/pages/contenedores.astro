@@ -20,14 +20,22 @@ import EmptyState from '../components/EmptyState.astro';
         <h1 class="text-3xl font-bold text-gray-900">Contenedores</h1>
         <p class="mt-1 text-gray-500">Gestiona cajas, estantes y contenedores con códigos QR</p>
       </div>
-      <button id="nuevoContenedorBtn"
-        class="inline-flex items-center px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
-      >
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        Nuevo Contenedor
-      </button>
+      <div class="flex items-center gap-3">
+        <button id="imprimirEtiquetasBtn"
+          class="inline-flex items-center px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 hover:border-blue-300 transition-base shadow-sm"
+          title="Imprimir etiquetas QR de los contenedores listados">
+          🖨️ Imprimir Etiquetas
+        </button>
+        <button id="nuevoContenedorBtn"
+          class="inline-flex items-center px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
+        >
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Nuevo Contenedor
+        </button>
+      </div>
+
     </div>
 
     <!-- Filtro por ubicación -->
@@ -158,8 +166,12 @@ import EmptyState from '../components/EmptyState.astro';
   const formError = document.getElementById('formError')!;
   const modalUbicacion = document.getElementById('ubicacion') as HTMLSelectElement;
 
+  // Contenedores visibles actualmente (para imprimir sus etiquetas)
+  let contenedoresVisibles: any[] = [];
+
 
   function showLoading() {
+
     loadingState.classList.remove('hidden');
     emptyState.classList.add('hidden');
     errorState.classList.add('hidden');
@@ -192,7 +204,9 @@ import EmptyState from '../components/EmptyState.astro';
   }
 
   function renderContenedores(contenedores: any[]) {
+    contenedoresVisibles = contenedores;
     if (contenedores.length === 0) {
+
       loadingState.classList.add('hidden');
       errorState.classList.add('hidden');
       contenedoresGrid.classList.add('hidden');
@@ -303,8 +317,19 @@ import EmptyState from '../components/EmptyState.astro';
   }
   function closeModal() { createModal.classList.add('hidden'); createForm.reset(); }
 
+  // Imprimir etiquetas de los contenedores visibles actualmente
+  document.getElementById('imprimirEtiquetasBtn')?.addEventListener('click', () => {
+    if (contenedoresVisibles.length === 0) {
+      alert('No hay contenedores para imprimir.');
+      return;
+    }
+    const ids = contenedoresVisibles.map((c) => c.id).join(',');
+    window.location.href = `/contenedores/imprimir?ids=${encodeURIComponent(ids)}`;
+  });
+
   document.getElementById('nuevoContenedorBtn')?.addEventListener('click', openModal);
   document.getElementById('emptyCreateBtn')?.addEventListener('click', openModal);
+
   document.getElementById('closeModalBtn')?.addEventListener('click', closeModal);
   document.getElementById('cancelBtn')?.addEventListener('click', closeModal);
   createModal?.addEventListener('click', (e) => { if (e.target === createModal) closeModal(); });
