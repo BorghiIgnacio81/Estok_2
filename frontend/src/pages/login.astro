@@ -9,97 +9,96 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
 <AuthLayout title="Estok - Iniciar Sesión">
   <div class="w-full mx-auto max-w-[440px]">
-    <!-- Mueble archivador: contenedor relativo con la ilustracion de marca -->
+    <!-- Mueble archivador: unico driver visual, sin fondos ni bordes -->
     <div
       class="relative w-full aspect-square bg-contain bg-center bg-no-repeat"
       style="background-image: url('/archivador-login.png');"
     >
-      <!-- Cajon 1 (Superior): titulo con alto contraste -->
-      <div class="absolute inset-0 grid grid-rows-4">
-        <div class="flex flex-col items-center justify-center px-[12%] text-center">
-          <h2 class="text-2xl font-bold text-white drop-shadow-lg">Iniciar Sesión</h2>
-          <p class="mt-1 text-sm text-white/90 drop-shadow">
-            Ingresa tus credenciales para acceder al sistema
-          </p>
+      <!-- Bloque Titulo/Instruccion: flota en la zona de las orejas/frente, encima de los ojos -->
+      <div class="absolute left-1/2 top-[4%] -translate-x-1/2 w-[78%] text-center z-10">
+        <h2 class="text-2xl font-extrabold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">Iniciar Sesión</h2>
+        <p class="mt-1 text-sm font-medium text-white/95 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
+          Ingresa tus credenciales para acceder al sistema
+        </p>
+      </div>
+
+      <!-- Formulario flotando sobre los cajones -->
+      <form id="loginForm" class="absolute inset-0">
+        <!-- Campo Usuario: flota en la fila del segundo cajon -->
+        <div class="absolute left-[13%] right-[13%] top-[36%]">
+          <label for="username" class="block text-xs font-bold uppercase tracking-wider text-gray-800 mb-0.5">
+            Usuario
+          </label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            required
+            autocomplete="username"
+            placeholder="Nombre de usuario"
+            class="w-full py-1 bg-transparent border-none outline-none focus:ring-0 focus:border-transparent shadow-none rounded-none text-center text-gray-800 font-medium placeholder:text-gray-500"
+          />
         </div>
 
-        <form id="loginForm" class="row-start-2 row-span-3 flex flex-col">
-          <!-- Cajon 2: Usuario -->
-          <div class="flex-1 flex flex-col justify-center px-[13%]">
-            <label for="username" class="block text-sm font-semibold text-white drop-shadow mb-1.5">
-              Usuario
-            </label>
+        <!-- Campo Contrasena: flota en la fila del tercer cajon -->
+        <div class="absolute left-[13%] right-[13%] top-[56%]">
+          <label for="password" class="block text-xs font-bold uppercase tracking-wider text-gray-800 mb-0.5">
+            Contraseña
+          </label>
+          <div class="relative">
             <input
-              id="username"
-              name="username"
-              type="text"
+              id="password"
+              name="password"
+              type="password"
               required
-              autocomplete="username"
-              placeholder="Nombre de usuario"
-              class="w-full px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-base shadow-sm placeholder:text-gray-400"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              class="w-full py-1 pr-8 bg-transparent border-none outline-none focus:ring-0 focus:border-transparent shadow-none rounded-none text-center text-gray-800 font-medium placeholder:text-gray-500"
             />
-          </div>
-
-          <!-- Cajon 3: Contrasena (mantiene intacto el boton del ojo) -->
-          <div class="flex-1 flex flex-col justify-center px-[13%]">
-            <label for="password" class="block text-sm font-semibold text-white drop-shadow mb-1.5">
-              Contraseña
-            </label>
-            <div class="relative">
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autocomplete="current-password"
-                placeholder="••••••••"
-                class="w-full px-4 py-2.5 pr-10 bg-white/80 backdrop-blur-sm border border-white/40 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-base shadow-sm placeholder:text-gray-400"
-              />
-              <button
-                id="togglePassword"
-                type="button"
-                aria-label="Mostrar u ocultar contrasena"
-                aria-pressed="false"
-                class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 focus:outline-none"
-              >
-                <svg id="eyeOpen" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                <svg id="eyeClosed" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Cajon 4 (Inferior): boton de envio adaptado al ancho del cajon -->
-          <div class="flex-1 flex items-center justify-center px-[18%]">
             <button
-              id="submitBtn"
-              type="submit"
-              class="w-full py-2.5 bg-blue-700 text-white font-medium rounded-xl hover:bg-blue-800 transition-base shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              id="togglePassword"
+              type="button"
+              aria-label="Mostrar u ocultar contrasena"
+              aria-pressed="false"
+              class="absolute right-0 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 focus:outline-none"
             >
-              <span id="submitText">Ingresar</span>
-              <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <svg id="eyeOpen" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <svg id="eyeClosed" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
               </svg>
             </button>
           </div>
-        </form>
-      </div>
+        </div>
 
-      <!-- Mensaje de error superpuesto -->
+        <!-- Boton Ingresar: calza justo arriba del ultimo cajon (manija inferior) -->
+        <div class="absolute left-[16%] right-[16%] top-[74%]">
+          <button
+            id="submitBtn"
+            type="submit"
+            class="w-full py-2 bg-transparent text-transparent font-medium rounded-none transition-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <span id="submitText" class="sr-only">Ingresar</span>
+            <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </button>
+        </div>
+      </form>
+
+      <!-- Mensaje de error: flota sobre la zona del titulo, sin romper el diseno -->
       <div
         id="errorMessage"
-        class="absolute inset-x-[10%] top-[19%] hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm text-center shadow-md z-10"
+        class="absolute inset-x-[10%] top-[13%] hidden bg-red-600/90 text-white px-4 py-2.5 rounded-lg text-sm text-center shadow-md z-20"
         role="alert"
       ></div>
     </div>
 
-    <!-- Debajo de las patas del mueble (fuera del contenedor del background) -->
-    <p class="text-center text-sm text-gray-500 mt-4">
+    <!-- Debajo de las patas del mueble: enlace de registro bien separado -->
+    <p class="text-center text-sm text-gray-500 mt-6">
       ¿No tienes cuenta?
       <a href="/register" class="text-blue-700 hover:text-blue-800 font-medium">
         Registrarse
@@ -107,6 +106,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     </p>
   </div>
 </AuthLayout>
+
 
 
 <script>
