@@ -1,135 +1,105 @@
 ---
-// =============================================================================
-// PÁGINA DE INICIO DE SESIÓN
-// Maneja autenticación JWT con validación y manejo de errores
-// =============================================================================
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { login } from '../services/auth';
 
-import AuthLayout from '../layouts/AuthLayout.astro';
+let error = '';
+let loading = false;
 ---
 
-<AuthLayout title="Estok - Iniciar Sesión">
-  <div class="w-full mx-auto max-w-[440px]">
-    <!-- Recuadro blanco original: la imagen estirada cubre el 100% del marco -->
-    <div
-      class="relative isolate w-full max-w-md p-8 rounded-xl shadow-lg border border-gray-200 bg-white overflow-hidden aspect-square"
-    >
-      <!-- Fondo: archivador estirado al 100%x100% para inflar el mueble
-           hasta los bordes, eliminando el marco blanco y agrandando los cajones -->
-      <div
-        class="absolute inset-0 bg-[size:100%_100%] bg-no-repeat bg-center"
-        style="background-image: url('/archivador-login.png');"
-      ></div>
-
-      <!-- Velo oscuro sutil: amortigua el contraste y hace legibles las letras -->
-      <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]"></div>
-
-      <!-- Bloque Título/Instrucción: en la frente del gato -->
-      <div class="absolute left-[10%] right-[10%] top-[12%] text-center z-10">
-        <h2 class="text-xl font-extrabold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">Iniciar Sesión</h2>
-        <p class="mt-1 text-sm font-medium text-white/95 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
-          Ingresa tus credenciales para acceder al sistema
-        </p>
-      </div>
-
-      <!-- Formulario flotando sobre las gavetas -->
-      <form id="loginForm" class="absolute inset-0 z-10">
-        <!-- Campo Usuario: ADENTRO del segundo cajon -->
-        <div class="absolute left-[12%] right-[12%] top-[44%]">
-          <input
-            id="username"
-            name="username"
-            type="text"
-            required
-            autocomplete="username"
-            placeholder="Nombre de usuario"
-            class="w-full py-1 bg-transparent border-none outline-none focus:ring-0 ring-0 text-center text-white font-bold placeholder:text-white/70"
-          />
-        </div>
-
-        <!-- Campo Contraseña: ADENTRO del tercer cajon -->
-        <div class="absolute left-[12%] right-[12%] top-[63%]">
-          <div class="relative">
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autocomplete="current-password"
-              placeholder="Contraseña"
-              class="w-full py-1 pr-8 bg-transparent border-none outline-none focus:ring-0 ring-0 text-center text-white font-bold placeholder:text-white/70"
-            />
-            <button
-              id="togglePassword"
-              type="button"
-              aria-label="Mostrar u ocultar contraseña"
-              aria-pressed="false"
-              class="absolute right-0 top-1/2 -translate-y-1/2 text-white/80 hover:text-white focus:outline-none"
-            >
-              <svg id="eyeOpen" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <svg id="eyeClosed" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Botón Ingresar: azul sólido justo arriba del cuarto cajon -->
-        <div class="absolute left-[15%] right-[15%] top-[81%]">
-          <button
-            id="submitBtn"
-            type="submit"
-            class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
-          >
-            <span id="submitText">Ingresar</span>
-            <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </button>
-        </div>
-      </form>
-
-      <!-- Mensaje de error: flota sobre la zona del titulo -->
-      <div
-        id="errorMessage"
-        class="absolute inset-x-[12%] top-[24%] hidden bg-red-600/90 text-white px-4 py-2 rounded-lg text-sm text-center shadow-md z-20"
-        role="alert"
-      ></div>
+<BaseLayout title="Iniciar Sesión - Estok">
+  <div class="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
+    
+    <!-- Título Principal Superior -->
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-extrabold text-white tracking-tight">Estok</h1>
+      <p class="text-sm text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- Fuera del recuadro: enlace de registro centrado bajo las patas -->
-    <p class="mt-4 text-center text-sm text-gray-500">
-      ¿No tienes cuenta?
-      <a href="/register" class="text-blue-700 hover:text-blue-800 font-medium">
-        Registrarse
-      </a>
-    </p>
+    <!-- CONTENEDOR PRINCIPAL: Ahora tiene fondo oscuro sólido para anular los cuadraditos falsos -->
+    <div class="relative w-full max-w-sm bg-slate-950 border border-gray-800 rounded-2xl shadow-2xl p-6 overflow-hidden">
+      
+      <!-- La ilustración se renderiza al fondo, limpia y sin el marco blanco molesto -->
+      <div class="absolute inset-0 bg-contain bg-center bg-no-repeat opacity-25" style="background-image: url('/archivador-login.png');"></div>
+
+      <!-- Formulario Real con inputs legibles e integrados de forma limpia -->
+      <div class="relative z-10 space-y-5">
+        <div class="text-center mb-4">
+          <h2 class="text-xl font-bold text-white">Iniciar Sesión</h2>
+          <p class="text-xs text-gray-400 mt-1">Ingresa tus credenciales para acceder al sistema</p>
+        </div>
+
+        {error && (
+          <div class="bg-red-950/50 border border-red-800 text-red-400 text-xs p-3 rounded-lg text-center font-medium">
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form id="loginForm" class="space-y-4">
+          <!-- Campo Usuario -->
+          <div>
+            <label for="username" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Usuario</label>
+            <input 
+              id="username" 
+              name="username" 
+              type="text" 
+              required 
+              placeholder="Ingresa tu usuario"
+              class="w-full px-4 py-2.5 bg-slate-900/80 border border-gray-700 rounded-lg text-white font-medium outline-none focus:border-blue-500 transition-colors placeholder-gray-600 text-sm"
+            />
+          </div>
+
+          <!-- Campo Contraseña -->
+          <div>
+            <label for="password" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Contraseña</label>
+            <div class="relative">
+              <input 
+                id="password" 
+                name="password" 
+                type="password" 
+                required 
+                placeholder="••••••••"
+                class="w-full px-4 py-2.5 pr-10 bg-slate-900/80 border border-gray-700 rounded-lg text-white font-medium outline-none focus:border-blue-500 transition-colors placeholder-gray-600 text-sm"
+              />
+              <button
+                id="togglePassword"
+                type="button"
+                aria-label="Mostrar contraseña"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-300 transition-colors"
+              >
+                <svg id="eyeOpen" class="h-5 w-5" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <svg id="eyeClosed" class="hidden h-5 w-5" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Botón de Envío -->
+          <button 
+            type="submit" 
+            id="submitBtn"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm py-3 rounded-lg shadow-md transition-all active:scale-[0.98] mt-2 flex justify-center items-center"
+          >
+            <span id="btnText">Ingresar al sistema</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Enlace inferior de Registro -->
+    <div class="text-center mt-4 text-sm">
+      <a href="/register" class="text-blue-400 hover:text-blue-300 underline font-medium">¿No tienes cuenta? Registrarse</a>
+    </div>
   </div>
-</AuthLayout>
-
-
+</BaseLayout>
 
 <script>
-  // ===========================================================================
-  // MANEJO DEL FORMULARIO DE LOGIN
-  // Usa login() de auth.ts que centraliza la lógica de autenticación,
-  // incluyendo la auto-selección del primer Estok activo.
-  // ===========================================================================
-
   import { login } from '../services/auth';
 
-  const form = document.getElementById('loginForm') as HTMLFormElement;
-  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-  const submitText = document.getElementById('submitText')!;
-  const submitSpinner = document.getElementById('submitSpinner')!;
-  const errorMessage = document.getElementById('errorMessage')!;
-
-  // ===========================================================================
-  // ALTERNAR VISIBILIDAD DE LA CONTRASEÑA
-  // ===========================================================================
+  // Lógica interactiva para Mostrar/Ocultar Contraseña
   const passwordInput = document.getElementById('password') as HTMLInputElement;
   const togglePassword = document.getElementById('togglePassword') as HTMLButtonElement;
   const eyeOpen = document.getElementById('eyeOpen')!;
@@ -138,61 +108,38 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   togglePassword?.addEventListener('click', () => {
     const isHidden = passwordInput.type === 'password';
     passwordInput.type = isHidden ? 'text' : 'password';
-    eyeOpen.classList.toggle('hidden', isHidden);
-    eyeClosed.classList.toggle('hidden', !isHidden);
-    togglePassword.setAttribute('aria-pressed', String(!isHidden));
+    eyeOpen.classList.toggle('hidden', !isHidden);
+    eyeClosed.classList.toggle('hidden', isHidden);
     passwordInput.focus();
   });
 
-  function showError(message: string) {
-    errorMessage.textContent = message;
-    errorMessage.classList.remove('hidden');
-  }
+  // Manejo del Submit del Formulario
+  const loginForm = document.getElementById('loginForm') as HTMLFormElement;
+  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+  const btnText = document.getElementById('btnText')!;
 
-  function hideError() {
-    errorMessage.classList.add('hidden');
-  }
-
-  function setLoading(loading: boolean) {
-    submitBtn.disabled = loading;
-    if (loading) {
-      submitText.classList.add('hidden');
-      submitSpinner.classList.remove('hidden');
-    } else {
-      submitText.classList.remove('hidden');
-      submitSpinner.classList.add('hidden');
-    }
-  }
-
-  form?.addEventListener('submit', async (e) => {
+  loginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideError();
-
-    const username = (document.getElementById('username') as HTMLInputElement).value.trim();
-    const password = (document.getElementById('password') as HTMLInputElement).value;
-
-    // Validación básica
-    if (!username) {
-      showError('Por favor, ingresa tu nombre de usuario.');
-      return;
-    }
-
-    if (!password) {
-      showError('Por favor, ingresa tu contraseña.');
-      return;
-    }
-
-    setLoading(true);
+    const formData = new FormData(loginForm);
+    const username = formData.get('username') as string;
+    const password = formData.get('password') as string;
 
     try {
-      const { user } = await login({ username, password });
-      window.location.href = user.estoks.length === 0 ? '/estoks' : '/';
-    } catch (err: any) {
-      const errorMsg = err?.error || 'Error de conexión. Verifica que el servidor esté corriendo.';
-      showError('❌ ' + errorMsg);
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
+      submitBtn.disabled = true;
+      btnText.textContent = 'Verificando...';
+      
+      const success = await login({ username, password });
+      if (success) {
+        window.location.href = '/';
+      } else {
+        alert('Credenciales inválidas');
+        submitBtn.disabled = false;
+        btnText.textContent = 'Ingresar al sistema';
+      }
+    } catch (err) {
+      alert('Error de conexión con el servidor');
+      submitBtn.disabled = false;
+      btnText.textContent = 'Ingresar al sistema';
     }
   });
 </script>
