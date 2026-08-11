@@ -9,24 +9,29 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
 <AuthLayout title="Estok - Iniciar Sesión">
   <div class="w-full mx-auto max-w-[440px]">
-    <!-- Mueble archivador: unico driver visual, sin fondos ni bordes -->
+    <!-- Mueble archivador: contenedor acoplado al tamaño real del mueble gatuno.
+         La imagen se agranda al 150% para tapar los cuadraditos de ajedrez
+         falsos pintados en los píxeles de los bordes -->
     <div
-      class="relative w-full aspect-square bg-[size:100%_100%] bg-center bg-no-repeat"
-      style="background-image: url('/archivador-login.png');"
+      class="relative isolate w-full max-w-[340px] h-[340px] bg-center bg-no-repeat rounded-2xl shadow-xl overflow-hidden"
+      style="background-image: url('/archivador-login.png'); background-size: 150% 150%;"
     >
-      <!-- Bloque Titulo/Instruccion: flota en la zona de las orejas/frente, encima de los ojos -->
-      <div class="absolute left-1/2 top-[4%] -translate-x-1/2 w-[78%] text-center z-10">
+      <!-- Velo oscuro: amortigua el contraste de los cuadraditos de fondo -->
+      <div class="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px] -z-10"></div>
+
+      <!-- Bloque Título/Instrucción: flota en el área de las orejas/frente -->
+      <div class="absolute left-1/2 top-[6%] -translate-x-1/2 w-[80%] text-center z-10">
         <h2 class="text-2xl font-extrabold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">Iniciar Sesión</h2>
         <p class="mt-1 text-sm font-medium text-white/95 drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
           Ingresa tus credenciales para acceder al sistema
         </p>
       </div>
 
-      <!-- Formulario flotando sobre los cajones -->
+      <!-- Formulario flotando sobre el cuerpo del mueble -->
       <form id="loginForm" class="absolute inset-0">
-        <!-- Campo Usuario: flota en la fila del segundo cajon -->
-        <div class="absolute left-[10%] right-[10%] top-[36%]">
-          <label for="username" class="block text-xs font-bold uppercase tracking-wider text-gray-800 mb-0.5">
+        <!-- Campo Usuario: gaveta del medio-superior -->
+        <div class="absolute left-[15%] right-[15%] top-[34%]">
+          <label for="username" class="block text-xs font-bold uppercase tracking-wider text-white/90 mb-0.5">
             Usuario
           </label>
           <input
@@ -36,13 +41,13 @@ import AuthLayout from '../layouts/AuthLayout.astro';
             required
             autocomplete="username"
             placeholder="Nombre de usuario"
-            class="w-full py-1 bg-transparent border-none outline-none focus:ring-0 focus:border-transparent shadow-none rounded-none text-center text-gray-800 font-medium placeholder:text-gray-500"
+            class="w-full py-1.5 bg-slate-900/60 text-white text-center rounded border border-gray-700 placeholder:text-gray-400 outline-none focus:ring-0 focus:border-gray-500"
           />
         </div>
 
-        <!-- Campo Contrasena: flota en la fila del tercer cajon -->
-        <div class="absolute left-[10%] right-[10%] top-[56%]">
-          <label for="password" class="block text-xs font-bold uppercase tracking-wider text-gray-800 mb-0.5">
+        <!-- Campo Contraseña: gaveta del medio-inferior -->
+        <div class="absolute left-[15%] right-[15%] top-[54%]">
+          <label for="password" class="block text-xs font-bold uppercase tracking-wider text-white/90 mb-0.5">
             Contraseña
           </label>
           <div class="relative">
@@ -53,14 +58,14 @@ import AuthLayout from '../layouts/AuthLayout.astro';
               required
               autocomplete="current-password"
               placeholder="••••••••"
-              class="w-full py-1 pr-8 bg-transparent border-none outline-none focus:ring-0 focus:border-transparent shadow-none rounded-none text-center text-gray-800 font-medium placeholder:text-gray-500"
+              class="w-full py-1.5 pr-8 bg-slate-900/60 text-white text-center rounded border border-gray-700 placeholder:text-gray-400 outline-none focus:ring-0 focus:border-gray-500"
             />
             <button
               id="togglePassword"
               type="button"
-              aria-label="Mostrar u ocultar contrasena"
+              aria-label="Mostrar u ocultar contraseña"
               aria-pressed="false"
-              class="absolute right-0 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800 focus:outline-none"
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white focus:outline-none"
             >
               <svg id="eyeOpen" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -73,14 +78,14 @@ import AuthLayout from '../layouts/AuthLayout.astro';
           </div>
         </div>
 
-        <!-- Boton Ingresar: calza justo arriba del ultimo cajon (manija inferior) -->
-        <div class="absolute left-[16%] right-[16%] top-[74%]">
+        <!-- Botón Ingresar: azul sólido justo arriba del cajón inferior -->
+        <div class="absolute left-[15%] right-[15%] top-[74%]">
           <button
             id="submitBtn"
             type="submit"
-            class="w-full py-2 bg-transparent text-transparent font-medium rounded-none transition-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
           >
-            <span id="submitText" class="sr-only">Ingresar</span>
+            <span id="submitText">Ingresar</span>
             <svg id="submitSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -89,16 +94,16 @@ import AuthLayout from '../layouts/AuthLayout.astro';
         </div>
       </form>
 
-      <!-- Mensaje de error: flota sobre la zona del titulo, sin romper el diseno -->
+      <!-- Mensaje de error: flota entre el título y la primera gaveta -->
       <div
         id="errorMessage"
-        class="absolute inset-x-[10%] top-[13%] hidden bg-red-600/90 text-white px-4 py-2.5 rounded-lg text-sm text-center shadow-md z-20"
+        class="absolute inset-x-[15%] top-[20%] hidden bg-red-600/90 text-white px-4 py-2.5 rounded-lg text-sm text-center shadow-md z-20"
         role="alert"
       ></div>
     </div>
 
-    <!-- Debajo de las patas del mueble: enlace de registro bien separado -->
-    <p class="text-center text-sm text-gray-500 mt-6">
+    <!-- Fuera del contenedor de fondo: enlace de registro debajo de las patas -->
+    <p class="mt-4 text-center text-sm text-gray-500">
       ¿No tienes cuenta?
       <a href="/register" class="text-blue-700 hover:text-blue-800 font-medium">
         Registrarse
