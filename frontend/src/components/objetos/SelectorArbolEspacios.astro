@@ -1,0 +1,214 @@
+---
+interface Contenedor {
+  id: string;
+  nombre: string;
+}
+
+interface NodoUbicacion {
+  id: string;
+  nombre: string;
+  contenedores: Contenedor[];
+}
+
+export interface Props {
+  nodos: NodoUbicacion[];
+  ubicacionSeleccionada?: string;
+  contenedorSeleccionado?: string;
+}
+
+const { nodos = [], ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
+---
+
+<div class="space-y-2 select-none">
+  <label class="block text-sm font-medium text-gray-300">Ubicación y Contenedor de Almacenamiento</label>
+
+  <!-- Contenedor del Árbol Visual con estilo elegante de Estok -->
+  <div id="arbolEspacios" class="bg-[#1a1a2e] border border-gray-700 rounded-lg p-3 max-h-60 overflow-y-auto" role="tree">
+
+    <!-- Opción por defecto (Sin ubicación) -->
+    <div class="mb-2 pb-2 border-b border-gray-800">
+      <button
+        type="button"
+        class="nodo-opcion text-left text-sm text-gray-400 hover:text-white flex items-center gap-2 w-full p-1 rounded bg-transparent"
+        data-tipo="vacio"
+      >
+        ❌ Sin ubicación / Almacenamiento global
+      </button>
+    </div>
+
+    <ul id="listaNodos" class="space-y-1.5 text-sm text-gray-300">
+      {nodos.map((nodo) => (
+        <li class="space-y-1" role="treeitem">
+          <div class="flex items-center gap-1.5 hover:bg-gray-800/40 p-1 rounded transition-colors group">
+            {nodo.contenedores && nodo.contenedores.length > 0 ? (
+              <button
+                type="button"
+                class="btn-toggle text-xs font-mono font-bold text-blue-400 bg-gray-800 hover:bg-gray-700 px-1.5 py-0.5 rounded transition-all min-w-[20px]"
+                data-target={`hijos-${nodo.id}`}
+              >
+                [+]
+              </button>
+            ) : (
+              <span class="text-gray-600 text-xs px-1.5 font-mono min-w-[20px]">•</span>
+            )}
+
+            <button
+              type="button"
+              class="nodo-opcion flex-1 text-left hover:text-white font-medium flex items-center gap-1.5"
+              data-tipo="ubicacion"
+              data-id={nodo.id}
+            >
+              📁 {nodo.nombre}
+            </button>
+          </div>
+
+          {nodo.contenedores && nodo.contenedores.length > 0 && (
+            <ul id={`hijos-${nodo.id}`} class="hidden pl-6 border-l border-gray-800 space-y-1 mt-1 transition-all">
+              {nodo.contenedores.map((c: any) => (
+                <li role="treeitem">
+                  <div class="flex items-center gap-1.5 hover:bg-gray-800/30 p-1 rounded transition-colors group">
+                    <span class="text-gray-500 font-mono text-xs">└──</span>
+                    <button
+                      type="button"
+                      class="nodo-opcion flex-1 text-left hover:text-white text-gray-400 flex items-center gap-1.5"
+                      data-tipo="contenedor"
+                      data-id={c.id}
+                      data-ubicacion-id={nodo.id}
+                    >
+                      📦 {c.nombre}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <!-- Inputs Ocultos Canónicos que viajan de forma idéntica a Django -->
+  <input type="hidden" name="ubicacion" id="arbolUbicacionId" value={ubicacionSeleccionada} />
+  <input type="hidden" name="contenedor" id="arbolContenedorId" value={contenedorSeleccionado} />
+
+  <!-- Texto de referencia para el usuario -->
+  <p id="seleccionReferencia" class="text-xs text-gray-400 mt-1 italic">
+    Ninguna ubicación seleccionada.
+  </p>
+</div>
+
+<script>
+  // Script de cliente nativo y liviano de Astro.
+  // El árbol se puede reconstruir dinámicamente cuando el orquestador (nuevo.astro)
+  // despacha 'estok:actualizarNodosArbol' tras cargar ubicaciones/contenedores de la API.
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const arbol = document.getElementById('arbolEspacios');
+    const inputUbicacion = document.getElementById('arbolUbicacionId') as HTMLInputElement;
+    const inputContenedor = document.getElementById('arbolContenedorId') as HTMLInputElement;
+    const textoReferencia = document.getElementById('seleccionReferencia');
+    if (!arbol) return;
+
+    // ----------------------------------------------------------------------
+    // DELEGACIÓN DE EVENTOS (funciona también para nodos renderizados después)
+    // ----------------------------------------------------------------------
+    arbol.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest?.('button');
+      if (!btn) return;
+
+      // Toggle de expandir/contraer
+      if (btn.classList.contains('btn-toggle')) {
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target');
+        const listaHijos = document.getElementById(targetId!);
+        if (listaHijos) {
+          if (listaHijos.classList.contains('hidden')) {
+            listaHijos.classList.remove('hidden');
+            btn.textContent = '[-]';
+            btn.classList.replace('text-blue-400', 'text-amber-400');
+          } else {
+            listaHijos.classList.add('hidden');
+            btn.textContent = '[+]';
+            btn.classList.replace('text-amber-400', 'text-blue-400');
+          }
+        }
+        return;
+      }
+
+      // Selección de nodos
+      if (btn.classList.contains('nodo-opcion')) {
+        // Quitar estilos de selección previa
+        arbol.querySelectorAll('.nodo-opcion').forEach((o) => {
+          o.classList.remove('text-blue-400', 'font-bold', 'underline');
+        });
+
+        const tipo = btn.getAttribute('data-tipo');
+        const id = btn.getAttribute('data-id');
+
+        if (tipo === 'vacio') {
+          inputUbicacion.value = '';
+          inputContenedor.value = '';
+          if (textoReferencia) textoReferencia.textContent = '📦 Almacenamiento Global';
+          btn.classList.add('text-blue-400', 'font-bold');
+        } else if (tipo === 'ubicacion') {
+          inputUbicacion.value = id!;
+          inputContenedor.value = '';
+          if (textoReferencia) textoReferencia.textContent = `📁 Seleccionado: ${btn.textContent?.trim()}`;
+          btn.classList.add('text-blue-400', 'font-bold');
+        } else if (tipo === 'contenedor') {
+          const ubicacionId = btn.getAttribute('data-ubicacion-id');
+          inputUbicacion.value = ubicacionId!;
+          inputContenedor.value = id!;
+          if (textoReferencia) textoReferencia.textContent = `📦 Contenedor: ${btn.textContent?.trim()}`;
+          btn.classList.add('text-blue-400', 'font-bold');
+        }
+
+        // Forzar el evento change en el formulario para gatillar la persistencia en sessionStorage
+        inputUbicacion.dispatchEvent(new Event('change', { bubbles: true }));
+        inputContenedor.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    // ----------------------------------------------------------------------
+    // RENDER DINÁMICO DEL ÁRBOL (cuando el orquestador trae los datos)
+    // ----------------------------------------------------------------------
+    window.addEventListener('estok:actualizarNodosArbol', ((event: CustomEvent) => {
+      const nodos = (event.detail && event.detail.nodos) || [];
+      const lista = document.getElementById('listaNodos');
+      if (!lista) return;
+
+      if (!nodos.length) {
+        lista.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      nodos.forEach((nodo: any) => {
+        const tieneHijos = nodo.contenedores && nodo.contenedores.length > 0;
+        html += `<li class="space-y-1" role="treeitem">`;
+        html += `<div class="flex items-center gap-1.5 hover:bg-gray-800/40 p-1 rounded transition-colors group">`;
+        if (tieneHijos) {
+          html += `<button type="button" class="btn-toggle text-xs font-mono font-bold text-blue-400 bg-gray-800 hover:bg-gray-700 px-1.5 py-0.5 rounded transition-all min-w-[20px]" data-target="hijos-${nodo.id}">[+]</button>`;
+        } else {
+          html += `<span class="text-gray-600 text-xs px-1.5 font-mono min-w-[20px]">•</span>`;
+        }
+        html += `<button type="button" class="nodo-opcion flex-1 text-left hover:text-white font-medium flex items-center gap-1.5" data-tipo="ubicacion" data-id="${nodo.id}">📁 ${nodo.nombre}</button>`;
+        html += `</div>`;
+
+        if (tieneHijos) {
+          html += `<ul id="hijos-${nodo.id}" class="hidden pl-6 border-l border-gray-800 space-y-1 mt-1 transition-all">`;
+          nodo.contenedores.forEach((c: any) => {
+            html += `<li role="treeitem"><div class="flex items-center gap-1.5 hover:bg-gray-800/30 p-1 rounded transition-colors group">`;
+            html += `<span class="text-gray-500 font-mono text-xs">└──</span>`;
+            html += `<button type="button" class="nodo-opcion flex-1 text-left hover:text-white text-gray-400 flex items-center gap-1.5" data-tipo="contenedor" data-id="${c.id}" data-ubicacion-id="${nodo.id}">📦 ${c.nombre}</button>`;
+            html += `</div></li>`;
+          });
+          html += `</ul>`;
+        }
+        html += `</li>`;
+      });
+
+      lista.innerHTML = html;
+    }) as EventListener);
+  });
+</script>

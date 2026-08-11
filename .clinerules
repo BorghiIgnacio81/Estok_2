@@ -1,0 +1,160 @@
+# Reglas de arquitectura - Estok (NO ROMPER SIN VERIFICAR)
+
+## 🚨 REGLAS DE CONSOLA WINDOWS (ANTI-BLOQUEOS)
+- Queda TERMINANTEMENTE PROHIBIDO crear archivos temporales intermedios (como `tmp_inspeccionar.py` o similares) para leer o buscar texto.
+- Para inspeccionar o ver fragmentos de archivos, utiliza comandos nativos de PowerShell directos y limpios como: `Get-Content -Path 'ruta' -TotalCount 50` o rangos específicos.
+- Mantén la disciplina estricta de modularización: ningún archivo de UI debe superar las 400 líneas.
+
+
+## REGLA DE TERMINAL DE WINDOWS
+- El entorno local del usuario opera estrictamente sobre Windows PowerShell.
+- Está TERMINANTEMENTE PROHIBIDO concatenar comandos utilizando el token '&&'.
+- Cada instrucción de Git, Docker, Python o del sistema debe ejecutarse como un comando individual e independiente en la terminal.
+- No uses cadenas de texto Bash.
+
+## REGLA DE COMPATIBILIDAD DE TERMINAL (OBLIGATORIA)
+- Operamos en un entorno Windows con PowerShell. Está ESTRICTAMENTE PROHIBIDO utilizar el operador de encadenamiento de Linux '&&'.
+- Cada comando de Git o de sistema debe ser ejecutado en una línea de comandos independiente o separado de forma nativa para PowerShell.
+
+## Base de datos
+- El hostname real de PostgreSQL en Coolify es: cagtcifjoy8ydxugg4bkdll1
+  (SIN prefijo "postgresql-database-". Ese prefijo es solo el nombre visual
+  en la UI de Coolify, NO es el hostname de red real)
+- NUNCA reintroducir DATABASE_URL en settings.py. El proyecto usa
+  exclusivamente variables DB_* individuales (DB_HOST, DB_PORT, DB_NAME,
+  DB_USER, DB_PASSWORD). Si encontrás "import dj_database_url" o
+  "os.environ.get('DATABASE_URL')" en cualquier archivo, es un bug, eliminalo.
+- Antes de cambiar DB_HOST, verificá con: docker network ls y
+  docker inspect <container> | grep -A 15 '"Networks"' que el contenedor
+  destino esté en la misma red Docker que el backend.
+
+## Red Docker
+- El backend debe estar conectado a la red externa "coolify" (docker-compose.yml
+  tiene "networks: - default - coolify" en el servicio principal, y
+  "networks: coolify: external: true" al final). Si se quita esta conexión,
+  el backend no puede resolver el hostname de PostgreSQL (error: "Temporary
+  failure in name resolution").
+
+## Arquitectura de contenedores
+- El proyecto usa UN SOLO contenedor (Dockerfile.combined), no contenedores
+  separados backend/frontend. Dockerfile.backend y Dockerfile.frontend son
+  LEGACY, no se usan en producción, no los edites pensando que tienen efecto.
+- El entrypoint.sh lanza Gunicorn (puerto 8001) y Astro Node (puerto 4321) en
+  background con &, y Nginx (puerto ESTOK_PORT, default 8000) en foreground.
+- EXPOSE en Dockerfile.combined es solo documental, no bloquea otros puertos.
+  No es necesario que coincida con ESTOK_PORT.
+
+## Dominio / Traefik / Coolify
+- El campo "Domains" en la configuración General de la app en Coolify SIEMPRE
+  debe incluir el esquema completo: https://eeestok.duckdns.org (NUNCA solo
+  "eeestok.duckdns.org" sin el https://). Si falta el esquema, Coolify genera
+  mal el label de Traefik (Host() queda vacío y el dominio termina en
+  PathPrefix() por error), causando 503 aunque el contenedor esté sano.
+- Después de CUALQUIER cambio en la sección "Domains" o "General" de Coolify,
+  hay que hacer Redeploy explícito. Guardar el campo NO actualiza los labels
+  del contenedor corriendo.
+- Si hay un 503 pero los logs del contenedor muestran que Django/Gunicorn/Astro/
+  Nginx arrancaron bien: el problema es Traefik, no la app. Verificar con:
+  docker inspect <container> | grep "traefik.http.routers.*rule"
+  La regla correcta es: Host(`dominio`) && PathPrefix(`/`)
+  Si dice Host(``) && PathPrefix(`dominio`) está roto.
+
+## Antes de confiar en un refactor
+- "Está completo" no es suficiente. Después de mover código a módulos/paquetes
+  nuevos, SIEMPRE correr (o pedir verificación de):
+  python manage.py check
+  antes de asumir que los imports funcionan. Los imports relativos (.. vs ...)
+  cambian de significado al mover archivos de nivel, y eso no se detecta
+  leyendo el código, solo ejecutándolo.
+
+## Antes de diagnosticar basándose en código del repo
+- El código en GitHub puede NO ser el que está corriendo en el contenedor real.
+  Si algo no tiene sentido, verificar con:
+  docker run --rm <imagen> cat <archivo>
+  para ver el archivo TAL COMO ESTÁ COMPILADO en la imagen, no el del repo.
+- Verificar siempre que origin/main esté actualizado (git log -1 --oneline)
+  antes de asumir que un cambio local ya está en producción.
+
+## SSH
+- Las llaves SSH para Hetzner están en:
+  C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner (privada)
+  C:\Users\USER\Desktop\Estok_2\Hetzner\llavehezner.pub (pública)
+- IP: 178.156.224.212, usuario: root
+
+## Contenedores fantasma
+- NO levantar contenedores manuales con "docker run" para pruebas en el
+  servidor de producción y dejarlos corriendo. Si se hace, documentarlo y
+  eliminarlo antes de cerrar la sesión. Usar "docker ps -a" para confirmar
+  que no quedan contenedores huérfanos después de cualquier sesión de debug.
+
+## Reglas de comportamiento durante el desarrollo
+
+### NO tocar lo que no te pidieron
+Si el pedido es "arreglá el botón X en archivo A", solo tocás archivo A.
+Si mientras trabajás encontrás algo "mejorable" en archivo B, lo anotás
+como pendiente en un comentario o lo mencionás, pero NO lo cambiás.
+Cambios no solicitados son la causa más común de regresiones en este proyecto.
+
+### Límite de 3 intentos
+Si después de 3 intentos algo no funciona (mismo enfoque, misma estrategia),
+PARAR. Reportar el problema con evidencia real (outputs concretos) y pedir
+instrucciones antes de seguir. No gastar más de 3 intentos en variaciones
+del mismo approach.
+
+### Redeploy lo hace el usuario
+Nunca intentar hacer Redeploy en Coolify por CLI, API, webhook o cualquier
+otro método automatizado. El usuario lo dispara manualmente desde la UI.
+Tu trabajo termina en commit + push a origin/main. Siempre terminar con
+"Avisame cuando quieras hacer el Redeploy".
+
+### Reportar honestamente qué se verificó
+Distinguir siempre entre:
+- "El código es correcto" (leí el archivo y parece bien)
+- "Funciona en producción" (hice una prueba real y vi el resultado)
+Nunca marcar algo como ✅ sin haber hecho una prueba real con evidencia.
+Si no pudiste verificar en producción, decir explícitamente "NO VERIFICADO".
+
+### Auth centralizado — nunca duplicar
+getAuthHeaders() y getToken() viven ÚNICAMENTE en frontend/src/services/auth.ts
+Ninguna página .astro ni ningún servicio puede definir su propia versión.
+Antes de escribir headers de auth en cualquier archivo nuevo, verificar
+que ya no existe esa función en auth.ts e importarla desde ahí.
+
+### URL de producción — siempre la misma
+Nunca corre el backend localmente. La URL de producción es siempre:
+https://eeestok.duckdns.org
+Cualquier script de diagnóstico o prueba que use 127.0.0.1 o localhost
+para el backend está mal y va a dar resultados falsos.
+
+## Metodología de código limpio
+- Al terminar cualquier feature o fix, antes de considerarlo "completo":
+  revisar si la lógica nueva debería vivir en un módulo/servicio reusable
+  en vez de quedar inline o duplicada en múltiples archivos.
+- Después de cualquier refactor o feature grande, correr una pasada de
+  limpieza: buscar (grep) funciones, archivos o imports que ya no se usan
+  en ningún lado, y eliminarlos (no dejar código muerto "por si acaso").
+- Antes de reportar algo como "completo" o "resuelto", verificar con
+  evidencia real (comando ejecutado + output, no solo lectura del código)
+  — no asumir que algo funciona porque el código "se ve correcto".
+- Si se detecta lógica duplicada en más de un archivo (por ejemplo, la
+  misma función de headers/auth/fetch repetida), priorizar centralizarla
+  en un único módulo antes de seguir agregando features nuevas sobre esa
+  duplicación.
+- Mantener los archivos grandes (>400-500 líneas) bajo revisión para
+  modularizar cuando crezcan demasiado, en vez de seguir agregando código
+  a un archivo ya extenso.
+
+## REGLA DE CIERRE DE SESIÓN (OBLIGATORIA)
+Al final de cada sesión de trabajo, o cuando el usuario indique que se va a retirar,
+DEBES ejecutar un comando de "Check-out" automático que consista en:
+
+1. Validar el tamaño de los archivos modificados durante la sesión (ninguno debe
+   superar las 400-500 líneas).
+2. Verificar la limpieza del repositorio: asegurar que no queden archivos temporales
+   del tipo 'tmp_*', '.bat', '.php' o logs sueltos en la raíz.
+3. Ejecutar 'python manage.py check' en el backend para garantizar que no haya
+   errores de importación o sintaxis.
+4. Generar un micro-reporte de cierre de 3 líneas:
+   - Archivos modificados y su estado de modularidad.
+   - Deuda técnica detectada (si la hay).
+   - Estado del check de salud del sistema.

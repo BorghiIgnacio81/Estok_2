@@ -11,6 +11,15 @@ import ObjetoFormFields from '../../components/objetos/ObjetoFormFields.astro';
 import ObjetoFormActions from '../../components/objetos/ObjetoFormActions.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
 import ImageEditor from '../../components/ImageEditor.astro';
+
+// Nodos del selector jerárquico de ubicación/contenedor.
+// Se construyen en el cliente tras el fetch de ubicaciones y contenedores
+// y se sincronizan con el componente via CustomEvent 'estok:actualizarNodosArbol'.
+const nodosArbol: {
+  id: string;
+  nombre: string;
+  contenedores: { id: string; nombre: string }[];
+}[] = [];
 ---
 
 <AuthGuard />
@@ -49,7 +58,7 @@ import ImageEditor from '../../components/ImageEditor.astro';
       <!--                    ubicacion, legado                         -->
       <!-- ObjetoFormActions: boton submit + cancelar                   -->
       <!-- ================================================================ -->
-      <ObjetoFormFields />
+      <ObjetoFormFields nodosArbol={nodosArbol} />
       <ObjetoFormActions />
     </form>
   </div>
@@ -527,6 +536,13 @@ import ImageEditor from '../../components/ImageEditor.astro';
   // ===========================================================================
   // CARGAR DATOS INICIALES (Ubicaciones, Contenedores, Usuarios)
   // ===========================================================================
+  // Nodos del selector jerárquico: ubicaciones padre + contenedores agrupados
+  let nodosArbol: {
+    id: string;
+    nombre: string;
+    contenedores: { id: string; nombre: string }[];
+  }[] = [];
+
   async function cargarUbicaciones() {
     try {
       const response = await fetch(`${API_BASE_URL}/ubicaciones/`, {
@@ -535,13 +551,12 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (response.ok) {
         const data = await response.json();
         const ubicaciones = data.results || data;
-        const select = $id<HTMLSelectElement>('ubicacion')!;
-        ubicaciones.forEach((u) => {
-          const opt = document.createElement('option');
-          opt.value = u.id;
-          opt.textContent = u.nombre;
-          select.appendChild(opt);
-        });
+        // Cada ubicación es un nodo padre; sus contenedores se agrupan dentro
+        nodosArbol = (ubicaciones || []).map((u: any) => ({
+          id: String(u.id),
+          nombre: u.nombre,
+          contenedores: [],
+        }));
       }
     } catch (err) {
       console.error('Error cargando ubicaciones:', err);
@@ -556,17 +571,31 @@ import ImageEditor from '../../components/ImageEditor.astro';
       if (response.ok) {
         const data = await response.json();
         const contenedores = data.results || data;
-        const select = $id<HTMLSelectElement>('contenedor')!;
-        contenedores.forEach((c) => {
-          const opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = `${c.nombre} (${c.ubicacion_nombre || ''})`;
-          select.appendChild(opt);
+        (contenedores || []).forEach((c: any) => {
+          const padre = nodosArbol.find((n) => n.id === String(c.ubicacion));
+          if (padre) {
+            padre.contenedores.push({ id: String(c.id), nombre: c.nombre });
+          } else {
+            // Contenedor sin ubicación asignada: agrupar en un nodo especial
+            let nodoGlobal = nodosArbol.find((n) => n.id === '');
+            if (!nodoGlobal) {
+              nodoGlobal = { id: '', nombre: '📦 Sin ubicación', contenedores: [] };
+              nodosArbol.unshift(nodoGlobal);
+            }
+            nodoGlobal.contenedores.push({ id: String(c.id), nombre: c.nombre });
+          }
         });
       }
     } catch (err) {
       console.error('Error cargando contenedores:', err);
     }
+  }
+
+  /** Notifica al SelectorArbolEspacios para reconstruir el árbol en el cliente */
+  function actualizarArbolNodos() {
+    window.dispatchEvent(new CustomEvent('estok:actualizarNodosArbol', {
+      detail: { nodos: nodosArbol },
+    }));
   }
 
   async function cargarUsuarios() {
@@ -619,8 +648,10 @@ import ImageEditor from '../../components/ImageEditor.astro';
     }
   }
 
-  cargarUbicaciones();
-  cargarContenedores();
+  // Cargar ubicaciones primero, luego agrupar contenedores y notificar al árbol jerárquico
+  cargarUbicaciones()
+    .then(() => cargarContenedores())
+    .finally(() => actualizarArbolNodos());
   cargarUsuarios();
   cargarCategorias();
 
