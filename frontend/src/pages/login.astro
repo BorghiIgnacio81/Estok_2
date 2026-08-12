@@ -4,50 +4,50 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
-  <!-- Forzamos la desactivación absoluta de cualquier menú superior únicamente en esta vista -->
+  <!-- Eliminamos el navbar superior Y el sobre amarillo de mensajería de la esquina -->
   <style is:global>
-    header, nav, #global-navbar, [role="navigation"] { 
+    header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
     }
   </style>
 
   <div class="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center p-4 select-none">
     
-    <!-- Título Principal Superior Fuera del Mueble -->
+    <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
       <h1 class="text-3xl font-extrabold text-white tracking-tight">Estok</h1>
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR CUADRADO DEL ARCHIVADOR (Sin marcos blancos ni bordes toscos) -->
-    <!-- bg-[size:100%_100%] obliga a expandir el gráfico de borde a borde cubriendo todo el ancho de forma cuadrada -->
+    <!-- EL CONTENEDOR TOTALMENTE INTEGRADO -->
+    <!-- background-size: 160% 150% hace un ZOOM violento para expulsar los cuadraditos hacia afuera -->
     <div 
-      class="relative w-full max-w-[360px] h-[360px] bg-center bg-no-repeat overflow-hidden"
-      style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
+      class="relative w-full max-w-[350px] h-[350px] bg-center bg-no-repeat rounded-2xl shadow-2xl overflow-hidden border border-gray-800 bg-slate-950"
+      style="background-image: url('/archivador-login.png'); background-size: 160% 150%;"
     >
-      <!-- Velo oscuro sutil para disimular los cuadraditos de la imagen y dar contraste -->
-      <div class="absolute inset-0 bg-slate-950/20 backdrop-blur-[0.5px] -z-10"></div>
+      <!-- Velo sutil para unificar el contraste -->
+      <div class="absolute inset-0 bg-slate-950/10 backdrop-blur-[0.5px] -z-10"></div>
 
-      <!-- Título del Formulario encajado en la frente/orejas del gato -->
-      <div class="absolute left-0 right-0 top-[6%] text-center px-4">
+      <!-- Iniciar Sesión en la parte superior del mueble -->
+      <div class="absolute left-0 right-0 top-[8%] text-center px-4">
         <h2 class="text-base font-bold text-white drop-shadow-md">Iniciar Sesión</h2>
       </div>
 
       <form id="loginForm" class="absolute inset-0">
-        <!-- INPUT USUARIO: Metido exactamente ADENTRO del segundo cajón grande -->
-        <div class="absolute left-[15%] right-[15%] top-[34%]">
+        <!-- INPUT USUARIO: Calza perfectamente en la gaveta superior ensanchada -->
+        <div class="absolute left-[12%] right-[12%] top-[34%]">
           <input 
             id="username" 
             name="username" 
             type="text" 
             required 
-            placeholder="Tu usuario"
-            class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-1"
+            placeholder="Ingresa tu usuario"
+            class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-800 rounded-lg outline-none focus:border-blue-500 p-2 transition-all"
           />
         </div>
 
-        <!-- INPUT CONTRASEÑA: Metido exactamente ADENTRO del tercer cajón grande -->
-        <div class="absolute left-[15%] right-[15%] top-[54%]">
+        <!-- INPUT CONTRASEÑA: Calza perfectamente en la gaveta intermedia ensanchada -->
+        <div class="absolute left-[12%] right-[12%] top-[55%]">
           <div class="relative">
             <input 
               id="password" 
@@ -55,13 +55,13 @@ let error = '';
               type="password" 
               required 
               placeholder="••••••"
-              class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-1 pr-8"
+              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-800 rounded-lg outline-none focus:border-blue-500 p-2 pr-10 transition-all"
             />
-            <!-- Botón Ojo absoluto a la derecha interna del cajón -->
+            <!-- Botón Ojo ajustado a la derecha del cajón -->
             <button
               id="togglePassword"
               type="button"
-              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
             >
               <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -74,20 +74,20 @@ let error = '';
           </div>
         </div>
 
-        <!-- BOTÓN INGRESAR: Escondido arriba del último cajón (Manija inferior) -->
-        <div class="absolute left-[15%] right-[15%] top-[74%]">
+        <!-- BOTÓN INGRESAR: Se mimetiza arriba de la manija inferior -->
+        <div class="absolute left-[12%] right-[12%] top-[76%]">
           <button 
             type="submit" 
             id="submitBtn"
-            class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-1.5 rounded shadow-md transition-all active:scale-[0.98]"
+            class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg shadow-md transition-all active:scale-[0.98]"
           >
-            <span id="btnText">Ingresar</span>
+            <span id="btnText">Ingresar al sistema</span>
           </button>
         </div>
       </form>
     </div>
 
-    <!-- Enlace inferior bien abajo separado de las patas -->
+    <!-- Enlace de registro abajo de las patas -->
     <div class="text-center mt-6 text-sm">
       <a href="/register" class="text-blue-400 hover:text-blue-300 underline font-medium">¿No tienes cuenta? Registrarse</a>
     </div>
@@ -130,12 +130,12 @@ let error = '';
       } else {
         alert('Credenciales inválidas');
         submitBtn.disabled = false;
-        btnText.textContent = 'Ingresar';
+        btnText.textContent = 'Ingresar al sistema';
       }
     } catch (err) {
       alert('Error de conexión');
       submitBtn.disabled = false;
-      btnText.textContent = 'Ingresar';
+      btnText.textContent = 'Ingresar al sistema';
     }
   });
 </script>
