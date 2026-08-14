@@ -19,14 +19,12 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR TOTALMENTE INTEGRADO -->
-    <!-- background-size: 160% 150% hace un ZOOM violento para expulsar los cuadraditos hacia afuera -->
-    <div 
-      class="relative w-full max-w-[350px] h-[350px] bg-center bg-no-repeat rounded-2xl shadow-2xl overflow-hidden border border-gray-800 bg-slate-950"
-      style="background-image: url('/archivador-login.png'); background-size: 160% 150%;"
-    >
-      <!-- Velo sutil para unificar el contraste -->
-      <div class="absolute inset-0 bg-slate-950/10 backdrop-blur-[0.5px] -z-10"></div>
+        <!-- EL CONTENEDOR TOTALMENTE INTEGRADO -->
+        <div 
+          class="relative w-[350px] h-[350px] bg-[size:100%_100%] bg-no-repeat bg-center"
+          style="background-image: url('/archivador-login.png');"
+        >
+          <!-- Sin recuadros, velos ni fondos adicionales -->
 
       <!-- Iniciar Sesión en la parte superior del mueble -->
       <div class="absolute left-0 right-0 top-[8%] text-center px-4">
@@ -34,20 +32,20 @@ let error = '';
       </div>
 
       <form id="loginForm" class="absolute inset-0">
-        <!-- INPUT USUARIO: Calza perfectamente en la gaveta superior ensanchada -->
-        <div class="absolute left-[12%] right-[12%] top-[34%]">
+                <!-- INPUT USUARIO: Transparente, insertado en la gaveta superior -->
+        <div class="absolute left-[14%] right-[14%] top-[38%]">
           <input 
             id="username" 
             name="username" 
             type="text" 
             required 
             placeholder="Ingresa tu usuario"
-            class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-800 rounded-lg outline-none focus:border-blue-500 p-2 transition-all"
+            class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-2 transition-all"
           />
         </div>
 
-        <!-- INPUT CONTRASEÑA: Calza perfectamente en la gaveta intermedia ensanchada -->
-        <div class="absolute left-[12%] right-[12%] top-[55%]">
+                <!-- INPUT CONTRASEÑA: Transparente, insertado en la gaveta intermedia -->
+        <div class="absolute left-[14%] right-[14%] top-[57%]">
           <div class="relative">
             <input 
               id="password" 
@@ -55,9 +53,9 @@ let error = '';
               type="password" 
               required 
               placeholder="••••••"
-              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-800 rounded-lg outline-none focus:border-blue-500 p-2 pr-10 transition-all"
+              class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-2 pr-10 transition-all"
             />
-            <!-- Botón Ojo ajustado a la derecha del cajón -->
+            <!-- Botón Ojo flotando a la derecha interna del cajón -->
             <button
               id="togglePassword"
               type="button"
@@ -75,11 +73,11 @@ let error = '';
         </div>
 
         <!-- BOTÓN INGRESAR: Se mimetiza arriba de la manija inferior -->
-        <div class="absolute left-[12%] right-[12%] top-[76%]">
+        <div class="absolute left-[14%] right-[14%] top-[76%]">
           <button 
             type="submit" 
             id="submitBtn"
-            class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg shadow-md transition-all active:scale-[0.98]"
+            class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 transition-all active:scale-[0.98]"
           >
             <span id="btnText">Ingresar al sistema</span>
           </button>
@@ -139,3 +137,4 @@ let error = '';
     }
   });
 </script>
+
