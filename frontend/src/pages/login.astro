@@ -4,7 +4,6 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
-  <!-- Ocultamos de forma absoluta menús e iconos flotantes ajenos al login -->
   <style is:global>
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
@@ -13,52 +12,55 @@ let error = '';
 
   <div class="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center p-4 select-none">
     
-    <!-- Título Principal Superior Fuera del Mueble -->
+    <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
       <h1 class="text-3xl font-extrabold text-white tracking-tight">Estok</h1>
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR CON MÁSCARA GATUNA ENSANCHADA DE BORDE A BORDE -->
-    <!-- background-size: 152% 100% infla el archivador hacia los lados para tapar y expulsar el ajedrez falso -->
+    <!-- EL CONTENEDOR CON MÁSCARA GATUNA CURVA DE ALTA DEFINICIÓN (32 PUNTOS) -->
     <div 
       class="relative w-full max-w-[370px] h-[400px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
       style="
         background-image: url('/archivador-login.png'); 
         background-size: 152% 100%;
         clip-path: polygon(
-          15% 15%, 26% 0%, 42% 4%, 50% 15%, 52% 15%, 58% 4%, 74% 0%, 85% 15%, 
-          96% 22%, 96% 80%, 87% 88%, 88% 97%, 75% 100%, 71% 94%, 69% 88%, 
-          31% 88%, 29% 94%, 25% 100%, 12% 97%, 13% 88%, 4% 80%, 4% 22%
+          15% 15%, 19% 10%, 25% 4%, 32% 1%, 38% 3%, 43% 10%, 46% 16%, 
+          50% 16%, 54% 10%, 59% 3%, 65% 1%, 72% 4%, 78% 10%, 82% 15%, 
+          96% 22%, 96% 80%, 
+          87% 85%, 88% 93%, 84% 96%, 79% 95%, 78% 87%, 
+          71% 87%, 72% 95%, 68% 98%, 64% 96%, 63% 86%, 
+          35% 86%, 34% 96%, 30% 98%, 26% 95%, 26% 87%, 
+          19% 87%, 18% 95%, 13% 96%, 10% 93%, 11% 85%, 
+          4% 80%, 4% 22%
         );
       "
     >
-      <!-- Capa de contraste interna sutil -->
       <div class="absolute inset-0 bg-slate-950/5 -z-10"></div>
 
-      <!-- CAPA DE FORMULARIO: Ajustada de forma holgada en los cajones ensanchados -->
+      <!-- CAPA DE FORMULARIO: Entradas ensanchadas y holgadas dentro de los cajones -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" metido en la frente del gato -->
+        <!-- Título "Iniciar Sesión" -->
         <div class="absolute left-0 right-0 top-[18%] text-center px-4">
           <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/50 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Alineado cómodamente en la gaveta superior ensanchada) -->
-          <div class="absolute left-[16%] right-[16%] top-[39%]">
+          <!-- CAJÓN 2: Usuario (Aprovechando el ancho máximo de la gaveta superior) -->
+          <div class="absolute left-[10%] right-[10%] top-[39%]">
             <input 
               id="username" 
               name="username" 
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 outline-none focus:border-blue-500 transition-colors shadow-innerplaceholder-gray-500"
+              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 outline-none focus:border-blue-500 transition-colors shadow-inner placeholder-gray-500"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Alineado cómodamente en la gaveta del medio ensanchada) -->
-          <div class="absolute left-[16%] right-[16%] top-[57%]">
+          <!-- CAJÓN 3: Contraseña (Aprovechando el ancho máximo de la gaveta central) -->
+          <div class="absolute left-[10%] right-[10%] top-[57%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -68,7 +70,6 @@ let error = '';
                 placeholder="Contraseña"
                 class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 pr-9 outline-none focus:border-blue-500 transition-colors shadow-inner placeholder-gray-500"
               />
-              <!-- Botón Ojo absoluto a la derecha interna del cajón -->
               <button
                 id="togglePassword"
                 type="button"
@@ -85,8 +86,8 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar (Alineado arriba del compartimento inferior) -->
-          <div class="absolute left-[16%] right-[16%] top-[74%]">
+          <!-- CAJÓN 4: Botón Ingresar -->
+          <div class="absolute left-[10%] right-[10%] top-[74%]">
             <button 
               type="submit" 
               id="submitBtn"
@@ -100,7 +101,7 @@ let error = '';
       </div>
     </div>
 
-    <!-- Enlace inferior separado de las patas -->
+    <!-- Enlace inferior -->
     <div class="text-center mt-6 text-sm">
       <a href="/register" class="text-blue-400 hover:text-blue-300 underline font-medium">¿No tienes cuenta? Registrarse</a>
     </div>
