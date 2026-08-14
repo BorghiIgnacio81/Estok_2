@@ -19,37 +19,38 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR CON MÁSCARA GATUNA CORREGIDA (OREJA DERECHA RESCATADA + 4 PATAS EN PERSPECTIVA) -->
+    <!-- EL CONTENEDOR CON MÁSCARA GATUNA RECONFIGURADA (ALTURA REFORZADA + FRENTE RECTA CONSERVARE) -->
+    <!-- Incrementamos la altura a 430px para que las patas no se decapiten abajo -->
     <div 
-      class="relative w-full max-w-[370px] h-[400px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
+      class="relative w-full max-w-[370px] h-[430px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
       style="
         background-image: url('/archivador-login.png'); 
         background-size: 152% 100%;
         clip-path: polygon(
-          11% 20%, 15% 12%, 22% 5%, 31% 2%, 37% 5%, 42% 12%, 45% 20%, 
-          50% 21%, 52% 17%, 56% 10%, 63% 3%, 72% 2%, 80% 6%, 86% 14%, 90% 22%,
-          96% 26%, 96% 80%, 
-          89% 82%, 91% 92%, 86% 96%, 81% 95%, 79% 84%, 
-          71% 83%, 72% 91%, 69% 94%, 65% 92%, 64% 83%, 
-          35% 83%, 34% 93%, 30% 95%, 26% 92%, 26% 84%, 
-          19% 84%, 17% 96%, 12% 97%, 8% 93%, 10% 82%, 
-          4% 80%, 4% 26%
+          11% 22%, 14% 14%, 20% 7%, 27% 4%, 35% 8%, 41% 15%, 44% 20%, 
+          56% 20%, 59% 15%, 65% 8%, 73% 4%, 80% 7%, 86% 14%, 89% 22%,
+          96% 26%, 96% 76%, 
+          88% 78%, 89% 89%, 85% 93%, 81% 91%, 79% 80%, 
+          73% 79%, 74% 93%, 71% 96%, 66% 94%, 64% 79%, 
+          35% 79%, 34% 94%, 29% 96%, 25% 93%, 26% 79%, 
+          20% 79%, 18% 91%, 13% 93%, 9% 89%, 11% 78%, 
+          4% 76%, 4% 26%
         );
       "
     >
       <div class="absolute inset-0 bg-slate-950/5 -z-10"></div>
 
-      <!-- CAPA DE FORMULARIO: Mantiene el ancho y alto que ya te gustaron -->
+      <!-- CAPA DE FORMULARIO: Adaptada a la nueva escala vertical -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" -->
-        <div class="absolute left-0 right-0 top-[18%] text-center px-4">
+        <!-- Título "Iniciar Sesión" colocado en la frente plana del gato -->
+        <div class="absolute left-0 right-0 top-[22%] text-center px-4">
           <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/50 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
           <!-- CAJÓN 2: Usuario (Centrado en la gaveta superior azul) -->
-          <div class="absolute left-[10%] right-[10%] top-[39%]">
+          <div class="absolute left-[10%] right-[10%] top-[41%]">
             <input 
               id="username" 
               name="username" 
@@ -61,7 +62,7 @@ let error = '';
           </div>
 
           <!-- CAJÓN 3: Contraseña (Centrado en la gaveta intermedia azul) -->
-          <div class="absolute left-[10%] right-[10%] top-[57%]">
+          <div class="absolute left-[10%] right-[10%] top-[58%]">
             <div class="relative">
               <input 
                 id="password" 
