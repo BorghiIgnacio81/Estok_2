@@ -4,7 +4,7 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
-  <!-- Ocultamos de forma absoluta el navbar superior y cualquier sobre de mensajería -->
+  <!-- Ocultamos de forma absoluta menús e iconos flotantes ajenos al login -->
   <style is:global>
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
@@ -14,58 +14,65 @@ let error = '';
   <div class="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center p-4 select-none">
     
     <!-- Título Principal Superior Fuera del Mueble -->
-    <div class="text-center mb-4 z-10">
+    <div class="text-center mb-6 z-10">
       <h1 class="text-3xl font-extrabold text-white tracking-tight">Estok</h1>
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR GIGANTE DEL GATO: w-[440px] le da un ancho espectacular a los cajones -->
-    <!-- overflow-visible asegura que NADA de la imagen se corte al desbordar -->
-    <div class="relative w-full max-w-[440px] h-[440px] overflow-visible my-4 flex justify-center items-center">
-      
-      <!-- LA ILUSTRACIÓN REAL: Estirada con márgenes negativos para que las orejas y patas salgan del rectángulo -->
-      <div 
-        class="absolute -inset-x-12 -inset-y-10 bg-center bg-no-repeat"
-        style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
-      ></div>
+    <!-- EL CONTENEDOR CON MÁSCARA GATUNA DEFINITIVA -->
+    <!-- Usamos clip-path poligonal para recortar los cuadraditos falsos y calar las orejas y las patas de forma real -->
+    <div 
+      class="relative w-full max-w-[360px] h-[390px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
+      style="
+        background-image: url('/archivador-login.png'); 
+        background-size: 100% 100%;
+        clip-path: polygon(
+          28% 10%, 34% 0%, 46% 3%, 50% 12%, 54% 12%, 58% 3%, 70% 0%, 75% 10%, 
+          82% 16%, 83% 82%, 78% 89%, 78% 97%, 69% 100%, 65% 94%, 63% 89%, 
+          41% 89%, 39% 94%, 35% 100%, 25% 97%, 25% 89%, 20% 82%, 21% 16%
+        );
+      "
+    >
+      <!-- Capa de contraste ultra sutil -->
+      <div class="absolute inset-0 bg-slate-950/5 -z-10"></div>
 
-      <!-- CAPA DEL FORMULARIO CON POSICIONES REALES ADENTRO DE LOS CAJONES ANCHOS -->
+      <!-- CAPA DE FORMULARIO: Ajustada milimétricamente adentro de los cajones reales del dibujo -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" centrado arriba en la frente del gato -->
-        <div class="absolute left-0 right-0 top-[8%] text-center px-4">
-          <h2 class="text-sm font-bold text-white drop-shadow-md tracking-wide uppercase">Iniciar Sesión</h2>
+        <!-- Título "Iniciar Sesión" metido en la frente del gato -->
+        <div class="absolute left-0 right-0 top-[18%] text-center px-4">
+          <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/40 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Perfectamente centrado en la gaveta ancha superior) -->
-          <div class="absolute left-[15%] right-[15%] top-[38%]">
+          <!-- CAJÓN 2: Usuario (Incrustado adentro del segundo compartimento metálico) -->
+          <div class="absolute left-[20%] right-[20%] top-[39%]">
             <input 
               id="username" 
               name="username" 
               type="text" 
               required 
-              placeholder="Ingresa tu usuario"
-              class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800 focus:border-blue-500 rounded-md outline-none p-2 transition-colors"
+              placeholder="Usuario"
+              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 outline-none focus:border-blue-500 transition-colors shadow-inner"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Perfectamente centrado en la gaveta ancha del medio) -->
-          <div class="absolute left-[15%] right-[15%] top-[57%]">
+          <!-- CAJÓN 3: Contraseña (Incrustado adentro del tercer compartimento metálico) -->
+          <div class="absolute left-[20%] right-[20%] top-[57%]">
             <div class="relative">
               <input 
                 id="password" 
                 name="password" 
                 type="password" 
                 required 
-                placeholder="••••••"
-                class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800 focus:border-blue-500 rounded-md outline-none p-2 pr-10 transition-colors"
+                placeholder="Contraseña"
+                class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 pr-9 outline-none focus:border-blue-500 transition-colors shadow-inner"
               />
-              <!-- Botón Ojo ajustado a la derecha interna del cajón -->
+              <!-- Botón Ojo ajustado a la derecha interna -->
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
               >
                 <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -78,14 +85,14 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar (Calza justo arriba de la gaveta inferior ensanchada) -->
-          <div class="absolute left-[15%] right-[15%] top-[76%]">
+          <!-- CAJÓN 4: Botón Ingresar (Calza justo arriba de la manija de abajo) -->
+          <div class="absolute left-[20%] right-[20%] top-[74%]">
             <button 
               type="submit" 
               id="submitBtn"
-              class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2.5 rounded-md shadow-md transition-all active:scale-[0.97]"
+              class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded shadow-md transition-all active:scale-[0.97]"
             >
-              <span id="btnText">Ingresar al sistema</span>
+              <span id="btnText">Ingresar</span>
             </button>
           </div>
         </form>
@@ -94,7 +101,7 @@ let error = '';
     </div>
 
     <!-- Enlace inferior bien abajo separado de las patas -->
-    <div class="text-center mt-8 text-sm z-10">
+    <div class="text-center mt-6 text-sm">
       <a href="/register" class="text-blue-400 hover:text-blue-300 underline font-medium">¿No tienes cuenta? Registrarse</a>
     </div>
   </div>
@@ -136,12 +143,12 @@ let error = '';
       } else {
         alert('Credenciales inválidas');
         submitBtn.disabled = false;
-        btnText.textContent = 'Ingresar al sistema';
+        btnText.textContent = 'Ingresar';
       }
     } catch (err) {
       alert('Error de conexión');
       submitBtn.disabled = false;
-      btnText.textContent = 'Ingresar al sistema';
+      btnText.textContent = 'Ingresar';
     }
   });
 </script>
