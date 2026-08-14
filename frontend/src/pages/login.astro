@@ -4,7 +4,7 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
-  <!-- Eliminamos el navbar superior Y el sobre amarillo de mensajería de la esquina -->
+  <!-- Ocultamos de forma absoluta el navbar superior y cualquier sobre de mensajería -->
   <style is:global>
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
@@ -13,81 +13,88 @@ let error = '';
 
   <div class="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center p-4 select-none">
     
-    <!-- Título Principal Superior -->
-    <div class="text-center mb-6 z-10">
+    <!-- Título Principal Superior Fuera del Mueble -->
+    <div class="text-center mb-4 z-10">
       <h1 class="text-3xl font-extrabold text-white tracking-tight">Estok</h1>
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-        <!-- EL CONTENEDOR TOTALMENTE INTEGRADO -->
-        <div 
-                  class="relative w-[260px] h-[260px] overflow-visible mx-auto bg-no-repeat"
-                  style="background-image: url('/archivador-login.png'); background-size: 160% 150%; background-position: center;"
-                >
-          <!-- Sin recuadros, velos ni fondos adicionales -->
+    <!-- CONTENEDOR GIGANTE DEL GATO: w-[440px] le da un ancho espectacular a los cajones -->
+    <!-- overflow-visible asegura que NADA de la imagen se corte al desbordar -->
+    <div class="relative w-full max-w-[440px] h-[440px] overflow-visible my-4 flex justify-center items-center">
+      
+      <!-- LA ILUSTRACIÓN REAL: Estirada con márgenes negativos para que las orejas y patas salgan del rectángulo -->
+      <div 
+        class="absolute -inset-x-12 -inset-y-10 bg-center bg-no-repeat"
+        style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
+      ></div>
 
-      <!-- Iniciar Sesión en la parte superior del mueble -->
-      <div class="absolute left-0 right-0 top-[-10%] text-center px-4">
-        <h2 class="text-base font-bold text-white drop-shadow-md">Iniciar Sesión</h2>
-      </div>
-
-      <form id="loginForm" class="absolute inset-0">
-                <!-- INPUT USUARIO: Transparente, insertado en la gaveta superior -->
-        <div class="absolute left-[5%] right-[5%] top-[28%]">
-          <input 
-            id="username" 
-            name="username" 
-            type="text" 
-            required 
-            placeholder="Ingresa tu usuario"
-            class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-2 transition-all"
-          />
+      <!-- CAPA DEL FORMULARIO CON POSICIONES REALES ADENTRO DE LOS CAJONES ANCHOS -->
+      <div class="absolute inset-0 z-10">
+        
+        <!-- Título "Iniciar Sesión" centrado arriba en la frente del gato -->
+        <div class="absolute left-0 right-0 top-[8%] text-center px-4">
+          <h2 class="text-sm font-bold text-white drop-shadow-md tracking-wide uppercase">Iniciar Sesión</h2>
         </div>
 
-                <!-- INPUT CONTRASEÑA: Transparente, insertado en la gaveta intermedia -->
-        <div class="absolute left-[5%] right-[5%] top-[50%]">
-          <div class="relative">
+        <form id="loginForm" class="absolute inset-0">
+          <!-- CAJÓN 2: Usuario (Perfectamente centrado en la gaveta ancha superior) -->
+          <div class="absolute left-[15%] right-[15%] top-[38%]">
             <input 
-              id="password" 
-              name="password" 
-              type="password" 
+              id="username" 
+              name="username" 
+              type="text" 
               required 
-              placeholder="••••••"
-              class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 p-2 pr-10 transition-all"
+              placeholder="Ingresa tu usuario"
+              class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800 focus:border-blue-500 rounded-md outline-none p-2 transition-colors"
             />
-            <!-- Botón Ojo flotando a la derecha interna del cajón -->
-            <button
-              id="togglePassword"
-              type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+          </div>
+
+          <!-- CAJÓN 3: Contraseña (Perfectamente centrado en la gaveta ancha del medio) -->
+          <div class="absolute left-[15%] right-[15%] top-[57%]">
+            <div class="relative">
+              <input 
+                id="password" 
+                name="password" 
+                type="password" 
+                required 
+                placeholder="••••••"
+                class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800 focus:border-blue-500 rounded-md outline-none p-2 pr-10 transition-colors"
+              />
+              <!-- Botón Ojo ajustado a la derecha interna del cajón -->
+              <button
+                id="togglePassword"
+                type="button"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <svg id="eyeClosed" class="hidden h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- CAJÓN 4: Botón Ingresar (Calza justo arriba de la gaveta inferior ensanchada) -->
+          <div class="absolute left-[15%] right-[15%] top-[76%]">
+            <button 
+              type="submit" 
+              id="submitBtn"
+              class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2.5 rounded-md shadow-md transition-all active:scale-[0.97]"
             >
-              <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              <svg id="eyeClosed" class="hidden h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
+              <span id="btnText">Ingresar al sistema</span>
             </button>
           </div>
-        </div>
+        </form>
 
-        <!-- BOTÓN INGRESAR: Se mimetiza arriba de la manija inferior -->
-
-        <div class="absolute left-[5%] right-[5%] top-[72%]">
-          <button 
-            type="submit" 
-            id="submitBtn"
-            class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 transition-all active:scale-[0.98]"
-          >
-            <span id="btnText">Ingresar al sistema</span>
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
 
-    <!-- Enlace de registro abajo de las patas -->
-    <div class="text-center mt-6 text-sm">
+    <!-- Enlace inferior bien abajo separado de las patas -->
+    <div class="text-center mt-8 text-sm z-10">
       <a href="/register" class="text-blue-400 hover:text-blue-300 underline font-medium">¿No tienes cuenta? Registrarse</a>
     </div>
   </div>
@@ -138,4 +145,3 @@ let error = '';
     }
   });
 </script>
-
