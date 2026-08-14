@@ -4,6 +4,7 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
+  <!-- Ocultamos de forma absoluta menús e iconos flotantes ajenos al login -->
   <style is:global>
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
@@ -18,27 +19,27 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR CON MÁSCARA GATUNA CURVA DE ALTA DEFINICIÓN (32 PUNTOS) -->
+    <!-- EL CONTENEDOR CON MÁSCARA GATUNA CORREGIDA (OREJA DERECHA RESCATADA + 4 PATAS EN PERSPECTIVA) -->
     <div 
       class="relative w-full max-w-[370px] h-[400px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
       style="
         background-image: url('/archivador-login.png'); 
         background-size: 152% 100%;
         clip-path: polygon(
-          15% 15%, 19% 10%, 25% 4%, 32% 1%, 38% 3%, 43% 10%, 46% 16%, 
-          50% 16%, 54% 10%, 59% 3%, 65% 1%, 72% 4%, 78% 10%, 82% 15%, 
-          96% 22%, 96% 80%, 
-          87% 85%, 88% 93%, 84% 96%, 79% 95%, 78% 87%, 
-          71% 87%, 72% 95%, 68% 98%, 64% 96%, 63% 86%, 
-          35% 86%, 34% 96%, 30% 98%, 26% 95%, 26% 87%, 
-          19% 87%, 18% 95%, 13% 96%, 10% 93%, 11% 85%, 
-          4% 80%, 4% 22%
+          11% 20%, 15% 12%, 22% 5%, 31% 2%, 37% 5%, 42% 12%, 45% 20%, 
+          50% 21%, 52% 17%, 56% 10%, 63% 3%, 72% 2%, 80% 6%, 86% 14%, 90% 22%,
+          96% 26%, 96% 80%, 
+          89% 82%, 91% 92%, 86% 96%, 81% 95%, 79% 84%, 
+          71% 83%, 72% 91%, 69% 94%, 65% 92%, 64% 83%, 
+          35% 83%, 34% 93%, 30% 95%, 26% 92%, 26% 84%, 
+          19% 84%, 17% 96%, 12% 97%, 8% 93%, 10% 82%, 
+          4% 80%, 4% 26%
         );
       "
     >
       <div class="absolute inset-0 bg-slate-950/5 -z-10"></div>
 
-      <!-- CAPA DE FORMULARIO: Entradas ensanchadas y holgadas dentro de los cajones -->
+      <!-- CAPA DE FORMULARIO: Mantiene el ancho y alto que ya te gustaron -->
       <div class="absolute inset-0 z-10">
         
         <!-- Título "Iniciar Sesión" -->
@@ -47,7 +48,7 @@ let error = '';
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Aprovechando el ancho máximo de la gaveta superior) -->
+          <!-- CAJÓN 2: Usuario (Centrado en la gaveta superior azul) -->
           <div class="absolute left-[10%] right-[10%] top-[39%]">
             <input 
               id="username" 
@@ -59,7 +60,7 @@ let error = '';
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Aprovechando el ancho máximo de la gaveta central) -->
+          <!-- CAJÓN 3: Contraseña (Centrado en la gaveta intermedia azul) -->
           <div class="absolute left-[10%] right-[10%] top-[57%]">
             <div class="relative">
               <input 
