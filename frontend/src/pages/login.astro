@@ -21,19 +21,19 @@ let error = '';
 
         <!-- EL CONTENEDOR TOTALMENTE INTEGRADO -->
         <div 
-          class="relative w-[350px] h-[350px] bg-[size:138%_112%] bg-center bg-no-repeat overflow-visible"
-          style="background-image: url('/archivador-login.png');"
-        >
+                  class="relative w-[260px] h-[260px] overflow-visible mx-auto bg-no-repeat"
+                  style="background-image: url('/archivador-login.png'); background-size: 160% 150%; background-position: center;"
+                >
           <!-- Sin recuadros, velos ni fondos adicionales -->
 
       <!-- Iniciar Sesión en la parte superior del mueble -->
-      <div class="absolute left-0 right-0 top-[3%] text-center px-4">
+      <div class="absolute left-0 right-0 top-[-10%] text-center px-4">
         <h2 class="text-base font-bold text-white drop-shadow-md">Iniciar Sesión</h2>
       </div>
 
       <form id="loginForm" class="absolute inset-0">
                 <!-- INPUT USUARIO: Transparente, insertado en la gaveta superior -->
-        <div class="absolute left-[10%] right-[10%] top-[39%]">
+        <div class="absolute left-[5%] right-[5%] top-[28%]">
           <input 
             id="username" 
             name="username" 
@@ -45,7 +45,7 @@ let error = '';
         </div>
 
                 <!-- INPUT CONTRASEÑA: Transparente, insertado en la gaveta intermedia -->
-        <div class="absolute left-[10%] right-[10%] top-[58%]">
+        <div class="absolute left-[5%] right-[5%] top-[50%]">
           <div class="relative">
             <input 
               id="password" 
@@ -73,7 +73,8 @@ let error = '';
         </div>
 
         <!-- BOTÓN INGRESAR: Se mimetiza arriba de la manija inferior -->
-        <div class="absolute left-[10%] right-[10%] top-[77%]">
+
+        <div class="absolute left-[5%] right-[5%] top-[72%]">
           <button 
             type="submit" 
             id="submitBtn"
