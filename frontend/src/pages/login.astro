@@ -4,7 +4,6 @@ let error = '';
 ---
 
 <BaseLayout title="Iniciar Sesión - Estok">
-  <!-- Ocultamos de forma absoluta menús e iconos flotantes ajenos al login -->
   <style is:global>
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
@@ -19,46 +18,34 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR CON MÁSCARA GATUNA PERFECCIONADA (CURVAS SUAVES EN OREJAS) -->
+    <!-- CONTENEDOR RECTANGULAR SIMPLIFICADO: Fusión total con el fondo de la página -->
     <div 
-      class="relative w-full max-w-[365px] h-[390px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl"
-      style="
-        background-image: url('/archivador-login.png'); 
-        background-size: 152% 100%;
-        clip-path: polygon(
-          17% 16%, 21% 10%, 25% 5%, 31% 2%, 36% 5%, 41% 10%, 44% 15%, 
-          46% 17%, 54% 17%, 56% 15%, 59% 10%, 64% 5%, 70% 2%, 75% 5%, 80% 10%, 82% 16%,
-          83% 87%, 81% 89%, 80% 95%, 75% 95%, 71% 94%, 70% 90%, 66% 91%, 64% 92%, 
-          60% 92%, 58% 91%, 43% 92%, 39% 98%, 34% 98%, 29% 96%, 29% 92%, 27% 93%, 
-          22% 93%, 22% 89%, 18% 91%, 18% 87%, 17% 85%, 17% 81%
-        );
-      "
+      class="relative w-full max-w-[365px] h-[390px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl rounded-2xl border border-gray-800/40 bg-[#0b0f19]"
+      style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
     >
-      <div class="absolute inset-0 bg-slate-950/5 -z-10"></div>
-
-      <!-- CAPA DE FORMULARIO: Alineada con las maderas de los cajones -->
+      <!-- Capa de formulario con coordenadas estables sobre las gavetas -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" colocado en la frente del gato -->
-        <div class="absolute left-0 right-0 top-[20%] text-center px-4">
-          <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/50 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
+        <!-- Título "Iniciar Sesión" -->
+        <div class="absolute left-0 right-0 top-[12%] text-center px-4">
+          <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Centrado exactamente en la gaveta superior azul) -->
-          <div class="absolute left-[10%] right-[10%] top-[41%]">
+          <!-- CAJÓN 2: Usuario (Encajado de forma fija en la madera superior) -->
+          <div class="absolute left-[12%] right-[12%] top-[36%]">
             <input 
               id="username" 
               name="username" 
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 outline-none focus:border-blue-500 transition-colors shadow-inner placeholder-gray-500"
+              class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Centrado exactamente en la gaveta intermedia azul) -->
-          <div class="absolute left-[10%] right-[10%] top-[58%]">
+          <!-- CAJÓN 3: Contraseña (Encajado de forma fija en la madera intermedia) -->
+          <div class="absolute left-[12%] right-[12%] top-[55%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -66,7 +53,7 @@ let error = '';
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-slate-900/80 border border-gray-700/60 rounded px-3 py-1.5 pr-9 outline-none focus:border-blue-500 transition-colors shadow-inner placeholder-gray-500"
+                class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 pr-9 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
               />
               <button
                 id="togglePassword"
@@ -85,7 +72,7 @@ let error = '';
           </div>
 
           <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[10%] right-[10%] top-[75%]">
+          <div class="absolute left-[12%] right-[12%] top-[74%]">
             <button 
               type="submit" 
               id="submitBtn"
