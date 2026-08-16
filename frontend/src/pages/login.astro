@@ -15,14 +15,14 @@ let error = '';
       display: none !important;
     }
 
-    /* Evita que Chrome/Edge coloque el fondo blanco/celeste del autofill */
+    /* Inputs transparentes y sin estilos del navegador */
     #username:-webkit-autofill,
     #username:-webkit-autofill:hover,
     #username:-webkit-autofill:focus,
     #password:-webkit-autofill,
     #password:-webkit-autofill:hover,
     #password:-webkit-autofill:focus {
-      -webkit-text-fill-color: white !important;
+      -webkit-text-fill-color: #071018 !important;
       -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
       box-shadow: 0 0 0px 1000px transparent inset !important;
       background-color: transparent !important;
@@ -33,7 +33,7 @@ let error = '';
     #password {
       background: transparent !important;
       background-color: transparent !important;
-      color: white !important;
+      color: #071018 !important;
       border: none !important;
       outline: none !important;
       box-shadow: none !important;
@@ -43,7 +43,7 @@ let error = '';
 
     #username::placeholder,
     #password::placeholder {
-      color: rgba(255, 255, 255, 0.75) !important;
+      color: rgba(7, 16, 24, 0.75) !important;
     }
 
     #username:focus,
@@ -53,6 +53,19 @@ let error = '';
       border: none !important;
       box-shadow: none !important;
       outline: none !important;
+    }
+
+    /* Contraste del texto dentro de los cajones */
+    #username,
+    #password {
+      text-shadow: 0 1px 1px rgba(255, 255, 255, 0.45);
+    }
+
+    /* Texto del botón */
+    #btnText {
+      text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.9),
+        0 0 2px rgba(0, 0, 0, 0.7);
     }
   </style>
 
@@ -101,7 +114,7 @@ let error = '';
               required 
               autocomplete="username"
               placeholder="Usuario"
-              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-[#17212b] !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 transition-all placeholder:!text-white/75"
+              class="!w-full !h-[26px] !text-base !font-extrabold !text-[#071018] !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 transition-all placeholder:!text-[#071018]/75"
             />
           </div>
 
@@ -116,7 +129,7 @@ let error = '';
                 required 
                 autocomplete="current-password"
                 placeholder="Contraseña"
-                class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-[#17212b] !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-white/75"
+                class="!w-full !h-[26px] !text-base !font-extrabold !text-[#071018] !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-[#071018]/75"
               />
 
               <button
@@ -158,7 +171,7 @@ let error = '';
             <button  
               type="submit"  
               id="submitBtn" 
-              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-[#17212b] !bg-transparent !border-none !py-0 !px-2 !rounded-xl !shadow-none transition-all active:scale-[0.90]"
+              class="!w-full !h-[27px] !text-center !text-base !font-extrabold !text-white !bg-transparent !border-none !py-0 !px-2 !rounded-xl !shadow-none transition-all active:scale-[0.90]"
               style="transform: rotate(-1deg);"
             > 
               <span id="btnText">
