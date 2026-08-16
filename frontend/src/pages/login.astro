@@ -5,8 +5,54 @@ let error = '';
 
 <BaseLayout title="Iniciar Sesión - Estok">
   <style is:global>
-    header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
-      display: none !important; 
+    header,
+    nav,
+    #global-navbar,
+    [role="navigation"],
+    .fixed.bottom-4.right-4,
+    #chatContainer,
+    button[class*="rounded-full"] {
+      display: none !important;
+    }
+
+    /* Evita que Chrome/Edge coloque el fondo blanco/celeste del autofill */
+    #username:-webkit-autofill,
+    #username:-webkit-autofill:hover,
+    #username:-webkit-autofill:focus,
+    #password:-webkit-autofill,
+    #password:-webkit-autofill:hover,
+    #password:-webkit-autofill:focus {
+      -webkit-text-fill-color: white !important;
+      -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
+      box-shadow: 0 0 0px 1000px transparent inset !important;
+      background-color: transparent !important;
+      transition: background-color 9999s ease-out 0s !important;
+    }
+
+    #username,
+    #password {
+      background: transparent !important;
+      background-color: transparent !important;
+      color: white !important;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #username::placeholder,
+    #password::placeholder {
+      color: rgba(255, 255, 255, 0.75) !important;
+    }
+
+    #username:focus,
+    #password:focus {
+      background: transparent !important;
+      background-color: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
     }
   </style>
 
@@ -14,8 +60,13 @@ let error = '';
     
     <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
-      <h1 class="text-3xl font-extrabold text-[#1e293b] tracking-tight">Estok</h1>
-      <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
+      <h1 class="text-3xl font-extrabold text-[#1e293b] tracking-tight">
+        Estok
+      </h1>
+
+      <p class="text-xs text-gray-600 mt-1">
+        Sistema de Inventario Personal
+      </p>
     </div>
 
     <!-- CONTENEDOR CON DIFUMINADO -->
@@ -48,8 +99,9 @@ let error = '';
               name="username" 
               type="text" 
               required 
+              autocomplete="username"
               placeholder="Usuario"
-              class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-transparent !border !border-white/20 !rounded-lg !outline-none focus:!ring-1 focus:!ring-white/30 !shadow-none !px-2 !py-0 transition-all placeholder:!text-gray-300"
+              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 transition-all placeholder:!text-white/75"
             />
           </div>
 
@@ -62,14 +114,15 @@ let error = '';
                 name="password" 
                 type="password" 
                 required 
+                autocomplete="current-password"
                 placeholder="Contraseña"
-                class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-transparent !border !border-white/20 !rounded-lg !outline-none focus:!ring-1 focus:!ring-white/30 !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-gray-300"
+                class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-white/75"
               />
 
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 !bg-transparent !border-none !p-0 text-gray-400 hover:text-white transition-colors"
+                class="absolute right-2 top-1/2 -translate-y-1/2 !bg-transparent !border-none !p-0 !shadow-none text-gray-400 hover:text-white transition-colors"
               >
                 <svg 
                   id="eyeOpen" 
@@ -101,13 +154,16 @@ let error = '';
           </div>
 
           <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[41%] right-[21%] top-[69%]">
+          <div class="absolute left-[41%] right-[21%] top-[70%]">
             <button  
               type="submit"  
               id="submitBtn" 
-              class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-[#1a2633]/70 hover:!bg-[#1a2633]/90 !border !border-gray-700/30 !py-0 !px-2 !rounded-xl !shadow-md transition-all active:scale-[0.90]" 
+              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !py-0 !px-2 !rounded-xl !shadow-none transition-all active:scale-[0.90]"
+              style="transform: rotate(-1deg);"
             > 
-              <span id="btnText">Ingresar</span>
+              <span id="btnText">
+                Ingresar
+              </span>
             </button> 
           </div>
 
@@ -118,7 +174,10 @@ let error = '';
  
     <!-- Enlace inferior --> 
     <div class="text-center mt-6 text-sm"> 
-      <a href="/register" class="text-blue-700 hover:text-blue-900 underline font-semibold">
+      <a 
+        href="/register" 
+        class="text-blue-700 hover:text-blue-900 underline font-semibold"
+      >
         ¿No tienes cuenta? Registrarse
       </a>
     </div>
@@ -148,6 +207,7 @@ let error = '';
  
   loginForm?.addEventListener('submit', async (e) => { 
     e.preventDefault(); 
+
     const formData = new FormData(loginForm); 
     const username = formData.get('username') as string; 
     const password = formData.get('password') as string; 
