@@ -18,20 +18,24 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- EL CONTENEDOR MÁGICO CON MULTIPLY -->
-    <!-- mix-blend-mode: multiply hace desaparecer el fondo blanco de la imagen fundiéndolo con el fondo oscuro -->
-    <div class="relative w-full max-w-[365px] h-[390px] bg-[#0b0f19] overflow-visible">
+    <!-- CONTENEDOR OPTIMIZADO: Eliminamos multiply y aplicamos un filtro de brillo y contraste directo -->
+    <div class="relative w-full max-w-[365px] h-[390px] overflow-visible">
       
-      <!-- La Ilustración real del gato sirviendo de fondo exclusivo -->
+      <!-- La Ilustración con brillo restaurado al 100% y filtro de balance de curvas -->
       <div 
-        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none"
-        style="background-image: url('/archivador-login.png'); background-size: 100% 100%; mix-blend-mode: multiply;"
+        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none transition-all duration-300"
+        style="
+          background-image: url('/archivador-login.png'); 
+          background-size: 100% 100%; 
+          filter: contrast(1.1) brightness(1.2) saturate(1.1);
+          mix-blend-mode: lighten;
+        "
       ></div>
 
-      <!-- CAPA DE FORMULARIO: Ajustada milimétricamente en el centro de las gavetas -->
+      <!-- CAPA DE FORMULARIO: Ajustada de forma fija en las gavetas -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" metido en la frente del gato -->
+        <!-- Título "Iniciar Sesión" -->
         <div class="absolute left-0 right-0 top-[12%] text-center px-4">
           <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
@@ -45,7 +49,7 @@ let error = '';
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
+              class="w-full text-center text-sm font-bold text-white bg-slate-950/50 border border-gray-800/80 rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors placeholder-gray-500 shadow-lg"
             />
           </div>
 
@@ -58,7 +62,7 @@ let error = '';
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 pr-9 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
+                class="w-full text-center text-sm font-bold text-white bg-slate-950/50 border border-gray-800/80 rounded px-3 py-2 pr-9 outline-none focus:border-blue-500 transition-colors placeholder-gray-500 shadow-lg"
               />
               <button
                 id="togglePassword"
@@ -76,7 +80,7 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar (Calza justo arriba del compartimento inferior) -->
+          <!-- CAJÓN 4: Botón Ingresar -->
           <div class="absolute left-[14%] right-[14%] top-[74%]">
             <button 
               type="submit" 
