@@ -18,7 +18,7 @@ let error = '';
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR CON DIFUMINADO PERFECTO -->
+    <!-- CONTENEDOR CON DIFUMINADO -->
     <div 
       class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl"
       style="
@@ -29,16 +29,19 @@ let error = '';
       "
     >
       
-      <!-- CAPA DE FORMULARIO: Ajustada para que queden adentro de los herrajes -->
+      <!-- CAPA DE FORMULARIO -->
       <div class="absolute inset-0 z-10">
         
         <!-- Título "Iniciar Sesión" -->
         <div class="absolute left-10 right-0 top-[7%] text-center px-4">
-          <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
+          <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">
+            Iniciar Sesión
+          </h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Más corto: empieza más a la derecha en 29% y cierra antes en 21%) -->
+
+          <!-- CAJÓN 2: Usuario -->
           <div class="absolute left-[39%] right-[21%] top-[37%]">
             <input 
               id="username" 
@@ -46,101 +49,126 @@ let error = '';
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-transparent border border-white/20 rounded-lg outline-none focus:ring-1 focus:ring-white/30 ring-0 shadow-none py-1 px-2 transition-all placeholder-gray-300"
+              class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-transparent !border !border-white/20 !rounded-lg !outline-none focus:!ring-1 focus:!ring-white/30 !shadow-none !px-2 !py-0 transition-all placeholder:!text-gray-300"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Misma anchura y mimetizado azul-grisáceo oscuro) -->
+          <!-- CAJÓN 3: Contraseña -->
           <div class="absolute left-[40%] right-[21%] top-[48%]">
             <div class="relative">
+
               <input 
                 id="password" 
                 name="password" 
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-transparent border border-white/20 rounded-lg outline-none focus:ring-1 focus:ring-white/30 ring-0 shadow-none py-1 px-2 pr-8 transition-all placeholder-gray-300"
+                class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-transparent !border !border-white/20 !rounded-lg !outline-none focus:!ring-1 focus:!ring-white/30 !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-gray-300"
               />
+
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                class="absolute right-2 top-1/2 -translate-y-1/2 !bg-transparent !border-none !p-0 text-gray-400 hover:text-white transition-colors"
               >
-                <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg 
+                  id="eyeOpen" 
+                  class="h-4 w-4" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor" 
+                  stroke-width="2"
+                >
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                <svg id="eyeClosed" class="hidden h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+
+                <svg 
+                  id="eyeClosed" 
+                  class="hidden h-4 w-4" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor" 
+                  stroke-width="2"
+                >
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                 </svg>
+
               </button>
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar (Alineado al mismo ancho acortado y más translúcido) -->
+          <!-- CAJÓN 4: Botón Ingresar -->
           <div class="absolute left-[41%] right-[21%] top-[69%]">
-            <button 
-              type="submit" 
-              id="submitBtn"
-              class="w-full text-center text-sm font-bold text-white bg-[#1a2633]/70 hover:bg-[#1a2633]/90 border border-gray-700/30 py-0.5 rounded-xl shadow-md transition-all active:scale-[0.90]"
-            >
+            <button  
+              type="submit"  
+              id="submitBtn" 
+              class="!w-full !h-7 !text-center !text-sm !font-bold !text-white !bg-[#1a2633]/70 hover:!bg-[#1a2633]/90 !border !border-gray-700/30 !py-0 !px-2 !rounded-xl !shadow-md transition-all active:scale-[0.90]" 
+            > 
               <span id="btnText">Ingresar</span>
-            </button>
+            </button> 
           </div>
+
         </form>
-
+ 
       </div>
+    </div> 
+ 
+    <!-- Enlace inferior --> 
+    <div class="text-center mt-6 text-sm"> 
+      <a href="/register" class="text-blue-700 hover:text-blue-900 underline font-semibold">
+        ¿No tienes cuenta? Registrarse
+      </a>
     </div>
 
-    <!-- Enlace inferior -->
-    <div class="text-center mt-6 text-sm">
-      <a href="/register" class="text-blue-700 hover:text-blue-900 underline font-semibold">¿No tienes cuenta? Registrarse</a>
-    </div>
   </div>
-</BaseLayout>
+</BaseLayout> 
+ 
+<script> 
+  import { login } from '../services/auth'; 
+ 
+  const passwordInput = document.getElementById('password') as HTMLInputElement; 
+  const togglePassword = document.getElementById('togglePassword') as HTMLButtonElement; 
+  const eyeOpen = document.getElementById('eyeOpen')!; 
+  const eyeClosed = document.getElementById('eyeClosed')!; 
+ 
+  togglePassword?.addEventListener('click', () => { 
+    const isHidden = passwordInput.type === 'password'; 
+    passwordInput.type = isHidden ? 'text' : 'password'; 
+    eyeOpen.classList.toggle('hidden', !isHidden); 
+    eyeClosed.classList.toggle('hidden', isHidden); 
+    passwordInput.focus(); 
+  }); 
+ 
+  const loginForm = document.getElementById('loginForm') as HTMLFormElement; 
+  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement; 
+  const btnText = document.getElementById('btnText')!; 
+ 
+  loginForm?.addEventListener('submit', async (e) => { 
+    e.preventDefault(); 
+    const formData = new FormData(loginForm); 
+    const username = formData.get('username') as string; 
+    const password = formData.get('password') as string; 
+ 
+    try { 
+      submitBtn.disabled = true; 
+      btnText.textContent = '...'; 
+       
+      const success = await login({ username, password }); 
 
-<script>
-  import { login } from '../services/auth';
-
-  const passwordInput = document.getElementById('password') as HTMLInputElement;
-  const togglePassword = document.getElementById('togglePassword') as HTMLButtonElement;
-  const eyeOpen = document.getElementById('eyeOpen')!;
-  const eyeClosed = document.getElementById('eyeClosed')!;
-
-  togglePassword?.addEventListener('click', () => {
-    const isHidden = passwordInput.type === 'password';
-    passwordInput.type = isHidden ? 'text' : 'password';
-    eyeOpen.classList.toggle('hidden', !isHidden);
-    eyeClosed.classList.toggle('hidden', isHidden);
-    passwordInput.focus();
-  });
-
-  const loginForm = document.getElementById('loginForm') as HTMLFormElement;
-  const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-  const btnText = document.getElementById('btnText')!;
-
-  loginForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(loginForm);
-    const username = formData.get('username') as string;
-    const password = formData.get('password') as string;
-
-    try {
-      submitBtn.disabled = true;
-      btnText.textContent = '...';
-      
-      const success = await login({ username, password });
-      if (success) {
-        window.location.href = '/';
-      } else {
-        alert('Credenciales inválidas');
-        submitBtn.disabled = false;
-        btnText.textContent = 'Ingresar';
-      }
-    } catch (err) {
-      alert('Error de conexión');
-      submitBtn.disabled = false;
-      btnText.textContent = 'Ingresar';
-    }
-  });
+      if (success) { 
+        window.location.href = '/'; 
+      } else { 
+        alert('Credenciales inválidas'); 
+        submitBtn.disabled = false; 
+        btnText.textContent = 'Ingresar'; 
+      } 
+    } catch (err) { 
+      alert('Error de conexión'); 
+      submitBtn.disabled = false; 
+      btnText.textContent = 'Ingresar'; 
+    } 
+  }); 
 </script>
