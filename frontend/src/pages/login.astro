@@ -8,7 +8,6 @@ let error = '';
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
     }
-    .text-gray-400 { color: #4b5563 !important; }
   </style>
 
   <div class="min-h-screen bg-[#cfd5e2] flex flex-col justify-center items-center p-4 select-none">
@@ -19,23 +18,18 @@ let error = '';
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR OPTIMIZADO PARA LA IMAGEN AMPLIADA -->
-    <!-- Ajustamos la elipse (black 50%, transparent 88%) para devorar todo el aire blanco de los costados -->
+    <!-- CONTENEDOR LIBRE: Sin máscaras recortantes rígidas. El box-shadow interno esfuma el fondo blanco de Paint hacia el azul claro -->
     <div 
-      class="relative w-full max-w-[420px] h-[390px] overflow-visible"
+      class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl shadow-inner"
       style="
-        mask-image: radial-gradient(ellipse 48% 50% at center, black 50%, transparent 88%);
-        -webkit-mask-image: radial-gradient(ellipse 48% 50% at center, black 50%, transparent 88%);
+        background-image: url('/archivador-login.png'); 
+        background-size: 100% 100%; 
+        background-position: center;
+        box-shadow: inset 0 0 40px 30px #cfd5e2;
       "
     >
       
-      <!-- La Ilustración nueva con los bordes ampliados de Paint -->
-      <div 
-        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none"
-        style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
-      ></div>
-
-      <!-- CAPA DE FORMULARIO: Recalibrada para los nuevos márgenes anchos de la imagen -->
+      <!-- CAPA DE FORMULARIO CON INTEGRACIÓN Y CURVAS PERFECTAS -->
       <div class="absolute inset-0 z-10">
         
         <!-- Título "Iniciar Sesión" -->
@@ -44,20 +38,20 @@ let error = '';
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Centrado milimétricamente en la gaveta superior) -->
-          <div class="absolute left-[26%] right-[22%] top-[36%]">
+          <!-- CAJÓN 2: Usuario (Centrado y movido a la derecha, con fondo integrado al mueble) -->
+          <div class="absolute left-[24%] right-[16%] top-[37%]">
             <input 
               id="username" 
               name="username" 
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 shadow-none py-1 px-3 placeholder-gray-300"
+              class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/40 border border-gray-600/30 rounded-xl py-1 px-3 outline-none focus:border-blue-400 focus:bg-[#1c2a38]/60 transition-all placeholder-gray-400"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Centrado milimétricamente en la gaveta intermedia) -->
-          <div class="absolute left-[26%] right-[22%] top-[53.5%]">
+          <!-- CAJÓN 3: Contraseña (Subido y centrado a la derecha, con fondo integrado y bordes curvos) -->
+          <div class="absolute left-[24%] right-[16%] top-[55%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -65,12 +59,12 @@ let error = '';
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-transparent border-none outline-none focus:ring-0 ring-0 shadow-none py-1 px-3 pr-9 placeholder-gray-300"
+                class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/40 border border-gray-600/30 rounded-xl py-1 px-3 pr-9 outline-none focus:border-blue-400 focus:bg-[#1c2a38]/60 transition-all placeholder-gray-400"
               />
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white transition-colors"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
               >
                 <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -83,12 +77,12 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[26%] right-[22%] top-[71.5%]">
+          <!-- CAJÓN 4: Botón Ingresar (Mimetizado con el color del mueble, bordes redondeados y translúcido) -->
+          <div class="absolute left-[24%] right-[16%] top-[73%]">
             <button 
               type="submit" 
               id="submitBtn"
-              class="w-full text-center text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded shadow-md transition-all active:scale-[0.97]"
+              class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/80 hover:bg-[#1c2a38] border border-gray-600/40 py-1.5 rounded-xl shadow-md transition-all active:scale-[0.97]"
             >
               <span id="btnText">Ingresar</span>
             </button>
