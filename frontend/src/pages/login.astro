@@ -8,35 +8,34 @@ let error = '';
     header, nav, #global-navbar, [role="navigation"], .fixed.bottom-4.right-4, #chatContainer, button[class*="rounded-full"] { 
       display: none !important; 
     }
-    /* Forzamos que las tipografías inferiores mantengan contraste sobre el fondo claro */
     .text-gray-400 { color: #4b5563 !important; }
   </style>
 
-  <!-- ACLARAMOS EL FONDO GENERAL: Un tono azul grisáceo claro que empalma con la imagen -->
   <div class="min-h-screen bg-[#cfd5e2] flex flex-col justify-center items-center p-4 select-none">
     
-    <!-- Título Principal Superior (Pasado a negro/gris oscuro para que se lea en el fondo claro) -->
+    <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
       <h1 class="text-3xl font-extrabold text-[#1e293b] tracking-tight">Estok</h1>
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR CON MÁSCARA RADIAL INTEGRADA -->
+    <!-- CONTENEDOR OPTIMIZADO PARA LA IMAGEN AMPLIADA -->
+    <!-- Ajustamos la elipse (black 50%, transparent 88%) para devorar todo el aire blanco de los costados -->
     <div 
-      class="relative w-full max-w-[365px] h-[390px] overflow-visible"
+      class="relative w-full max-w-[420px] h-[390px] overflow-visible"
       style="
-        mask-image: radial-gradient(circle, black 60%, transparent 95%);
-        -webkit-mask-image: radial-gradient(circle, black 60%, transparent 95%);
+        mask-image: radial-gradient(ellipse 48% 50% at center, black 50%, transparent 88%);
+        -webkit-mask-image: radial-gradient(ellipse 48% 50% at center, black 50%, transparent 88%);
       "
     >
       
-      <!-- La Ilustración con sus colores y brillos originales -->
+      <!-- La Ilustración nueva con los bordes ampliados de Paint -->
       <div 
         class="absolute inset-0 bg-center bg-no-repeat pointer-events-none"
         style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
       ></div>
 
-      <!-- CAPA DE FORMULARIO: Ajustada en las gavetas -->
+      <!-- CAPA DE FORMULARIO: Recalibrada para los nuevos márgenes anchos de la imagen -->
       <div class="absolute inset-0 z-10">
         
         <!-- Título "Iniciar Sesión" -->
@@ -45,8 +44,8 @@ let error = '';
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario -->
-          <div class="absolute left-[14%] right-[14%] top-[36%]">
+          <!-- CAJÓN 2: Usuario (Centrado milimétricamente en la gaveta superior) -->
+          <div class="absolute left-[18%] right-[18%] top-[36%]">
             <input 
               id="username" 
               name="username" 
@@ -57,8 +56,8 @@ let error = '';
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña -->
-          <div class="absolute left-[14%] right-[14%] top-[55%]">
+          <!-- CAJÓN 3: Contraseña (Centrado milimétricamente en la gaveta intermedia) -->
+          <div class="absolute left-[18%] right-[18%] top-[55%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -78,14 +77,14 @@ let error = '';
                   <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
                 <svg id="eyeClosed" class="hidden h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                 </svg>
               </button>
             </div>
           </div>
 
           <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[14%] right-[14%] top-[74%]">
+          <div class="absolute left-[18%] right-[18%] top-[74%]">
             <button 
               type="submit" 
               id="submitBtn"
@@ -99,7 +98,7 @@ let error = '';
       </div>
     </div>
 
-    <!-- Enlace inferior (Cambiado a azul oscuro para legibilidad) -->
+    <!-- Enlace inferior -->
     <div class="text-center mt-6 text-sm">
       <a href="/register" class="text-blue-700 hover:text-blue-900 underline font-semibold">¿No tienes cuenta? Registrarse</a>
     </div>
