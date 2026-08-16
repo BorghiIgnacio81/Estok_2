@@ -18,22 +18,27 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR RECTANGULAR SIMPLIFICADO: Fusión total con el fondo de la página -->
-    <div 
-      class="relative w-full max-w-[365px] h-[390px] bg-center bg-no-repeat overflow-hidden transition-all shadow-2xl rounded-2xl border border-gray-800/40 bg-[#0b0f19]"
-      style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
-    >
-      <!-- Capa de formulario con coordenadas estables sobre las gavetas -->
+    <!-- EL CONTENEDOR MÁGICO CON MULTIPLY -->
+    <!-- mix-blend-mode: multiply hace desaparecer el fondo blanco de la imagen fundiéndolo con el fondo oscuro -->
+    <div class="relative w-full max-w-[365px] h-[390px] bg-[#0b0f19] overflow-visible">
+      
+      <!-- La Ilustración real del gato sirviendo de fondo exclusivo -->
+      <div 
+        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none"
+        style="background-image: url('/archivador-login.png'); background-size: 100% 100%; mix-blend-mode: multiply;"
+      ></div>
+
+      <!-- CAPA DE FORMULARIO: Ajustada milimétricamente en el centro de las gavetas -->
       <div class="absolute inset-0 z-10">
         
-        <!-- Título "Iniciar Sesión" -->
+        <!-- Título "Iniciar Sesión" metido en la frente del gato -->
         <div class="absolute left-0 right-0 top-[12%] text-center px-4">
           <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">Iniciar Sesión</h2>
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Encajado de forma fija en la madera superior) -->
-          <div class="absolute left-[12%] right-[12%] top-[36%]">
+          <!-- CAJÓN 2: Usuario (Centrado exactamente en la gaveta superior azul) -->
+          <div class="absolute left-[14%] right-[14%] top-[36%]">
             <input 
               id="username" 
               name="username" 
@@ -44,8 +49,8 @@ let error = '';
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Encajado de forma fija en la madera intermedia) -->
-          <div class="absolute left-[12%] right-[12%] top-[55%]">
+          <!-- CAJÓN 3: Contraseña (Centrado exactamente en la gaveta del medio azul) -->
+          <div class="absolute left-[14%] right-[14%] top-[55%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -71,8 +76,8 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[12%] right-[12%] top-[74%]">
+          <!-- CAJÓN 4: Botón Ingresar (Calza justo arriba del compartimento inferior) -->
+          <div class="absolute left-[14%] right-[14%] top-[74%]">
             <button 
               type="submit" 
               id="submitBtn"
