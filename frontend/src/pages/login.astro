@@ -18,9 +18,9 @@ let error = '';
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR LIBRE: Sin máscaras recortantes rígidas. El box-shadow interno esfuma el fondo blanco de Paint hacia el azul claro -->
+    <!-- CONTENEDOR CON DIFUMINADO PERFECTO -->
     <div 
-      class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl shadow-inner"
+      class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl"
       style="
         background-image: url('/archivador-login.png'); 
         background-size: 100% 100%; 
@@ -29,7 +29,7 @@ let error = '';
       "
     >
       
-      <!-- CAPA DE FORMULARIO CON INTEGRACIÓN Y CURVAS PERFECTAS -->
+      <!-- CAPA DE FORMULARIO: Ajustada para que queden adentro de los herrajes -->
       <div class="absolute inset-0 z-10">
         
         <!-- Título "Iniciar Sesión" -->
@@ -38,20 +38,20 @@ let error = '';
         </div>
 
         <form id="loginForm" class="absolute inset-0">
-          <!-- CAJÓN 2: Usuario (Centrado y movido a la derecha, con fondo integrado al mueble) -->
-          <div class="absolute left-[24%] right-[16%] top-[37%]">
+          <!-- CAJÓN 2: Usuario (Más corto: empieza más a la derecha en 29% y cierra antes en 21%) -->
+          <div class="absolute left-[29%] right-[21%] top-[37%]">
             <input 
               id="username" 
               name="username" 
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/40 border border-gray-600/30 rounded-xl py-1 px-3 outline-none focus:border-blue-400 focus:bg-[#1c2a38]/60 transition-all placeholder-gray-400"
+              class="w-full text-center text-sm font-bold text-white bg-[#203142]/45 border-none outline-none focus:ring-0 ring-0 rounded-xl py-1 px-2 transition-all placeholder-gray-400"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña (Subido y centrado a la derecha, con fondo integrado y bordes curvos) -->
-          <div class="absolute left-[24%] right-[16%] top-[55%]">
+          <!-- CAJÓN 3: Contraseña (Misma anchura y mimetizado azul-grisáceo oscuro) -->
+          <div class="absolute left-[29%] right-[21%] top-[55%]">
             <div class="relative">
               <input 
                 id="password" 
@@ -59,12 +59,12 @@ let error = '';
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/40 border border-gray-600/30 rounded-xl py-1 px-3 pr-9 outline-none focus:border-blue-400 focus:bg-[#1c2a38]/60 transition-all placeholder-gray-400"
+                class="w-full text-center text-sm font-bold text-white bg-[#203142]/45 border-none outline-none focus:ring-0 ring-0 rounded-xl py-1 px-2 pr-8 transition-all placeholder-gray-400"
               />
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
               >
                 <svg id="eyeOpen" class="h-4 w-4" xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -77,12 +77,12 @@ let error = '';
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar (Mimetizado con el color del mueble, bordes redondeados y translúcido) -->
-          <div class="absolute left-[24%] right-[16%] top-[73%]">
+          <!-- CAJÓN 4: Botón Ingresar (Alineado al mismo ancho acortado y más translúcido) -->
+          <div class="absolute left-[29%] right-[21%] top-[73%]">
             <button 
               type="submit" 
               id="submitBtn"
-              class="w-full text-center text-sm font-bold text-white bg-[#1c2a38]/80 hover:bg-[#1c2a38] border border-gray-600/40 py-1.5 rounded-xl shadow-md transition-all active:scale-[0.97]"
+              class="w-full text-center text-sm font-bold text-white bg-[#1a2633]/70 hover:bg-[#1a2633]/90 border border-gray-700/30 py-1.5 rounded-xl shadow-md transition-all active:scale-[0.97]"
             >
               <span id="btnText">Ingresar</span>
             </button>
