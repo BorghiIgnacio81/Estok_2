@@ -10,7 +10,8 @@ let error = '';
     }
   </style>
 
-  <div class="min-h-screen bg-[#0b0f19] flex flex-col justify-center items-center p-4 select-none">
+  <!-- Aclaramos sutilmente el fondo de la página para suavizar la transición con la imagen -->
+  <div class="min-h-screen bg-[#141b29] flex flex-col justify-center items-center p-4 select-none">
     
     <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
@@ -18,18 +19,20 @@ let error = '';
       <p class="text-xs text-gray-400 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR OPTIMIZADO: Eliminamos multiply y aplicamos un filtro de brillo y contraste directo -->
-    <div class="relative w-full max-w-[365px] h-[390px] overflow-visible">
+    <!-- CONTENEDOR CON MÁSCARA DE DEGRADADO RADIAL -->
+    <!-- mask-image aplica un difuminado aerografiado en los bordes para fundir el blanco con el fondo -->
+    <div 
+      class="relative w-full max-w-[365px] h-[390px] overflow-visible"
+      style="
+        mask-image: radial-gradient(circle, black 65%, transparent 98%);
+        -webkit-mask-image: radial-gradient(circle, black 65%, transparent 98%);
+      "
+    >
       
-      <!-- La Ilustración con brillo restaurado al 100% y filtro de balance de curvas -->
+      <!-- La Ilustración limpia con su brillo y colores originales intactos -->
       <div 
-        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none transition-all duration-300"
-        style="
-          background-image: url('/archivador-login.png'); 
-          background-size: 100% 100%; 
-          filter: contrast(1.1) brightness(1.2) saturate(1.1);
-          mix-blend-mode: lighten;
-        "
+        class="absolute inset-0 bg-center bg-no-repeat pointer-events-none"
+        style="background-image: url('/archivador-login.png'); background-size: 100% 100%;"
       ></div>
 
       <!-- CAPA DE FORMULARIO: Ajustada de forma fija en las gavetas -->
@@ -49,7 +52,7 @@ let error = '';
               type="text" 
               required 
               placeholder="Usuario"
-              class="w-full text-center text-sm font-bold text-white bg-slate-950/50 border border-gray-800/80 rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors placeholder-gray-500 shadow-lg"
+              class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
             />
           </div>
 
@@ -62,7 +65,7 @@ let error = '';
                 type="password" 
                 required 
                 placeholder="Contraseña"
-                class="w-full text-center text-sm font-bold text-white bg-slate-950/50 border border-gray-800/80 rounded px-3 py-2 pr-9 outline-none focus:border-blue-500 transition-colors placeholder-gray-500 shadow-lg"
+                class="w-full text-center text-sm font-bold text-white bg-slate-950/40 border border-gray-800/80 rounded px-3 py-2 pr-9 outline-none focus:border-blue-500 transition-colors placeholder-gray-500"
               />
               <button
                 id="togglePassword"
