@@ -31,6 +31,13 @@ class Categoria(models.Model):
         verbose_name="Es contenedor",
         help_text="Si está marcado, esta categoría puede contener subcategorías.",
     )
+    # NUEVO CAMPO: Guardará el ID de Mercado Libre (ej: MLA412111)
+    meli_category_id = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        verbose_name="ID Categoría Mercado Libre"
+    )
     estok = models.ForeignKey(
         'inventario.Estok',
         on_delete=models.CASCADE,
