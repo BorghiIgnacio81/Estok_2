@@ -14,7 +14,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('❌ Error: No se encontró ningún registro de Estok en la base de datos.'))
             return
 
-        url = "https://mercadolibre.com"
+        url = "https://api.mercadolibre.com/sites/MLA/categories"
         
         # Inyectamos encabezados de simulación de navegador para esquivar el bloqueo 403 de Hetzner
         headers = {
