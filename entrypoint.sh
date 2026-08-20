@@ -37,8 +37,11 @@ python manage.py migrate --noinput
 echo "Seeding data..."
 python manage.py seed_data || echo "Seed data skipped (not critical)"
 
+echo "Cargando categorías oficiales de Mercado Libre (11 atómicas, limpieza destructiva)..."
+python manage.py cargar_categorias_meli || echo "Carga de categorías omitida (no crítico)"
+
 echo "Starting Gunicorn on port 8001..."
-gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 4 --timeout 200 &
+gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 4 --timeout 240 &
 GUNICORN_PID=$!
 echo "Gunicorn started (PID: $GUNICORN_PID)"
 
