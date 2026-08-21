@@ -37,28 +37,36 @@ class MarketingActionsMixin:
             "color": objeto.color,
         }
 
-        if hasattr(objeto, 'tecnologia'):
+        # Taxonomía unificada: campos directos de Objeto (sin subclases).
+        if objeto.marca or objeto.modelo:
             objeto_data["categoria"] = "tecnologia"
-            objeto_data["marca"] = objeto.tecnologia.marca
-            objeto_data["modelo"] = objeto.tecnologia.modelo
-        elif hasattr(objeto, 'librorevista'):
+            objeto_data["marca"] = objeto.marca
+            objeto_data["modelo"] = objeto.modelo
+        elif objeto.autor or objeto.isbn_issn or objeto.editorial:
             objeto_data["categoria"] = "libro"
-            objeto_data["autor"] = objeto.librorevista.autor
-            objeto_data["anio"] = objeto.librorevista.anio
-            objeto_data["nombre_serie"] = objeto.librorevista.nombre_serie
-            objeto_data["titulo_tomo"] = objeto.librorevista.titulo_tomo
-            objeto_data["numero_tomo"] = objeto.librorevista.numero_tomo
-            objeto_data["editorial"] = objeto.librorevista.editorial
-            objeto_data["idioma"] = objeto.librorevista.idioma
-        elif hasattr(objeto, 'mueblearte'):
+            objeto_data["autor"] = objeto.autor
+            objeto_data["anio"] = objeto.anio
+            objeto_data["nombre_serie"] = objeto.nombre_serie
+            objeto_data["titulo_tomo"] = objeto.titulo_tomo
+            objeto_data["numero_tomo"] = objeto.numero_tomo
+            objeto_data["editorial"] = objeto.editorial
+            objeto_data["idioma"] = objeto.idioma
+        elif objeto.material or objeto.artista_fabricante:
             objeto_data["categoria"] = "mueble"
-        elif hasattr(objeto, 'ropa'):
+            objeto_data["material"] = objeto.material
+            objeto_data["artista_fabricante"] = objeto.artista_fabricante
+        elif objeto.tamano:
             objeto_data["categoria"] = "ropa"
+            objeto_data["tamano"] = objeto.tamano
         else:
             objeto_data["categoria"] = "otro"
 
+        if objeto.categoria:
+            objeto_data["categoria_oficial"] = objeto.categoria.nombre
+
         try:
             service = MarketingService()
+
             paquete = service.generar_paquete_anuncios(objeto_data)
 
             return Response({
@@ -122,7 +130,7 @@ class MarketingActionsMixin:
             for f in objeto.fotos.all().order_by('-es_principal', 'fecha_subida')
         ]
 
-        # Datos del objeto para marketing
+        # Datos del objeto para marketing (taxonomía unificada, sin subclases)
         objeto_data = {
             "nombre": objeto.nombre,
             "descripcion": objeto.descripcion,
@@ -130,25 +138,32 @@ class MarketingActionsMixin:
             "estado_conservacion": objeto.estado_conservacion,
             "color": objeto.color,
         }
-        if hasattr(objeto, 'tecnologia'):
+        if objeto.marca or objeto.modelo:
             objeto_data["categoria"] = "tecnologia"
-            objeto_data["marca"] = objeto.tecnologia.marca
-            objeto_data["modelo"] = objeto.tecnologia.modelo
-        elif hasattr(objeto, 'librorevista'):
+            objeto_data["marca"] = objeto.marca
+            objeto_data["modelo"] = objeto.modelo
+        elif objeto.autor or objeto.isbn_issn or objeto.editorial:
             objeto_data["categoria"] = "libro"
-            objeto_data["autor"] = objeto.librorevista.autor
-            objeto_data["anio"] = objeto.librorevista.anio
-            objeto_data["nombre_serie"] = objeto.librorevista.nombre_serie
-            objeto_data["titulo_tomo"] = objeto.librorevista.titulo_tomo
-            objeto_data["numero_tomo"] = objeto.librorevista.numero_tomo
-            objeto_data["editorial"] = objeto.librorevista.editorial
-            objeto_data["idioma"] = objeto.librorevista.idioma
-        elif hasattr(objeto, 'mueblearte'):
+            objeto_data["autor"] = objeto.autor
+            objeto_data["anio"] = objeto.anio
+            objeto_data["nombre_serie"] = objeto.nombre_serie
+            objeto_data["titulo_tomo"] = objeto.titulo_tomo
+            objeto_data["numero_tomo"] = objeto.numero_tomo
+            objeto_data["editorial"] = objeto.editorial
+            objeto_data["idioma"] = objeto.idioma
+        elif objeto.material or objeto.artista_fabricante:
             objeto_data["categoria"] = "mueble"
-        elif hasattr(objeto, 'ropa'):
+            objeto_data["material"] = objeto.material
+            objeto_data["artista_fabricante"] = objeto.artista_fabricante
+        elif objeto.tamano:
             objeto_data["categoria"] = "ropa"
+            objeto_data["tamano"] = objeto.tamano
         else:
             objeto_data["categoria"] = "otro"
+
+        if objeto.categoria:
+            objeto_data["categoria_oficial"] = objeto.categoria.nombre
+
 
         # Generar anuncios con IA
         try:

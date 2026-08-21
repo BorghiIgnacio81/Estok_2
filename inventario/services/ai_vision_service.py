@@ -4,16 +4,13 @@ Servicio de Visión por IA — Motor exclusivo: Gemini 2.5 Flash-Lite.
 Conecta con la API de Google Gemini usando el SDK google-genai para procesar
 imágenes de objetos y extraer información estructurada.
 
-Flujo:
-  1. Recibe una imagen (path, bytes o Base64)
-  2. La envía a Gemini solicitando un JSON estructurado
-  3. Analiza la respuesta y determina campos con baja confianza
-  4. Retorna datos estructurados + lista de campos pendientes
-  5. Alimenta el Historial de Precios para reportes de valoración
-
-NOTA: El motor 'local' (LM Studio) se ha postergado. Si se solicita,
-el servicio retorna un mensaje controlado indicando que estará disponible
-próximamente.
+Taxonomía unificada:
+- La clasificación se hace EXCLUSIVAMENTE con la FK `categoria` del modelo
+  Objeto, apuntando a una de las 11 categorías oficiales de Mercado Libre
+  (definidas por su `meli_category_id`).
+- Ya NO se crean subclases multi-tabla (LibroRevista, Tecnologia, MuebleArte,
+  Ropa). Todos los campos específicos (autor, marca, material, tamano, etc.)
+  se escriben directamente sobre el Objeto.
 """
 
 import json
@@ -40,6 +37,38 @@ MAX_IMAGE_DIMENSION = 1024   # resolución máxima en lado mayor
 
 
 # =============================================================================
+# LAS 11 CATEGORÍAS OFICIALES DE MERCADO LIBRE ARGENTINA
+# (deben coincidir con inventario/management/commands/cargar_categorias_meli.py)
+# =============================================================================
+CATEGORIAS_MELI_OFICIALES = {
+    "MLA1574": "Muebles",
+    "MLA1798": "Arte",
+    "MLA1367": "Coleccionables",
+    "MLA1368": "Antigüedades",
+    "MLA1592": "Jardín",
+    "MLA1648": "Computación",
+    "MLA1051": "Electrónica",
+    "MLA1403": "Cocina",
+    "MLA1577": "Hogar",
+    "MLA1500": "Herramientas",
+    "MLA1506": "Materiales",
+}
+
+# Fallback para respuestas de la IA que aún usen la taxonomía legada
+# (libro/tecnologia/mueble/ropa/otro). Solo se usa si la IA no devolvió
+# un meli_category_id oficial. None = sin categoría oficial asignable.
+MAPEO_CATEGORIA_LEGADA_A_MELI: Dict[str, Optional[str]] = {
+    "libro": "MLA1367",        # Coleccionables (cómics, libros de colección)
+    "tecnologia": "MLA1051",   # Electrónica
+    "computacion": "MLA1648",  # Computación
+    "mueble": "MLA1574",       # Muebles
+    "arte": "MLA1798",         # Arte
+    "ropa": None,              # sin categoría oficial
+    "otro": None,
+}
+
+
+# =============================================================================
 # ESTRUCTURAS DE DATOS
 # =============================================================================
 @dataclass
@@ -53,14 +82,14 @@ class VisionResult:
     precio_estimado_mercado: Optional[float] = None
     descripcion: str = ""
     color: str = ""
-    categoria: str = ""  # libro, tecnologia, mueble, ropa, otro
+    categoria: str = ""  # categoría legada (libro, tecnologia, mueble, ropa, otro)
+    meli_category_id: str = ""  # categoría oficial de Mercado Libre (MLAxxxxx)
     confianza_general: float = 0.0
     campos_pendientes: List[str] = field(default_factory=list)
     raw_response: str = ""
-    # Campos específicos para libros
+    # Campos específicos de libros / revistas / cómics
     isbn_issn: str = ""
     edicion: str = ""
-    # Campos específicos para cómics
     nombre_serie: str = ""
     titulo_tomo: str = ""
     numero_tomo: Optional[int] = None
@@ -145,7 +174,8 @@ class GeminiClient:
             '  "precio_estimado_mercado": 150.00,\n'
             '  "descripcion": "Descripción breve del objeto",\n'
             '  "color": "Color predominante",\n'
-            '  "categoria": "libro|tecnologia|mueble|ropa|otro",\n'
+            '  "categoria": "libro|tecnologia|mueble|ropa|arte|computacion|otro",\n'
+            '  "meli_category_id": "MLAXXXXX",\n'
             '  "confianza_general": 0.85,\n'
             '  "nombre_serie": "Serie si es cómic",\n'
             '  "titulo_tomo": "Título del tomo",\n'
@@ -153,11 +183,26 @@ class GeminiClient:
             '  "editorial": "Editorial",\n'
             '  "idioma": "Idioma"\n'
             "}\n\n"
+            "CATEGORÍAS OFICIALES (elegí UNA sola de esta lista para 'meli_category_id'):\n"
+            "MLA1574 Muebles\n"
+            "MLA1798 Arte\n"
+            "MLA1367 Coleccionables\n"
+            "MLA1368 Antigüedades\n"
+            "MLA1592 Jardín\n"
+            "MLA1648 Computación\n"
+            "MLA1051 Electrónica\n"
+            "MLA1403 Cocina\n"
+            "MLA1577 Hogar\n"
+            "MLA1500 Herramientas\n"
+            "MLA1506 Materiales\n"
+            "- Si el objeto no encaja en ninguna de las 11 oficiales, usa 'meli_category_id': null.\n"
+            "- El campo 'categoria' (libro|tecnologia|mueble|ropa|arte|computacion|otro) describe "
+            "el tipo físico del objeto; 'meli_category_id' es la clasificación oficial.\n\n"
             "REGLAS:\n"
             "- Si es un LIBRO: pon el título en 'nombre', autor en 'autor', editorial en 'editorial', "
             "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
             "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
-            "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia'.\n"
+            "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia' o 'computacion'.\n"
             "- Si no puedes determinar un campo, déjalo vacío o null.\n"
             "- confianza_general: 0-1. Sé conservador.\n"
             "- Lee el texto visible en la imagen (títulos, autores).\n"
@@ -251,8 +296,8 @@ class AIVisionService:
     Orquesta el análisis de imágenes y la lógica de campos pendientes.
     Motor exclusivo: Gemini 2.5 Flash-Lite.
 
-    Si se solicita el motor 'local' (LM Studio), retorna un mensaje
-    controlado indicando que estará disponible próximamente.
+    Crea instancias directas del modelo Objeto (taxonomía unificada) y
+    asigna la categoría usando los meli_category_id oficiales.
     """
 
     def __init__(self):
@@ -358,7 +403,7 @@ class AIVisionService:
         campos_pendientes = []
         confianza = result.get("confianza_general", 0)
 
-        campos_obligatorios = ["nombre", "estado_conservacion", "categoria"]
+        campos_obligatorios = ["nombre", "estado_conservacion"]
         for campo in campos_obligatorios:
             valor = result.get(campo, "")
             if not valor or (isinstance(valor, str) and valor.strip() == ""):
@@ -371,13 +416,21 @@ class AIVisionService:
                 if not valor or (isinstance(valor, str) and valor.strip() == "") or valor is None:
                     campos_pendientes.append(campo)
 
-        if result.get("categoria") == "libro":
+        # Un objeto sin categoría oficial asignable requiere la decisión del usuario
+        meli_category_id = result.get("meli_category_id") or MAPEO_CATEGORIA_LEGADA_A_MELI.get(
+            result.get("categoria", ""), ""
+        )
+        if not meli_category_id:
+            campos_pendientes.append("categoria")
+
+        # Si es un libro (por campos detectados), autor y año son relevantes
+        if result.get("isbn_issn") or result.get("editorial") or result.get("nombre_serie"):
             if not result.get("autor"):
                 campos_pendientes.append("autor")
             if not result.get("anio"):
                 campos_pendientes.append("anio")
 
-        if result.get("categoria") == "tecnologia":
+        if result.get("categoria") in ("tecnologia", "computacion"):
             if not result.get("marca"):
                 campos_pendientes.append("marca")
 
@@ -386,7 +439,13 @@ class AIVisionService:
     def _mapear_resultado(self, raw_result: Dict[str, Any]) -> VisionResult:
         """
         Mapea el resultado crudo de la IA a un VisionResult estructurado.
+        Resuelve el meli_category_id oficial (con fallback de la taxonomía legada).
         """
+        categoria_legada = raw_result.get("categoria", "otro")
+        meli_category_id = raw_result.get("meli_category_id") or raw_result.get("categoria_meli")
+        if not meli_category_id:
+            meli_category_id = MAPEO_CATEGORIA_LEGADA_A_MELI.get(categoria_legada, "") or ""
+
         result = VisionResult(
             nombre=raw_result.get("nombre", ""),
             marca=raw_result.get("marca", ""),
@@ -396,7 +455,8 @@ class AIVisionService:
             precio_estimado_mercado=raw_result.get("precio_estimado_mercado"),
             descripcion=raw_result.get("descripcion", ""),
             color=raw_result.get("color", ""),
-            categoria=raw_result.get("categoria", "otro"),
+            categoria=categoria_legada,
+            meli_category_id=str(meli_category_id) if meli_category_id else "",
             confianza_general=raw_result.get("confianza_general", 0.0),
             raw_response=json.dumps(raw_result),
             isbn_issn=raw_result.get("isbn_issn", ""),
@@ -514,22 +574,27 @@ class AIVisionService:
         vision_result: VisionResult,
         user=None,
         ubicacion=None,
-        contenedor=None
+        contenedor=None,
+        estok=None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Crea un objeto en la base de datos a partir de un resultado de visión.
-        Registra automáticamente el precio en el Historial de Precios.
+        Crea un Objeto directamente (sin subclases multi-tabla) a partir de
+        un resultado de visión. Asigna la Categoria oficial según el
+        meli_category_id detectado. Registra automáticamente el precio en el
+        Historial de Precios.
 
         Args:
             vision_result: Resultado del análisis de visión.
             user: Usuario que realiza la carga (opcional).
             ubicacion: Ubicación del objeto (opcional).
             contenedor: Contenedor del objeto (opcional).
+            estok: Estok al que pertenece el objeto (opcional, aislamiento
+                   multi-tenant).
 
         Returns:
             Dict con el objeto creado y metadatos, o None si falla.
         """
-        from ..models import Objeto, HistorialPrecio
+        from ..models import Objeto, HistorialPrecio, Categoria
 
         try:
             from django.db import transaction
@@ -539,48 +604,46 @@ class AIVisionService:
                 if vision_result.campos_pendientes:
                     estado_carga = 'incompleto'
 
+                # Resolver la categoría oficial de las 11 Meli
+                categoria = None
+                if vision_result.meli_category_id:
+                    if estok is not None:
+                        categoria = Categoria.objects.filter(
+                            meli_category_id=vision_result.meli_category_id,
+                            estok=estok,
+                        ).first()
+                    if categoria is None:
+                        categoria = Categoria.objects.filter(
+                            meli_category_id=vision_result.meli_category_id,
+                        ).first()
+
                 objeto = Objeto.objects.create(
                     nombre=vision_result.nombre or "Objeto sin nombre",
                     descripcion=vision_result.descripcion,
+                    estok=estok,
                     ubicacion=ubicacion,
                     contenedor=contenedor,
+                    categoria=categoria,
                     estado_conservacion=vision_result.estado_conservacion or 'bueno',
                     valor_estimado=(
                         Decimal(str(vision_result.precio_estimado_mercado))
                         if vision_result.precio_estimado_mercado else None
                     ),
                     color=vision_result.color,
+                    # Campos específicos migrados (antes subclases multi-tabla)
+                    autor=vision_result.autor,
+                    marca=vision_result.marca,
+                    anio=vision_result.anio,
+                    isbn_issn=vision_result.isbn_issn,
+                    edicion=vision_result.edicion,
+                    nombre_serie=vision_result.nombre_serie,
+                    titulo_tomo=vision_result.titulo_tomo,
+                    numero_tomo=vision_result.numero_tomo,
+                    editorial=vision_result.editorial,
+                    idioma=vision_result.idioma,
                     estado_carga=estado_carga,
                     campos_pendientes=vision_result.campos_pendientes,
                 )
-
-                if vision_result.categoria == 'libro':
-                    from ..models import LibroRevista
-                    LibroRevista.objects.create(
-                        objeto_ptr=objeto,
-                        autor=vision_result.autor,
-                        anio=vision_result.anio,
-                        nombre_serie=vision_result.nombre_serie,
-                        titulo_tomo=vision_result.titulo_tomo,
-                        numero_tomo=vision_result.numero_tomo,
-                        editorial=vision_result.editorial,
-                        idioma=vision_result.idioma,
-                    )
-                elif vision_result.categoria == 'tecnologia':
-                    from ..models import Tecnologia
-                    Tecnologia.objects.create(
-                        objeto_ptr=objeto,
-                        marca=vision_result.marca,
-                    )
-                elif vision_result.categoria == 'mueble':
-                    from ..models import MuebleArte
-                    MuebleArte.objects.create(
-                        objeto_ptr=objeto,
-                        artista_fabricante=vision_result.autor,
-                    )
-                elif vision_result.categoria == 'ropa':
-                    from ..models import Ropa
-                    Ropa.objects.create(objeto_ptr=objeto)
 
                 if vision_result.precio_estimado_mercado:
                     HistorialPrecio.objects.create(
@@ -592,14 +655,18 @@ class AIVisionService:
                     )
 
                 logger.info(
-                    "Objeto creado desde visión: '%s' (categoría: %s, estado: %s)",
-                    objeto.nombre, vision_result.categoria, estado_carga
+                    "Objeto creado desde visión: '%s' (categoría: %s, meli_id: %s, estado: %s)",
+                    objeto.nombre,
+                    objeto.categoria.nombre if objeto.categoria else None,
+                    vision_result.meli_category_id,
+                    estado_carga,
                 )
 
                 return {
                     "id": str(objeto.id),
                     "nombre": objeto.nombre,
-                    "categoria": vision_result.categoria,
+                    "categoria": objeto.categoria.nombre if objeto.categoria else None,
+                    "meli_category_id": vision_result.meli_category_id,
                     "estado_carga": estado_carga,
                     "campos_pendientes": vision_result.campos_pendientes,
                     "valor_estimado": float(vision_result.precio_estimado_mercado)

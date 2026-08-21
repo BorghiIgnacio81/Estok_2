@@ -8,7 +8,8 @@ from .usuarios import Role, CustomUser, Membresia, CodigoInvitacion
 from .nucleo import Estok
 from .clasificacion import Categoria
 from .espacios import Ubicacion, Contenedor
-from .productos import Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa, HistorialPrecio
+from .productos import Objeto, HistorialPrecio
+
 from .multimedia import FotoObjeto
 from .notificaciones import AlertaStock
 from .integraciones import MercadoLibreToken
@@ -24,11 +25,8 @@ __all__ = [
     'Ubicacion',
     'Contenedor',
     'Objeto',
-    'LibroRevista',
-    'Tecnologia',
-    'MuebleArte',
-    'Ropa',
     'HistorialPrecio',
+
     'FotoObjeto',
     'AlertaStock',
     'MercadoLibreToken',

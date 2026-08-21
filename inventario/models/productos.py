@@ -1,7 +1,13 @@
 """
-Productos: Objeto y subtipos multi-tabla, más HistorialPrecio.
+Productos: Objeto (entidad única) y HistorialPrecio.
 
-Parte del paquete inventario/models/ (monolito modularizado).
+Taxonomía unificada: Objeto es la ÚNICA entidad de inventario.
+La clasificación se hace exclusivamente a través de la FK `categoria`
+(hacia Categoria, cuyas instancias oficiales son las 11 de Mercado Libre).
+
+Los campos que antes vivían en las subclases multi-tabla (LibroRevista,
+Tecnologia, MuebleArte, Ropa) ahora son campos opcionales del propio Objeto.
+No se pierde capacidad de almacenamiento.
 """
 from .base import (
     models,
@@ -11,10 +17,8 @@ from .base import (
 
 class Objeto(models.Model):
     """
-    Modelo base para todos los objetos del inventario.
-    Utiliza multi-table inheritance: cada modelo hijo crea una tabla
-    con una relación 1:1 hacia esta tabla base.
-
+    Única entidad de inventario.
+    Clasificado exclusivamente por la FK `categoria`.
     Incluye soft delete (deleted_at) para evitar pérdida de información.
     Pertenece a un Estok.
     """
@@ -50,7 +54,7 @@ class Objeto(models.Model):
         verbose_name="Contenedor"
     )
 
-    # Categoría definida por el usuario (organización)
+    # Clasificación: ÚNICA vía Categoria (taxonomía unificada, sin "Tipo")
     categoria = models.ForeignKey(
         'inventario.Categoria',
         on_delete=models.SET_NULL,
@@ -98,7 +102,114 @@ class Objeto(models.Model):
     )
     color = models.CharField(max_length=100, blank=True, verbose_name="Color")
 
+    # =====================================================================
+    # CAMPOS ESPECÍFICOS (antes en subclases multi-tabla)
+    # Ahora son opcionales en Objeto. Nulos/blank = no aplican al objeto.
+    # =====================================================================
+    # Libro / Revista / Cómic
+    autor = models.CharField(max_length=300, blank=True, verbose_name="Autor")
+    edicion = models.CharField(max_length=100, blank=True, verbose_name="Edición")
+    anio = models.IntegerField(null=True, blank=True, verbose_name="Año de publicación")
+    isbn_issn = models.CharField(
+        max_length=30,
+        blank=True,
+        verbose_name="ISBN / ISSN",
+        help_text="Código ISBN para libros o ISSN para revistas"
+    )
+    nombre_serie = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Nombre de la serie",
+        help_text="Ej: Garfield, Batman, Los Simpsons"
+    )
+    titulo_tomo = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Título del tomo",
+        help_text="Ej: Se queda con la torta, El caballero oscuro"
+    )
+    numero_tomo = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Número del tomo",
+        help_text="Ej: 2, 15, 100"
+    )
+    editorial = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Editorial",
+        help_text="Ej: Planeta DeAgostini, DC Comics, Marvel"
+    )
+    idioma = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Idioma",
+        help_text="Ej: Español, Inglés, Portugués"
+    )
+
+    # Tecnología / Electrónica
+    marca = models.CharField(max_length=200, blank=True, verbose_name="Marca")
+    modelo = models.CharField(max_length=200, blank=True, verbose_name="Modelo")
+    numero_serie = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Número de serie",
+        help_text="Número de serie único del dispositivo"
+    )
+    peso = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Peso (kg)"
+    )
+    especificaciones = models.JSONField(
+        blank=True,
+        default=dict,
+        verbose_name="Especificaciones técnicas (JSON)",
+        help_text="Almacena especificaciones flexibles en formato JSON (RAM, almacenamiento, etc.)"
+    )
+
+    # Mueble / Obra de arte / Antigüedad
+    material = models.CharField(max_length=200, blank=True, verbose_name="Material")
+    largo = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Largo (cm)"
+    )
+    ancho = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Ancho (cm)"
+    )
+    alto = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Alto (cm)"
+    )
+    artista_fabricante = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Artista / Fabricante"
+    )
+
+    # Ropa / Accesorio
+    tamano = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Tamaño / Talla",
+        help_text="Ej: S, M, L, XL, 38, 42, etc."
+    )
+
+    # =====================================================================
     # Trazabilidad y legado
+    # =====================================================================
     dueno_original = models.ForeignKey(
         'inventario.CustomUser',
         on_delete=models.SET_NULL,
@@ -186,150 +297,8 @@ class Objeto(models.Model):
     def hard_delete(self, using=None, keep_parents=False):
         """Eliminación física real (uso con precaución)."""
         super().delete(using=using, keep_parents=keep_parents)
-class LibroRevista(Objeto):
-    """
-    Objeto específico: Libro, Revista o Cómic.
-    Incluye campos específicos para cómics (serie, tomo, número, editorial).
-    """
-    autor = models.CharField(max_length=300, blank=True, verbose_name="Autor")
-    edicion = models.CharField(max_length=100, blank=True, verbose_name="Edición")
-    anio = models.IntegerField(null=True, blank=True, verbose_name="Año de publicación")
-    isbn_issn = models.CharField(
-        max_length=30,
-        blank=True,
-        verbose_name="ISBN / ISSN",
-        help_text="Código ISBN para libros o ISSN para revistas"
-    )
 
-    # Campos específicos para cómics / revistas
-    nombre_serie = models.CharField(
-        max_length=300,
-        blank=True,
-        verbose_name="Nombre de la serie",
-        help_text="Ej: Garfield, Batman, Los Simpsons"
-    )
-    titulo_tomo = models.CharField(
-        max_length=300,
-        blank=True,
-        verbose_name="Título del tomo",
-        help_text="Ej: Se queda con la torta, El caballero oscuro"
-    )
-    numero_tomo = models.IntegerField(
-        null=True,
-        blank=True,
-        verbose_name="Número del tomo",
-        help_text="Ej: 2, 15, 100"
-    )
-    editorial = models.CharField(
-        max_length=200,
-        blank=True,
-        verbose_name="Editorial",
-        help_text="Ej: Planeta DeAgostini, DC Comics, Marvel"
-    )
-    idioma = models.CharField(
-        max_length=100,
-        blank=True,
-        verbose_name="Idioma",
-        help_text="Ej: Español, Inglés, Portugués"
-    )
 
-    class Meta:
-        verbose_name = "Libro / Revista / Cómic"
-        verbose_name_plural = "Libros / Revistas / Cómics"
-
-    def __str__(self):
-        if self.nombre_serie:
-            tomo = f" #{self.numero_tomo}" if self.numero_tomo else ""
-            return f"{self.nombre_serie}{tomo} - {self.titulo_tomo or self.nombre}"
-        return f"{self.nombre} - {self.autor or 'Sin autor'}"
-class Tecnologia(Objeto):
-    """
-    Objeto específico: Artículo de tecnología / electrónica.
-    Incluye especificaciones flexibles en JSONB.
-    """
-    marca = models.CharField(max_length=200, blank=True, verbose_name="Marca")
-    modelo = models.CharField(max_length=200, blank=True, verbose_name="Modelo")
-    numero_serie = models.CharField(
-        max_length=200,
-        blank=True,
-        verbose_name="Número de serie",
-        help_text="Número de serie único del dispositivo"
-    )
-    peso = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Peso (kg)"
-    )
-    especificaciones = models.JSONField(
-        blank=True,
-        default=dict,
-        verbose_name="Especificaciones técnicas (JSON)",
-        help_text="Almacena especificaciones flexibles en formato JSON (RAM, almacenamiento, etc.)"
-    )
-
-    class Meta:
-        verbose_name = "Tecnología"
-        verbose_name_plural = "Tecnologías"
-
-    def __str__(self):
-        return f"{self.nombre} - {self.marca} {self.modelo}".strip()
-class MuebleArte(Objeto):
-    """
-    Objeto específico: Mueble, obra de arte o antigüedad.
-    """
-    material = models.CharField(max_length=200, blank=True, verbose_name="Material")
-    largo = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Largo (cm)"
-    )
-    ancho = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Ancho (cm)"
-    )
-    alto = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Alto (cm)"
-    )
-    artista_fabricante = models.CharField(
-        max_length=300,
-        blank=True,
-        verbose_name="Artista / Fabricante"
-    )
-
-    class Meta:
-        verbose_name = "Mueble / Arte"
-        verbose_name_plural = "Muebles / Obras de Arte"
-
-    def __str__(self):
-        return f"{self.nombre} - {self.artista_fabricante or 'Sin artista'}"
-class Ropa(Objeto):
-    """
-    Objeto específico: Prenda de vestir o accesorio.
-    """
-    tamano = models.CharField(
-        max_length=50,
-        blank=True,
-        verbose_name="Tamaño / Talla",
-        help_text="Ej: S, M, L, XL, 38, 42, etc."
-    )
-
-    class Meta:
-        verbose_name = "Ropa / Accesorio"
-        verbose_name_plural = "Ropa / Accesorios"
-
-    def __str__(self):
-        return f"{self.nombre} - Talla: {self.tamano or 'N/A'}"
 class HistorialPrecio(models.Model):
     """
     Registra cada cambio en el valor_estimado de un objeto.

@@ -3,9 +3,10 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     Role, CustomUser, Estok, Membresia, CodigoInvitacion,
     Ubicacion, Contenedor,
-    Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
+    Objeto,
     FotoObjeto
 )
+
 
 
 # =============================================================================
@@ -77,36 +78,10 @@ class ObjetoAdmin(admin.ModelAdmin):
 
 
 # =============================================================================
-# ADMIN: MODELOS HIJOS
-# =============================================================================
-@admin.register(LibroRevista)
-class LibroRevistaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'autor', 'edicion', 'anio', 'isbn_issn']
-    search_fields = ['nombre', 'autor', 'isbn_issn']
-
-
-@admin.register(Tecnologia)
-class TecnologiaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'marca', 'modelo', 'numero_serie', 'peso']
-    search_fields = ['nombre', 'marca', 'modelo', 'numero_serie']
-
-
-@admin.register(MuebleArte)
-class MuebleArteAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'material', 'artista_fabricante', 'largo', 'ancho', 'alto']
-    search_fields = ['nombre', 'artista_fabricante', 'material']
-
-
-@admin.register(Ropa)
-class RopaAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'tamano']
-    search_fields = ['nombre', 'tamano']
-
-
-# =============================================================================
 # ADMIN: FOTOS
 # =============================================================================
 @admin.register(FotoObjeto)
+
 class FotoObjetoAdmin(admin.ModelAdmin):
     list_display = ['objeto', 'es_principal', 'fecha_subida']
     list_filter = ['es_principal']

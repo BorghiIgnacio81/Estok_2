@@ -1,18 +1,20 @@
 """
-Serializers de Objetos (listado, detalle, creación con herencia multi-tabla).
+Serializers de Objetos — Taxonomía unificada.
+
+Objeto es la ÚNICA entidad de inventario. La clasificación se hace
+exclusivamente a través de la FK `categoria` (las 11 categorías oficiales
+de Mercado Libre). Ya NO existen subclases multi-tabla (LibroRevista,
+Tecnologia, MuebleArte, Ropa) ni el campo `tipo`.
+
+Todos los campos que antes vivían en las subclases (isbn_issn, marca,
+material, tamano, etc.) son ahora campos directos del modelo Objeto.
 """
 
-import json
 import logging
-from decimal import Decimal
-from typing import Dict, Any, Optional
 
 from rest_framework import serializers
-from django.db import connection
 
-from ...models import (
-    Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa, Categoria,
-)
+from ...models import Objeto
 
 
 logger = logging.getLogger(__name__)
@@ -22,17 +24,16 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     """
     Serializer ligero para listar objetos (sin carga pesada).
     """
-    tipo = serializers.SerializerMethodField()
     foto_principal = serializers.SerializerMethodField()
-    ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
-    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True)
+    ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
+    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
 
     class Meta:
         model = Objeto
         fields = [
-            'id', 'nombre', 'tipo', 'estado_conservacion',
+            'id', 'nombre', 'estado_conservacion',
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre',
             'categoria', 'categoria_nombre',
@@ -40,18 +41,6 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action',
         ]
-
-    def get_tipo(self, obj):
-        """Determina el tipo concreto del objeto (herencia multi-tabla)."""
-        if hasattr(obj, 'librorevista'):
-            return 'libro'
-        elif hasattr(obj, 'tecnologia'):
-            return 'tecnologia'
-        elif hasattr(obj, 'mueblearte'):
-            return 'mueble'
-        elif hasattr(obj, 'ropa'):
-            return 'ropa'
-        return 'objeto'
 
     def get_foto_principal(self, obj):
         """Obtiene la URL de la foto principal si existe."""
@@ -66,11 +55,12 @@ class ObjetoListSerializer(serializers.ModelSerializer):
 
 class ObjetoDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer detallado que incluye datos específicos según el tipo.
+    Serializer detallado de un Objeto.
+    Incluye los campos específicos migrados (antes subclases) agrupados
+    en `datos_especificos` para mantener la compatibilidad con el frontend.
     """
-    tipo = serializers.SerializerMethodField()
-    ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
-    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True)
+    ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
+    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     dueno_original_nombre = serializers.SerializerMethodField()
@@ -84,17 +74,6 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Objeto
         fields = '__all__'
-
-    def get_tipo(self, obj):
-        if hasattr(obj, 'librorevista'):
-            return 'libro'
-        elif hasattr(obj, 'tecnologia'):
-            return 'tecnologia'
-        elif hasattr(obj, 'mueblearte'):
-            return 'mueble'
-        elif hasattr(obj, 'ropa'):
-            return 'ropa'
-        return 'objeto'
 
     def _ocultar_nombre_si_borghi(self, request, user):
         """
@@ -145,44 +124,37 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_datos_especificos(self, obj):
-        """Retorna los campos específicos según el tipo de objeto."""
-        if hasattr(obj, 'librorevista'):
-            lr = obj.librorevista
-            return {
-                "autor": lr.autor,
-                "edicion": lr.edicion,
-                "anio": lr.anio,
-                "isbn_issn": lr.isbn_issn,
-                "nombre_serie": lr.nombre_serie,
-                "titulo_tomo": lr.titulo_tomo,
-                "numero_tomo": lr.numero_tomo,
-                "editorial": lr.editorial,
-                "idioma": lr.idioma,
-            }
-        elif hasattr(obj, 'tecnologia'):
-            t = obj.tecnologia
-            return {
-                "marca": t.marca,
-                "modelo": t.modelo,
-                "numero_serie": t.numero_serie,
-                "peso": float(t.peso) if t.peso else None,
-                "especificaciones": t.especificaciones,
-            }
-        elif hasattr(obj, 'mueblearte'):
-            ma = obj.mueblearte
-            return {
-                "material": ma.material,
-                "largo": float(ma.largo) if ma.largo else None,
-                "ancho": float(ma.ancho) if ma.ancho else None,
-                "alto": float(ma.alto) if ma.alto else None,
-                "artista_fabricante": ma.artista_fabricante,
-            }
-        elif hasattr(obj, 'ropa'):
-            r = obj.ropa
-            return {
-                "tamano": r.tamano,
-            }
-        return {}
+        """
+        Retorna los campos específicos que antes vivían en las subclases
+        multi-tabla y ahora son campos directos de Objeto.
+        Se agrupan aquí para no romper el contrato del frontend.
+        """
+        return {
+            # Libro / Revista / Cómic
+            "autor": obj.autor,
+            "edicion": obj.edicion,
+            "anio": obj.anio,
+            "isbn_issn": obj.isbn_issn,
+            "nombre_serie": obj.nombre_serie,
+            "titulo_tomo": obj.titulo_tomo,
+            "numero_tomo": obj.numero_tomo,
+            "editorial": obj.editorial,
+            "idioma": obj.idioma,
+            # Tecnología / Electrónica
+            "marca": obj.marca,
+            "modelo": obj.modelo,
+            "numero_serie": obj.numero_serie,
+            "peso": float(obj.peso) if obj.peso else None,
+            "especificaciones": obj.especificaciones,
+            # Mueble / Arte / Antigüedad
+            "material": obj.material,
+            "largo": float(obj.largo) if obj.largo else None,
+            "ancho": float(obj.ancho) if obj.ancho else None,
+            "alto": float(obj.alto) if obj.alto else None,
+            "artista_fabricante": obj.artista_fabricante,
+            # Ropa / Accesorio
+            "tamano": obj.tamano,
+        }
 
     def get_historial_precios(self, obj):
         historial = obj.historial_precios.all().order_by('-fecha_cambio')[:5]
@@ -222,40 +194,15 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
 
 class ObjetoCreateSerializer(serializers.ModelSerializer):
     """
-    Serializer para crear objetos con herencia multi-tabla.
-    Acepta un campo 'tipo' para determinar qué modelo hijo crear.
-    Extiende ModelSerializer para que DRF maneje correctamente
-    la serialización de la respuesta y los errores de validación.
+    Serializer para crear/actualizar un Objeto con la taxonomía unificada.
+
+    Todos los campos que antes pertenecían a las subclases multi-tabla
+    (autor, isbn_issn, marca, material, tamano, etc.) son ahora campos
+    directos del modelo Objeto y se reciben sin intermediarios.
+
+    El aislamiento multi-tenant se respeta: `estok` se toma del header
+    `X-Estok-Id` del request (nunca se recibe del cliente).
     """
-    # Tipo de objeto (write_only para crear, read_only para respuesta)
-    tipo = serializers.ChoiceField(
-        choices=['libro', 'tecnologia', 'mueble', 'ropa', 'objeto'],
-        default='objeto',
-        write_only=True
-    )
-
-    # Campos específicos (opcionales según el tipo) - write_only
-    autor = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    edicion = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    anio = serializers.IntegerField(required=False, allow_null=True, default=None, write_only=True)
-    isbn_issn = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    nombre_serie = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    titulo_tomo = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    numero_tomo = serializers.IntegerField(required=False, allow_null=True, default=None, write_only=True)
-    editorial = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    idioma = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    marca = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    modelo = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    numero_serie = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    peso = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
-    especificaciones = serializers.JSONField(required=False, default=dict, write_only=True)
-    material = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
-    ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
-    alto = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True, default=None, write_only=True)
-    artista_fabricante = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-    tamano = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
-
     class Meta:
         model = Objeto
         fields = [
@@ -264,194 +211,23 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             'categoria', 'es_contenedor', 'objeto_padre',
             'estado_conservacion', 'valor_estimado', 'color',
             'dueno_original', 'beneficiario',
-            'tipo',
             'autor', 'edicion', 'anio', 'isbn_issn',
             'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
             'marca', 'modelo', 'numero_serie', 'peso', 'especificaciones',
             'material', 'largo', 'ancho', 'alto', 'artista_fabricante',
             'tamano',
+            'estado_carga', 'campos_pendientes',
+            'owner_action', 'plataformas_publicadas',
         ]
         read_only_fields = ['id']
 
     def create(self, validated_data):
-        tipo = validated_data.pop('tipo', 'objeto')
-
-        # Asignar estok desde el header X-Estok-Id del request
+        # Aislamiento multi-tenant: el estok se asigna desde el header,
+        # nunca desde el payload del cliente.
         request = self.context.get('request')
         if request:
             estok_id = request.headers.get('X-Estok-Id')
             if estok_id:
                 validated_data['estok_id'] = estok_id
 
-        # Extraer campos específicos
-        campos_especificos = {}
-        campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']
-        campos_tecno = ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']
-        campos_mueble = ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']
-        campos_ropa = ['tamano']
-
-        for campo in campos_libro + campos_tecno + campos_mueble + campos_ropa:
-            if campo in validated_data:
-                campos_especificos[campo] = validated_data.pop(campo)
-
-        # Crear el objeto base
-        objeto = Objeto.objects.create(**validated_data)
-
-        # Crear el modelo hijo según el tipo
-        if tipo == 'libro':
-            LibroRevista.objects.create(
-                objeto_ptr_id=objeto.id,
-                **{k: campos_especificos.get(k, '') for k in campos_libro}
-            )
-        elif tipo == 'tecnologia':
-            Tecnologia.objects.create(
-                objeto_ptr_id=objeto.id,
-                **{k: campos_especificos.get(k, '' if k != 'especificaciones' else dict)
-                   for k in campos_tecno}
-            )
-        elif tipo == 'mueble':
-            MuebleArte.objects.create(
-                objeto_ptr_id=objeto.id,
-                **{k: campos_especificos.get(k, '') for k in campos_mueble}
-            )
-        elif tipo == 'ropa':
-            Ropa.objects.create(
-                objeto_ptr_id=objeto.id,
-                **{k: campos_especificos.get(k, '') for k in campos_ropa}
-            )
-
-        return objeto
-
-    def _get_tipo_actual(self, instance):
-        """Determina el tipo actual del objeto según qué subtipo existe en DB."""
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM inventario_librorevista WHERE objeto_ptr_id = %s", [instance.id])
-            if cursor.fetchone()[0] > 0:
-                return 'libro'
-            cursor.execute("SELECT COUNT(*) FROM inventario_tecnologia WHERE objeto_ptr_id = %s", [instance.id])
-            if cursor.fetchone()[0] > 0:
-                return 'tecnologia'
-            cursor.execute("SELECT COUNT(*) FROM inventario_mueblearte WHERE objeto_ptr_id = %s", [instance.id])
-            if cursor.fetchone()[0] > 0:
-                return 'mueble'
-            cursor.execute("SELECT COUNT(*) FROM inventario_ropa WHERE objeto_ptr_id = %s", [instance.id])
-            if cursor.fetchone()[0] > 0:
-                return 'ropa'
-        return None
-
-    def _eliminar_hijo_actual(self, instance, tipo_actual):
-        """Elimina la fila del subtipo actual si existe (SQL directo)."""
-        tablas = {
-            'libro': 'inventario_librorevista',
-            'tecnologia': 'inventario_tecnologia',
-            'mueble': 'inventario_mueblearte',
-            'ropa': 'inventario_ropa',
-        }
-        tabla = tablas.get(tipo_actual)
-        if tabla:
-            with connection.cursor() as cursor:
-                cursor.execute(f"DELETE FROM {tabla} WHERE objeto_ptr_id = %s", [instance.id])
-
-    def _serializar_valor(self, valor):
-        """Serializa valores para SQL directo: JSONField necesita json.dumps."""
-        if isinstance(valor, dict):
-            return json.dumps(valor)
-        return valor
-
-    def _crear_o_actualizar_hijo(self, instance, tipo, campos_especificos, campos_libro, campos_tecno, campos_mueble, campos_ropa):
-        """
-        Crea o actualiza la fila del subtipo usando SQL directo.
-        
-        Django multi-table inheritance SIEMPRE intenta hacer INSERT en la tabla
-        padre al crear un hijo, incluso si el padre ya existe. Por eso usamos
-        SQL directo para INSERT/UPDATE en las tablas hijas.
-        """
-        if tipo == 'libro':
-            columnas = campos_libro
-            tabla = 'inventario_librorevista'
-        elif tipo == 'tecnologia':
-            columnas = campos_tecno
-            tabla = 'inventario_tecnologia'
-        elif tipo == 'mueble':
-            columnas = campos_mueble
-            tabla = 'inventario_mueblearte'
-        elif tipo == 'ropa':
-            columnas = campos_ropa
-            tabla = 'inventario_ropa'
-        else:
-            return
-        
-        # Verificar si ya existe la fila
-        with connection.cursor() as cursor:
-            cursor.execute(f"SELECT COUNT(*) FROM {tabla} WHERE objeto_ptr_id = %s", [instance.id])
-            existe = cursor.fetchone()[0] > 0
-        
-        if existe:
-            # UPDATE: solo las columnas que vienen en campos_especificos
-            sets = []
-            valores = []
-            for col in columnas:
-                if col in campos_especificos:
-                    sets.append(f"{col} = %s")
-                    valores.append(self._serializar_valor(campos_especificos[col]))
-            if sets:
-                valores.append(instance.id)
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        f"UPDATE {tabla} SET {', '.join(sets)} WHERE objeto_ptr_id = %s",
-                        valores
-                    )
-        else:
-            # INSERT: todas las columnas con defaults
-            cols = ['objeto_ptr_id'] + columnas
-            placeholders = ['%s'] * len(cols)
-            valores = [instance.id]
-            for col in columnas:
-                if col in campos_especificos:
-                    valores.append(self._serializar_valor(campos_especificos[col]))
-                else:
-                    valores.append('' if col != 'especificaciones' else '{}')
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    f"INSERT INTO {tabla} ({', '.join(cols)}) VALUES ({', '.join(placeholders)})",
-                    valores
-                )
-
-    def update(self, instance, validated_data):
-        tipo = validated_data.pop('tipo', None)
-
-        # Extraer campos específicos
-        campos_especificos = {}
-        campos_libro = ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']
-        campos_tecno = ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']
-        campos_mueble = ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']
-        campos_ropa = ['tamano']
-
-        for campo in campos_libro + campos_tecno + campos_mueble + campos_ropa:
-            if campo in validated_data:
-                campos_especificos[campo] = validated_data.pop(campo)
-
-        # Actualizar campos base del objeto
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-
-        # Determinar tipo actual (desde DB, no desde hasattr que puede fallar)
-        tipo_actual = self._get_tipo_actual(instance)
-
-        if tipo is None:
-            # No se envió tipo en el payload → mantener el subtipo actual
-            tipo = tipo_actual
-
-        if tipo is not None:
-            # Si el tipo cambió, eliminar el hijo anterior antes de crear el nuevo
-            if tipo_actual is not None and tipo_actual != tipo:
-                self._eliminar_hijo_actual(instance, tipo_actual)
-
-            # Crear o actualizar el hijo del nuevo tipo
-            self._crear_o_actualizar_hijo(
-                instance, tipo, campos_especificos,
-                campos_libro, campos_tecno, campos_mueble, campos_ropa
-            )
-
-        return instance
+        return Objeto.objects.create(**validated_data)

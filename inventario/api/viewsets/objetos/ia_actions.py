@@ -188,12 +188,27 @@ class IAActionsMixin:
                 response_data["isbn_detectado"] = resultado.isbn_issn
 
             if not solo_analisis:
+                from ....models import Estok
+
+                estok = None
+                estok_id = request.headers.get('X-Estok-Id')
+                if estok_id:
+                    try:
+                        estok = Estok.objects.get(id=estok_id)
+                    except Estok.DoesNotExist:
+                        return Response(
+                            {"error": "Estok no encontrado"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
                 objeto_creado = service.crear_objeto_desde_vision(
                     vision_result=resultado,
                     user=request.user if request.user.is_authenticated else None,
                     ubicacion=ubicacion,
                     contenedor=contenedor,
+                    estok=estok,
                 )
+
 
                 if not objeto_creado:
                     return Response(

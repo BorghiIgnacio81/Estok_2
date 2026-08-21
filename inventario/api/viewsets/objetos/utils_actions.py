@@ -237,41 +237,32 @@ class UtilsActionsMixin:
         )
         valor_promedio = valor_total / total_objetos if total_objetos > 0 else 0
 
-        tipos = {
-            'libro': objetos.filter(librorevista__isnull=False).count(),
-            'tecnologia': objetos.filter(tecnologia__isnull=False).count(),
-            'mueble': objetos.filter(mueblearte__isnull=False).count(),
-            'ropa': objetos.filter(ropa__isnull=False).count(),
-            'objeto': objetos.filter(
-                librorevista__isnull=True, tecnologia__isnull=True,
-                mueblearte__isnull=True, ropa__isnull=True,
-            ).count(),
+        # Taxonomía unificada: ya NO existen subclases multi-tabla.
+        # Agrupamos por la categoría oficial (11 Meli) y derivamos el
+        # "tipo" legado desde el nombre de la categoría (compatibilidad).
+        TIPO_POR_CATEGORIA = {
+            'Muebles': 'mueble',
+            'Arte': 'mueble',
+            'Coleccionables': 'objeto',
+            'Antigüedades': 'objeto',
+            'Jardín': 'objeto',
+            'Computación': 'tecnologia',
+            'Electrónica': 'tecnologia',
+            'Cocina': 'objeto',
+            'Hogar': 'objeto',
+            'Herramientas': 'objeto',
+            'Materiales': 'objeto',
         }
+        tipos = {t: 0 for t in set(TIPO_POR_CATEGORIA.values())}
+        valor_por_tipo = {t: 0.0 for t in set(TIPO_POR_CATEGORIA.values())}
 
-        valor_por_tipo = {
-            'libro': float(
-                objetos.filter(librorevista__isnull=False)
-                .aggregate(total=Sum('valor_estimado'))['total'] or 0
-            ),
-            'tecnologia': float(
-                objetos.filter(tecnologia__isnull=False)
-                .aggregate(total=Sum('valor_estimado'))['total'] or 0
-            ),
-            'mueble': float(
-                objetos.filter(mueblearte__isnull=False)
-                .aggregate(total=Sum('valor_estimado'))['total'] or 0
-            ),
-            'ropa': float(
-                objetos.filter(ropa__isnull=False)
-                .aggregate(total=Sum('valor_estimado'))['total'] or 0
-            ),
-            'objeto': float(
-                objetos.filter(
-                    librorevista__isnull=True, tecnologia__isnull=True,
-                    mueblearte__isnull=True, ropa__isnull=True,
-                ).aggregate(total=Sum('valor_estimado'))['total'] or 0
-            ),
-        }
+        for obj in objetos.select_related('categoria'):
+            cat = obj.categoria.nombre if obj.categoria else ''
+            t = TIPO_POR_CATEGORIA.get(cat, 'objeto')
+            tipos[t] = tipos.get(t, 0) + 1
+            if obj.valor_estimado:
+                valor_por_tipo[t] = valor_por_tipo.get(t, 0.0) + float(obj.valor_estimado)
+
 
         estados = {}
         for choice in Objeto._meta.get_field('estado_conservacion').choices:

@@ -68,18 +68,11 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         if estok_id:
             qs = qs.filter(estok_id=estok_id)
 
-        tipo = self.request.query_params.get('tipo')
-        if tipo:
-            if tipo == 'libro':
-                qs = qs.filter(librorevista__isnull=False)
-            elif tipo == 'tecnologia':
-                qs = qs.filter(tecnologia__isnull=False)
-            elif tipo == 'mueble':
-                qs = qs.filter(mueblearte__isnull=False)
-            elif tipo == 'ropa':
-                qs = qs.filter(ropa__isnull=False)
+        # Nota: el parámetro 'tipo' (herencia multi-tabla) ya no existe.
+        # La clasificación se hace exclusivamente por 'categoria'.
 
         ubicacion = self.request.query_params.get('ubicacion')
+
         if ubicacion:
             qs = qs.filter(ubicacion_id=ubicacion)
 
@@ -136,13 +129,27 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
     @staticmethod
     def _get_tipo(obj):
-        """Retorna el tipo legible de un objeto según su subtipo."""
-        if hasattr(obj, 'librorevista'):
-            return 'libro'
-        elif hasattr(obj, 'tecnologia'):
-            return 'tecnologia'
-        elif hasattr(obj, 'mueblearte'):
-            return 'mueble'
-        elif hasattr(obj, 'ropa'):
-            return 'ropa'
-        return 'objeto'
+        """
+        Retorna el tipo legible de un objeto según su categoría oficial.
+
+        Ya NO se usa herencia multi-tabla: el "tipo" es un derivado de
+        `categoria` (una de las 11 categorías oficiales de Mercado Libre).
+        Se conserva por compatibilidad con las respuestas del frontend.
+        """
+        categoria_nombre = obj.categoria.nombre if obj.categoria else ''
+        mapping = {
+            'Muebles': 'mueble',
+            'Arte': 'mueble',
+            'Coleccionables': 'objeto',
+            'Antigüedades': 'objeto',
+            'Jardín': 'objeto',
+            'Computación': 'tecnologia',
+            'Electrónica': 'tecnologia',
+            'Cocina': 'objeto',
+            'Hogar': 'objeto',
+            'Herramientas': 'objeto',
+            'Materiales': 'objeto',
+        }
+        return mapping.get(categoria_nombre, 'objeto')
+
+

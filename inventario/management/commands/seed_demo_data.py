@@ -6,7 +6,8 @@ Crea:
 - Usuario admin
 - Un Estok de demostración
 - Ubicaciones y contenedores
-- Objetos de prueba de varios tipos (libro, tecnología, mueble, ropa, objeto genérico)
+- Objetos de prueba con la taxonomía unificada (1 Objeto = 1 Categoría
+  oficial de Mercado Libre, sin subclases multi-tabla ni campo 'tipo').
 
 Uso:
     python manage.py seed_demo_data
@@ -18,7 +19,7 @@ from django.utils import timezone
 from inventario.models import (
     Role, CustomUser, Estok, Membresia,
     Ubicacion, Contenedor,
-    Objeto, LibroRevista, Tecnologia, MuebleArte, Ropa,
+    Objeto, Categoria,
 )
 import uuid
 
@@ -60,12 +61,12 @@ class Command(BaseCommand):
                 'password': make_password('admin123'),
                 'first_name': 'Administrador',
                 'last_name': 'del Sistema',
-                'role': admin_role,
                 'description': 'Administrador principal del sistema',
                 'is_staff': True,
                 'is_superuser': True,
             }
         )
+
         if created:
             self.stdout.write(self.style.SUCCESS('  ✓ Usuario admin creado: admin / admin123'))
         else:
@@ -92,6 +93,25 @@ class Command(BaseCommand):
             estok=estok_demo,
             defaults={'role': admin_role, 'privacidad': 'compartido'}
         )
+
+        # =========================================================================
+        # 3.1 Asegurar las 11 categorías oficiales de Mercado Libre
+        # =========================================================================
+        self.stdout.write(self.style.NOTICE('\n🏷️  Asegurando las 11 categorías oficiales...'))
+        from inventario.management.commands.cargar_categorias_meli import (
+            CATEGORIAS_OFICIALES,
+        )
+        for cat in CATEGORIAS_OFICIALES:
+            Categoria.objects.update_or_create(
+                meli_category_id=cat["meli_category_id"],
+                estok=estok_demo,
+                defaults={
+                    "nombre": cat["nombre"],
+                    "icono": cat["icono"],
+                    "es_contenedor": True,
+                },
+            )
+        self.stdout.write(self.style.SUCCESS('  ✓ Categorías oficiales listas.'))
 
         # =========================================================================
         # 4. Crear Ubicaciones
@@ -144,123 +164,118 @@ class Command(BaseCommand):
                 self.stdout.write(f'  - Contenedor ya existente: {cont.nombre}')
 
         # =========================================================================
-        # 6. Crear Objetos de Prueba
+        # 6. Crear Objetos de Prueba (taxonomía unificada: 1 Objeto = 1 Categoría)
         # =========================================================================
         self.stdout.write(self.style.NOTICE('\n🎯 Creando objetos de prueba...'))
 
+        def _categoria(nombre_categoria):
+            """Resuelve la categoría oficial por nombre dentro del Estok demo."""
+            return Categoria.objects.filter(
+                nombre=nombre_categoria, estok=estok_demo
+            ).first()
+
         objetos_data = [
-            # Objeto genérico
+            # Objeto genérico → Arte
             {
                 'nombre': 'Jarrón Chino',
                 'descripcion': 'Jarrón de porcelana china decorado con dragones. Herencia familiar.',
                 'estok': estok_demo,
                 'ubicacion': 'Living',
                 'contenedor': None,
+                'categoria': _categoria('Arte'),
                 'estado_conservacion': 'excelente',
                 'valor_estimado': 1500.00,
                 'color': 'Blanco y azul',
                 'estado_carga': 'completo',
-                'tipo': 'objeto',
             },
-            # Libro
+            # Libro → Coleccionables
             {
                 'nombre': 'Cien Años de Soledad',
                 'descripcion': 'Novela de Gabriel García Márquez. Edición conmemorativa.',
                 'estok': estok_demo,
                 'ubicacion': 'Living',
                 'contenedor': 'Biblioteca',
+                'categoria': _categoria('Coleccionables'),
                 'estado_conservacion': 'bueno',
                 'valor_estimado': 45.00,
                 'color': 'Rojo',
                 'estado_carga': 'completo',
-                'tipo': 'libro',
-                'datos_especificos': {
-                    'autor': 'Gabriel García Márquez',
-                    'edicion': 'Conmemorativa 50 aniversario',
-                    'anio': 2017,
-                    'isbn_issn': '978-987-1234-56-7',
-                    'editorial': 'Sudamericana',
-                    'idioma': 'Español',
-                }
+                'autor': 'Gabriel García Márquez',
+                'edicion': 'Conmemorativa 50 aniversario',
+                'anio': 2017,
+                'isbn_issn': '978-987-1234-56-7',
+                'editorial': 'Sudamericana',
+                'idioma': 'Español',
             },
-            # Tecnología
+            # Tecnología → Computación
             {
                 'nombre': 'MacBook Pro 14" M3',
                 'descripcion': 'Laptop Apple MacBook Pro 14 pulgadas con chip M3 Pro, 18GB RAM, 512GB SSD.',
                 'estok': estok_demo,
                 'ubicacion': 'Dormitorio Principal',
                 'contenedor': 'Cajonera',
+                'categoria': _categoria('Computación'),
                 'estado_conservacion': 'excelente',
                 'valor_estimado': 2200.00,
                 'color': 'Gris espacial',
                 'estado_carga': 'completo',
-                'tipo': 'tecnologia',
-                'datos_especificos': {
-                    'marca': 'Apple',
-                    'modelo': 'MacBook Pro 14" M3 Pro',
-                    'numero_serie': 'FVFJ3K8Q9L',
-                    'peso': 1.6,
-                    'especificaciones': {'RAM': '18GB', 'SSD': '512GB', 'Pantalla': '14" Liquid Retina XDR'},
-                }
+                'marca': 'Apple',
+                'modelo': 'MacBook Pro 14" M3 Pro',
+                'numero_serie': 'FVFJ3K8Q9L',
+                'peso': 1.6,
+                'especificaciones': {'RAM': '18GB', 'SSD': '512GB', 'Pantalla': '14" Liquid Retina XDR'},
             },
-            # Mueble
+            # Mueble → Muebles
             {
                 'nombre': 'Mesa Ratona',
                 'descripcion': 'Mesa ratona de madera de roble macizo, estilo rústico.',
                 'estok': estok_demo,
                 'ubicacion': 'Living',
                 'contenedor': None,
+                'categoria': _categoria('Muebles'),
                 'estado_conservacion': 'bueno',
                 'valor_estimado': 350.00,
                 'color': 'Marrón',
                 'estado_carga': 'completo',
-                'tipo': 'mueble',
-                'datos_especificos': {
-                    'material': 'Madera',
-                    'largo': 120,
-                    'ancho': 60,
-                    'alto': 45,
-                    'artista_fabricante': 'Muebles del Sur',
-                }
+                'material': 'Madera',
+                'largo': 120,
+                'ancho': 60,
+                'alto': 45,
+                'artista_fabricante': 'Muebles del Sur',
             },
-            # Ropa
+            # Ropa → Hogar (sin categoría oficial específica de ropa; usamos Hogar)
             {
                 'nombre': 'Campera de Cuero',
                 'descripcion': 'Campera de cuero genuino negra, marca Harley Davidson.',
                 'estok': estok_demo,
                 'ubicacion': 'Dormitorio Principal',
                 'contenedor': None,
+                'categoria': _categoria('Hogar'),
                 'estado_conservacion': 'bueno',
                 'valor_estimado': 580.00,
                 'color': 'Negro',
                 'estado_carga': 'completo',
-                'tipo': 'ropa',
-                'datos_especificos': {
-                    'marca': 'Harley Davidson',
-                    'material': 'Cuero',
-                    'tamano': 'M',
-                }
+                'marca': 'Harley Davidson',
+                'material': 'Cuero',
+                'tamano': 'M',
             },
-            # Objeto incompleto (para probar estado_carga)
+            # Objeto incompleto (para probar estado_carga) → Antigüedades
             {
                 'nombre': 'Reloj de Bolsillo',
                 'descripcion': 'Reloj de bolsillo antiguo. Pendiente de análisis completo.',
                 'estok': estok_demo,
                 'ubicacion': 'Depósito',
                 'contenedor': 'Baúl',
+                'categoria': _categoria('Antigüedades'),
                 'estado_conservacion': 'regular',
                 'valor_estimado': None,
                 'color': '',
                 'estado_carga': 'incompleto',
-                'tipo': 'objeto',
             },
         ]
 
         objetos_creados = 0
         for od in objetos_data:
-            tipo = od.pop('tipo')
-            datos_esp = od.pop('datos_especificos', None)
-
             # Manejar ubicación y contenedor por nombre
             ubi_nombre = od.pop('ubicacion', None)
             cont_nombre = od.pop('contenedor', None)
@@ -275,33 +290,16 @@ class Command(BaseCommand):
                 self.stdout.write(f'  - Objeto ya existente: {od["nombre"]}')
                 continue
 
-            # Crear objeto base
+            # Crear el objeto con la taxonomía unificada (sin subclases)
+            categoria = od.pop('categoria', None)
             objeto = Objeto.objects.create(**od)
-
-            # Crear datos específicos según tipo
-            if tipo == 'libro':
-                LibroRevista.objects.create(
-                    objeto_ptr=objeto,
-                    **{k: v for k, v in (datos_esp or {}).items() if k in ['autor', 'edicion', 'anio', 'isbn_issn', 'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma']}
-                )
-            elif tipo == 'tecnologia':
-                Tecnologia.objects.create(
-                    objeto_ptr=objeto,
-                    **{k: v for k, v in (datos_esp or {}).items() if k in ['marca', 'modelo', 'numero_serie', 'peso', 'especificaciones']}
-                )
-            elif tipo == 'mueble':
-                MuebleArte.objects.create(
-                    objeto_ptr=objeto,
-                    **{k: v for k, v in (datos_esp or {}).items() if k in ['material', 'largo', 'ancho', 'alto', 'artista_fabricante']}
-                )
-            elif tipo == 'ropa':
-                Ropa.objects.create(
-                    objeto_ptr=objeto,
-                    **{k: v for k, v in (datos_esp or {}).items() if k in ['marca', 'material', 'tamano']}
-                )
+            if categoria:
+                objeto.categoria = categoria
+                objeto.save(update_fields=['categoria'])
 
             objetos_creados += 1
-            self.stdout.write(self.style.SUCCESS(f'  ✓ Objeto creado: {objeto.nombre} ({tipo})'))
+            cat_label = objeto.categoria.nombre if objeto.categoria else 'sin categoría'
+            self.stdout.write(self.style.SUCCESS(f'  ✓ Objeto creado: {objeto.nombre} ({cat_label})'))
 
         # =========================================================================
         # Resumen final

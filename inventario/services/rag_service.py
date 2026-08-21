@@ -41,41 +41,34 @@ def buscar_objetos_similares(max_resultados: int = 5) -> str:
         contexto = "OBJETOS YA CATALOGADOS EN TU INVENTARIO (usa como referencia):\n"
         for obj in objetos:
             try:
-                # Intentar obtener datos del modelo hijo
-                libro = None
-                tecnologia = None
-                mueble = None
-                ropa = None
-                try:
-                    libro = obj.librorevista
-                except Exception:
-                    pass
-                try:
-                    tecnologia = obj.tecnologia
-                except Exception:
-                    pass
-                try:
-                    mueble = obj.mueblearte
-                except Exception:
-                    pass
-                try:
-                    ropa = obj.ropa
-                except Exception:
-                    pass
+                # Taxonomía unificada: los datos específicos son campos
+                # directos del propio Objeto (sin subclases multi-tabla).
+                categoria_label = obj.categoria.nombre if obj.categoria else 'OTRO'
 
                 detalles = f"- '{obj.nombre}'"
-                if libro:
-                    detalles += f" [LIBRO] autor:{libro.autor or '?'} editorial:{libro.editorial or '?'}"
-                    if libro.isbn_issn:
-                        detalles += f" ISBN:{libro.isbn_issn}"
-                elif tecnologia:
-                    detalles += f" [TECNOLOGIA] marca:{tecnologia.marca or '?'} modelo:{tecnologia.modelo or '?'}"
-                elif mueble:
-                    detalles += f" [MUEBLE] material:{mueble.material or '?'} artista:{mueble.artista_fabricante or '?'}"
-                elif ropa:
-                    detalles += f" [ROPA] talla:{ropa.tamano or '?'}"
+                if obj.autor or obj.editorial or obj.isbn_issn:
+                    detalles += (
+                        f" [LIBRO] autor:{obj.autor or '?'} "
+                        f"editorial:{obj.editorial or '?'}"
+                    )
+                    if obj.isbn_issn:
+                        detalles += f" ISBN:{obj.isbn_issn}"
+                elif obj.marca or obj.modelo:
+                    detalles += (
+                        f" [TECNOLOGIA] marca:{obj.marca or '?'} "
+                        f"modelo:{obj.modelo or '?'}"
+                    )
+                elif obj.material or obj.artista_fabricante:
+                    detalles += (
+                        f" [MUEBLE] material:{obj.material or '?'} "
+                        f"artista:{obj.artista_fabricante or '?'}"
+                    )
+                elif obj.tamano:
+                    detalles += f" [ROPA] talla:{obj.tamano or '?'}"
                 else:
                     detalles += f" [OTRO]"
+
+                detalles += f" categoria:{categoria_label}"
 
                 if obj.estado_conservacion:
                     detalles += f" estado:{obj.estado_conservacion}"
@@ -85,6 +78,7 @@ def buscar_objetos_similares(max_resultados: int = 5) -> str:
                 contexto += detalles + "\n"
             except Exception:
                 continue
+
 
         contexto += "\nUSA ESTOS OBJETOS COMO REFERENCIA para identificar el nuevo objeto.\n"
         return contexto
