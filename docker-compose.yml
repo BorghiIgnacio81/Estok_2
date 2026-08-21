@@ -39,7 +39,7 @@ services:
 
       # Base de datos PostgreSQL
       - DB_ENGINE=django.db.backends.postgresql
-      - DB_NAME=${DB_NAME:-estok_db}
+      - DB_NAME=${DB_NAME:-postgres}
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_HOST=${DB_HOST:-cagtcifjoy8ydxugg4bkdll1}

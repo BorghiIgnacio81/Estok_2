@@ -48,14 +48,10 @@ class Command(BaseCommand):
         estoks = list(Estok.objects.all())
         if not estoks:
             # Con la BD virgen (primer deploy) puede no haber Estok todavía.
-            # En vez de abortar, creamos un Estok base para poder asociar
-            # las 11 categorías oficiales (el usuario podrá renombrarlo luego).
-            estok_base, created = Estok.objects.get_or_create(
-                nombre='Estok Base',
-                defaults={
-                    'descripcion': 'Estok inicial creado automáticamente en el primer deploy',
-                }
-            )
+            # En vez de abortar, tomamos (o creamos) el tenant global
+            # "Estok Principal" para poder asociar las 11 categorías oficiales.
+            from inventario.services.tenant import get_or_create_estok_principal
+            estok_base, created = get_or_create_estok_principal()
             estoks = [estok_base]
             if created:
                 self.stdout.write(self.style.SUCCESS(
@@ -65,7 +61,6 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f'  - Usando Estok existente: {estok_base.nombre}'
                 )
-
 
         total_creadas = 0
         total_eliminadas = 0
