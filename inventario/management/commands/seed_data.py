@@ -1,7 +1,14 @@
 """
 Comando de gestión para poblar la base de datos con datos iniciales (seeds).
 
-Crea los roles básicos del sistema y el primer usuario administrador.
+Crea los roles básicos del sistema, el primer usuario administrador,
+un Estok base y la membresía del admin a ese Estok.
+
+IMPORTANTE (taxonomía unificada):
+- CustomUser ya NO tiene campo `role` global (el RBAC se asigna por Membresia).
+- Por eso el admin se crea como superuser directo, sin `role=`.
+- El Estok base se crea aquí para que cargar_categorias_meli encuentre
+  al menos un Estok al repoblar las 11 categorías oficiales.
 
 Uso:
     python manage.py seed_data
@@ -9,11 +16,11 @@ Uso:
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.hashers import make_password
-from inventario.models import Role, CustomUser
+from inventario.models import Role, CustomUser, Estok, Membresia
 
 
 class Command(BaseCommand):
-    help = 'Crea los datos iniciales: roles básicos y usuario administrador'
+    help = 'Crea los datos iniciales: roles básicos, usuario administrador y Estok base'
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE('Iniciando carga de datos iniciales...'))
@@ -60,11 +67,13 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f'  - Rol ya existente: {role.name}')
 
+        admin_role = Role.objects.get(name='Admin')
+
         # ---------------------------------------------------------------------
         # 2. Crear Usuario Administrador
         # ---------------------------------------------------------------------
-        admin_role = Role.objects.get(name='Admin')
-
+        # OJO: CustomUser NO tiene campo `role` global. El RBAC se asigna por
+        # Membresia (por Estok). NO pasar `role=` aquí (causa FieldError).
         admin_user, created = CustomUser.objects.get_or_create(
             username='admin',
             defaults={
@@ -72,7 +81,6 @@ class Command(BaseCommand):
                 'password': make_password('admin123'),
                 'first_name': 'Administrador',
                 'last_name': 'del Sistema',
-                'role': admin_role,
                 'description': 'Administrador principal del sistema',
                 'is_staff': True,
                 'is_superuser': True,
@@ -85,6 +93,40 @@ class Command(BaseCommand):
             ))
         else:
             self.stdout.write('  - Usuario administrador ya existente.')
+
+        # ---------------------------------------------------------------------
+        # 3. Crear Estok Base (necesario para cargar_categorias_meli)
+        # ---------------------------------------------------------------------
+        estok_base, estok_created = Estok.objects.get_or_create(
+            nombre='Estok Base',
+            defaults={
+                'descripcion': 'Estok inicial creado automáticamente en el primer deploy',
+            }
+        )
+        if estok_created:
+            self.stdout.write(self.style.SUCCESS(
+                f'  ✓ Estok base creado: {estok_base.nombre} (ID: {estok_base.id})'
+            ))
+        else:
+            self.stdout.write(f'  - Estok base ya existente: {estok_base.nombre}')
+
+        # ---------------------------------------------------------------------
+        # 4. Asignar Membresía del admin al Estok Base
+        # ---------------------------------------------------------------------
+        _, membresia_created = Membresia.objects.get_or_create(
+            usuario=admin_user,
+            estok=estok_base,
+            defaults={
+                'role': admin_role,
+                'privacidad': 'compartido',
+            }
+        )
+        if membresia_created:
+            self.stdout.write(self.style.SUCCESS(
+                '  ✓ Membresía admin → Estok Base creada (rol Admin)'
+            ))
+        else:
+            self.stdout.write('  - Membresía admin → Estok Base ya existente.')
 
         # ---------------------------------------------------------------------
         # Resumen final

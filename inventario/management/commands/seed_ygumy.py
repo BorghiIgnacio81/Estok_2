@@ -1,3 +1,4 @@
+"""
 Comando de gestión para crear el usuario ygumy44@gmail.com con rol Admin.
 
 Uso:
@@ -6,7 +7,7 @@ Uso:
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.hashers import make_password
-from inventario.models import Role, CustomUser
+from inventario.models import Role, CustomUser, Estok, Membresia
 
 
 class Command(BaseCommand):
@@ -41,7 +42,7 @@ class Command(BaseCommand):
             'password': make_password('C05m05'),
             'first_name': 'Ygumy',
             'last_name': '44',
-            'role': admin_role,
+            # NOTA: CustomUser NO tiene campo `role` global (RBAC por Membresia).
             'description': 'Usuario principal',
             'phone': '',
             'is_staff': True,
@@ -64,7 +65,30 @@ class Command(BaseCommand):
             ))
 
         # ---------------------------------------------------------------------
-        # 3. Verificar datos del usuario
+        # 3. Asignar membresía al Estok Base (si existe)
+        # ---------------------------------------------------------------------
+        estok_base = Estok.objects.filter(nombre='Estok Base').first()
+        if estok_base:
+            _, membresia_created = Membresia.objects.get_or_create(
+                usuario=user,
+                estok=estok_base,
+                defaults={'role': admin_role, 'privacidad': 'compartido'},
+            )
+            if membresia_created:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  ✓ Membresía ygumy44 → {estok_base.nombre} creada (rol Admin)'
+                ))
+            else:
+                self.stdout.write(
+                    f'  - Membresía ygumy44 → {estok_base.nombre} ya existente.'
+                )
+        else:
+            self.stdout.write(self.style.WARNING(
+                '  ⚠️  No se encontró "Estok Base"; ejecutá `python manage.py seed_data` primero.'
+            ))
+
+        # ---------------------------------------------------------------------
+        # 4. Verificar datos del usuario
         # ---------------------------------------------------------------------
         self.stdout.write(self.style.NOTICE('\n--- Datos del usuario ---'))
         self.stdout.write(f'  Username:  {user.username}')

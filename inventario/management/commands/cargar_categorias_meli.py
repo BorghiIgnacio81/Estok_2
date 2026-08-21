@@ -47,10 +47,25 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         estoks = list(Estok.objects.all())
         if not estoks:
-            self.stdout.write(
-                self.style.ERROR('❌ Error: No se encontró ningún registro de Estok en la base de datos.')
+            # Con la BD virgen (primer deploy) puede no haber Estok todavía.
+            # En vez de abortar, creamos un Estok base para poder asociar
+            # las 11 categorías oficiales (el usuario podrá renombrarlo luego).
+            estok_base, created = Estok.objects.get_or_create(
+                nombre='Estok Base',
+                defaults={
+                    'descripcion': 'Estok inicial creado automáticamente en el primer deploy',
+                }
             )
-            return
+            estoks = [estok_base]
+            if created:
+                self.stdout.write(self.style.SUCCESS(
+                    f'✅ No existía ningún Estok; se creó "{estok_base.nombre}" (ID: {estok_base.id}).'
+                ))
+            else:
+                self.stdout.write(
+                    f'  - Usando Estok existente: {estok_base.nombre}'
+                )
+
 
         total_creadas = 0
         total_eliminadas = 0
