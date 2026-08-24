@@ -40,13 +40,14 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Instalar Node.js y Nginx
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    gnupg \
-    nginx \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# DEBIAN_FRONTEND=noninteractive evita bloqueos interactivos de debconf /
+# Term::ReadLine durante la instalacion de Node.js en entornos headless (Coolify).
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends curl gnupg nginx && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copiar backend
 COPY --from=backend-builder /app /app
