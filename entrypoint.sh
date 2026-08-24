@@ -34,6 +34,9 @@ echo "Version: 1.1.0, Commit: ${COMMIT_HASH}"
 echo "Running migrations..."
 python manage.py migrate --noinput
 
+echo "Forzando usuario ygumy44 (superuser + Estok Principal)..."
+python manage.py forzar_usuario_ygumy || echo "Forzar usuario omitido (no crítico)"
+
 echo "Seeding data..."
 python manage.py seed_data || echo "Seed data skipped (not critical)"
 
