@@ -17,7 +17,7 @@
 - Cada comando de Git o de sistema debe ser ejecutado en una línea de comandos independiente o separado de forma nativa para PowerShell.
 
 ## Base de datos
-- El hostname real de PostgreSQL en Coolify es: cagtcifjoy8ydxugg4bkdll1
+- El hostname real de PostgreSQL en Coolify es: t2oy5kwg9wdtdrf448lpmiz1
   (SIN prefijo "postgresql-database-". Ese prefijo es solo el nombre visual
   en la UI de Coolify, NO es el hostname de red real)
 - NUNCA reintroducir DATABASE_URL en settings.py. El proyecto usa
