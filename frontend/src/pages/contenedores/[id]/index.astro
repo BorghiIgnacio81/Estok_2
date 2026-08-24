@@ -147,12 +147,6 @@ export const prerender = false;
     return `<span class="text-xs px-2 py-0.5 rounded-full font-medium ${color}">${estado}</span>`;
   }
 
-  function getTipoIcon(tipo: string): string {
-    const map: Record<string, string> = {
-      libro: '📚', tecnologia: '💻', mueble: '🖼️', ropa: '👕', objeto: '📦',
-    };
-    return map[tipo] || '📦';
-  }
 
   // ===========================================================================
   // CARGA DEL CONTENEDOR
@@ -239,7 +233,7 @@ export const prerender = false;
 
       grid.innerHTML = objetos.map((obj: any) => {
         const fotoUrl = obj.foto_principal || '';
-        const tipoIcon = getTipoIcon(obj.tipo);
+
         const estadoBadge = getEstadoBadge(obj.estado_conservacion);
         const valor = obj.valor_estimado
           ? `$${parseFloat(obj.valor_estimado).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
@@ -250,11 +244,12 @@ export const prerender = false;
             <div class="h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
               ${fotoUrl
                 ? `<img src="${fotoUrl}" alt="${obj.nombre}" class="w-full h-full object-cover" />`
-                : `<span class="text-3xl">${tipoIcon}</span>`
+                : `<span class="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">${obj.categoria_nombre || 'Objeto'}</span>`
               }
             </div>
             <div class="p-3">
               <h3 class="font-semibold text-gray-900 text-sm line-clamp-2">${obj.nombre}</h3>
+              ${obj.categoria_nombre ? `<p class="text-xs text-gray-400 mt-1">${obj.categoria_nombre}</p>` : ''}
               <div class="flex items-center justify-between mt-2">
                 ${estadoBadge}
                 <span class="text-xs font-medium text-gray-700">${valor}</span>

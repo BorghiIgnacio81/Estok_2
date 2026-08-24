@@ -161,6 +161,7 @@ export const prerender = false;
   // ===========================================================================
 
   import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
+  import { publicarEnMercadoLibre } from '../../services/mercadolibre';
 
   const loadingState = document.getElementById('loadingState')!;
   const emptyState = document.getElementById('emptyState')!;
@@ -207,13 +208,7 @@ export const prerender = false;
     decisionesContainer.classList.add('hidden');
   }
 
-  const TIPO_ICONOS: Record<string, string> = {
-    libro: '📚',
-    tecnologia: '💻',
-    mueble: '🖼️',
-    ropa: '👕',
-    objeto: '📦',
-  };
+  // Visualización delegada al nombre único de la categoría (categoria_nombre).
 
   const ESTADO_COLORS: Record<string, string> = {
     excelente: 'bg-green-100 text-green-700',
@@ -230,7 +225,7 @@ export const prerender = false;
   }
 
   function renderObjetoCard(obj: any): string {
-    const icono = TIPO_ICONOS[obj.tipo] || '📦';
+
     const estadoColor = ESTADO_COLORS[obj.estado_conservacion] || 'bg-gray-100 text-gray-700';
     const plataformas = obj.plataformas_publicadas || [];
     const publicadoML = plataformas.includes('mercadolibre');
@@ -238,14 +233,13 @@ export const prerender = false;
 
     return `
       <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
-        <span class="text-xl flex-shrink-0">${icono}</span>
         <div class="flex-1 min-w-0">
           <a href="/objetos/${obj.id}" class="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline truncate block">
             ${obj.nombre}
           </a>
           <div class="flex items-center gap-2 mt-0.5 flex-wrap">
             ${obj.ubicacion ? `<span class="text-xs text-gray-400">📍 ${obj.ubicacion}</span>` : ''}
-            ${obj.categoria ? `<span class="text-xs text-gray-400">🏷️ ${obj.categoria}</span>` : ''}
+            ${obj.categoria_nombre ? `<span class="text-xs text-gray-400">🏷️ ${obj.categoria_nombre}</span>` : ''}
             <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${estadoColor}">
               ${obj.estado_conservacion}
             </span>
@@ -614,59 +608,22 @@ export const prerender = false;
     }
   }
 
-  async function publicarEnMLReal() {
+    async function publicarEnMLReal() {
     if (!publicarObjetoId) return;
     mostrarStatus('info', '⏳ Analizando categoría y publicando en Mercado Libre...');
 
     const titulo = (document.getElementById('inputTitulo') as HTMLInputElement).value;
     const precio = (document.getElementById('inputPrecio') as HTMLInputElement).value;
     const descripcion = (document.getElementById('inputDescripcion') as HTMLTextAreaElement).value;
-    const token = localStorage.getItem('estok_access_token');
 
     try {
-      // 1. Predecir de forma dinámica la categoría real usando el API oficial de Mercado Libre
-      let categoriaDinamica = 'MLA1747'; // Categoría de respaldo por si falla el predictor
-      try {
-        const predictorRes = await fetch(`https://mercadolibre.com{encodeURIComponent(titulo)}`);
-        if (predictorRes.ok) {
-          const predictorData = await predictorRes.json();
-          if (predictorData && predictorData.id) {
-            categoriaDinamica = predictorData.id;
-          }
-        }
-      } catch (e) {
-        console.warn("No se pudo predecir la categoría automáticamente, usando respaldo.", e);
-      }
-
-      // 2. Armar el payload estructurado definitivo con el ID real
-      const body: any = {
-        objeto_id: publicarObjetoId,
-        title: titulo,
-        price: parseFloat(precio),
-        description: descripcion,
-        currency_id: 'ARS',
-        category_id: categoriaDinamica, // Inyección automática (ej: MLA412111 para dulces)
-      };
-
-      // Si hay foto seleccionada, incluirla
-      if (fotoSeleccionadaUrl) {
-        body.foto_url = fotoSeleccionadaUrl;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/mercadolibre/publicar_item/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+      const result = await publicarEnMercadoLibre({
+        objetoId: publicarObjetoId,
+        titulo,
+        precio: parseFloat(precio),
+        descripcion,
+        fotoUrl: fotoSeleccionadaUrl || undefined,
       });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.ml_response?.message || `Error del servidor (${response.status})`);
-      }
 
       mostrarStatus(
         'success',
@@ -692,4 +649,3 @@ export const prerender = false;
     }
   });
 </script>
-</write_to_file>
