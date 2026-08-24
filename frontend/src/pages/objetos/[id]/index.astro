@@ -229,13 +229,17 @@ export const prerender = false;
   // MAPEOS VISUALES
   // ===========================================================================
 
-  const TIPO_MAP: Record<string, { icon: string; label: string; color: string }> = {
-    libro: { icon: '📚', label: 'Libro / Revista', color: 'bg-blue-100 text-blue-700' },
-    tecnologia: { icon: '💻', label: 'Tecnología', color: 'bg-green-100 text-green-700' },
-    mueble: { icon: '🖼️', label: 'Mueble / Arte', color: 'bg-amber-100 text-amber-700' },
-    ropa: { icon: '👕', label: 'Ropa / Accesorio', color: 'bg-purple-100 text-purple-700' },
-    objeto: { icon: '📦', label: 'Objeto', color: 'bg-gray-100 text-gray-700' },
-  };
+  // Taxonomía unificada: la categoría llega con nombre/icono desde el backend.
+  // Si no viene, mostramos un badge genérico.
+  function getCategoriaInfo(obj: any): { icon: string; label: string; color: string } {
+    const nombre = obj?.categoria_nombre || obj?.categoria?.nombre;
+    const icono = obj?.categoria_icono || obj?.categoria?.icono || '🏷️';
+    if (nombre) {
+      return { icon: icono, label: nombre, color: 'bg-blue-100 text-blue-700' };
+    }
+    return { icon: '📦', label: 'Objeto', color: 'bg-gray-100 text-gray-700' };
+  }
+
 
   const ESTADO_MAP: Record<string, { label: string; color: string }> = {
     excelente: { label: 'Excelente', color: 'bg-green-100 text-green-700' },
@@ -255,7 +259,7 @@ export const prerender = false;
   // RENDERIZADO DE CAMPOS ESPECÍFICOS POR TIPO
   // ===========================================================================
 
-  function renderCamposEspecificos(tipo: string, datos: any) {
+  function renderCamposEspecificos(categoriaNombre: string | null | undefined, datos: any) {
     const container = document.getElementById('camposEspecificos')!;
     const grid = document.getElementById('camposGrid')!;
     const titulo = document.getElementById('camposTitulo')!;
@@ -266,7 +270,8 @@ export const prerender = false;
     }
 
     container.classList.remove('hidden');
-    titulo.textContent = `Detalles de ${TIPO_MAP[tipo]?.label || 'Objeto'}`;
+    titulo.textContent = `Detalles de ${categoriaNombre || 'Objeto'}`;
+
 
     const fieldLabels: Record<string, string> = {
       autor: 'Autor',
@@ -539,12 +544,13 @@ export const prerender = false;
       const obj = await response.json();
 
       // === Renderizar info básica ===
-      const tipoInfo = TIPO_MAP[obj.tipo] || TIPO_MAP.objeto;
+      const tipoInfo = getCategoriaInfo(obj);
       const estadoInfo = ESTADO_MAP[obj.estado_conservacion] || { label: obj.estado_conservacion, color: 'bg-gray-100 text-gray-700' };
       const cargaInfo = CARGA_MAP[obj.estado_carga] || { label: obj.estado_carga, color: 'bg-gray-100 text-gray-500' };
 
       document.getElementById('tipoBadge')!.innerHTML = `${tipoInfo.icon} ${tipoInfo.label}`;
       document.getElementById('tipoBadge')!.className = `text-sm px-2 py-0.5 rounded-full font-medium ${tipoInfo.color}`;
+
       document.getElementById('cargaBadge')!.textContent = cargaInfo.label;
       document.getElementById('cargaBadge')!.className = `text-sm px-2 py-0.5 rounded-full font-medium ${cargaInfo.color}`;
       // Mostrar badge de alerta de stock si aplica
@@ -569,8 +575,9 @@ export const prerender = false;
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
       document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';
 
-      // === Renderizar campos específicos (herencia multi-tabla) ===
-      renderCamposEspecificos(obj.tipo, obj.datos_especificos);
+      // === Renderizar campos específicos ===
+      renderCamposEspecificos(obj.categoria_nombre || obj.categoria?.nombre, obj.datos_especificos);
+
 
       // === Renderizar fotos ===
       renderFotos(obj.fotos);

@@ -237,31 +237,28 @@ class UtilsActionsMixin:
         )
         valor_promedio = valor_total / total_objetos if total_objetos > 0 else 0
 
-        # Taxonomía unificada: ya NO existen subclases multi-tabla.
-        # Agrupamos por la categoría oficial (11 Meli) y derivamos el
-        # "tipo" legado desde el nombre de la categoría (compatibilidad).
-        TIPO_POR_CATEGORIA = {
-            'Muebles': 'mueble',
-            'Arte': 'mueble',
-            'Coleccionables': 'objeto',
-            'Antigüedades': 'objeto',
-            'Jardín': 'objeto',
-            'Computación': 'tecnologia',
-            'Electrónica': 'tecnologia',
-            'Cocina': 'objeto',
-            'Hogar': 'objeto',
-            'Herramientas': 'objeto',
-            'Materiales': 'objeto',
-        }
-        tipos = {t: 0 for t in set(TIPO_POR_CATEGORIA.values())}
-        valor_por_tipo = {t: 0.0 for t in set(TIPO_POR_CATEGORIA.values())}
+        # Taxonomía unificada: la clasificación es EXCLUSIVAMENTE por la FK
+        # `categoria` (las 11 categorías oficiales de Mercado Libre).
+        # El dashboard consume estas claves de forma dinámica (ya NO hay
+        # "tipo" legado: ni LibroRevista, Tecnologia, MuebleArte ni Ropa).
+        categorias_nombre = [
+            'Muebles', 'Arte', 'Coleccionables', 'Antigüedades', 'Jardín',
+            'Computación', 'Electrónica', 'Cocina', 'Hogar',
+            'Herramientas', 'Materiales',
+        ]
+        objetos_por_categoria = {c: 0 for c in categorias_nombre}
+        valor_por_categoria = {c: 0.0 for c in categorias_nombre}
 
         for obj in objetos.select_related('categoria'):
-            cat = obj.categoria.nombre if obj.categoria else ''
-            t = TIPO_POR_CATEGORIA.get(cat, 'objeto')
-            tipos[t] = tipos.get(t, 0) + 1
+            cat = obj.categoria.nombre if obj.categoria else 'Sin categoría'
+            objetos_por_categoria[cat] = (
+                objetos_por_categoria.get(cat, 0) + 1
+            )
             if obj.valor_estimado:
-                valor_por_tipo[t] = valor_por_tipo.get(t, 0.0) + float(obj.valor_estimado)
+                valor_por_categoria[cat] = (
+                    valor_por_categoria.get(cat, 0.0)
+                    + float(obj.valor_estimado)
+                )
 
 
         estados = {}
@@ -311,14 +308,15 @@ class UtilsActionsMixin:
             "total_objetos": total_objetos,
             "valor_total_inventario": float(valor_total),
             "valor_promedio": float(valor_promedio),
-            "objetos_por_tipo": tipos,
-            "valor_por_tipo": valor_por_tipo,
+            "objetos_por_categoria": objetos_por_categoria,
+            "valor_por_categoria": valor_por_categoria,
             "objetos_por_estado": estados,
             "objetos_por_carga": carga,
             "ultimos_objetos": ultimos_data,
             "total_ubicaciones": total_ubicaciones,
             "total_contenedores": total_contenedores,
         })
+
 
     # =========================================================================
     # FOTOS

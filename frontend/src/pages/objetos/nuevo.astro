@@ -231,10 +231,26 @@ const nodosArbol: {
   const photoImage = $id<HTMLImageElement>('photoImage')!;
   const imagenBase64 = $id<HTMLInputElement>('imagenBase64')!;
   const editPhotoBtn = $id<HTMLButtonElement>('editPhotoBtn')!;
+  const clearPhotoBtn = $id<HTMLButtonElement>('clearPhotoBtn')!;
   const iaBtnText = $id<HTMLElement>('iaBtnText')!;
   const iaBtnSpinner = $id<HTMLElement>('iaBtnSpinner')!;
 
-  let savedObjectId = null;
+  clearPhotoBtn?.addEventListener('click', () => {
+    photoImage.src = '';
+    photoImage.classList.add('hidden');
+    photoPlaceholder.classList.remove('hidden');
+    imagenBase64.value = '';
+    editPhotoBtn.classList.add('hidden');
+    clearPhotoBtn.classList.add('hidden');
+    analizarIaBtn.disabled = true;
+    iaStatus.classList.add('hidden');
+    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+    showToast('🗑️ Foto eliminada', 'info');
+  });
+
+
+
+  let savedObjectId: number | string | null = null;
 
   // ===========================================================================
   // RESTAURAR FOTO Y DATOS DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
@@ -263,8 +279,8 @@ const nodosArbol: {
           const el = document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
           if (el && value !== null && value !== undefined) {
             el.value = String(value);
-            // Disparar change para que CategoryFields se actualice si es tipo
-            if (name === 'tipo') el.dispatchEvent(new Event('change', { bubbles: true }));
+            // La taxonomía es unificada: el único selector de clasificación
+            // es "Categoría". Ya no hay campos por sub-tipo que sincronizar.
           }
         });
       } catch (e) { /* ignorar JSON corrupto */ }
@@ -399,25 +415,9 @@ const nodosArbol: {
   editPhotoBtn.addEventListener('click', openEditor);
 
   // ===========================================================================
-  // LIMPIAR FOTO - Boton para quitar la foto actual
-  // ===========================================================================
-  const clearPhotoBtn2 = $id<HTMLButtonElement>('clearPhotoBtn')!;
-  clearPhotoBtn2?.addEventListener('click', () => {
-    photoImage.src = '';
-    photoImage.classList.add('hidden');
-    photoPlaceholder.classList.remove('hidden');
-    imagenBase64.value = '';
-    editPhotoBtn.classList.add('hidden');
-    clearPhotoBtn2.classList.add('hidden');
-    analizarIaBtn.disabled = true;
-    iaStatus.classList.add('hidden');
-    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
-    showToast('🗑️ Foto eliminada', 'info');
-  });
-
-  // ===========================================================================
   // ESTIMAR PRECIO DE REFERENCIA (scraping backend + Gemini fallback)
   // ===========================================================================
+
   const estimarPrecioBtn = $id<HTMLButtonElement>('estimarPrecioBtn')!;
   const estimarPrecioText = $id<HTMLElement>('estimarPrecioText')!;
   const estimarPrecioSpinner = $id<HTMLElement>('estimarPrecioSpinner')!;
@@ -660,19 +660,9 @@ const nodosArbol: {
     cargarCategorias();
   });
 
-  // ===========================================================================
-  // CAMBIAR TIPO - Actualizar campos específicos
-  // ===========================================================================
-  const tipoSelect = $id<HTMLSelectElement>('tipo')!;
-  const categoryContainer = $id<HTMLElement>('categoryFieldsContainer')!;
-
-  tipoSelect.addEventListener('change', () => {
-    const tipo = tipoSelect.value || 'objeto';
-    // Actualizar CategoryFields localmente (sin llamada API)
-    if ((window as any).updateCategoryFields) {
-      (window as any).updateCategoryFields(tipo);
-    }
-  });
+  // La taxonomía es unificada: el único selector de clasificación es
+  // "Categoría" (11 oficiales de Mercado Libre vía /api/categorias/).
+  // Ya no existe selector "tipo" ni campos por sub-tipo que sincronizar.
 
   // ===========================================================================
   // ANALIZAR CON IA - Enviar imagen Base64 al backend para análisis ANTES de guardar
@@ -787,11 +777,20 @@ const nodosArbol: {
         $id<HTMLInputElement>('color')!.value = datos.color;
       }
       if (datos.categoria) {
-        const tipoMap = { libro: 'libro', tecnologia: 'tecnologia', mueble: 'mueble', ropa: 'ropa' };
-        const tipoVal = tipoMap[datos.categoria];
-        if (tipoVal && tipoSelect) {
-          tipoSelect.value = tipoVal;
-          tipoSelect.dispatchEvent(new Event('change'));
+        // Taxonomía unificada: seleccionar la categoría oficial en el select
+        const categoriaSelect = $id<HTMLSelectElement>('categoria');
+        if (categoriaSelect) {
+          const cats = datos.categoria;
+          // Si la IA devuelve un nombre, intentar matchear con las opciones
+          const catNombre = typeof cats === 'string' ? cats : cats?.nombre;
+          const catId = typeof cats === 'object' ? cats?.id : null;
+          const target = catId ? String(catId) : catNombre;
+          const opt = [...categoriaSelect.options].find(
+            (o) => o.value === target || o.textContent?.trim() === target
+          );
+          if (opt) {
+            categoriaSelect.value = opt.value;
+          }
         }
       }
       if (datos.precio_estimado_mercado) {
@@ -1054,11 +1053,12 @@ const nodosArbol: {
       const formData = new FormData(e.target);
 
       // Construir payload del objeto
+      // Taxonomía unificada: NO se envía "tipo". El único selector de
+      // clasificación es "categoria" (11 oficiales de Mercado Libre).
       const categoriaId = formData.get('categoria');
-      const payload = {
+      const payload: Record<string, unknown> = {
         nombre: formData.get('nombre'),
         descripcion: formData.get('descripcion') || '',
-        tipo: formData.get('tipo') || 'objeto',
         categoria: categoriaId || null,
         estado_conservacion: formData.get('estado_conservacion') || 'bueno',
         color: formData.get('color') || '',
@@ -1068,33 +1068,6 @@ const nodosArbol: {
         dueno_original: formData.get('dueno_original') || null,
         beneficiario: formData.get('beneficiario') || null,
       };
-
-      // Agregar campos específicos según categoría
-      const tipo = payload.tipo;
-      if (tipo === 'libro') {
-        payload.autor = formData.get('autor') || '';
-        payload.anio = formData.get('anio') || null;
-        payload.isbn_issn = formData.get('isbn_issn') || '';
-        payload.edicion = formData.get('edicion') || '';
-        payload.nombre_serie = formData.get('nombre_serie') || '';
-        payload.titulo_tomo = formData.get('titulo_tomo') || '';
-        payload.numero_tomo = formData.get('numero_tomo') || null;
-        payload.editorial = formData.get('editorial') || '';
-        payload.idioma = formData.get('idioma') || '';
-      } else if (tipo === 'tecnologia') {
-        payload.marca = formData.get('marca') || '';
-        payload.modelo = formData.get('modelo') || '';
-        payload.numero_serie = formData.get('numero_serie') || '';
-        payload.peso = formData.get('peso') || null;
-      } else if (tipo === 'mueble') {
-        payload.material = formData.get('material') || '';
-        payload.artista_fabricante = formData.get('artista_fabricante') || '';
-        payload.largo = formData.get('largo') || null;
-        payload.ancho = formData.get('ancho') || null;
-        payload.alto = formData.get('alto') || null;
-      } else if (tipo === 'ropa') {
-        payload.tamano = formData.get('tamano') || '';
-      }
 
       // 1. Crear el objeto
       const createResponse = await fetch(`${API_BASE_URL}/objetos/`, {

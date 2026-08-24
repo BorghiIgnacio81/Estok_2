@@ -57,24 +57,14 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     </div>
 
 
-    <!-- Filtros por categoría -->
+    <!-- Filtros por categoría (dinámicos desde /api/categorias/) -->
     <div class="flex flex-wrap gap-3 mb-8" id="filtrosContainer">
-      <button data-tipo="" class="filtro-btn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-full transition-base">
+      <button data-categoria="" class="filtro-btn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-full transition-base">
         Todos
       </button>
-      <button data-tipo="libro" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-blue-50 hover:text-blue-700 transition-base">
-        📚 Libros
-      </button>
-      <button data-tipo="tecnologia" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-green-50 hover:text-green-700 transition-base">
-         Tecnología
-      </button>
-      <button data-tipo="mueble" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-amber-50 hover:text-amber-700 transition-base">
-        🖼️ Muebles / Arte
-      </button>
-      <button data-tipo="ropa" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-purple-50 hover:text-purple-700 transition-base">
-        👕 Ropa
-      </button>
+      <!-- Se completa dinámicamente -->
     </div>
+
 
     <LoadingState mensaje="Cargando objetos..." />
     <ErrorState mensaje="Error al cargar objetos." />
@@ -108,10 +98,12 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
   const objetosGrid = document.getElementById('objetosGrid')!;
   const filtrosContainer = document.getElementById('filtrosContainer')!;
 
-  let currentTipo = '';
+  let currentCategoria = '';
+  let categoriasCache: any[] = [];
 
 
   function showLoading() {
+
     loadingState.classList.remove('hidden');
     emptyState.classList.add('hidden');
     errorState.classList.add('hidden');
@@ -138,16 +130,33 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     return `<span class="text-xs px-2 py-1 rounded-full font-medium ${info.color}">${info.label}</span>`;
   }
 
-  function getTipoIcon(tipo: string): string {
-    const map: Record<string, string> = {
-      libro: '📚',
-      tecnologia: '💻',
-      mueble: '🖼️',
-      ropa: '👕',
-      objeto: '📦',
-    };
-    return map[tipo] || '📦';
+  // Ícono de objeto: derivado de la categoría oficial (11 Meli) si existe.
+  // Sin fallback a tipos legados (Libro/Tecnología/Mueble/Ropa) que ya no existen.
+  function getTipoIcon(obj: any): string {
+    const iconoPorCategoria = getIconoCategoria(obj.categoria_nombre);
+    if (iconoPorCategoria) return iconoPorCategoria;
+    return '📦';
   }
+
+
+  function getIconoCategoria(nombre: string | null | undefined): string {
+    if (!nombre) return '';
+    const map: Record<string, string> = {
+      'Muebles': '🛋️',
+      'Arte': '🎨',
+      'Coleccionables': '🏺',
+      'Antigüedades': '🕰️',
+      'Jardín': '🌿',
+      'Computación': '💻',
+      'Electrónica': '📺',
+      'Cocina': '🍳',
+      'Hogar': '🏠',
+      'Herramientas': '🔧',
+      'Materiales': '🧱',
+    };
+    return map[nombre] || '';
+  }
+
 
   function getEstadoCargaBadge(estado: string): string {
     if (estado === 'completo') {
@@ -186,8 +195,9 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
 
     objetosGrid.innerHTML = objetos.map((obj) => {
       const fotoUrl = obj.foto_principal || '';
-      const tipoIcon = getTipoIcon(obj.tipo);
+      const tipoIcon = getTipoIcon(obj);
       const estadoBadge = getEstadoBadge(obj.estado_conservacion);
+
       const cargaBadge = getEstadoCargaBadge(obj.estado_carga);
       const valor = obj.valor_estimado
         ? `$${parseFloat(obj.valor_estimado).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
@@ -259,7 +269,8 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
           });
           if (res.ok || res.status === 204) {
             (window as any).showSuccess?.(`✅ "${nombre}" eliminado`);
-            cargarObjetos(currentTipo);
+            cargarObjetos(currentCategoria);
+
           } else {
             const err = await res.json().catch(() => ({}));
             (window as any).showError?.(`❌ Error al eliminar: ${err.detail || err.error || 'Error desconocido'}`);
@@ -282,12 +293,39 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     });
   }
 
-  async function cargarObjetos(tipo: string = '') {
+  async function cargarCategoriasFiltros() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/categorias/`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      categoriasCache = Array.isArray(data) ? data : (data.results || []);
+
+      const botonesHtml = categoriasCache.map((cat: any) => `
+        <button data-categoria="${cat.id}" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-blue-50 hover:text-blue-700 transition-base">
+          ${cat.icono || '🏷️'} ${cat.nombre}
+        </button>
+      `).join('');
+
+      // Insertar después del botón "Todos"
+      const btnTodos = filtrosContainer.querySelector('.filtro-btn');
+      if (btnTodos) {
+        btnTodos.insertAdjacentHTML('afterend', botonesHtml);
+      } else {
+        filtrosContainer.innerHTML += botonesHtml;
+      }
+    } catch (err) {
+      console.error('Error al cargar categorías para filtros:', err);
+    }
+  }
+
+  async function cargarObjetos(categoria: string = '') {
     showLoading();
 
     try {
       let url = `${API_BASE_URL}/objetos/?page_size=50`;
-      if (tipo) url += `&tipo=${tipo}`;
+      if (categoria) url += `&categoria=${categoria}`;
 
       const response = await fetch(url, { headers: getAuthHeaders() });
 
@@ -315,8 +353,8 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     const btn = (e.target as HTMLElement).closest('.filtro-btn') as HTMLElement;
     if (!btn) return;
 
-    const tipo = btn.getAttribute('data-tipo') || '';
-    currentTipo = tipo;
+    const categoria = btn.getAttribute('data-categoria') || '';
+    currentCategoria = categoria;
 
     // Actualizar estilo de botones
     filtrosContainer.querySelectorAll('.filtro-btn').forEach((b) => {
@@ -328,11 +366,11 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
       }
     });
 
-    cargarObjetos(tipo);
+    cargarObjetos(categoria);
   });
 
   // Retry
-  retryBtn?.addEventListener('click', () => cargarObjetos(currentTipo));
+  retryBtn?.addEventListener('click', () => cargarObjetos(currentCategoria));
 
   // ===========================================================================
   // BÚSQUEDA EN TIEMPO REAL
@@ -349,7 +387,7 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
 
       showLoading();
       let url = `${API_BASE_URL}/objetos/?page_size=50`;
-      if (currentTipo) url += `&tipo=${currentTipo}`;
+      if (currentCategoria) url += `&categoria=${currentCategoria}`;
       if (query) url += `&search=${encodeURIComponent(query)}`;
 
       fetch(url, { headers: getAuthHeaders() })
@@ -358,6 +396,7 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
         .catch(() => showError('Error al buscar.'));
     }, 300);
   });
+
 
   // ===========================================================================
   // EXPORTAR CSV

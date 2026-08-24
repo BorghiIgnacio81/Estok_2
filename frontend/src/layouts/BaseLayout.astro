@@ -839,7 +839,10 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
         }
         return registration;
       };
-      registration.update = wrappedUpdate;
+      // Reasignar update() tipando a la firma nativa (ServiceWorkerRegistration['update'])
+      // para evitar el error TS en modo estricto al asignar la función envuelta.
+      (registration as unknown as { update: () => Promise<ServiceWorkerRegistration> }).update = wrappedUpdate;
+
     }).catch((err) => {
       console.warn('❌ Error registrando SW:', err);
     });
