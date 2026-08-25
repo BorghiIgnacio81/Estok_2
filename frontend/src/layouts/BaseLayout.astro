@@ -607,13 +607,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   function toggleAdminGlobal() {
     const panel = document.getElementById('godPanel');
     if (panel) {
-      const oculto = panel.classList.toggle('hidden');
-      godModeBtn?.classList.toggle('is-open', !oculto);
-      godModeBtnMobile?.classList.toggle('is-open', !oculto);
-      if (!oculto) {
-        // Avisa a godMode.ts (Dashboard) para refrescar los datos del panel
-        window.dispatchEvent(new CustomEvent('estok:admin-open'));
-      }
+      // Estamos en el Dashboard (index.astro). El panel es dueño de su propia
+      // visibilidad: se dispara el evento global y un listener vanilla JS en
+      // index.astro expande/colapsa #godPanel y sincroniza el estado .is-open
+      // de los botones. Así el Navbar no queda acoplado al DOM interno del panel.
+      window.dispatchEvent(new CustomEvent('estok:admin-open'));
     } else {
       // No estamos en el Dashboard: navegar con flag para abrir el panel
       sessionStorage.setItem('estok_admin_panel', '1');

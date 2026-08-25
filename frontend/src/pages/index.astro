@@ -296,6 +296,36 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
     </div>
     <!-- ================================================================ -->
+    <!-- ADMIN GLOBAL - Sync del toggle (vanilla JS, sin dependencias)     -->
+    <!-- El panel es dueño de su propia visibilidad: escucha el evento     -->
+    <!-- global "estok:admin-open" que dispara el botón "Admin Global" del -->
+    <!-- Navbar (BaseLayout) y alterna las clases Tailwind para expandir/  -->
+    <!-- colapsar el panel de forma fluida.                                -->
+    <!-- ================================================================ -->
+    <script is:inline>
+      (function () {
+        function togglePanelAdminGlobal() {
+          var panel = document.getElementById('godPanel');
+          if (!panel) return;
+
+          var oculto = panel.classList.toggle('hidden');
+
+          // Sincronizar el estado activo de los botones del Navbar
+          var btn = document.getElementById('godModeBtn');
+          var btnMobile = document.getElementById('godModeBtnMobile');
+          if (btn) btn.classList.toggle('is-open', !oculto);
+          if (btnMobile) btnMobile.classList.toggle('is-open', !oculto);
+
+          // Desplazamiento suave hacia el panel cuando se expande
+          if (!oculto && panel.scrollIntoView) {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+
+        window.addEventListener('estok:admin-open', togglePanelAdminGlobal);
+      })();
+    </script>
+    <!-- ================================================================ -->
     <!-- ADMIN GLOBAL - Modal Crear Usuario -->
     <!-- ================================================================ -->
     <div id="godModalUsuario" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
