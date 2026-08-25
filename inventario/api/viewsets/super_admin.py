@@ -17,6 +17,11 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from ...models import CustomUser, Estok
+from ...services.email_service import (
+    TIPO_BIENVENIDA,
+    TIPOS_SOPORTADOS,
+    enviar_email_usuario,
+)
 from ..serializers import (
     SuperAdminUserSerializer,
     SuperAdminUserCreateSerializer,
@@ -91,6 +96,76 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
         user.save(update_fields=['is_active'])
         return Response(
             {'detail': f'Usuario "{user.username}" reactivado correctamente.'},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def enviar_mail(self, request, pk=None):
+        """
+        Envía un correo transaccional al usuario (solo ygumy44).
+
+        Body: {"tipo": "bienvenida" | "actualizacion" | "facturacion" | "reseteo"}
+
+        Reutiliza el MISMO servicio de bienvenida del registro público
+        (inventario/services/email_service.py).
+
+        - tipo='bienvenida': solo se ejecuta si es el PRIMER envío (el usuario
+          nunca inició sesión: last_login es nulo). Si ya recibió la bienvenida,
+          el endpoint responde sin bloquear (HTTP 200) y sugiere otro tipo.
+        - Otros tipos: siempre se procesan (comunicaciones futuras: actualización,
+          facturación o reseteo de clave).
+        """
+        user = self.get_object()
+        tipo = str(request.data.get('tipo') or TIPO_BIENVENIDA).strip().lower()
+
+        if tipo not in TIPOS_SOPORTADOS:
+            return Response(
+                {
+                    'enviado': False,
+                    'detail': (
+                        f'Tipo de correo "{tipo}" no soportado. '
+                        f'Opciones: {", ".join(TIPOS_SOPORTADOS)}.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        primer_envio = user.last_login is None
+
+        if tipo == TIPO_BIENVENIDA and not primer_envio:
+            # Ya recibió la bienvenida: no se reenvía, pero el endpoint sigue
+            # respondiendo para comunicaciones alternativas (no bloquear).
+            return Response(
+                {
+                    'enviado': False,
+                    'detail': (
+                        f'El usuario "{user.username}" ya recibió su correo de '
+                        'bienvenida. Usá tipo="actualizacion" para comunicaciones '
+                        'futuras.'
+                    ),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        enviado = enviar_email_usuario(user, tipo=tipo, password=None)
+        if not enviado:
+            return Response(
+                {
+                    'enviado': False,
+                    'detail': (
+                        f'No se pudo enviar el correo de tipo "{tipo}" a '
+                        f'{user.email or "(sin email)"}. '
+                        'Verificá la configuración SMTP.'
+                    ),
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                'enviado': True,
+                'detail': f'Correo de tipo "{tipo}" enviado a {user.email}.',
+            },
             status=status.HTTP_200_OK,
         )
 

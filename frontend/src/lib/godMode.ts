@@ -142,6 +142,12 @@ function godRenderUsuarios(): void {
     // Botón Editar
     const editBtn = `<button data-god-edit-user data-uid="${u.id}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-md hover:bg-amber-200 transition-base" title="Editar usuario">✏️ Editar</button>`;
 
+    // Botón Enviar Mail (SIEMPRE visible y activo: sirve para la bienvenida
+    // pendiente o para comunicaciones futuras vía tipo=actualizacion).
+    // El backend decide si reenviar la bienvenida según el primer envío.
+    const mailTipo = u.last_login ? 'actualizacion' : 'bienvenida';
+    const mailBtn = `<button data-god-mail data-uid="${u.id}" data-username="${esc(displayName)}" data-tipo="${mailTipo}" class="px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[11px] font-medium rounded-md hover:bg-indigo-200 transition-base" title="Enviar correo al usuario">✉️ Enviar Mail</button>`;
+
     // Botón Eliminar (desactivación lógica)
     const deleteBtn = esYgumy
       ? '<span class="text-[11px] text-gray-400 italic">Tú</span>'
@@ -161,7 +167,7 @@ function godRenderUsuarios(): void {
         <td class="px-3 py-3 text-xs text-gray-600">${esc(u.email || '—')}</td>
         <td class="px-3 py-3">${badgesHtml}</td>
         <td class="px-3 py-3">
-          <div class="flex items-center justify-end gap-1.5 flex-wrap">${editBtn}${asignarHtml}${deleteBtn}</div>
+          <div class="flex items-center justify-end gap-1.5 flex-wrap">${editBtn}${mailBtn}${asignarHtml}${deleteBtn}</div>
         </td>
       </tr>`;
   }).join('');
@@ -252,6 +258,34 @@ async function godDesactivarUsuario(uid: string, display: string, username: stri
     await godCargarTodo();
   } catch (err: any) {
     godMostrarError(err?.error || 'Error al desactivar el usuario.');
+  }
+}
+
+// =============================================================================
+// Envío de correo (reutiliza el servicio de bienvenida del backend)
+// POST /api/admin/usuarios/{id}/enviar_mail/  { tipo: 'bienvenida' | ... }
+// El botón permanece visible y activo tras el envío (NO se recarga la tabla).
+// =============================================================================
+
+async function godEnviarMail(uid: string, username: string, tipo: string, btn: HTMLButtonElement): Promise<void> {
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  try {
+    const res = (await apiPost<any>(`/admin/usuarios/${uid}/enviar_mail/`, { tipo })) as any;
+    const detalle = res?.detail || 'Correo enviado correctamente';
+    if (res?.enviado === false) {
+      (window as any).showToast?.(`✉️ ${detalle}`, 'info');
+    } else {
+      (window as any).showToast?.(`✉️ ${detalle}`, 'success');
+    }
+    // No se recarga la tabla: el botón debe mantenerse visible y activo
+    // para comunicaciones futuras (actualizaciones, facturación, etc.).
+  } catch (err: any) {
+    (window as any).showError?.(err?.error || `Error al enviar el correo a ${username}.`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
   }
 }
 
@@ -504,6 +538,17 @@ function bindGodEventos(): void {
         deleteUserBtn.dataset.uid!,
         deleteUserBtn.dataset.user || '',
         deleteUserBtn.dataset.username || ''
+      );
+      return;
+    }
+
+    const mailBtn = target.closest('[data-god-mail]') as HTMLButtonElement | null;
+    if (mailBtn) {
+      void godEnviarMail(
+        mailBtn.dataset.uid!,
+        mailBtn.dataset.username || 'usuario',
+        mailBtn.dataset.tipo || 'bienvenida',
+        mailBtn
       );
     }
   });

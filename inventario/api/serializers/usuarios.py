@@ -7,6 +7,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 from ...models import Role, CustomUser
+from ...services.email_service import TIPO_BIENVENIDA, enviar_email_usuario
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -102,31 +103,14 @@ class UserCreateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        username = validated_data.get('username')
         password = validated_data.pop('password')
         user = CustomUser(**validated_data)
         user.set_password(password)
         user.save()
 
-        # Envío de email de bienvenida (Gmail SMTP)
-        try:
-            from django.core.mail import send_mail
-            nombre = user.first_name or username
-            send_mail(
-                subject='¡Bienvenido a Estok!',
-                message=(
-                    f'¡Hola, {nombre}!\n'
-                    f'Tu cuenta ha sido creada con éxito. Aquí tienes tus datos de acceso:\n'
-                    f'👤 Usuario: {username}\n'
-                    f'🔑 Contraseña: {password}\n'
-                    f'Link de acceso: https://duckdns.org'
-                ),
-                from_email=None,
-                recipient_list=[user.email],
-                fail_silently=True,
-            )
-            logger.info(f'Email de bienvenida enviado a {user.email}')
-        except Exception as e:
-            logger.warning(f'No se pudo enviar email de bienvenida a {user.email}: {e}')
+        # Envío de email de bienvenida (servicio centralizado reutilizable:
+        # también lo usa el panel de superadmin en
+        # POST /api/admin/usuarios/{id}/enviar_mail/)
+        enviar_email_usuario(user, tipo=TIPO_BIENVENIDA, password=password)
 
         return user
