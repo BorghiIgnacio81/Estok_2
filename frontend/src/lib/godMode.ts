@@ -13,7 +13,7 @@
 // =============================================================================
 
 import { getCachedUser } from '../services/auth';
-import { apiPost, apiDelete, fetchAllPages } from './api';
+import { apiPost, apiPut, apiDelete, fetchAllPages } from './api';
 
 // =============================================================================
 // Estado global del módulo
@@ -28,6 +28,10 @@ let godUsuariosTbody: HTMLElement | null = null;
 let godEstoksTbody: HTMLElement | null = null;
 let godModalUsuario: HTMLElement | null = null;
 let godModalEstok: HTMLElement | null = null;
+let godModalUsuarioEditar: HTMLElement | null = null;
+let godModalEstokEditar: HTMLElement | null = null;
+let godEditandoUserId: string | null = null;
+let godEditandoEstokId: string | null = null;
 
 let godUsuarios: any[] = [];
 let godEstoks: any[] = [];
@@ -135,10 +139,13 @@ function godRenderUsuarios(): void {
         </div>`
       : '';
 
-    // Botón Delete (desactivación lógica)
+    // Botón Editar
+    const editBtn = `<button data-god-edit-user data-uid="${u.id}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-md hover:bg-amber-200 transition-base" title="Editar usuario">✏️ Editar</button>`;
+
+    // Botón Eliminar (desactivación lógica)
     const deleteBtn = esYgumy
       ? '<span class="text-[11px] text-gray-400 italic">Tú</span>'
-      : `<button data-god-delete-user data-uid="${u.id}" data-user="${esc(displayName)}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Desactivar usuario">Delete</button>`;
+      : `<button data-god-delete-user data-uid="${u.id}" data-user="${esc(displayName)}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Desactivar usuario">❌ Eliminar</button>`;
 
     return `
       <tr>
@@ -154,7 +161,7 @@ function godRenderUsuarios(): void {
         <td class="px-3 py-3 text-xs text-gray-600">${esc(u.email || '—')}</td>
         <td class="px-3 py-3">${badgesHtml}</td>
         <td class="px-3 py-3">
-          <div class="flex items-center justify-end gap-1.5 flex-wrap">${asignarHtml}${deleteBtn}</div>
+          <div class="flex items-center justify-end gap-1.5 flex-wrap">${editBtn}${asignarHtml}${deleteBtn}</div>
         </td>
       </tr>`;
   }).join('');
@@ -202,7 +209,8 @@ function godRenderEstoks(): void {
         <td class="px-3 py-3">
           <div class="flex items-center justify-end gap-1.5 flex-wrap">
             ${addUserHtml}
-            <button data-god-delete-estok data-id="${e.id}" data-nombre="${esc(e.nombre)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Borrar Estok en cascada">Delete</button>
+            <button data-god-edit-estok data-id="${e.id}" data-nombre="${esc(e.nombre)}" class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-md hover:bg-amber-200 transition-base" title="Editar Estok">✏️ Editar</button>
+            <button data-god-delete-estok data-id="${e.id}" data-nombre="${esc(e.nombre)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Borrar Estok en cascada">❌ Eliminar</button>
           </div>
         </td>
       </tr>`;
@@ -348,6 +356,113 @@ async function godCrearEstokSubmit(e: Event): Promise<void> {
 }
 
 // =============================================================================
+// Modales: editar usuario y editar Estok (PUT)
+// =============================================================================
+
+function godAbrirModalEditarUsuario(id: string): void {
+  const u = godUsuarios.find((x: any) => x.id === id);
+  if (!u) {
+    godMostrarError('No se encontró el usuario en la caché.');
+    return;
+  }
+  godEditandoUserId = id;
+  (document.getElementById('gUUsernameEditar') as HTMLInputElement).value = u.username || '';
+  (document.getElementById('gUEmailEditar') as HTMLInputElement).value = u.email || '';
+  (document.getElementById('gUPasswordEditar') as HTMLInputElement).value = '';
+  (document.getElementById('gUIsActiveEditar') as HTMLInputElement).checked = !!u.is_active;
+  (document.getElementById('gUIsSuperuserEditar') as HTMLInputElement).checked = !!u.is_superuser;
+  document.getElementById('godFormUsuarioEditarError')?.classList.add('hidden');
+  godModalUsuarioEditar?.classList.remove('hidden');
+}
+
+function godCerrarModalEditarUsuario(): void {
+  godModalUsuarioEditar?.classList.add('hidden');
+  godEditandoUserId = null;
+  const f = document.getElementById('godFormUsuarioEditar') as HTMLFormElement | null;
+  f?.reset();
+  document.getElementById('godFormUsuarioEditarError')?.classList.add('hidden');
+}
+
+function godAbrirModalEditarEstok(id: string): void {
+  const e = godEstoks.find((x: any) => x.id === id);
+  if (!e) {
+    godMostrarError('No se encontró el Estok en la caché.');
+    return;
+  }
+  godEditandoEstokId = id;
+  (document.getElementById('gENombreEditar') as HTMLInputElement).value = e.nombre || '';
+  document.getElementById('godFormEstokEditarError')?.classList.add('hidden');
+  godModalEstokEditar?.classList.remove('hidden');
+}
+
+function godCerrarModalEditarEstok(): void {
+  godModalEstokEditar?.classList.add('hidden');
+  godEditandoEstokId = null;
+  const f = document.getElementById('godFormEstokEditar') as HTMLFormElement | null;
+  f?.reset();
+  document.getElementById('godFormEstokEditarError')?.classList.add('hidden');
+}
+
+async function godEditarUsuarioSubmit(e: Event): Promise<void> {
+  e.preventDefault();
+  if (!godEditandoUserId) return;
+  const formErr = document.getElementById('godFormUsuarioEditarError') as HTMLElement;
+  formErr.classList.add('hidden');
+
+  const body: Record<string, unknown> = {
+    username: (document.getElementById('gUUsernameEditar') as HTMLInputElement).value.trim(),
+    email: (document.getElementById('gUEmailEditar') as HTMLInputElement).value.trim(),
+    is_active: (document.getElementById('gUIsActiveEditar') as HTMLInputElement).checked,
+    is_superuser: (document.getElementById('gUIsSuperuserEditar') as HTMLInputElement).checked,
+  };
+  const password = (document.getElementById('gUPasswordEditar') as HTMLInputElement).value;
+  if (password) body.password = password;
+
+  const btn = document.getElementById('godGuardarUsuarioEditarBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await apiPut(`/admin/usuarios/${godEditandoUserId}/`, body);
+    godMostrarExito('✅ Usuario actualizado correctamente');
+    godCerrarModalEditarUsuario();
+    await godCargarTodo();
+  } catch (err: any) {
+    formErr.textContent = err?.error || 'Error al actualizar el usuario.';
+    formErr.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar Cambios';
+  }
+}
+
+async function godEditarEstokSubmit(e: Event): Promise<void> {
+  e.preventDefault();
+  if (!godEditandoEstokId) return;
+  const formErr = document.getElementById('godFormEstokEditarError') as HTMLElement;
+  formErr.classList.add('hidden');
+
+  const body = {
+    nombre: (document.getElementById('gENombreEditar') as HTMLInputElement).value.trim(),
+  };
+
+  const btn = document.getElementById('godGuardarEstokEditarBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await apiPut(`/admin/estoks/${godEditandoEstokId}/`, body);
+    godMostrarExito('✅ Estok actualizado correctamente');
+    godCerrarModalEditarEstok();
+    await godCargarTodo();
+  } catch (err: any) {
+    formErr.textContent = err?.error || 'Error al actualizar el Estok.';
+    formErr.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar Cambios';
+  }
+}
+
+// =============================================================================
 // Delegación de eventos (robusto tras re-render de innerHTML)
 // =============================================================================
 
@@ -377,6 +492,12 @@ function bindGodEventos(): void {
       return;
     }
 
+    const editUserBtn = target.closest('[data-god-edit-user]') as HTMLElement | null;
+    if (editUserBtn) {
+      godAbrirModalEditarUsuario(editUserBtn.dataset.uid!);
+      return;
+    }
+
     const deleteUserBtn = target.closest('[data-god-delete-user]') as HTMLElement | null;
     if (deleteUserBtn) {
       void godDesactivarUsuario(
@@ -401,6 +522,12 @@ function bindGodEventos(): void {
         return;
       }
       void godVincular(uid, estokId);
+      return;
+    }
+
+    const editEstokBtn = target.closest('[data-god-edit-estok]') as HTMLElement | null;
+    if (editEstokBtn) {
+      godAbrirModalEditarEstok(editEstokBtn.dataset.id!);
       return;
     }
 
@@ -450,6 +577,8 @@ export function initGodMode(): void {
   godEstoksTbody = document.getElementById('godEstoksTbody');
   godModalUsuario = document.getElementById('godModalUsuario');
   godModalEstok = document.getElementById('godModalEstok');
+  godModalUsuarioEditar = document.getElementById('godModalUsuarioEditar');
+  godModalEstokEditar = document.getElementById('godModalEstokEditar');
 
   // Botones de acción del panel
   document.getElementById('godCrearUsuarioBtn')?.addEventListener('click', godAbrirModalUsuario);
@@ -464,9 +593,21 @@ export function initGodMode(): void {
   godModalUsuario?.addEventListener('click', (e) => { if (e.target === godModalUsuario) godCerrarModalUsuario(); });
   godModalEstok?.addEventListener('click', (e) => { if (e.target === godModalEstok) godCerrarModalEstok(); });
 
+  // Cierre de modales de edición
+  document.getElementById('godCerrarModalUsuarioEditar')?.addEventListener('click', godCerrarModalEditarUsuario);
+  document.getElementById('godCancelarUsuarioEditarBtn')?.addEventListener('click', godCerrarModalEditarUsuario);
+  document.getElementById('godCerrarModalEstokEditar')?.addEventListener('click', godCerrarModalEditarEstok);
+  document.getElementById('godCancelarEstokEditarBtn')?.addEventListener('click', godCerrarModalEditarEstok);
+  godModalUsuarioEditar?.addEventListener('click', (e) => { if (e.target === godModalUsuarioEditar) godCerrarModalEditarUsuario(); });
+  godModalEstokEditar?.addEventListener('click', (e) => { if (e.target === godModalEstokEditar) godCerrarModalEditarEstok(); });
+
   // Formularios de creación
   document.getElementById('godFormUsuario')?.addEventListener('submit', (e) => void godCrearUsuarioSubmit(e));
   document.getElementById('godFormEstok')?.addEventListener('submit', (e) => void godCrearEstokSubmit(e));
+
+  // Formularios de edición (PUT)
+  document.getElementById('godFormUsuarioEditar')?.addEventListener('submit', (e) => void godEditarUsuarioSubmit(e));
+  document.getElementById('godFormEstokEditar')?.addEventListener('submit', (e) => void godEditarEstokSubmit(e));
 
   // Delegación de eventos para las tablas
   bindGodEventos();

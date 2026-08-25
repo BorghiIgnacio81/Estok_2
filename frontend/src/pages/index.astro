@@ -220,59 +220,57 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
           <p class="text-sm text-gray-500">Cargando datos globales...</p>
         </div>
 
-        <!-- Grid de 2 columnas -->
-        <div class="p-6">
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            <!-- ================= COLUMNA IZQUIERDA: CRUD USUARIOS ================= -->
-            <div>
-              <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <h3 class="text-base font-bold text-gray-900">Usuarios</h3>
-                <button id="godCrearUsuarioBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
-                  ➕ Crear Nuevo Usuario
-                </button>
-              </div>
-              <div class="overflow-x-auto rounded-lg border border-gray-200">
-                <table class="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuario</th>
-                      <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</th>
-                      <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Estoks Conectados</th>
-                      <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody id="godUsuariosTbody" class="bg-white divide-y divide-gray-200">
-                    <tr><td colspan="4" class="px-3 py-6 text-center text-sm text-gray-400">Cargando usuarios...</td></tr>
-                  </tbody>
-                </table>
-              </div>
+        <!-- Gestión de Estoks (ARRIBA) y Usuarios (ABAJO) - apilado vertical 100% ancho -->
+        <div class="p-6 space-y-8">
+          <!-- ================= GESTIÓN DE ESTOKS (ARRIBA) ================= -->
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 class="text-base font-bold text-gray-900">🏢 Gestión de Estoks</h3>
+              <button id="godCrearEstokBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
+                🏢 Crear Nuevo Estok
+              </button>
             </div>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Nombre Estok</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuarios</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Objetos</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Ubicaciones</th>
+                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Contenedores</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="godEstoksTbody" class="bg-white divide-y divide-gray-200">
+                  <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">Cargando Estoks...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-            <!-- ================= COLUMNA DERECHA: CRUD ESTOKS ================= -->
-            <div>
-              <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <h3 class="text-base font-bold text-gray-900">Estoks</h3>
-                <button id="godCrearEstokBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
-                  🏢 Crear Nuevo Estok
-                </button>
-              </div>
-              <div class="overflow-x-auto rounded-lg border border-gray-200">
-                <table class="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Nombre Estok</th>
-                      <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuarios</th>
-                      <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Objetos</th>
-                      <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Ubicaciones</th>
-                      <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Contenedores</th>
-                      <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody id="godEstoksTbody" class="bg-white divide-y divide-gray-200">
-                    <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">Cargando Estoks...</td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <!-- ================= GESTIÓN DE USUARIOS (ABAJO) ================= -->
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 class="text-base font-bold text-gray-900">👥 Gestión de Usuarios</h3>
+              <button id="godCrearUsuarioBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
+                ➕ Crear Nuevo Usuario
+              </button>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-gray-200">
+              <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuario</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</th>
+                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Estoks Conectados</th>
+                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="godUsuariosTbody" class="bg-white divide-y divide-gray-200">
+                  <tr><td colspan="4" class="px-3 py-6 text-center text-sm text-gray-400">Cargando usuarios...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -362,6 +360,72 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         </form>
       </div>
     </div>
+    <!-- ================================================================ -->
+    <!-- MODO DIOS - Modal Editar Estok (PUT) -->
+    <!-- ================================================================ -->
+    <div id="godModalEstokEditar" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900">✏️ Editar Estok</h3>
+          <button id="godCerrarModalEstokEditar" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base" title="Cerrar">✕</button>
+        </div>
+        <form id="godFormEstokEditar" class="p-6 space-y-4">
+          <div>
+            <label for="gENombreEditar" class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+            <input id="gENombreEditar" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div id="godFormEstokEditarError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" id="godGuardarEstokEditarBtn" class="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm">Guardar Cambios</button>
+            <button type="button" id="godCancelarEstokEditarBtn" class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-base">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- ================================================================ -->
+    <!-- MODO DIOS - Modal Editar Usuario (PUT) -->
+    <!-- ================================================================ -->
+    <div id="godModalUsuarioEditar" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900">✏️ Editar Usuario</h3>
+          <button id="godCerrarModalUsuarioEditar" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base" title="Cerrar">✕</button>
+        </div>
+        <form id="godFormUsuarioEditar" class="p-6 space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="gUUsernameEditar" class="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+              <input id="gUUsernameEditar" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+            </div>
+            <div>
+              <label for="gUEmailEditar" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input id="gUEmailEditar" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+            </div>
+            <div class="sm:col-span-2">
+              <label for="gUPasswordEditar" class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña <span class="text-xs text-gray-400 font-normal">(dejar vacío para no cambiar)</span></label>
+              <input id="gUPasswordEditar" type="password" autocomplete="new-password" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-6">
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input id="gUIsActiveEditar" type="checkbox" class="w-4 h-4 text-red-700 rounded border-gray-300" />
+              Activo
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input id="gUIsSuperuserEditar" type="checkbox" class="w-4 h-4 text-red-700 rounded border-gray-300" />
+              Superusuario
+            </label>
+          </div>
+          <div id="godFormUsuarioEditarError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+          <div class="flex gap-3 pt-1">
+            <button type="submit" id="godGuardarUsuarioEditarBtn" class="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm">Guardar Cambios</button>
+            <button type="button" id="godCancelarUsuarioEditarBtn" class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-base">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
 
 
   </div>
