@@ -494,8 +494,6 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
 
   
-  const LM_STUDIO_URL = 'http://localhost:1234/v1';
-
   const loadingState = document.getElementById('loadingState')!;
   const errorState = document.getElementById('errorState')!;
   const errorMessage = document.getElementById('errorMessage')!;
@@ -504,18 +502,34 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
 
   // ===========================================================================
-  // AI HEARTBEAT
+  // AI HEARTBEAT (PROTEGIDO)
+  // ---------------------------------------------------------------------------
+  // El navegador NO puede (ni debe) hablar directo con LM Studio: ese servidor
+  // corre en localhost del backend (http://localhost:1234/v1) y un fetch desde
+  // el cliente en producción dispara net::ERR_CONNECTION_REFUSED en bucle.
+  //
+  // El chequeo se deriva EXCLUSIVAMENTE de la variable de entorno PUBLIC_API_URL
+  // (la misma que alimenta API_BASE_URL). Si NO está definida explícitamente en
+  // el build, el chequeo se DESACTIVA por completo: el badge queda en
+  // "Modo Manual" sin ningún fetch ni setInterval. Un fallo acá NUNCA aborta la
+  // inicialización del resto del Dashboard.
   // ===========================================================================
+
+  const AI_MODELS_URL = import.meta.env.PUBLIC_API_URL
+    ? `${import.meta.env.PUBLIC_API_URL}/ai/models/`
+    : null;
 
   const aiStatusBadge = document.getElementById('aiStatusBadge')!;
   const aiStatusDot = document.getElementById('aiStatusDot')!;
   const aiStatusText = document.getElementById('aiStatusText')!;
 
   async function checkAIAvailability(): Promise<boolean> {
+    // Sin URL de IA derivada de PUBLIC_API_URL → chequeo deshabilitado.
+    if (!AI_MODELS_URL) return false;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${LM_STUDIO_URL}/models`, {
+      const response = await fetch(AI_MODELS_URL, {
         method: 'GET',
         signal: controller.signal,
       });
@@ -539,8 +553,10 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     }
   }
 
+  // Estado inicial: si el chequeo está deshabilitado, badge "Modo Manual" al toque.
   updateAIStatus();
-  setInterval(updateAIStatus, 30000);
+  // El intervalo SOLO se programa si existe una URL de IA configurada.
+  if (AI_MODELS_URL) setInterval(updateAIStatus, 30000);
 
   // ===========================================================================
   // PWA INSTALL - Android nativo (1 tap) + iOS Safari (2 taps guiados)
@@ -1058,6 +1074,11 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   // ===========================================================================
 
   retryBtn?.addEventListener('click', cargarEstadisticas);
+
+  // Carga inicial inmediata de estadísticas. NO espera al chequeo de IA ni a
+  // ningún otro paso: si el fetch falla, se muestra el estado de error con el
+  // botón "Reintentar" en lugar de quedarse congelado en "Cargando estadísticas...".
+  cargarEstadisticas();
 
   // ===========================================================================
   // ADMIN GLOBAL - Panel de Control (logica en ../lib/godMode.ts)
