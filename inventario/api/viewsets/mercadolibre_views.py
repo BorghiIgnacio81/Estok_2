@@ -15,7 +15,9 @@ from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token,
 )
-from ...services.mercadolibre_api import upload_picture, create_item
+from ...services.mercadolibre_api import (
+    upload_picture, create_item, construir_attributes_desde_objeto,
+)
 from ...models import Objeto
 from .base import HasRolePermission
 
@@ -123,13 +125,14 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         POST /api/mercadolibre/publicar_item/
         Body: {
             objeto_id: "<uuid>",
-            title: "iPhone 14 Pro Max 256GB",
-            price: 850.00,
+            title: "iPhone 14 Pro Max 256GB",  (se trunca a 60 caracteres)
+            price: 850.00,                     (float, debe ser mayor a 0)
             description: "...",
-            foto_url: "https://...",  (opcional, URL pública de la foto)
-            category_id: "MLU1055",   (opcional, default "MLU3530")
-            currency_id: "USD"        (opcional, default "USD")
+            foto_url: "https://...",           (opcional, URL pública de la foto)
+            category_id: "MLA1648",            (opcional, se predice desde el título si falta)
+            condition: "used"                  (opcional: "new" | "used", default "used")
         }
+        Nota: currency_id se fuerza a "ARS" y listing_type_id a "bronze".
         """
         if not has_valid_token(request.user):
             return Response(
@@ -141,7 +144,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             )
 
         objeto_id = request.data.get('objeto_id')
-        title = request.data.get('title', '').strip()
+        title = request.data.get('title', '')
         price = request.data.get('price')
         description = request.data.get('description', '').strip()
         foto_url = request.data.get('foto_url') or ''
@@ -149,21 +152,45 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         if foto_url:
             foto_url = foto_url.replace('http://', 'https://', 1)
         category_id = request.data.get('category_id', 'MLA1747')
-        currency_id = request.data.get('currency_id', 'ARS')
+        # Moneda: MLA Argentina opera estrictamente en ARS (se ignora cualquier otro valor)
+        currency_id = "ARS"
+        # Condición: solo valores nativos aceptados por MLA (default "used": inventario usado)
+        condition = str(request.data.get('condition', 'used')).strip().lower()
+        if condition not in ('new', 'used'):
+            condition = 'used'
 
-        if not objeto_id or not title or not price:
+        if not objeto_id or not title or price is None or price == '':
             return Response(
                 {"error": "objeto_id, title y price son requeridos."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Verificar que el objeto existe
+        # Verificar que el objeto existe (con categoría precargada para attributes)
         try:
-            objeto = Objeto.objects.get(id=objeto_id)
+            objeto = Objeto.objects.select_related('categoria').get(id=objeto_id)
         except Objeto.DoesNotExist:
             return Response(
                 {"error": "Objeto no encontrado."},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Título definitivo: usar el del request o el nombre del objeto,
+        # truncado estrictamente a 60 caracteres (límite de la API de ML)
+        title = (title or objeto.nombre or '').strip()[:60]
+
+        # Precio: float válido y estrictamente mayor a 0 (validación temprana
+        # antes de pegarle a Mercado Libre)
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "El precio debe ser un número válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if price <= 0:
+            return Response(
+                {"error": "El precio debe ser mayor a 0 para publicar en Mercado Libre."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Subir foto si hay URL pública (ML no puede acceder a URLs internas)
@@ -196,20 +223,29 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             if predicted:
                 category_id = predicted
 
-        # Crear ítem en ML
+        # Crear ítem en ML con payload blindado (title ≤ 60 chars, moneda ARS,
+        # condition nativa, attributes dinámicos de categoría y modo de compra fijo)
         item_data = {
             "title": title,
             "category_id": category_id,
-            "price": float(price),
+            "price": price,
             "currency_id": currency_id,
             "description": description,
-            "condition": "new",
+            "condition": condition,
             "buying_mode": "buy_it_now",
-            "listing_type_id": "free",
+            "listing_type_id": "bronze",
             "pictures": pictures,
+            "attributes": construir_attributes_desde_objeto(objeto),
         }
 
-        result = create_item(request.user, item_data)
+        try:
+            result = create_item(request.user, item_data)
+        except ValueError as e:
+            # Excepción controlada lanzada por el servicio de publicación
+            return Response(
+                {"success": False, "error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if result and "id" in result:
             # Marcar como publicado en plataformas_publicadas

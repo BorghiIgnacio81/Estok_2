@@ -101,6 +101,54 @@ def predict_category(title: str, site: str = "MLA") -> Optional[str]:
     return None
 
 
+def construir_attributes_desde_objeto(objeto) -> list:
+    """
+    Construye la lista "attributes" de la API de MercadoLibre a partir de un
+    Objeto de inventario, omitiendo campos nulos o vacíos para no romper la
+    validación de la categoría (evita el 400 "Validation error").
+
+    - Categorías de tecnología (Computación/Electrónica): marca → BRAND,
+      modelo → MODEL.
+    - Libros/revistas (detectados por autor/editorial/isbn): autor → AUTHOR,
+      editorial → PUBLISHER.
+    """
+    attributes: list = []
+    if objeto is None:
+        return attributes
+
+    es_tecnologia = False
+    if objeto.categoria:
+        nombre = (objeto.categoria.nombre or '').strip().lower()
+        meli_id = (objeto.categoria.meli_category_id or '').strip().upper()
+        es_tecnologia = (
+            nombre in ('computación', 'computacion', 'electrónica', 'electronica')
+            or meli_id in ('MLA1648', 'MLA1051')
+        )
+
+    es_libro = bool(
+        getattr(objeto, 'autor', '') or getattr(objeto, 'editorial', '')
+        or getattr(objeto, 'isbn_issn', '')
+    )
+
+    marca = (getattr(objeto, 'marca', '') or '').strip()
+    modelo = (getattr(objeto, 'modelo', '') or '').strip()
+    autor = (getattr(objeto, 'autor', '') or '').strip()
+    editorial = (getattr(objeto, 'editorial', '') or '').strip()
+
+    if es_tecnologia:
+        if marca:
+            attributes.append({"id": "BRAND", "value_name": marca})
+        if modelo:
+            attributes.append({"id": "MODEL", "value_name": modelo})
+    elif es_libro:
+        if autor:
+            attributes.append({"id": "AUTHOR", "value_name": autor})
+        if editorial:
+            attributes.append({"id": "PUBLISHER", "value_name": editorial})
+
+    return attributes
+
+
 def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     """
     Crea una publicación en MercadoLibre.
@@ -108,38 +156,62 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     Args:
         user: Usuario autenticado (dueño del token OAuth)
         item_data: Dict con:
-            - title (str): Título del producto
-            - category_id (str): ID de categoría de ML (ej: "MLU3530" para Notebooks)
-            - price (float): Precio en la moneda local
-            - currency_id (str): "USD", "ARS", etc.
+            - title (str): Título del producto (se trunca a 60 caracteres)
+            - category_id (str): ID de categoría de ML (ej: "MLA1648" para Computación)
+            - price (float): Precio en ARS (debe ser mayor a 0)
             - available_quantity (int): Stock disponible (default 1)
-            - buying_mode (str): "buy_it_now"
-            - listing_type_id (str): "gold_special", "gold_pro", etc.
-            - condition (str): "new" o "used"
+            - condition (str): "new" o "used" (default "used")
             - description (str): Descripción en texto plano
             - pictures (list): Lista de {"source": "url"} o {"id": "picture_id"}
             - video_id (str, opcional)
             - warranty (str, opcional)
             - attributes (list, opcional): Atributos de categoría
 
+        El servicio fuerza: currency_id="ARS", buying_mode="buy_it_now" y
+        listing_type_id="bronze" (exposición clásica gratuita / baja comisión).
+
     Returns:
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
+
+    Raises:
+        ValueError: si el título está vacío, el precio no es numérico o es <= 0.
     """
     access_token = get_valid_access_token(user)
     if not access_token:
         logger.warning("No hay access_token para el usuario %s", user.username)
         return None
 
-    # Valores por defecto
+    # =====================================================================
+    # BLINDAJE DEL PAYLOAD (anti 400 "Validation error" de MLA)
+    # =====================================================================
+    # Título: truncado estricto a 60 caracteres (límite de la API de ML)
+    title = str(item_data.get("title") or "").strip()[:60]
+    if not title:
+        raise ValueError("El título es obligatorio para publicar en Mercado Libre.")
+
+    # Precio: float válido y estrictamente mayor a 0
+    try:
+        price = float(item_data.get("price"))
+    except (TypeError, ValueError):
+        raise ValueError("El precio debe ser un número válido.")
+    if price <= 0:
+        raise ValueError("El precio debe ser mayor a 0 para publicar en Mercado Libre.")
+
+    # Condición: solo valores nativos aceptados por MLA ("used" para inventario usado)
+    condition = str(item_data.get("condition") or "used").strip().lower()
+    if condition not in ("new", "used"):
+        condition = "used"
+
+    # Moneda: MLA Argentina opera estrictamente en ARS
     body = {
-        "title": item_data.get("title", ""),
+        "title": title,
         "category_id": item_data.get("category_id", "MLA1747"),  # Argentina - Otros por defecto
-        "price": item_data.get("price", 0),
-        "currency_id": item_data.get("currency_id", "ARS"),
-        "available_quantity": item_data.get("available_quantity", 1),
-        "buying_mode": item_data.get("buying_mode", "buy_it_now"),
-        "listing_type_id": item_data.get("listing_type_id", "free"),
-        "condition": item_data.get("condition", "new"),
+        "price": price,
+        "currency_id": "ARS",
+        "available_quantity": int(item_data.get("available_quantity", 1) or 1),
+        "buying_mode": "buy_it_now",
+        "listing_type_id": "bronze",  # Exposición clásica gratuita / baja comisión
+        "condition": condition,
     }
 
     if item_data.get("description"):
