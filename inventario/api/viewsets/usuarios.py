@@ -14,6 +14,7 @@ from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.core.exceptions import ValidationError
 
 
 # Tiempo máximo desde última actividad para considerar a un usuario "online"
@@ -113,7 +114,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'ping', 'online', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
+        if self.action in ('me', 'perfil', 'ping', 'online', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -150,6 +151,88 @@ class UserViewSet(viewsets.ModelViewSet):
         data['ultimo_estok_activo_id'] = str(user.ultimo_estok_activo_id) if user.ultimo_estok_activo_id else None
 
         return Response(data)
+
+    @action(detail=False, methods=['put'], url_path='perfil')
+    def perfil(self, request):
+        """
+        Actualiza el perfil del usuario autenticado (SOLO sus propios datos).
+        PUT /api/usuarios/perfil/
+
+        Cuerpo (datos base, todos opcionales):
+          { "username", "email", "first_name", "last_name" }
+
+        Cuerpo (cambio de contraseña, requiere la actual):
+          { "password_actual", "password_nueva" }
+
+        No requiere permisos de superusuario: CUALQUIER usuario autenticado
+        actualiza estrictamente su propio perfil. La contraseña se aplica con
+        set_password() solo si la actual ingresada coincide.
+        """
+        user = request.user
+        data = request.data or {}
+        cambios = False
+
+        # --- 1) Datos base ---
+        for campo in ('username', 'email', 'first_name', 'last_name'):
+            if campo in data:
+                valor = str(data[campo]).strip()
+                if not valor:
+                    return Response(
+                        {'error': f'El campo "{campo}" no puede quedar vacío.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                setattr(user, campo, valor)
+                cambios = True
+
+        # Validar unicidad de username/email (evita colisiones con otros usuarios)
+        if cambios:
+            try:
+                user.validate_unique()
+            except ValidationError as e:
+                return Response(
+                    {
+                        'error': '; '.join(
+                            f'{campo}: {", ".join(mensajes)}'
+                            for campo, mensajes in e.message_dict.items()
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # --- 2) Cambio de contraseña (valida la actual antes de set_password) ---
+        password_actual = data.get('password_actual')
+        password_nueva = data.get('password_nueva')
+        if password_actual or password_nueva:
+            if not password_actual or not password_nueva:
+                return Response(
+                    {'error': 'Para cambiar la contraseña debés ingresar la actual y la nueva.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not user.check_password(password_actual):
+                return Response(
+                    {'error': 'La contraseña actual es incorrecta.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if len(str(password_nueva)) < 8:
+                return Response(
+                    {'error': 'La contraseña nueva debe tener al menos 8 caracteres.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.set_password(password_nueva)
+            cambios = True
+
+        if not cambios:
+            return Response(
+                {'error': 'No se enviaron campos para actualizar.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.save()
+
+        return Response({
+            'success': True,
+            'mensaje': 'Perfil actualizado correctamente.',
+        })
 
     @action(detail=False, methods=['post'])
     def ping(self, request):

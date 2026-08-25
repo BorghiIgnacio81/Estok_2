@@ -1,0 +1,197 @@
+---
+// =============================================================================
+// PÁGINA MI PERFIL - Datos base + Cambio de contraseña
+// Consume PUT /api/usuarios/perfil/ (cualquier usuario autenticado)
+// =============================================================================
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Mi Perfil - Estok">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Mi Perfil</h1>
+      <p class="mt-2 text-gray-500">Administrá tus datos personales y credenciales de acceso</p>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- DATOS BASE -->
+    <!-- ================================================================ -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1">👤 Datos Base</h2>
+      <p class="text-xs text-gray-400 mb-5">Usuario, correo electrónico y nombre de la cuenta</p>
+
+      <form id="perfilForm" class="space-y-4" autocomplete="on">
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Nombre de usuario <span class="text-red-500">*</span></label>
+          <input id="username" name="username" type="text" required autocomplete="username"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+        </div>
+        <div>
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Correo electrónico <span class="text-red-500">*</span></label>
+          <input id="email" name="email" type="email" required autocomplete="email"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+            <input id="first_name" name="first_name" type="text" autocomplete="given-name"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
+            <input id="last_name" name="last_name" type="text" autocomplete="family-name"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="submit" id="guardarPerfilBtn"
+            class="inline-flex items-center px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+            <span id="guardarPerfilLabel">Guardar Datos</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- CAMBIAR CONTRASEÑA -->
+    <!-- ================================================================ -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1">🔑 Cambiar Contraseña</h2>
+      <p class="text-xs text-gray-400 mb-5">Al cambiar tu clave se cerrará la sesión actual y deberás ingresar de nuevo con las nuevas credenciales</p>
+
+      <form id="passwordForm" class="space-y-4" autocomplete="off">
+        <div>
+          <label for="password_actual" class="block text-sm font-medium text-gray-700 mb-1">Contraseña actual <span class="text-red-500">*</span></label>
+          <input id="password_actual" name="password_actual" type="password" required autocomplete="current-password"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="password_nueva" class="block text-sm font-medium text-gray-700 mb-1">Nueva contraseña <span class="text-red-500">*</span></label>
+            <input id="password_nueva" name="password_nueva" type="password" required minlength="8" autocomplete="new-password"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+            <p class="mt-1 text-[11px] text-gray-400">Mínimo 8 caracteres</p>
+          </div>
+          <div>
+            <label for="password_confirm" class="block text-sm font-medium text-gray-700 mb-1">Confirmar nueva contraseña <span class="text-red-500">*</span></label>
+            <input id="password_confirm" name="password_confirm" type="password" required minlength="8" autocomplete="new-password"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="submit" id="cambiarPassBtn"
+            class="inline-flex items-center px-4 py-2 bg-red-700 text-white text-sm font-medium rounded-lg hover:bg-red-800 transition-base shadow-sm">
+            <span id="cambiarPassLabel">Cambiar Contraseña</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { getAuthHeaders, API_BASE_URL, getCachedUser, cacheUser, clearTokens } from '../../services/auth';
+  import { apiPut } from '../../lib/api';
+
+  // ===========================================================================
+  // Carga de datos actuales (GET /api/usuarios/me/)
+  // ===========================================================================
+  async function cargarPerfil(): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/usuarios/me/`, { headers: getAuthHeaders() });
+      if (response.status === 401) { window.location.href = '/login'; return; }
+      if (!response.ok) return;
+      const user = await response.json();
+      (document.getElementById('username') as HTMLInputElement).value = user.username || '';
+      (document.getElementById('email') as HTMLInputElement).value = user.email || '';
+      (document.getElementById('first_name') as HTMLInputElement).value = user.first_name || '';
+      (document.getElementById('last_name') as HTMLInputElement).value = user.last_name || '';
+    } catch {
+      // Silencioso: los campos quedan vacíos y el usuario puede editarlos
+    }
+  }
+
+  // ===========================================================================
+  // Formulario de Datos Base
+  // ===========================================================================
+  const perfilForm = document.getElementById('perfilForm') as HTMLFormElement;
+  perfilForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('guardarPerfilBtn') as HTMLButtonElement;
+    const label = document.getElementById('guardarPerfilLabel')!;
+    const textoOriginal = label.textContent || 'Guardar Datos';
+
+    btn.disabled = true;
+    label.textContent = 'Guardando...';
+    try {
+      const body = {
+        username: (document.getElementById('username') as HTMLInputElement).value.trim(),
+        email: (document.getElementById('email') as HTMLInputElement).value.trim(),
+        first_name: (document.getElementById('first_name') as HTMLInputElement).value.trim(),
+        last_name: (document.getElementById('last_name') as HTMLInputElement).value.trim(),
+      };
+      const res = await apiPut<any>('/usuarios/perfil/', body);
+      (window as any).showToast?.(`✅ ${res?.mensaje || 'Perfil actualizado'}`, 'success');
+
+      // Refrescar la caché local del usuario
+      const cached = getCachedUser();
+      if (cached) {
+        cached.username = body.username;
+        cached.email = body.email;
+        cached.first_name = body.first_name;
+        cached.last_name = body.last_name;
+        cacheUser(cached);
+      }
+    } catch (err: any) {
+      (window as any).showError?.(err?.error || 'Error al guardar el perfil.');
+    } finally {
+      btn.disabled = false;
+      label.textContent = textoOriginal;
+    }
+  });
+
+  // ===========================================================================
+  // Formulario de Cambio de Contraseña
+  // ===========================================================================
+  const passwordForm = document.getElementById('passwordForm') as HTMLFormElement;
+  passwordForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('cambiarPassBtn') as HTMLButtonElement;
+    const label = document.getElementById('cambiarPassLabel')!;
+    const textoOriginal = label.textContent || 'Cambiar Contraseña';
+
+    const actual = (document.getElementById('password_actual') as HTMLInputElement).value;
+    const nueva = (document.getElementById('password_nueva') as HTMLInputElement).value;
+    const confirmar = (document.getElementById('password_confirm') as HTMLInputElement).value;
+
+    if (nueva !== confirmar) {
+      (window as any).showError?.('Las contraseñas nuevas no coinciden.');
+      return;
+    }
+
+    btn.disabled = true;
+    label.textContent = 'Guardando...';
+    try {
+      await apiPut<any>('/usuarios/perfil/', { password_actual: actual, password_nueva: nueva });
+      (window as any).showToast?.('🔑 Contraseña actualizada. Ingresá de nuevo con tus nuevas credenciales.', 'success');
+
+      // Cerrar sesión: borrar tokens y redirigir al login
+      clearTokens();
+      setTimeout(() => { window.location.href = '/login'; }, 900);
+    } catch (err: any) {
+      (window as any).showError?.(err?.error || 'Error al cambiar la contraseña.');
+      btn.disabled = false;
+      label.textContent = textoOriginal;
+    }
+  });
+
+  cargarPerfil();
+</script>
+
