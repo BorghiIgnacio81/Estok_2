@@ -16,7 +16,7 @@ from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token,
 )
 from ...services.mercadolibre_api import (
-    upload_picture, create_item, construir_attributes_desde_objeto,
+    create_item, construir_attributes_desde_objeto,
 )
 from ...models import Objeto
 from .base import HasRolePermission
@@ -193,11 +193,12 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Subir foto si hay URL pública (ML no puede acceder a URLs internas)
+        # Imágenes en formato oficial de ML: [{"source": url}]
+        # (ML descarga y procesa la imagen; evita el 400 de "matriz de imágenes")
         pictures = []
         if foto_url:
-            # Solo intentar subir la foto si es una URL pública externa
-            # (no interna de nuestra API, que requiere autenticación)
+            # Solo usar URLs públicas externas (no internas de nuestra API,
+            # que requieren autenticación y ML no puede acceder)
             es_url_interna = (
                 'eeestok.duckdns.org' in foto_url or
                 '/api/' in foto_url or
@@ -209,12 +210,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                     foto_url[:200]
                 )
             else:
-                picture_id = upload_picture(request.user, foto_url)
-                if picture_id:
-                    pictures.append({"id": picture_id})
-                else:
-                    # URL externa pero upload falló; intentar con source directo
-                    pictures.append({"source": foto_url})
+                pictures.append({"source": foto_url})
 
         # Predecir categoría hoja desde el título si no se especificó una válida
         if not request.data.get('category_id') or category_id == 'MLA1747':
@@ -235,7 +231,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "buying_mode": "buy_it_now",
             "listing_type_id": "bronze",
             "pictures": pictures,
-            "attributes": construir_attributes_desde_objeto(objeto),
+            "attributes": construir_attributes_desde_objeto(objeto, category_id),
         }
 
         try:

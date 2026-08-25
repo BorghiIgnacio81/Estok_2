@@ -101,29 +101,50 @@ def predict_category(title: str, site: str = "MLA") -> Optional[str]:
     return None
 
 
-def construir_attributes_desde_objeto(objeto) -> list:
+def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     """
     Construye la lista "attributes" de la API de MercadoLibre a partir de un
     Objeto de inventario, omitiendo campos nulos o vacíos para no romper la
     validación de la categoría (evita el 400 "Validation error").
 
-    - Categorías de tecnología (Computación/Electrónica): marca → BRAND,
-      modelo → MODEL.
+    - Tecnología (Computación/Electrónica) y electrodomésticos/cocina:
+      marca → BRAND y modelo → MODEL (rellenados con "Genérico"/"Sin
+      especificar" si el formulario viene vacío).
+    - Electrodomésticos/cocina (ej: MLA104680 Licuadoras): añade el atributo
+      obligatorio POWER_SUPPLY_TYPE ("Batería recargable" si el título indica
+      portátil/inalámbrico, si no "Corriente eléctrica").
     - Libros/revistas (detectados por autor/editorial/isbn): autor → AUTHOR,
       editorial → PUBLISHER.
+
+    Args:
+        objeto: Instancia de Objeto (puede ser None).
+        category_id: ID final de categoría ML que viajará en el payload
+            (ej: "MLA104680"), para detectar categorías de cocina que el
+            inventario no mapea entre las 11 oficiales.
     """
     attributes: list = []
     if objeto is None:
         return attributes
 
-    es_tecnologia = False
+    nombre = ''
+    meli_id = ''
     if objeto.categoria:
         nombre = (objeto.categoria.nombre or '').strip().lower()
         meli_id = (objeto.categoria.meli_category_id or '').strip().upper()
-        es_tecnologia = (
-            nombre in ('computación', 'computacion', 'electrónica', 'electronica')
-            or meli_id in ('MLA1648', 'MLA1051')
-        )
+    cid = str(category_id or '').strip().upper()
+
+    es_tecnologia = (
+        nombre in ('computación', 'computacion', 'electrónica', 'electronica')
+        or meli_id in ('MLA1648', 'MLA1051')
+        or cid in ('MLA1648', 'MLA1051')
+    )
+
+    es_cocina_electro = (
+        nombre in ('cocina', 'electrodomésticos', 'electrodomesticos',
+                   'electrodoméstico', 'electrodomestico', 'electro')
+        or meli_id in ('MLA1403', 'MLA104680')
+        or cid in ('MLA1403', 'MLA104680')
+    )
 
     es_libro = bool(
         getattr(objeto, 'autor', '') or getattr(objeto, 'editorial', '')
@@ -135,18 +156,59 @@ def construir_attributes_desde_objeto(objeto) -> list:
     autor = (getattr(objeto, 'autor', '') or '').strip()
     editorial = (getattr(objeto, 'editorial', '') or '').strip()
 
-    if es_tecnologia:
-        if marca:
-            attributes.append({"id": "BRAND", "value_name": marca})
-        if modelo:
-            attributes.append({"id": "MODEL", "value_name": modelo})
-    elif es_libro:
+    if es_tecnologia or es_cocina_electro:
+        # BRAND/MODEL: rellenar con texto genérico si el formulario viene vacío
+        # para no faltar a requisitos obligatorios de estas categorías.
+        attributes.append({"id": "BRAND", "value_name": marca or "Genérico"})
+        attributes.append({"id": "MODEL", "value_name": modelo or "Sin especificar"})
+
+    if es_cocina_electro:
+        # POWER_SUPPLY_TYPE: atributo técnico obligatorio en electrodomésticos
+        # de cocina (ej: licuadoras portátiles MLA104680).
+        titulo = (getattr(objeto, 'nombre', '') or '').lower()
+        es_portatil = any(
+            k in titulo
+            for k in ('portatil', 'portátil', 'inalambric', 'inalámbric',
+                      'recargable', 'bateria', 'batería')
+        )
+        attributes.append({
+            "id": "POWER_SUPPLY_TYPE",
+            "value_name": "Batería recargable" if es_portatil else "Corriente eléctrica",
+        })
+
+    if es_libro:
         if autor:
             attributes.append({"id": "AUTHOR", "value_name": autor})
         if editorial:
             attributes.append({"id": "PUBLISHER", "value_name": editorial})
 
     return attributes
+
+
+def _normalizar_pictures(pictures) -> list:
+    """
+    Normaliza la lista de imágenes al formato oficial de la API de ML:
+    [{"source": "url"}] o [{"id": "picture_id"}].
+
+    Acepta entradas planas (listas de strings URL) y dicts con claves
+    "source", "id" o "url", descartando valores vacíos.
+    """
+    normalizadas: list = []
+    if not pictures:
+        return normalizadas
+
+    for pic in pictures:
+        if isinstance(pic, str) and pic.strip():
+            normalizadas.append({"source": pic.strip()})
+        elif isinstance(pic, dict):
+            if pic.get("source"):
+                normalizadas.append({"source": str(pic["source"]).strip()})
+            elif pic.get("id"):
+                normalizadas.append({"id": str(pic["id"]).strip()})
+            elif pic.get("url"):
+                normalizadas.append({"source": str(pic["url"]).strip()})
+
+    return normalizadas
 
 
 def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
@@ -218,7 +280,12 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         body["description"] = {"plain_text": item_data["description"]}
 
     if item_data.get("pictures"):
-        body["pictures"] = item_data["pictures"]
+        # Pictures: siempre normalizadas al formato oficial [{"source": ...}]
+        # para evitar el 400 "falta la matriz de imágenes" que exige
+        # gold_special y los formatos planos que rebotan la validación.
+        pictures = _normalizar_pictures(item_data["pictures"])
+        if pictures:
+            body["pictures"] = pictures
 
     if item_data.get("attributes"):
         body["attributes"] = item_data["attributes"]
@@ -226,7 +293,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     if item_data.get("warranty"):
         body["warranty"] = item_data["warranty"]
 
-    MAX_RETRIES = 3
+    MAX_RETRIES = 4
     retry_count = 0
     
     while retry_count < MAX_RETRIES:
@@ -265,6 +332,37 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             body["condition"] = "new"
             continue
         
+        # Intento 3: listing_type no disponible para la cuenta/categoría
+        # (ML puede rebotar exigiendo la matriz de imágenes de gold_special).
+        # Fallback seguro a "free", que no exige imágenes.
+        is_listing_error = any(
+            c.get("code") in ("item.listing_type_id.invalid", "item.listing_type_id.not_found")
+            or "listing_type" in str(c.get("message", "")).lower()
+            or "gold_special" in str(c)
+            for c in causes
+        )
+        if is_listing_error and body.get("listing_type_id") != "free":
+            logger.info("Reintento %d: listing_type %s → free (permisos/categoría)",
+                        retry_count, body.get("listing_type_id"))
+            body["listing_type_id"] = "free"
+            continue
+
+        # Intento 4: atributo obligatorio POWER_SUPPLY_TYPE ausente
+        is_power_error = any(
+            "power_supply_type" in str(c.get("attribute", "")).lower()
+            or "alimentaci" in str(c.get("message", "")).lower()
+            for c in causes
+        )
+        if is_power_error and not any(
+            a.get("id") == "POWER_SUPPLY_TYPE" for a in body.get("attributes", [])
+        ):
+            logger.info("Reintento %d: añadiendo POWER_SUPPLY_TYPE (corriente eléctrica)",
+                        retry_count)
+            body.setdefault("attributes", []).append(
+                {"id": "POWER_SUPPLY_TYPE", "value_name": "Corriente eléctrica"}
+            )
+            continue
+
         # Si el error no es de los que sabemos manejar, salir
         break
     
