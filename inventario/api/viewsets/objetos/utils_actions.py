@@ -249,7 +249,12 @@ class UtilsActionsMixin:
         objetos_por_categoria = {c: 0 for c in categorias_nombre}
         valor_por_categoria = {c: 0.0 for c in categorias_nombre}
 
-        for obj in objetos.select_related('categoria'):
+        # Decisiones por usuario (dueño original) para el gráfico de barras
+        # horizontales apiladas del dashboard: Vender (Publicado / No
+        # publicado), Conservar, Tirar y Sin decisión.
+        decisiones_por_usuario: dict = {}
+
+        for obj in objetos.select_related('categoria', 'dueno_original'):
             cat = obj.categoria.nombre if obj.categoria else 'Sin categoría'
             objetos_por_categoria[cat] = (
                 objetos_por_categoria.get(cat, 0) + 1
@@ -259,6 +264,45 @@ class UtilsActionsMixin:
                     valor_por_categoria.get(cat, 0.0)
                     + float(obj.valor_estimado)
                 )
+
+            # Solo los objetos con dueño original asignado participan del
+            # gráfico de decisiones por usuario.
+            dueno = obj.dueno_original
+            if dueno:
+                uid = str(dueno.id)
+                entry = decisiones_por_usuario.setdefault(uid, {
+                    "usuario_id": uid,
+                    "usuario_nombre": (
+                        dueno.get_full_name().strip() or dueno.username
+                    ),
+                    "vender_publicado": 0,
+                    "vender_no_publicado": 0,
+                    "conservar": 0,
+                    "tirar": 0,
+                    "sin_decision": 0,
+                })
+                if obj.owner_action == 'vender':
+                    if obj.plataformas_publicadas:
+                        entry["vender_publicado"] += 1
+                    else:
+                        entry["vender_no_publicado"] += 1
+                elif obj.owner_action == 'conservar':
+                    entry["conservar"] += 1
+                elif obj.owner_action == 'tirar':
+                    entry["tirar"] += 1
+                else:
+                    entry["sin_decision"] += 1
+
+        # Orden descendente por total de objetos para que los usuarios más
+        # activos queden arriba en el gráfico.
+        decisiones_por_usuario = sorted(
+            decisiones_por_usuario.values(),
+            key=lambda e: (
+                e["vender_publicado"] + e["vender_no_publicado"]
+                + e["conservar"] + e["tirar"] + e["sin_decision"]
+            ),
+            reverse=True,
+        )
 
 
         estados = {}
@@ -312,6 +356,7 @@ class UtilsActionsMixin:
             "valor_por_categoria": valor_por_categoria,
             "objetos_por_estado": estados,
             "objetos_por_carga": carga,
+            "decisiones_por_usuario": decisiones_por_usuario,
             "ultimos_objetos": ultimos_data,
             "total_ubicaciones": total_ubicaciones,
             "total_contenedores": total_contenedores,

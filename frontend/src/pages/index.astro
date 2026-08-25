@@ -67,76 +67,95 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     <!-- Dashboard Content -->
     <div id="dashboardContent" class="hidden space-y-8">
       <!-- ================================================================ -->
-      <!-- KPI CARDS - Métricas principales -->
+      <!-- MOSAICOS DE TOTALES (fila horizontal responsiva - arriba de todo) -->
+      <!-- Total de Objetos · Valor Estimado · Ubicaciones · Contenedores    -->
       <!-- ================================================================ -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <p class="text-xs sm:text-sm text-gray-500 font-medium">Total Objetos</p>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <!-- Total de Objetos -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center gap-3">
+          <div class="w-10 h-10 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
           </div>
-          <p id="kpiTotalObjetos" class="text-2xl sm:text-3xl font-bold text-gray-900">—</p>
+          <div class="min-w-0">
+            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Total de Objetos</p>
+            <p id="kpiTotalObjetos" class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">—</p>
+          </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <p class="text-xs sm:text-sm text-gray-500 font-medium">Valor Total</p>
+        <!-- Valor Estimado -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center gap-3">
+          <div class="w-10 h-10 shrink-0 bg-green-100 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          <p id="kpiValorTotal" class="text-2xl sm:text-3xl font-bold text-green-700">—</p>
+          <div class="min-w-0">
+            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Valor Estimado</p>
+            <p id="kpiValorTotal" class="text-2xl sm:text-3xl font-bold text-green-700 leading-tight">—</p>
+          </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <p class="text-xs sm:text-sm text-gray-500 font-medium">Valor Promedio</p>
+        <!-- Ubicaciones -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center gap-3">
+          <div class="w-10 h-10 shrink-0 bg-purple-100 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
           </div>
-          <p id="kpiValorPromedio" class="text-2xl sm:text-3xl font-bold text-purple-700">—</p>
+          <div class="min-w-0">
+            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Ubicaciones</p>
+            <p id="kpiUbicaciones" class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">—</p>
+          </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <div class="flex items-center gap-3 mb-3">
-            <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-            <p class="text-xs sm:text-sm text-gray-500 font-medium">Ubicaciones</p>
+        <!-- Contenedores -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex items-center gap-3">
+          <div class="w-10 h-10 shrink-0 bg-amber-100 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
           </div>
-          <p id="kpiUbicaciones" class="text-2xl sm:text-3xl font-bold text-gray-900">—</p>
+          <div class="min-w-0">
+            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Contenedores</p>
+            <p id="kpiContenedores" class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">—</p>
+          </div>
         </div>
       </div>
 
       <!-- ================================================================ -->
-      <!-- GRÁFICOS CON CHART.JS -->
+      <!-- ANALÍTICAS NATIVAS (sin librerías externas)                     -->
+      <!-- Izquierda: barras horizontales apiladas por usuario/decisión     -->
+      <!-- Derecha: torta SVG nativa por categoría                          -->
       <!-- ================================================================ -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Gráfico de torta: Distribución por tipo -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">Distribución por Categoría</h2>
-          <div class="relative h-64">
-            <canvas id="chartTorta"></canvas>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Barras horizontales apiladas: decisiones por usuario (2 cols) -->
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-1">Decisiones por Usuario</h2>
+          <p class="text-xs text-gray-400 mb-4">Objetos por dueño original según la decisión registrada</p>
+
+          <!-- Leyenda de decisiones -->
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 mb-5">
+            <span class="inline-flex items-center gap-1.5 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-sm bg-green-400"></span>Vender · Publicado</span>
+            <span class="inline-flex items-center gap-1.5 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-sm bg-green-700"></span>Vender · No publicado</span>
+            <span class="inline-flex items-center gap-1.5 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-sm bg-blue-600"></span>Conservar</span>
+            <span class="inline-flex items-center gap-1.5 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-sm bg-red-600"></span>Tirar</span>
+            <span class="inline-flex items-center gap-1.5 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-sm bg-orange-500"></span>Sin decisión</span>
+          </div>
+
+          <div id="barrasApiladasContainer" class="space-y-4">
+            <p class="text-sm text-gray-400">Cargando...</p>
           </div>
         </div>
 
-        <!-- Gráfico de barras: Valor por categoría -->
+        <!-- Torta SVG nativa: distribución por categoría (1 col) -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">Valor por Categoría</h2>
-          <div class="relative h-64">
-            <canvas id="chartBarras"></canvas>
+          <h2 class="text-lg font-semibold text-gray-900 mb-1">Distribución por Categoría</h2>
+          <p class="text-xs text-gray-400 mb-4">Las 11 categorías oficiales del sistema</p>
+          <div id="pieCategoriasContainer" class="flex flex-col items-center">
+            <p class="text-sm text-gray-400 py-8">Cargando...</p>
           </div>
         </div>
       </div>
@@ -437,6 +456,41 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
   import {getAuthHeaders, API_BASE_URL} from '../services/auth';
   import {initGodMode} from '../lib/godMode';
+
+  // ===========================================================================
+  // CONTRATO ANALÍTICO - Tipos del payload de /api/objetos/estadisticas/
+  // ===========================================================================
+  interface DecisionPorUsuario {
+    usuario_id: string;
+    usuario_nombre: string;
+    vender_publicado: number;
+    vender_no_publicado: number;
+    conservar: number;
+    tirar: number;
+    sin_decision: number;
+  }
+
+  interface UltimoObjetoResumen {
+    id: string;
+    nombre: string;
+    tipo: string | null;
+    valor_estimado: number | null;
+    fecha_registro: string;
+  }
+
+  interface EstadisticasDashboard {
+    total_objetos: number;
+    valor_total_inventario: number;
+    valor_promedio: number;
+    total_ubicaciones: number;
+    total_contenedores: number;
+    objetos_por_categoria: Record<string, number>;
+    valor_por_categoria: Record<string, number>;
+    objetos_por_estado: Record<string, number>;
+    objetos_por_carga: Record<string, number>;
+    decisiones_por_usuario: DecisionPorUsuario[];
+    ultimos_objetos: UltimoObjetoResumen[];
+  }
 
 
   
@@ -783,114 +837,159 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   }
 
   // ===========================================================================
-  // CHART.JS - Gráficos
+  // ANALÍTICAS NATIVAS (sin librerías externas)
+  // Barras horizontales apiladas por usuario + torta SVG con <circle>
   // ===========================================================================
 
-
-  let chartTorta: any = null;
-  let chartBarras: any = null;
-
-  async function cargarChartJS(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if ((window as any).Chart) {
-        resolve();
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js';
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  // Paleta de colores para las categorías dinámicas (11 oficiales Meli)
-  const CATEGORIA_CHART_COLORS = [
-    '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#f43f5e',
-    '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#ec4899',
-    '#84cc16',
+  // Mapa de colores OFICIAL de decisiones (clases Tailwind estrictas).
+  const DECISION_SEGMENTS: { key: keyof DecisionPorUsuario; label: string; cssClass: string }[] = [
+    { key: 'vender_publicado',    label: 'Vender · Publicado',    cssClass: 'bg-green-400' },
+    { key: 'vender_no_publicado', label: 'Vender · No publicado', cssClass: 'bg-green-700' },
+    { key: 'conservar',           label: 'Conservar',             cssClass: 'bg-blue-600' },
+    { key: 'tirar',               label: 'Tirar',                 cssClass: 'bg-red-600' },
+    { key: 'sin_decision',        label: 'Sin decisión',          cssClass: 'bg-orange-500' },
   ];
 
-  function initChartTorta(data: Record<string, number>) {
-    const canvas = document.getElementById('chartTorta') as HTMLCanvasElement;
-    if (!canvas) return;
+  const HTML_ESCAPES: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
 
-    const entries = Object.entries(data).filter(([_, v]) => v > 0);
-    if (entries.length === 0) {
-      canvas.parentElement!.innerHTML = '<p class="text-sm text-gray-400 text-center py-12">Sin datos para mostrar</p>';
-      return;
-    }
-
-    if (chartTorta) chartTorta.destroy();
-
-    const Chart = (window as any).Chart;
-    chartTorta = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        labels: entries.map(([k]) => k),
-        datasets: [{
-          data: entries.map(([_, v]) => v),
-          backgroundColor: entries.map(([_, i]) => CATEGORIA_CHART_COLORS[i % CATEGORIA_CHART_COLORS.length]),
-          borderWidth: 2,
-          borderColor: '#ffffff',
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { padding: 16, usePointStyle: true, font: { size: 12 } }
-          }
-        }
-      }
-    });
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch] || ch);
   }
 
-  function initChartBarras(data: Record<string, number>) {
-    const canvas = document.getElementById('chartBarras') as HTMLCanvasElement;
-    if (!canvas) return;
+  function totalDecisiones(u: DecisionPorUsuario): number {
+    return (u.vender_publicado || 0) + (u.vender_no_publicado || 0)
+      + (u.conservar || 0) + (u.tirar || 0) + (u.sin_decision || 0);
+  }
 
-    const entries = Object.entries(data).filter(([_, v]) => v > 0);
-    if (entries.length === 0) {
-      canvas.parentElement!.innerHTML = '<p class="text-sm text-gray-400 text-center py-12">Sin datos para mostrar</p>';
+  // Barras horizontales apiladas: una fila por usuario (dueño original),
+  // cada segmento = volumen de una decisión con su color oficial.
+  function renderBarrasApiladas(data: DecisionPorUsuario[]) {
+    const container = document.getElementById('barrasApiladasContainer')!;
+    if (!data || data.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400">Sin objetos con dueño asignado aún.</p>';
       return;
     }
 
-    if (chartBarras) chartBarras.destroy();
+    const filas = [...data].sort((a, b) => totalDecisiones(b) - totalDecisiones(a));
 
-    const Chart = (window as any).Chart;
-    chartBarras = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels: entries.map(([k]) => k),
-        datasets: [{
-          label: 'Valor Total',
-          data: entries.map(([_, v]) => v),
-          backgroundColor: entries.map(([_, i]) => CATEGORIA_CHART_COLORS[i % CATEGORIA_CHART_COLORS.length] + '80'),
-          borderColor: entries.map(([_, i]) => CATEGORIA_CHART_COLORS[i % CATEGORIA_CHART_COLORS.length]),
-          borderWidth: 2,
-          borderRadius: 6,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              callback: (value: any) => '$' + Number(value).toLocaleString('es-AR')
-            }
-          }
-        }
-      }
+    container.innerHTML = filas.map((usr) => {
+      const total = totalDecisiones(usr);
+      if (total <= 0) return '';
+      const nombre = escapeHtml(usr.usuario_nombre || usr.usuario_id);
+      const segmentos = DECISION_SEGMENTS.map((seg) => {
+        const value = Number(usr[seg.key]) || 0;
+        const pct = (value / total) * 100;
+        return value > 0
+          ? `<div class="${seg.cssClass}" style="width:${pct.toFixed(2)}%" title="${seg.label}: ${value}"></div>`
+          : '';
+      }).join('');
+
+      return `
+        <div>
+          <div class="flex justify-between items-center mb-1 gap-2">
+            <span class="text-sm font-medium text-gray-700 truncate">${nombre}</span>
+            <span class="text-xs text-gray-400 shrink-0">${total} objeto${total === 1 ? '' : 's'}</span>
+          </div>
+          <div class="flex w-full h-4 rounded-full overflow-hidden bg-gray-100" role="img" aria-label="Decisiones de ${nombre}">
+            ${segmentos}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Paleta hex fija para las 11 categorías oficiales del sistema (torta SVG).
+  const CATEGORIA_HEX_COLORS: Record<string, string> = {
+    'Muebles': '#3b82f6',
+    'Arte': '#22c55e',
+    'Coleccionables': '#f59e0b',
+    'Antigüedades': '#a855f7',
+    'Jardín': '#f43f5e',
+    'Computación': '#06b6d4',
+    'Electrónica': '#6366f1',
+    'Cocina': '#f97316',
+    'Hogar': '#14b8a6',
+    'Herramientas': '#ec4899',
+    'Materiales': '#84cc16',
+  };
+  const CATEGORIA_FALLBACK_COLORS = ['#94a3b8', '#64748b', '#475569'];
+
+  function categoriaHex(nombre: string, index: number): string {
+    return CATEGORIA_HEX_COLORS[nombre] || CATEGORIA_FALLBACK_COLORS[index % CATEGORIA_FALLBACK_COLORS.length];
+  }
+
+  // Torta (donut) 100% SVG nativa con <circle stroke-dasharray="..." />.
+  // Cada segmento es un <circle> con un único dash de largo proporcional,
+  // rotado a su ángulo de inicio (arranca a las 12 en punto).
+  function renderPieSVG(containerId: string, data: Record<string, number>) {
+    const container = document.getElementById(containerId)!;
+    const entries = Object.entries(data).filter(([, v]) => Number(v) > 0);
+    const total = entries.reduce((acc, [, v]) => acc + Number(v), 0);
+    if (total <= 0 || entries.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400 text-center py-10">Sin datos para mostrar</p>';
+      return;
+    }
+
+    const SIZE = 180;
+    const CENTER = SIZE / 2;
+    const RADIUS = 70;
+    const STROKE_WIDTH = 28;
+    const CIRCUNFERENCIA = 2 * Math.PI * RADIUS;
+
+    let acumulado = 0;
+    const segmentos = entries.map(([nombre, valor], i) => {
+      const frac = Number(valor) / total;
+      const largo = frac * CIRCUNFERENCIA;
+      const rotacion = (acumulado / CIRCUNFERENCIA) * 360 - 90;
+      const color = categoriaHex(nombre, i);
+      acumulado += largo;
+      const circle = `
+        <circle
+          cx="${CENTER}" cy="${CENTER}" r="${RADIUS}"
+          fill="none"
+          stroke="${color}"
+          stroke-width="${STROKE_WIDTH}"
+          stroke-dasharray="${largo.toFixed(3)} ${(CIRCUNFERENCIA - largo).toFixed(3)}"
+          stroke-dashoffset="0"
+          transform="rotate(${rotacion.toFixed(3)} ${CENTER} ${CENTER})"
+        >
+          <title>${escapeHtml(nombre)}: ${valor} objeto${Number(valor) === 1 ? '' : 's'}</title>
+        </circle>
+      `;
+      return { nombre, valor, color, circle };
     });
+
+    container.innerHTML = `
+      <div class="flex flex-col items-center w-full">
+        <div class="relative">
+          <svg viewBox="0 0 ${SIZE} ${SIZE}" class="w-44 h-44" role="img" aria-label="Distribución de objetos por categoría">
+            ${segmentos.map((s) => s.circle).join('')}
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span class="text-2xl font-bold text-gray-900 leading-none">${total}</span>
+            <span class="text-[10px] uppercase tracking-wide text-gray-400 mt-1">objetos</span>
+          </div>
+        </div>
+        <!-- Leyenda limpia con nombres e indicadores de color -->
+        <div class="w-full mt-4 grid grid-cols-1 gap-x-4 gap-y-0.5">
+          ${segmentos.map((s) => `
+            <div class="flex items-center justify-between gap-2 py-0.5">
+              <span class="inline-flex items-center gap-2 text-xs text-gray-600 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background-color:${s.color}"></span>
+                <span class="truncate">${escapeHtml(s.nombre)}</span>
+              </span>
+              <span class="text-xs font-medium text-gray-900 shrink-0">${s.valor} (${((Number(s.valor) / total) * 100).toFixed(1)}%)</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   }
 
 
@@ -917,24 +1016,17 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         throw new Error(`Error del servidor (${response.status})`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as EstadisticasDashboard;
 
-      // === KPIs ===
+      // === Mosaicos de totales ===
       document.getElementById('kpiTotalObjetos')!.textContent = data.total_objetos.toString();
       document.getElementById('kpiValorTotal')!.textContent = `$${Number(data.valor_total_inventario).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
       document.getElementById('kpiUbicaciones')!.textContent = data.total_ubicaciones.toString();
+      document.getElementById('kpiContenedores')!.textContent = (data.total_contenedores ?? 0).toString();
 
-      // Valor promedio
-      const promedio = data.total_objetos > 0
-        ? Number(data.valor_total_inventario) / data.total_objetos
-        : 0;
-      document.getElementById('kpiValorPromedio')!.textContent = `$${promedio.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
-
-      // === Gráficos Chart.js ===
-      await cargarChartJS();
-      // Taxonomía unificada: los gráficos se alimentan por categoría (11 Meli)
-      initChartTorta(data.objetos_por_categoria);
-      initChartBarras(data.valor_por_categoria || {});
+      // === Analíticas nativas (sin librerías externas) ===
+      renderBarrasApiladas(data.decisiones_por_usuario || []);
+      renderPieSVG('pieCategoriasContainer', data.objetos_por_categoria || {});
 
 
 
