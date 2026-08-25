@@ -1,0 +1,387 @@
+---
+// =============================================================================
+// PÁGINA: Modo Dios - CRUD de Usuarios (solo ygumy44)
+// Consume de forma aislada el endpoint global /api/admin/usuarios/.
+// El backend devuelve HTTP 403 para cualquier persona que no sea ygumy44.
+// =============================================================================
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthGuard from '../../components/AuthGuard.astro';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Modo Dios - CRUD Usuarios | Estok">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">🔒 CRUD Usuarios</h1>
+      <p class="mt-1 text-gray-500">Administración global de <strong>CustomUser</strong> — exclusiva de <strong>ygumy44</strong></p>
+    </div>
+
+    <!-- Acceso denegado (para quien no sea ygumy44) -->
+    <div id="godDenied" class="hidden bg-red-50 border-2 border-red-200 rounded-xl p-8 text-center">
+      <p class="text-3xl mb-3">⛔</p>
+      <p class="font-semibold text-red-800">Acceso denegado</p>
+      <p class="text-sm text-red-600 mt-1">
+        Este panel es exclusivo del usuario <strong>ygumy44</strong>. El backend devuelve HTTP 403 para cualquier otra persona.
+      </p>
+    </div>
+
+    <!-- Loading -->
+    <div id="godLoading" class="text-center py-16">
+      <svg class="animate-spin h-10 w-10 mx-auto text-red-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500">Cargando usuarios...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="godError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4"></div>
+
+    <!-- Contenido principal -->
+    <div id="mainContent" class="hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div>
+          <h2 class="text-lg font-bold text-gray-900">Usuarios del sistema</h2>
+          <p id="usuariosCount" class="text-xs text-gray-500"></p>
+        </div>
+        <button
+          id="nuevoUsuarioBtn"
+          class="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm"
+        >
+          ➕ Nuevo Usuario
+        </button>
+      </div>
+      <div id="usuariosList" class="space-y-3">
+        <!-- Se llena dinámicamente -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Crear / Editar -->
+  <div id="usuarioModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h3 id="modalTitle" class="text-lg font-bold text-gray-900">Nuevo Usuario</h3>
+        <button id="cerrarModalBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base" title="Cerrar">✕</button>
+      </div>
+
+      <form id="usuarioForm" class="p-6 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="fUsername" class="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+            <input id="fUsername" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="fEmail" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input id="fEmail" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="fPassword" class="block text-sm font-medium text-gray-700 mb-1">Password <span id="passwordHint" class="text-xs text-gray-400 font-normal">(dejar vacío para no cambiar)</span></label>
+            <input id="fPassword" type="password" autocomplete="new-password" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="fFirst" class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+            <input id="fFirst" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="fLast" class="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
+            <input id="fLast" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="fPhone" class="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+            <input id="fPhone" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base" />
+          </div>
+        </div>
+        <div>
+          <label for="fDescription" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+          <textarea id="fDescription" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-base"></textarea>
+        </div>
+        <div class="flex flex-wrap items-center gap-6">
+          <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input id="fIsActive" type="checkbox" checked class="w-4 h-4 text-red-700 rounded border-gray-300" />
+            Activo
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            <input id="fIsSuperuser" type="checkbox" class="w-4 h-4 text-red-700 rounded border-gray-300" />
+            Superusuario
+          </label>
+        </div>
+
+        <div id="formError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+
+        <div class="flex gap-3 pt-1">
+          <button
+            id="guardarBtn"
+            type="submit"
+            class="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm"
+          >
+            Guardar
+          </button>
+          <button
+            id="cancelarBtn"
+            type="button"
+            class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-base"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  import { getCachedUser } from '../../services/auth';
+  import { apiGet, apiPost, apiPatch, apiDelete, fetchAllPages } from '../../lib/api';
+
+  // ===========================================================================
+  // ELEMENTOS
+  // ===========================================================================
+  const godDenied = document.getElementById('godDenied')!;
+  const godLoading = document.getElementById('godLoading')!;
+  const godError = document.getElementById('godError')!;
+  const mainContent = document.getElementById('mainContent')!;
+  const usuariosList = document.getElementById('usuariosList')!;
+  const usuariosCount = document.getElementById('usuariosCount')!;
+  const nuevoUsuarioBtn = document.getElementById('nuevoUsuarioBtn')!;
+  const modal = document.getElementById('usuarioModal')!;
+  const modalTitle = document.getElementById('modalTitle')!;
+  const usuarioForm = document.getElementById('usuarioForm')!;
+  const formError = document.getElementById('formError')!;
+  const passwordHint = document.getElementById('passwordHint')!;
+  const guardarBtn = document.getElementById('guardarBtn')!;
+
+  let editandoId: string | null = null;
+  let cargando = false;
+
+  function showError(msg: string) {
+    godError.textContent = msg;
+    godError.classList.remove('hidden');
+  }
+
+  function hideError() {
+    godError.classList.add('hidden');
+  }
+
+  function setFormError(msg: string) {
+    formError.textContent = msg;
+    formError.classList.remove('hidden');
+  }
+
+  // ===========================================================================
+  // GUARD: Solo ygumy44 (el backend además responde 403 para el resto)
+  // ===========================================================================
+  const cachedUser = getCachedUser();
+  const esGod = cachedUser?.username === 'ygumy44';
+
+  if (!esGod) {
+    godLoading.classList.add('hidden');
+    godDenied.classList.remove('hidden');
+  } else {
+    cargarUsuarios();
+  }
+
+  // ===========================================================================
+  // LISTADO
+  // ===========================================================================
+  async function cargarUsuarios() {
+    hideError();
+    godLoading.classList.remove('hidden');
+    mainContent.classList.add('hidden');
+
+    try {
+      const usuarios = await fetchAllPages<any>('/admin/usuarios/');
+      usuariosCount.textContent = `${usuarios.length} usuario(s) en el sistema`;
+      renderUsuarios(usuarios);
+      godLoading.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+    } catch (err: any) {
+      godLoading.classList.add('hidden');
+      showError(
+        err?.status === 403
+          ? '⛔ 403 Forbidden: solo ygumy44 puede acceder a este panel.'
+          : (err?.error || 'Error al cargar usuarios.')
+      );
+    }
+  }
+
+  function renderUsuarios(usuarios: any[]) {
+    if (usuarios.length === 0) {
+      usuariosList.innerHTML = '<p class="text-sm text-gray-500 text-center py-8">No hay usuarios registrados.</p>';
+      return;
+    }
+
+    usuariosList.innerHTML = usuarios.map((u) => {
+      const nombre = u.display_name || u.username;
+      const membresias = u.membresias || [];
+      const badges = membresias.length > 0
+        ? `<span class="text-xs text-gray-500">${membresias.length} Estok(s)</span>`
+        : '<span class="text-xs text-gray-400">Sin Estok</span>';
+
+      return `
+        <div class="p-4 rounded-xl border ${u.is_active ? 'border-gray-200 hover:bg-gray-50' : 'border-red-200 bg-red-50/40'} transition-base">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-700 flex-shrink-0">
+                ${(nombre.charAt(0) || '?').toUpperCase()}
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-900 truncate">
+                  ${nombre}
+                  ${u.is_superuser ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">SUPER</span>' : ''}
+                  ${u.is_active ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Activo</span>' : '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Inactivo</span>'}
+                </p>
+                <p class="text-xs text-gray-500 truncate">@${u.username} ${u.email ? `· ${u.email}` : ''}</p>
+                <p class="text-xs text-gray-400 mt-0.5">${badges} · Alta: ${(u.date_joined || '').slice(0, 10)}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <button data-editar="${u.id}" class="adminEditarBtn px-2.5 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-100 transition-base">
+                ✏️ Editar
+              </button>
+              ${u.username !== 'ygumy44' && u.id !== cachedUser?.id
+                ? (u.is_active
+                    ? `<button data-desactivar="${u.id}" data-nombre="${nombre}" class="adminDesactivarBtn px-2.5 py-1.5 bg-red-50 text-red-700 text-xs font-medium rounded-lg hover:bg-red-100 transition-base">🚫 Desactivar</button>`
+                    : `<button data-reactivar="${u.id}" data-nombre="${nombre}" class="adminReactivarBtn px-2.5 py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-100 transition-base">✅ Reactivar</button>`)
+                : '<span class="text-xs text-gray-400 italic">Tú</span>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    bindEventListeners();
+  }
+
+  function bindEventListeners() {
+    document.querySelectorAll('.adminEditarBtn').forEach((btn) => {
+      btn.addEventListener('click', () => abrirEditar((btn as HTMLElement).dataset.editar!));
+    });
+    document.querySelectorAll('.adminDesactivarBtn').forEach((btn) => {
+      btn.addEventListener('click', () => desactivarUsuario((btn as HTMLElement).dataset.desactivar!, (btn as HTMLElement).dataset.nombre!));
+    });
+    document.querySelectorAll('.adminReactivarBtn').forEach((btn) => {
+      btn.addEventListener('click', () => reactivarUsuario((btn as HTMLElement).dataset.reactivar!, (btn as HTMLElement).dataset.nombre!));
+    });
+  }
+
+  // ===========================================================================
+  // MODAL (crear / editar)
+  // ===========================================================================
+  function abrirModal(titulo: string) {
+    modalTitle.textContent = titulo;
+    formError.classList.add('hidden');
+    modal.classList.remove('hidden');
+    document.getElementById('fUsername')!.focus();
+  }
+
+  function cerrarModal() {
+    modal.classList.add('hidden');
+    editandoId = null;
+    usuarioForm.reset();
+  }
+
+  nuevoUsuarioBtn?.addEventListener('click', () => {
+    editandoId = null;
+    passwordHint.textContent = '* requerido';
+    (document.getElementById('fPassword') as HTMLInputElement).required = true;
+    abrirModal('➕ Nuevo Usuario');
+  });
+
+  document.getElementById('cerrarModalBtn')?.addEventListener('click', cerrarModal);
+  document.getElementById('cancelarBtn')?.addEventListener('click', cerrarModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) cerrarModal();
+  });
+
+  async function abrirEditar(id: string) {
+    editandoId = id;
+    passwordHint.textContent = '(dejar vacío para no cambiar)';
+    (document.getElementById('fPassword') as HTMLInputElement).required = false;
+    abrirModal('✏️ Editar Usuario');
+
+    try {
+      const u = await apiGet<any>(`/admin/usuarios/${id}/`);
+      (document.getElementById('fUsername') as HTMLInputElement).value = u.username || '';
+      (document.getElementById('fEmail') as HTMLInputElement).value = u.email || '';
+      (document.getElementById('fFirst') as HTMLInputElement).value = u.first_name || '';
+      (document.getElementById('fLast') as HTMLInputElement).value = u.last_name || '';
+      (document.getElementById('fPhone') as HTMLInputElement).value = u.phone || '';
+      (document.getElementById('fDescription') as HTMLTextAreaElement).value = u.description || '';
+      (document.getElementById('fIsActive') as HTMLInputElement).checked = !!u.is_active;
+      (document.getElementById('fIsSuperuser') as HTMLInputElement).checked = !!u.is_superuser;
+    } catch {
+      setFormError('No se pudo cargar el usuario para editar.');
+    }
+  }
+
+  // ===========================================================================
+  // GUARDAR (crear o actualizar)
+  // ===========================================================================
+  usuarioForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.classList.add('hidden');
+    if (cargando) return;
+    cargando = true;
+    guardarBtn.textContent = 'Guardando...';
+    guardarBtn.setAttribute('disabled', 'true');
+
+    const body: Record<string, unknown> = {
+      username: (document.getElementById('fUsername') as HTMLInputElement).value.trim(),
+      email: (document.getElementById('fEmail') as HTMLInputElement).value.trim(),
+      first_name: (document.getElementById('fFirst') as HTMLInputElement).value.trim(),
+      last_name: (document.getElementById('fLast') as HTMLInputElement).value.trim(),
+      phone: (document.getElementById('fPhone') as HTMLInputElement).value.trim(),
+      description: (document.getElementById('fDescription') as HTMLTextAreaElement).value.trim(),
+      is_active: (document.getElementById('fIsActive') as HTMLInputElement).checked,
+      is_superuser: (document.getElementById('fIsSuperuser') as HTMLInputElement).checked,
+    };
+    const password = (document.getElementById('fPassword') as HTMLInputElement).value;
+    if (password) body.password = password;
+
+    try {
+      if (editandoId) {
+        await apiPatch(`/admin/usuarios/${editandoId}/`, body);
+        (window as any).showSuccess?.('✅ Usuario actualizado');
+      } else {
+        await apiPost('/admin/usuarios/', body);
+        (window as any).showSuccess?.('✅ Usuario creado');
+      }
+      cerrarModal();
+      cargarUsuarios();
+    } catch (err: any) {
+      setFormError(err?.error || 'Error al guardar el usuario.');
+    } finally {
+      cargando = false;
+      guardarBtn.textContent = 'Guardar';
+      guardarBtn.removeAttribute('disabled');
+    }
+  });
+
+  // ===========================================================================
+  // DESACTIVAR / REACTIVAR
+  // ===========================================================================
+  async function desactivarUsuario(id: string, nombre: string) {
+    if (!confirm(`¿Desactivar al usuario "${nombre}"?\nEl usuario perderá el acceso a la plataforma.`)) return;
+    try {
+      await apiDelete(`/admin/usuarios/${id}/`);
+      (window as any).showSuccess?.(`🚫 Usuario "${nombre}" desactivado`);
+      cargarUsuarios();
+    } catch (err: any) {
+      showError(err?.error || 'Error al desactivar el usuario.');
+    }
+  }
+
+  async function reactivarUsuario(id: string, nombre: string) {
+    if (!confirm(`¿Reactivar al usuario "${nombre}"?`)) return;
+    try {
+      await apiPost(`/admin/usuarios/${id}/reactivar/`);
+      (window as any).showSuccess?.(`✅ Usuario "${nombre}" reactivado`);
+      cargarUsuarios();
+    } catch (err: any) {
+      showError(err?.error || 'Error al reactivar el usuario.');
+    }
+  }
+</script>
+

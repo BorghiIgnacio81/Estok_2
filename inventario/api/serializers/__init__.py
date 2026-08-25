@@ -19,6 +19,11 @@ from .historial import HistorialPrecioSerializer, AlertaStockSerializer
 from .multimedia import FotoObjetoSerializer, FotoObjetoUploadSerializer
 from .chat import MensajeSerializer, MensajeCreateSerializer
 from .categorias import CategoriaSerializer
+from .super_admin import (
+    SuperAdminUserSerializer,
+    SuperAdminUserCreateSerializer,
+    SuperAdminEstokSerializer,
+)
 
 __all__ = [
     'RoleSerializer', 'UserSerializer', 'UserCreateSerializer',
@@ -31,6 +36,8 @@ __all__ = [
     'FotoObjetoSerializer', 'FotoObjetoUploadSerializer',
     'MensajeSerializer', 'MensajeCreateSerializer',
     'CategoriaSerializer',
+    'SuperAdminUserSerializer', 'SuperAdminUserCreateSerializer',
+    'SuperAdminEstokSerializer',
 ]
 
 

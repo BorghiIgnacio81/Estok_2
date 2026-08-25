@@ -14,6 +14,11 @@ from .chat import MensajeViewSet
 from .version import VersionViewSet
 from .categorias import CategoriaViewSet
 from .mercadolibre_views import MercadoLibreViewSet
+from .super_admin import (
+    IsYgumyMaster,
+    SuperAdminUserViewSet,
+    SuperAdminEstokViewSet,
+)
 
 __all__ = [
     'HasRolePermission',
@@ -33,6 +38,9 @@ __all__ = [
     'VersionViewSet',
     'CategoriaViewSet',
     'MercadoLibreViewSet',
+    'IsYgumyMaster',
+    'SuperAdminUserViewSet',
+    'SuperAdminEstokViewSet',
 ]
 
 

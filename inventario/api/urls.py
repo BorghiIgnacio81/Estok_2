@@ -23,6 +23,8 @@ from .viewsets import (
     VersionViewSet,
     CategoriaViewSet,
     MercadoLibreViewSet,
+    SuperAdminUserViewSet,
+    SuperAdminEstokViewSet,
 )
 
 
@@ -49,6 +51,13 @@ router.register(r'mensajes', MensajeViewSet, basename='mensaje')
 router.register(r'version', VersionViewSet, basename='version')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
 router.register(r'mercadolibre', MercadoLibreViewSet, basename='mercadolibre')
+
+# =============================================================================
+# MODO DIOS (Super Admin) - Vista global de auditoría, SOLO 'ygumy44'
+# IsYgumyMaster devuelve HTTP 403 para cualquier otro usuario.
+# =============================================================================
+router.register(r'admin/usuarios', SuperAdminUserViewSet, basename='admin-usuario')
+router.register(r'admin/estoks', SuperAdminEstokViewSet, basename='admin-estok')
 
 # =============================================================================
 

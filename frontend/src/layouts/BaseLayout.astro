@@ -188,6 +188,32 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             <a href="/integraciones" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
               🔌 Integraciones
             </a>
+            <!-- MODO DIOS (mobile) - SOLO visible para ygumy44 -->
+            <div id="godModeWrapMobile" class="hidden">
+              <button
+                id="godModeBtnMobile"
+                class="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm cursor-pointer"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Admin Global
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <!-- Opciones colapsables -->
+              <div id="godModeMenuMobile" class="overflow-hidden">
+                <div class="mt-1 space-y-1 border-l-2 border-red-200 ml-3 pl-3">
+                  <a href="/admin/usuarios" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg transition-base">
+                    🔒 CRUD Usuarios
+                  </a>
+                  <a href="/admin/estoks" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg transition-base">
+                    🏢 CRUD Estoks
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -212,6 +238,38 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             <a href="/integraciones" class="text-gray-600 hover:text-blue-700 transition-base font-medium">
               🔌 Integraciones
             </a>
+            <!-- ============================================================= -->
+            <!-- MODO DIOS - SOLO visible para ygumy44 (invisible para el resto) -->
+            <!-- ============================================================= -->
+            <div id="godModeWrap" class="hidden relative">
+              <button
+                id="godModeBtn"
+                class="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm cursor-pointer"
+                title="Modo Dios - Administración global (solo ygumy44)"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Admin Global
+                <svg class="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <!-- Panel desplegable colapsable (animado por JS) -->
+              <div id="godModeMenu" class="absolute top-full left-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-red-200 py-2 z-50 overflow-hidden">
+                <div class="px-4 py-1.5 text-[10px] font-bold text-red-500 uppercase tracking-wider border-b border-red-100">
+                  Modo Dios
+                </div>
+                <a href="/admin/usuarios" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-700 transition-base">
+                  <span class="text-base">🔒</span>
+                  CRUD Usuarios
+                </a>
+                <a href="/admin/estoks" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-700 transition-base">
+                  <span class="text-base">🏢</span>
+                  CRUD Estoks
+                </a>
+              </div>
+            </div>
           </div>
           <!-- Estok activo + Selector de Estoks + Invitar (desktop) -->
           <div id="estokSection" class="hidden flex items-center space-x-3">
@@ -299,6 +357,23 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
         </div>
       </div>
     </footer>
+
+    <!-- Estilos del panel Modo Dios (colapso animado) -->
+    <style>
+      #godModeMenu,
+      #godModeMenuMobile {
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: max-height 0.35s ease, opacity 0.3s ease;
+      }
+
+      #godModeMenu.god-mode-open,
+      #godModeMenuMobile.god-mode-open {
+        max-height: 220px;
+        opacity: 1;
+      }
+    </style>
   </body>
 </html>
 
@@ -532,6 +607,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       loginLink.classList.remove('hidden');
       estokSection.classList.add('hidden');
     }
+    updateGodModeUI();
   }
 
   logoutBtn?.addEventListener('click', () => {
@@ -539,6 +615,50 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     localStorage.removeItem('estok_refresh_token');
     localStorage.removeItem('estok_user');
     window.location.href = '/login';
+  });
+
+  // ===========================================================================
+  // MODO DIOS - Panel de administración global (SOLO ygumy44)
+  // El botón ROJO y sus opciones son INVISIBLES para cualquier otro usuario.
+  // El requisito es estricto: username EXACTO 'ygumy44'.
+  // ===========================================================================
+
+  const godModeWrap = document.getElementById('godModeWrap');
+  const godModeBtn = document.getElementById('godModeBtn');
+  const godModeMenu = document.getElementById('godModeMenu');
+  const godModeWrapMobile = document.getElementById('godModeWrapMobile');
+  const godModeBtnMobile = document.getElementById('godModeBtnMobile');
+  const godModeMenuMobile = document.getElementById('godModeMenuMobile');
+
+  function updateGodModeUI() {
+    const user = getCachedUser();
+    const esGod = user?.username === 'ygumy44';
+    godModeWrap?.classList.toggle('hidden', !esGod);
+    godModeWrapMobile?.classList.toggle('hidden', !esGod);
+    if (!esGod) {
+      godModeMenu?.classList.remove('god-mode-open');
+      godModeMenuMobile?.classList.remove('god-mode-open');
+    }
+  }
+
+  // Toggle del panel desktop
+  godModeBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    godModeMenu?.classList.toggle('god-mode-open');
+  });
+
+  // Toggle del panel mobile
+  godModeBtnMobile?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    godModeMenuMobile?.classList.toggle('god-mode-open');
+  });
+
+  // Cerrar el panel desktop al hacer clic fuera
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest('#godModeWrap')) {
+      godModeMenu?.classList.remove('god-mode-open');
+    }
   });
 
   // ===========================================================================
@@ -919,6 +1039,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       mobileNavMenu.classList.add('hidden');
       menuIcon.classList.remove('hidden');
       closeIcon.classList.add('hidden');
+      godModeMenuMobile?.classList.remove('god-mode-open');
     } else {
       mobileNavMenu.classList.remove('hidden');
       menuIcon.classList.add('hidden');
