@@ -1,0 +1,478 @@
+// =============================================================================
+// MODO DIOS - Lógica del panel unificado de Super Admin (exclusivo ygumy44)
+//
+// El panel se integra EN el Dashboard principal (index.astro): el HTML vive en
+// index.astro y esta función solo lo inicializa cuando el usuario cacheado es
+// estrictamente 'ygumy44'. Consume los endpoints globales de auditoría:
+//   - /api/admin/usuarios/  (CRUD global de CustomUser)
+//   - /api/admin/estoks/    (CRUD global de Estok con contadores)
+//   - /api/usuarios/{id}/asignar-estok/ y /remover-estok/ (vinculación)
+//
+// Regla de negocio: el botón rojo SOLO se renderiza si el usuario es
+// 'ygumy44'. El backend además devuelve 403 para cualquier otra persona.
+// =============================================================================
+
+import { getCachedUser } from '../services/auth';
+import { apiPost, apiDelete, fetchAllPages } from './api';
+
+// =============================================================================
+// Estado global del módulo
+// =============================================================================
+
+let godPanel: HTMLElement | null = null;
+let godRoot: HTMLElement | null = null;
+let godLoading: HTMLElement | null = null;
+let godError: HTMLElement | null = null;
+let godSuccess: HTMLElement | null = null;
+let godUsuariosTbody: HTMLElement | null = null;
+let godEstoksTbody: HTMLElement | null = null;
+let godModalUsuario: HTMLElement | null = null;
+let godModalEstok: HTMLElement | null = null;
+
+let godUsuarios: any[] = [];
+let godEstoks: any[] = [];
+
+// =============================================================================
+// Helpers de UI
+// =============================================================================
+
+function esc(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function godMostrarLoading(activo: boolean): void {
+  if (!godLoading) return;
+  if (activo) godLoading.classList.remove('hidden');
+  else godLoading.classList.add('hidden');
+}
+
+function godMostrarError(msg: string): void {
+  if (!godError) return;
+  godError.textContent = msg;
+  godError.classList.remove('hidden');
+  window.setTimeout(() => godError?.classList.add('hidden'), 5000);
+}
+
+function godMostrarExito(msg: string): void {
+  if (!godSuccess) return;
+  godSuccess.textContent = msg;
+  godSuccess.classList.remove('hidden');
+  window.setTimeout(() => godSuccess?.classList.add('hidden'), 5000);
+}
+
+// =============================================================================
+// Carga global: usuarios + estoks (con fallbacks [] para BD virgen)
+// =============================================================================
+
+async function godCargarTodo(): Promise<void> {
+  godMostrarLoading(true);
+  try {
+    const [usuarios, estoks] = await Promise.all([
+      fetchAllPages<any>('/admin/usuarios/'),
+      fetchAllPages<any>('/admin/estoks/'),
+    ]);
+    godUsuarios = usuarios || [];
+    godEstoks = estoks || [];
+    godRenderUsuarios();
+    godRenderEstoks();
+    godMostrarLoading(false);
+  } catch (err: any) {
+    godMostrarLoading(false);
+    godMostrarError(
+      err?.status === 403
+        ? '⛔ 403 Forbidden: solo ygumy44 puede usar este panel.'
+        : (err?.error || 'Error al cargar los datos globales.')
+    );
+  }
+}
+
+// =============================================================================
+// Render: tabla de usuarios (Usuario | Email | Estoks Conectados | Acciones)
+// =============================================================================
+
+function godRenderUsuarios(): void {
+  if (!godUsuariosTbody) return;
+
+  if (godUsuarios.length === 0) {
+    godUsuariosTbody.innerHTML =
+      '<tr><td colspan="4" class="px-3 py-6 text-center text-sm text-gray-400">No hay usuarios registrados.</td></tr>';
+    return;
+  }
+
+  godUsuariosTbody.innerHTML = godUsuarios.map((u: any) => {
+    const displayName = u.display_name || u.username || '?';
+    const esYgumy = u.username === 'ygumy44';
+    const membresias: any[] = Array.isArray(u.membresias) ? u.membresias : [];
+
+    // Badges de Estoks conectados (con botón × para desvincular)
+    const badgesHtml = membresias.length > 0
+      ? `<div class="flex flex-wrap gap-1">
+          ${membresias.map((m: any) => `
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px]">
+              ${esc(m.estok_nombre || '?')}
+              ${m.role_nombre ? `<span class="text-blue-400">(${esc(m.role_nombre)})</span>` : ''}
+              ${esYgumy ? '' : `<button data-god-unlink data-uid="${u.id}" data-estok-id="${m.estok_id}" data-estok-nombre="${esc(m.estok_nombre || '')}" class="godUnlinkBtn text-red-400 hover:text-red-600 ml-0.5 font-bold" title="Quitar de este Estok">×</button>`}
+            </span>`).join('')}
+        </div>`
+      : '<span class="text-xs text-gray-400">Sin Estok asignado</span>';
+
+    // Selector de Estok para vincular (solo los que aún no tiene)
+    const disponibles = godEstoks.filter(
+      (e: any) => !membresias.some((m: any) => m.estok_id === e.id)
+    );
+    const asignarHtml = (!esYgumy && disponibles.length > 0)
+      ? `<div class="flex items-center gap-1">
+          <select data-god-asignar-select data-uid="${u.id}" class="text-[11px] px-1.5 py-1 border border-gray-300 rounded-md bg-white text-gray-700 max-w-[130px]">
+            ${disponibles.map((e: any) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('')}
+          </select>
+          <button data-god-asignar data-uid="${u.id}" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium rounded-md transition-base shadow-sm" title="Vincular usuario a este Estok">Asociar</button>
+        </div>`
+      : '';
+
+    // Botón Delete (desactivación lógica)
+    const deleteBtn = esYgumy
+      ? '<span class="text-[11px] text-gray-400 italic">Tú</span>'
+      : `<button data-god-delete-user data-uid="${u.id}" data-user="${esc(displayName)}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Desactivar usuario">Delete</button>`;
+
+    return `
+      <tr>
+        <td class="px-3 py-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-700 flex-shrink-0">${esc((displayName.charAt(0) || '?').toUpperCase())}</div>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-900 truncate">${esc(displayName)}</p>
+              <p class="text-xs text-gray-500">@${esc(u.username)}</p>
+            </div>
+          </div>
+        </td>
+        <td class="px-3 py-3 text-xs text-gray-600">${esc(u.email || '—')}</td>
+        <td class="px-3 py-3">${badgesHtml}</td>
+        <td class="px-3 py-3">
+          <div class="flex items-center justify-end gap-1.5 flex-wrap">${asignarHtml}${deleteBtn}</div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// =============================================================================
+// Render: tabla de Estoks (Nombre | Usuarios | Objetos | Ubicaciones | Contenedores | Acciones)
+// =============================================================================
+
+function godRenderEstoks(): void {
+  if (!godEstoksTbody) return;
+
+  if (godEstoks.length === 0) {
+    godEstoksTbody.innerHTML =
+      '<tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">No hay Estoks creados.</td></tr>';
+    return;
+  }
+
+  godEstoksTbody.innerHTML = godEstoks.map((e: any) => {
+    const miembros: any[] = Array.isArray(e.miembros) ? e.miembros : [];
+
+    // Selector de usuarios para añadir (solo los que aún no son miembros)
+    const noMiembros = godUsuarios.filter(
+      (u: any) => !miembros.some((m: any) => m.usuario_id === u.id)
+    );
+    const addUserHtml = noMiembros.length > 0
+      ? `<div class="flex items-center gap-1">
+          <select data-god-adduser-select data-estok="${e.id}" class="text-[11px] px-1.5 py-1 border border-gray-300 rounded-md bg-white text-gray-700 max-w-[130px]">
+            ${noMiembros.map((u: any) => `<option value="${u.id}">@${esc(u.username)}</option>`).join('')}
+          </select>
+          <button data-god-adduser data-estok="${e.id}" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-medium rounded-md transition-base shadow-sm" title="Añadir usuario a este Estok">Añadir</button>
+        </div>`
+      : '<span class="text-[11px] text-gray-400">—</span>';
+
+    return `
+      <tr>
+        <td class="px-3 py-3">
+          <p class="text-sm font-medium text-gray-900 truncate">${esc(e.nombre)}</p>
+          ${e.descripcion ? `<p class="text-xs text-gray-400 truncate max-w-[180px]">${esc(e.descripcion)}</p>` : ''}
+        </td>
+        <td class="px-3 py-3 text-center text-sm text-gray-700">${e.miembros_count ?? 0}</td>
+        <td class="px-3 py-3 text-center text-sm text-gray-700">${e.objetos_count ?? 0}</td>
+        <td class="px-3 py-3 text-center text-sm text-gray-700">${e.ubicaciones_count ?? 0}</td>
+        <td class="px-3 py-3 text-center text-sm text-gray-700">${e.contenedores_count ?? 0}</td>
+        <td class="px-3 py-3">
+          <div class="flex items-center justify-end gap-1.5 flex-wrap">
+            ${addUserHtml}
+            <button data-god-delete-estok data-id="${e.id}" data-nombre="${esc(e.nombre)}" class="px-2.5 py-1 bg-red-100 text-red-700 text-[11px] font-medium rounded-md hover:bg-red-200 transition-base" title="Borrar Estok en cascada">Delete</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// =============================================================================
+// Acciones CRUD
+// =============================================================================
+
+async function godVincular(uid: string, estokId: string): Promise<void> {
+  try {
+    await apiPost(`/usuarios/${uid}/asignar-estok/`, { estok_id: estokId, role_id: null });
+    godMostrarExito('✅ Usuario vinculado al Estok');
+    await godCargarTodo();
+  } catch (err: any) {
+    godMostrarError(err?.error || 'Error al vincular el usuario al Estok.');
+  }
+}
+
+async function godDesvincular(uid: string, estokId: string, estokNombre: string): Promise<void> {
+  if (!confirm(`¿Quitar al usuario del Estok "${estokNombre}"?`)) return;
+  try {
+    const ok = await apiDelete(`/usuarios/${uid}/remover-estok/?estok_id=${estokId}`);
+    if (!ok) throw new Error('El servidor rechazó la operación.');
+    godMostrarExito('✅ Membresía removida');
+    await godCargarTodo();
+  } catch (err: any) {
+    godMostrarError(err?.error || 'Error al remover la membresía.');
+  }
+}
+
+async function godDesactivarUsuario(uid: string, display: string, username: string): Promise<void> {
+  if (!confirm(`⚠️ ¿Desactivar al usuario "${display}" (@${username})?\n\nPerderá el acceso a la plataforma.`)) return;
+  try {
+    const ok = await apiDelete(`/admin/usuarios/${uid}/`);
+    if (!ok) throw new Error('El servidor rechazó la operación.');
+    godMostrarExito(`🚫 Usuario "${display}" desactivado`);
+    await godCargarTodo();
+  } catch (err: any) {
+    godMostrarError(err?.error || 'Error al desactivar el usuario.');
+  }
+}
+
+async function godEliminarEstok(id: string, nombre: string): Promise<void> {
+  if (!confirm(`⚠️ ¿Estás SEGURO de borrar el Estok "${nombre}"?\n\nEsta acción eliminará FÍSICAMENTE el Estok y TODOS sus datos asociados (objetos, ubicaciones, contenedores, membresías).\n\nNO SE PUEDE DESHACER.`)) return;
+  if (!confirm(`CONFIRMACIÓN FINAL:\n¿Borrar permanentemente "${nombre}" en cascada?`)) return;
+  try {
+    const ok = await apiDelete(`/admin/estoks/${id}/`);
+    if (!ok) throw new Error('El servidor rechazó la operación.');
+    godMostrarExito(`🗑️ Estok "${nombre}" borrado`);
+    await godCargarTodo();
+  } catch (err: any) {
+    godMostrarError(err?.error || 'Error al borrar el Estok.');
+  }
+}
+
+// =============================================================================
+// Modales: crear usuario y crear Estok
+// =============================================================================
+
+function godAbrirModalUsuario(): void {
+  godModalUsuario?.classList.remove('hidden');
+}
+
+function godCerrarModalUsuario(): void {
+  godModalUsuario?.classList.add('hidden');
+  const f = document.getElementById('godFormUsuario') as HTMLFormElement | null;
+  f?.reset();
+  document.getElementById('godFormUsuarioError')?.classList.add('hidden');
+}
+
+function godAbrirModalEstok(): void {
+  godModalEstok?.classList.remove('hidden');
+}
+
+function godCerrarModalEstok(): void {
+  godModalEstok?.classList.add('hidden');
+  const f = document.getElementById('godFormEstok') as HTMLFormElement | null;
+  f?.reset();
+  document.getElementById('godFormEstokError')?.classList.add('hidden');
+}
+
+async function godCrearUsuarioSubmit(e: Event): Promise<void> {
+  e.preventDefault();
+  const formErr = document.getElementById('godFormUsuarioError') as HTMLElement;
+  formErr.classList.add('hidden');
+
+  const body: Record<string, unknown> = {
+    username: (document.getElementById('gUUsername') as HTMLInputElement).value.trim(),
+    email: (document.getElementById('gUEmail') as HTMLInputElement).value.trim(),
+    password: (document.getElementById('gUPassword') as HTMLInputElement).value,
+    first_name: (document.getElementById('gUFirst') as HTMLInputElement).value.trim(),
+    last_name: (document.getElementById('gULast') as HTMLInputElement).value.trim(),
+    phone: (document.getElementById('gUPhone') as HTMLInputElement).value.trim(),
+    description: (document.getElementById('gUDescription') as HTMLTextAreaElement).value.trim(),
+    is_active: (document.getElementById('gUIsActive') as HTMLInputElement).checked,
+    is_superuser: (document.getElementById('gUIsSuperuser') as HTMLInputElement).checked,
+  };
+
+  const btn = document.getElementById('godGuardarUsuarioBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+  try {
+    await apiPost('/admin/usuarios/', body);
+    godMostrarExito('✅ Usuario creado correctamente');
+    godCerrarModalUsuario();
+    await godCargarTodo();
+  } catch (err: any) {
+    formErr.textContent = err?.error || 'Error al crear el usuario.';
+    formErr.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Crear Usuario';
+  }
+}
+
+async function godCrearEstokSubmit(e: Event): Promise<void> {
+  e.preventDefault();
+  const formErr = document.getElementById('godFormEstokError') as HTMLElement;
+  formErr.classList.add('hidden');
+
+  const body = {
+    nombre: (document.getElementById('gENombre') as HTMLInputElement).value.trim(),
+    descripcion: (document.getElementById('gEDescripcion') as HTMLTextAreaElement).value.trim(),
+  };
+
+  const btn = document.getElementById('godGuardarEstokBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+  try {
+    await apiPost('/admin/estoks/', body);
+    godMostrarExito('✅ Estok creado correctamente');
+    godCerrarModalEstok();
+    await godCargarTodo();
+  } catch (err: any) {
+    formErr.textContent = err?.error || 'Error al crear el Estok.';
+    formErr.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Crear Estok';
+  }
+}
+
+// =============================================================================
+// Delegación de eventos (robusto tras re-render de innerHTML)
+// =============================================================================
+
+function bindGodEventos(): void {
+  godUsuariosTbody?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const unlinkBtn = target.closest('[data-god-unlink]') as HTMLElement | null;
+    if (unlinkBtn) {
+      const uid = unlinkBtn.dataset.uid!;
+      const estokId = unlinkBtn.dataset.estokId!;
+      const estokNombre = unlinkBtn.dataset.estokNombre || '';
+      void godDesvincular(uid, estokId, estokNombre);
+      return;
+    }
+
+    const asignarBtn = target.closest('[data-god-asignar]') as HTMLElement | null;
+    if (asignarBtn) {
+      const uid = asignarBtn.dataset.uid!;
+      const row = asignarBtn.closest('tr') as HTMLTableRowElement | null;
+      const select = row?.querySelector<HTMLSelectElement>('[data-god-asignar-select]');
+      const estokId = select?.value;
+      if (!estokId) {
+        godMostrarError('Debes seleccionar un Estok.');
+        return;
+      }
+      void godVincular(uid, estokId);
+      return;
+    }
+
+    const deleteUserBtn = target.closest('[data-god-delete-user]') as HTMLElement | null;
+    if (deleteUserBtn) {
+      void godDesactivarUsuario(
+        deleteUserBtn.dataset.uid!,
+        deleteUserBtn.dataset.user || '',
+        deleteUserBtn.dataset.username || ''
+      );
+    }
+  });
+
+  godEstoksTbody?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+
+    const addUserBtn = target.closest('[data-god-adduser]') as HTMLElement | null;
+    if (addUserBtn) {
+      const estokId = addUserBtn.dataset.estok!;
+      const row = addUserBtn.closest('tr') as HTMLTableRowElement | null;
+      const select = row?.querySelector<HTMLSelectElement>('[data-god-adduser-select]');
+      const uid = select?.value;
+      if (!uid) {
+        godMostrarError('No hay usuarios disponibles para añadir.');
+        return;
+      }
+      void godVincular(uid, estokId);
+      return;
+    }
+
+    const deleteEstokBtn = target.closest('[data-god-delete-estok]') as HTMLElement | null;
+    if (deleteEstokBtn) {
+      void godEliminarEstok(deleteEstokBtn.dataset.id!, deleteEstokBtn.dataset.nombre || '');
+    }
+  });
+}
+
+// =============================================================================
+// INIT - Render del botón rojo y wiring del panel (SOLO para ygumy44)
+// =============================================================================
+
+export function initGodMode(): void {
+  const cachedUser = getCachedUser();
+  // Render estricto: solo si el username es EXACTAMENTE 'ygumy44'
+  if (!cachedUser || cachedUser.username !== 'ygumy44') return;
+
+  godPanel = document.getElementById('godPanel');
+  godRoot = document.getElementById('godModeRoot');
+  if (!godPanel || !godRoot) return;
+
+  // Botón ROJO desplegable justo debajo del título superior del dashboard
+  godRoot.classList.remove('hidden');
+  godRoot.innerHTML = `
+    <button id="godModeBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-bold rounded-lg shadow-sm transition-base" title="Abrir / cerrar Modo Dios">
+      <span class="text-base">👑</span>
+      <span>Modo Dios</span>
+      <svg id="godChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  `;
+
+  document.getElementById('godModeBtn')?.addEventListener('click', () => {
+    const oculto = godPanel!.classList.toggle('hidden');
+    const chev = document.getElementById('godChevron');
+    if (chev) chev.style.transform = oculto ? '' : 'rotate(180deg)';
+    if (!oculto) void godCargarTodo();
+  });
+
+  godLoading = document.getElementById('godLoading');
+  godError = document.getElementById('godError');
+  godSuccess = document.getElementById('godSuccess');
+  godUsuariosTbody = document.getElementById('godUsuariosTbody');
+  godEstoksTbody = document.getElementById('godEstoksTbody');
+  godModalUsuario = document.getElementById('godModalUsuario');
+  godModalEstok = document.getElementById('godModalEstok');
+
+  // Botones de acción del panel
+  document.getElementById('godCrearUsuarioBtn')?.addEventListener('click', godAbrirModalUsuario);
+  document.getElementById('godCrearEstokBtn')?.addEventListener('click', godAbrirModalEstok);
+  document.getElementById('godRefreshBtn')?.addEventListener('click', () => void godCargarTodo());
+
+  // Cierre de modales
+  document.getElementById('godCerrarModalUsuario')?.addEventListener('click', godCerrarModalUsuario);
+  document.getElementById('godCancelarUsuarioBtn')?.addEventListener('click', godCerrarModalUsuario);
+  document.getElementById('godCerrarModalEstok')?.addEventListener('click', godCerrarModalEstok);
+  document.getElementById('godCancelarEstokBtn')?.addEventListener('click', godCerrarModalEstok);
+  godModalUsuario?.addEventListener('click', (e) => { if (e.target === godModalUsuario) godCerrarModalUsuario(); });
+  godModalEstok?.addEventListener('click', (e) => { if (e.target === godModalEstok) godCerrarModalEstok(); });
+
+  // Formularios de creación
+  document.getElementById('godFormUsuario')?.addEventListener('submit', (e) => void godCrearUsuarioSubmit(e));
+  document.getElementById('godFormEstok')?.addEventListener('submit', (e) => void godCrearEstokSubmit(e));
+
+  // Delegación de eventos para las tablas
+  bindGodEventos();
+}
+
+
+
+
+
