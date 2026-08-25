@@ -222,6 +222,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')
 MEDIA_ROOT = os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media'))
 
+# URL pública del sitio (usada para construir URLs absolutas de media que
+# Mercado Libre pueda descargar, ej: https://eeestok.duckdns.org/media/...)
+SITE_URL = os.environ.get('SITE_URL', 'https://eeestok.duckdns.org')
+
 # =============================================================================
 # IA HÍBRIDA - Configuración para LM Studio (RX 9060 XT local)
 # =============================================================================

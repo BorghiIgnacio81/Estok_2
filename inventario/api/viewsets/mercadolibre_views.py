@@ -10,6 +10,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import redirect
+from django.conf import settings
 
 from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
@@ -194,23 +195,35 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             )
 
         # Imágenes en formato oficial de ML: [{"source": url}]
-        # (ML descarga y procesa la imagen; evita el 400 de "matriz de imágenes")
-        pictures = []
+        # (ML descarga y procesa la imagen; evita el 400 "pictures are mandatory").
+        # Fuentes: foto_url externa del request + foto(s) reales del objeto con
+        # URL absoluta pública (settings.SITE_URL + ruta de media).
+        fuentes_foto: list = []
         if foto_url:
-            # Solo usar URLs públicas externas (no internas de nuestra API,
-            # que requieren autenticación y ML no puede acceder)
             es_url_interna = (
                 'eeestok.duckdns.org' in foto_url or
                 '/api/' in foto_url or
                 not foto_url.startswith('http')
             )
             if es_url_interna:
-                logger.warning(
-                    "Foto URL es interna, ML no puede accederla. Publicando sin foto. URL: %s",
+                logger.info(
+                    "foto_url del request es interna; se usará la foto del objeto. URL: %s",
                     foto_url[:200]
                 )
             else:
-                pictures.append({"source": foto_url})
+                fuentes_foto.append(foto_url)
+
+        foto_objeto = (
+            objeto.fotos.filter(es_principal=True).first()
+            or objeto.fotos.first()
+        )
+        if foto_objeto and foto_objeto.imagen:
+            fuentes_foto.append(
+                f"{settings.SITE_URL}{foto_objeto.imagen.url}"
+            )
+
+        # Deduplicar preservando orden y armar el formato estricto de MLA
+        pictures = [{"source": url} for url in dict.fromkeys(fuentes_foto)]
 
         # Predecir categoría hoja desde el título si no se especificó una válida
         if not request.data.get('category_id') or category_id == 'MLA1747':

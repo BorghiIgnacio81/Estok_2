@@ -197,16 +197,27 @@ def _normalizar_pictures(pictures) -> list:
     if not pictures:
         return normalizadas
 
+    vistos: set = set()
     for pic in pictures:
-        if isinstance(pic, str) and pic.strip():
-            normalizadas.append({"source": pic.strip()})
+        url = None
+        if isinstance(pic, str):
+            url = pic.strip()
         elif isinstance(pic, dict):
             if pic.get("source"):
-                normalizadas.append({"source": str(pic["source"]).strip()})
+                url = str(pic["source"]).strip()
             elif pic.get("id"):
-                normalizadas.append({"id": str(pic["id"]).strip()})
+                url = str(pic["id"]).strip()
             elif pic.get("url"):
-                normalizadas.append({"source": str(pic["url"]).strip()})
+                url = str(pic["url"]).strip()
+        if not url:
+            continue
+        if url in vistos:
+            continue
+        vistos.add(url)
+        if isinstance(pic, dict) and pic.get("id"):
+            normalizadas.append({"id": url})
+        else:
+            normalizadas.append({"source": url})
 
     return normalizadas
 
@@ -224,13 +235,15 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             - available_quantity (int): Stock disponible (default 1)
             - condition (str): "new" o "used" (default "used")
             - description (str): Descripción en texto plano
-            - pictures (list): Lista de {"source": "url"} o {"id": "picture_id"}
+            - pictures (list): Lista de dicts {"source": "url"} (formato único
+              que acepta MLA; este servicio lo normaliza y deduplica)
             - video_id (str, opcional)
             - warranty (str, opcional)
             - attributes (list, opcional): Atributos de categoría
 
-        El servicio fuerza: currency_id="ARS", buying_mode="buy_it_now" y
-        listing_type_id="bronze" (exposición clásica gratuita / baja comisión).
+        El servicio fuerza: currency_id="ARS", buying_mode="buy_it_now",
+        listing_type_id="bronze" (exposición clásica gratuita / baja comisión)
+        y shipping mode="me2" (Mercado Envíos estándar).
 
     Returns:
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
@@ -274,15 +287,27 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         "buying_mode": "buy_it_now",
         "listing_type_id": "bronze",  # Exposición clásica gratuita / baja comisión
         "condition": condition,
+        # Mercado Envíos (ME2): bloque estándar para limpiar las advertencias
+        # obligatorias de shipping que arroja el log de MLA.
+        "shipping": {
+            "mode": "me2",
+            "local_pick_up": True,
+            "free_shipping": False,
+        },
     }
+
+    # Eliminar claves de imágenes alternativas que puedan confundir al
+    # serializador de MLA: la ÚNICA clave de imágenes permitida es "pictures".
+    body.pop("images", None)
+    body.pop("pictures_url", None)
 
     if item_data.get("description"):
         body["description"] = {"plain_text": item_data["description"]}
 
     if item_data.get("pictures"):
-        # Pictures: siempre normalizadas al formato oficial [{"source": ...}]
-        # para evitar el 400 "falta la matriz de imágenes" que exige
-        # gold_special y los formatos planos que rebotan la validación.
+        # Pictures: ÚNICA clave de imágenes en la raíz, normalizada
+        # estrictamente al formato [{"source": url}] que exige MLA.
+        # Cualquier formato plano o clave alternativa se descarta aquí.
         pictures = _normalizar_pictures(item_data["pictures"])
         if pictures:
             body["pictures"] = pictures
