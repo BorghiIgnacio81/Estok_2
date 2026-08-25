@@ -1,5 +1,5 @@
 // =============================================================================
-// MODO DIOS - Lógica del panel unificado de Super Admin (exclusivo ygumy44)
+// ADMIN GLOBAL - Lógica del Panel de Control global (exclusivo ygumy44)
 //
 // El panel se integra EN el Dashboard principal (index.astro): el HTML vive en
 // index.astro y esta función solo lo inicializa cuando el usuario cacheado es
@@ -8,8 +8,9 @@
 //   - /api/admin/estoks/    (CRUD global de Estok con contadores)
 //   - /api/usuarios/{id}/asignar-estok/ y /remover-estok/ (vinculación)
 //
-// Regla de negocio: el botón rojo SOLO se renderiza si el usuario es
-// 'ygumy44'. El backend además devuelve 403 para cualquier otra persona.
+// Regla de negocio: el botón "Admin Global" del navbar (BaseLayout) SOLO se
+// muestra si el usuario es 'ygumy44', y este panel se abre/cierra con él.
+// El backend además devuelve 403 para cualquier otra persona.
 // =============================================================================
 
 import { getCachedUser } from '../services/auth';
@@ -20,7 +21,6 @@ import { apiPost, apiPut, apiDelete, fetchAllPages } from './api';
 // =============================================================================
 
 let godPanel: HTMLElement | null = null;
-let godRoot: HTMLElement | null = null;
 let godLoading: HTMLElement | null = null;
 let godError: HTMLElement | null = null;
 let godSuccess: HTMLElement | null = null;
@@ -539,8 +539,17 @@ function bindGodEventos(): void {
 }
 
 // =============================================================================
-// INIT - Render del botón rojo y wiring del panel (SOLO para ygumy44)
+// INIT - Wiring del Panel de Control (SOLO para ygumy44)
+// El toggle lo dispara el botón "Admin Global" del navbar (BaseLayout.astro).
 // =============================================================================
+
+function godAbrirPanel(): void {
+  if (!godPanel) return;
+  godPanel.classList.remove('hidden');
+  document.getElementById('godModeBtn')?.classList.add('is-open');
+  document.getElementById('godModeBtnMobile')?.classList.add('is-open');
+  void godCargarTodo();
+}
 
 export function initGodMode(): void {
   const cachedUser = getCachedUser();
@@ -548,27 +557,17 @@ export function initGodMode(): void {
   if (!cachedUser || cachedUser.username !== 'ygumy44') return;
 
   godPanel = document.getElementById('godPanel');
-  godRoot = document.getElementById('godModeRoot');
-  if (!godPanel || !godRoot) return;
+  if (!godPanel) return;
 
-  // Botón ROJO desplegable justo debajo del título superior del dashboard
-  godRoot.classList.remove('hidden');
-  godRoot.innerHTML = `
-    <button id="godModeBtn" type="button" class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-sm font-bold rounded-lg shadow-sm transition-base" title="Abrir / cerrar Modo Dios">
-      <span class="text-base">👑</span>
-      <span>Modo Dios</span>
-      <svg id="godChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-      </svg>
-    </button>
-  `;
+  // Si el usuario llegó al Dashboard tras pulsar "Admin Global" desde otra
+  // página, abrimos el panel automáticamente y refrescamos los datos.
+  if (sessionStorage.getItem('estok_admin_panel') === '1') {
+    sessionStorage.removeItem('estok_admin_panel');
+    godAbrirPanel();
+  }
 
-  document.getElementById('godModeBtn')?.addEventListener('click', () => {
-    const oculto = godPanel!.classList.toggle('hidden');
-    const chev = document.getElementById('godChevron');
-    if (chev) chev.style.transform = oculto ? '' : 'rotate(180deg)';
-    if (!oculto) void godCargarTodo();
-  });
+  // El botón "Admin Global" del navbar dispara este evento al expandir el panel.
+  window.addEventListener('estok:admin-open', () => void godCargarTodo());
 
   godLoading = document.getElementById('godLoading');
   godError = document.getElementById('godError');

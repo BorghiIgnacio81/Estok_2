@@ -188,31 +188,20 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
             <a href="/integraciones" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
               🔌 Integraciones
             </a>
-            <!-- MODO DIOS (mobile) - SOLO visible para ygumy44 -->
+            <!-- ADMIN GLOBAL (mobile) - SOLO visible para ygumy44 -->
+            <!-- Toggle directo del Panel de Control del Dashboard (index.astro) -->
             <div id="godModeWrapMobile" class="hidden">
               <button
                 id="godModeBtnMobile"
+                type="button"
                 class="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm cursor-pointer"
+                title="Abrir / cerrar el Panel de Control global"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Admin Global
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
               </button>
-              <!-- Opciones colapsables -->
-              <div id="godModeMenuMobile" class="overflow-hidden">
-                <div class="mt-1 space-y-1 border-l-2 border-red-200 ml-3 pl-3">
-                  <a href="/admin/usuarios" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg transition-base">
-                    🔒 CRUD Usuarios
-                  </a>
-                  <a href="/admin/estoks" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 rounded-lg transition-base">
-                    🏢 CRUD Estoks
-                  </a>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -239,36 +228,21 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
               🔌 Integraciones
             </a>
             <!-- ============================================================= -->
-            <!-- MODO DIOS - SOLO visible para ygumy44 (invisible para el resto) -->
+            <!-- ADMIN GLOBAL - SOLO visible para ygumy44 (invisible para el resto) -->
+            <!-- Toggle directo del Panel de Control integrado en el Dashboard -->
             <!-- ============================================================= -->
-            <div id="godModeWrap" class="hidden relative">
+            <div id="godModeWrap" class="hidden">
               <button
                 id="godModeBtn"
+                type="button"
                 class="flex items-center gap-2 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm cursor-pointer"
-                title="Modo Dios - Administración global (solo ygumy44)"
+                title="Abrir / cerrar el Panel de Control global (solo ygumy44)"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 Admin Global
-                <svg class="w-3 h-3 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
               </button>
-              <!-- Panel desplegable colapsable (animado por JS) -->
-              <div id="godModeMenu" class="absolute top-full left-0 mt-2 w-60 bg-white rounded-xl shadow-xl border border-red-200 py-2 z-50 overflow-hidden">
-                <div class="px-4 py-1.5 text-[10px] font-bold text-red-500 uppercase tracking-wider border-b border-red-100">
-                  Modo Dios
-                </div>
-                <a href="/admin/usuarios" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-700 transition-base">
-                  <span class="text-base">🔒</span>
-                  CRUD Usuarios
-                </a>
-                <a href="/admin/estoks" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-red-50 hover:text-red-700 transition-base">
-                  <span class="text-base">🏢</span>
-                  CRUD Estoks
-                </a>
-              </div>
             </div>
           </div>
           <!-- Estok activo + Selector de Estoks + Invitar (desktop) -->
@@ -358,20 +332,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       </div>
     </footer>
 
-    <!-- Estilos del panel Modo Dios (colapso animado) -->
+    <!-- Estado activo del botón "Admin Global" (Panel de Control abierto) -->
     <style>
-      #godModeMenu,
-      #godModeMenuMobile {
-        max-height: 0;
-        opacity: 0;
-        overflow: hidden;
-        transition: max-height 0.35s ease, opacity 0.3s ease;
-      }
-
-      #godModeMenu.god-mode-open,
-      #godModeMenuMobile.god-mode-open {
-        max-height: 220px;
-        opacity: 1;
+      #godModeBtn.is-open,
+      #godModeBtnMobile.is-open {
+        background-color: #7f1d1d;
       }
     </style>
   </body>
@@ -618,47 +583,59 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   });
 
   // ===========================================================================
-  // MODO DIOS - Panel de administración global (SOLO ygumy44)
-  // El botón ROJO y sus opciones son INVISIBLES para cualquier otro usuario.
+  // ADMIN GLOBAL - Toggle directo del Panel de Control (SOLO ygumy44)
+  // El botón ROJO es INVISIBLE para cualquier otro usuario.
   // El requisito es estricto: username EXACTO 'ygumy44'.
+  //
+  // Al presionarlo alterna la visibilidad del panel #godPanel integrado en el
+  // Dashboard (index.astro). Si no estamos en el Dashboard, navega a "/" y
+  // guarda un flag en sessionStorage para que el panel se abra al cargar.
   // ===========================================================================
 
   const godModeWrap = document.getElementById('godModeWrap');
   const godModeBtn = document.getElementById('godModeBtn');
-  const godModeMenu = document.getElementById('godModeMenu');
   const godModeWrapMobile = document.getElementById('godModeWrapMobile');
   const godModeBtnMobile = document.getElementById('godModeBtnMobile');
-  const godModeMenuMobile = document.getElementById('godModeMenuMobile');
 
   function updateGodModeUI() {
     const user = getCachedUser();
     const esGod = user?.username === 'ygumy44';
     godModeWrap?.classList.toggle('hidden', !esGod);
     godModeWrapMobile?.classList.toggle('hidden', !esGod);
-    if (!esGod) {
-      godModeMenu?.classList.remove('god-mode-open');
-      godModeMenuMobile?.classList.remove('god-mode-open');
+  }
+
+  function toggleAdminGlobal() {
+    const panel = document.getElementById('godPanel');
+    if (panel) {
+      const oculto = panel.classList.toggle('hidden');
+      godModeBtn?.classList.toggle('is-open', !oculto);
+      godModeBtnMobile?.classList.toggle('is-open', !oculto);
+      if (!oculto) {
+        // Avisa a godMode.ts (Dashboard) para refrescar los datos del panel
+        window.dispatchEvent(new CustomEvent('estok:admin-open'));
+      }
+    } else {
+      // No estamos en el Dashboard: navegar con flag para abrir el panel
+      sessionStorage.setItem('estok_admin_panel', '1');
+      window.location.href = '/';
     }
   }
 
-  // Toggle del panel desktop
+  // Toggle desde el navbar desktop
   godModeBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    godModeMenu?.classList.toggle('god-mode-open');
+    toggleAdminGlobal();
   });
 
-  // Toggle del panel mobile
+  // Toggle desde el menú móvil (cierra el menú para dejar visible el panel)
   godModeBtnMobile?.addEventListener('click', (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    godModeMenuMobile?.classList.toggle('god-mode-open');
-  });
-
-  // Cerrar el panel desktop al hacer clic fuera
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest('#godModeWrap')) {
-      godModeMenu?.classList.remove('god-mode-open');
-    }
+    document.getElementById('mobileNavMenu')?.classList.add('hidden');
+    document.getElementById('menuIcon')?.classList.remove('hidden');
+    document.getElementById('closeIcon')?.classList.add('hidden');
+    toggleAdminGlobal();
   });
 
   // ===========================================================================
@@ -1039,7 +1016,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       mobileNavMenu.classList.add('hidden');
       menuIcon.classList.remove('hidden');
       closeIcon.classList.add('hidden');
-      godModeMenuMobile?.classList.remove('god-mode-open');
     } else {
       mobileNavMenu.classList.remove('hidden');
       menuIcon.classList.add('hidden');

@@ -26,8 +26,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
           Sistema de gestión de inventario personal con análisis por IA y taxonomía unificada por categorías
         </p>
 
-        <!-- Modo Dios: botón ROJO desplegable (solo se renderiza para ygumy44 via JS) -->
-        <div id="godModeRoot" class="hidden mt-3"></div>
+        <!-- Panel de Control global (Admin Global): se abre/cierra desde el botón "Admin Global" del navbar (BaseLayout) -->
 
       </div>
       <div class="flex flex-row items-center gap-2 flex-wrap justify-end">
@@ -188,17 +187,18 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     </div>
 
     <!-- ================================================================ -->
-    <!-- MODO DIOS - Panel de Control unificado (solo visible para ygumy44) -->
+    <!-- ADMIN GLOBAL - Panel de Control global (solo visible para ygumy44) -->
+    <!-- Se abre/cierra con el botón "Admin Global" del navbar (BaseLayout) -->
     <!-- ================================================================ -->
     <div id="godPanel" class="hidden mt-8">
       <div class="bg-white rounded-xl shadow-sm border-2 border-red-200 overflow-hidden">
         <!-- Header del panel -->
         <div class="px-6 py-4 bg-red-50 border-b border-red-200 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3">
-            <span class="text-2xl">👑</span>
+            <span class="text-2xl">🛡️</span>
             <div>
-              <h2 class="text-lg font-bold text-red-900">Modo Dios</h2>
-              <p class="text-sm text-red-500">Panel de control global — usuarios y Estoks</p>
+              <h2 class="text-lg font-bold text-red-900">Admin Global</h2>
+              <p class="text-sm text-red-500">Panel de control — usuarios y Estoks</p>
             </div>
           </div>
           <button id="godRefreshBtn" class="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base flex items-center gap-1" title="Recargar ambos listados">
@@ -277,7 +277,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
     </div>
     <!-- ================================================================ -->
-    <!-- MODO DIOS - Modal Crear Usuario -->
+    <!-- ADMIN GLOBAL - Modal Crear Usuario -->
     <!-- ================================================================ -->
     <div id="godModalUsuario" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -335,7 +335,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
     </div>
     <!-- ================================================================ -->
-    <!-- MODO DIOS - Modal Crear Estok -->
+    <!-- ADMIN GLOBAL - Modal Crear Estok -->
     <!-- ================================================================ -->
     <div id="godModalEstok" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -361,7 +361,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
     </div>
     <!-- ================================================================ -->
-    <!-- MODO DIOS - Modal Editar Estok (PUT) -->
+    <!-- ADMIN GLOBAL - Modal Editar Estok (PUT) -->
     <!-- ================================================================ -->
     <div id="godModalEstokEditar" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -383,7 +383,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
     </div>
     <!-- ================================================================ -->
-    <!-- MODO DIOS - Modal Editar Usuario (PUT) -->
+    <!-- ADMIN GLOBAL - Modal Editar Usuario (PUT) -->
     <!-- ================================================================ -->
     <div id="godModalUsuarioEditar" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
@@ -968,7 +968,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   retryBtn?.addEventListener('click', cargarEstadisticas);
 
   // ===========================================================================
-  // MODO DIOS - Panel unificado (logica en ../lib/godMode.ts)
+  // ADMIN GLOBAL - Panel de Control (logica en ../lib/godMode.ts)
   // ===========================================================================
   initGodMode();
 
