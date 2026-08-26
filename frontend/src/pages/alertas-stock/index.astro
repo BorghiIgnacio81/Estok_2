@@ -231,6 +231,30 @@ export const prerender = false;
     const publicadoML = plataformas.includes('mercadolibre');
     const publicadoFB = plataformas.includes('facebook');
 
+    // REGLA ESTRICTA DE PUBLICACIÓN:
+    // El botón "Publicar" SOLO se inserta en el DOM si la decisión del dueño
+    // es EXACTAMENTE 'vender' y el objeto aún NO fue publicado en Mercado Libre.
+    // Conservar, Tirar o sin decisión NUNCA pueden tener el botón (ni el envío).
+    const puedePublicar = obj.owner_action === 'vender' && !publicadoML;
+
+    const botonPublicar = puedePublicar
+      ? `
+          <button
+            data-objeto-id="${obj.id}"
+            data-objeto-nombre="${obj.nombre}"
+            data-objeto-valor="${obj.valor_estimado || ''}"
+            data-objeto-accion="${obj.owner_action || ''}"
+            class="publicarBtn px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-base shadow-sm flex items-center gap-1"
+            title="Publicar este objeto"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Publicar
+          </button>
+        `
+      : '';
+
     return `
       <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
         <div class="flex-1 min-w-0">
@@ -252,18 +276,7 @@ export const prerender = false;
             <div class="text-sm font-semibold text-gray-800">${formatUSD(obj.valor_estimado)}</div>
             ${obj.dueno_original_nombre ? `<div class="text-xs text-gray-400">👤 ${obj.dueno_original_nombre}</div>` : ''}
           </div>
-          <button
-            data-objeto-id="${obj.id}"
-            data-objeto-nombre="${obj.nombre}"
-            data-objeto-valor="${obj.valor_estimado || ''}"
-            class="publicarBtn px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-base shadow-sm flex items-center gap-1"
-            title="Publicar este objeto"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Publicar
-          </button>
+          ${botonPublicar}
         </div>
       </div>
     `;
@@ -420,6 +433,10 @@ export const prerender = false;
     const target = e.target as HTMLElement;
     const btn = target.closest('.publicarBtn') as HTMLElement | null;
     if (!btn) return;
+
+    // Defensa en profundidad: aunque el botón ya no se dibuja para objetos sin
+    // decisión 'vender', se bloquea la apertura del modal ante cualquier vía.
+    if (btn.dataset.objetoAccion !== 'vender') return;
 
     const objId = btn.dataset.objetoId!;
     const nombre = btn.dataset.objetoNombre!;
