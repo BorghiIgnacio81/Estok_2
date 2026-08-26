@@ -9,6 +9,9 @@ de CustomUser (401 Unauthorized en /api/token/). Este comando:
 3. Lo marca como is_staff=True e is_superuser=True.
 4. Vincula al usuario al tenant global "Estok Principal" con rol Admin
    mediante la Membresia correspondiente.
+5. Vincula al usuario al tenant "Casa Borghi Federación" con rol Admin
+   (localizado por UUID o por nombre), restaurando la Membresia que el
+   reset de la base de datos en producción dejó sin crear.
 
 Uso:
     python manage.py forzar_usuario_ygumy
@@ -16,7 +19,7 @@ Uso:
 
 from django.core.management.base import BaseCommand
 
-from inventario.models import CustomUser, Membresia, Role
+from inventario.models import CustomUser, Estok, Membresia, Role
 from inventario.services.tenant import get_or_create_estok_principal
 
 USERNAME = 'ygumy44'
@@ -26,9 +29,32 @@ PASSWORD = 'C05m05'
 FIRST_NAME = 'Ygumy'
 LAST_NAME = '44'
 
+# Segundo inquilino legítimo de ygumy44: "Casa Borghi Federación".
+# Se localiza primero por UUID (rápido) y luego por nombre, de forma que el
+# comando siga funcionando aunque el reset de la BD haya regenerado el UUID.
+ESTOK_BORGHI_UUID = '4617d670-38b0-4998-9112-b091b1cd1981'
+ESTOK_BORGHI_NOMBRE = 'Casa Borghi Federación'
+
 
 class Command(BaseCommand):
-    help = 'Fuerza el acceso del usuario ygumy44 en producción (superuser + Estok Principal)'
+    help = 'Fuerza el acceso del usuario ygumy44 en producción (superuser + Estok Principal + Casa Borghi Federación)'
+
+    def _vincular_membresia_admin(self, user, estok, admin_role):
+        """
+        Crea (o reutiliza) la Membresia de `user` en `estok` con rol Admin.
+
+        Devuelve la tupla (membresia, created) para que el llamador pueda
+        reportar si la relación se inyectó o ya existía. Idempotente gracias
+        a unique_together (usuario, estok).
+        """
+        return Membresia.objects.get_or_create(
+            usuario=user,
+            estok=estok,
+            defaults={
+                'role': admin_role,
+                'privacidad': 'compartido',
+            },
+        )
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.NOTICE('🔐 Forzando usuario ygumy44...'))
@@ -103,14 +129,7 @@ class Command(BaseCommand):
         # ---------------------------------------------------------------------
         # 4. Vincular al usuario con el tenant mediante Membresia (rol Admin)
         # ---------------------------------------------------------------------
-        _, membresia_created = Membresia.objects.get_or_create(
-            usuario=user,
-            estok=estok_base,
-            defaults={
-                'role': admin_role,
-                'privacidad': 'compartido',
-            },
-        )
+        _, membresia_created = self._vincular_membresia_admin(user, estok_base, admin_role)
         if membresia_created:
             self.stdout.write(self.style.SUCCESS(
                 f'  ✓ Membresía {USERNAME} → {estok_base.nombre} creada (rol Admin)'
@@ -121,11 +140,44 @@ class Command(BaseCommand):
             )
 
         # ---------------------------------------------------------------------
+        # 5. Inyección relacional: "Casa Borghi Federación"
+        #    Se localiza primero por UUID (rápido) y luego por nombre. Restaura
+        #    la Membresia que el reset de la BD en producción dejó sin crear.
+        # ---------------------------------------------------------------------
+        estok_borghi = Estok.objects.filter(id=ESTOK_BORGHI_UUID).first()
+        if estok_borghi is None:
+            estok_borghi = Estok.objects.filter(nombre=ESTOK_BORGHI_NOMBRE).first()
+
+        if estok_borghi is not None:
+            self.stdout.write(
+                f'  - Estok "{estok_borghi.nombre}" localizado (ID: {estok_borghi.id})'
+            )
+            _, membresia_borghi_created = self._vincular_membresia_admin(
+                user, estok_borghi, admin_role
+            )
+            if membresia_borghi_created:
+                self.stdout.write(self.style.SUCCESS(
+                    f'  ✓ Membresía {USERNAME} → {estok_borghi.nombre} creada (rol Admin)'
+                ))
+            else:
+                self.stdout.write(
+                    f'  - Membresía {USERNAME} → {estok_borghi.nombre} ya existente.'
+                )
+        else:
+            self.stdout.write(self.style.WARNING(
+                f'  ⚠ Estok "{ESTOK_BORGHI_NOMBRE}" no encontrado — no se pudo '
+                f'inyectar la Membresía. Verificar que el inquilino exista en la BD.'
+            ))
+
+        # ---------------------------------------------------------------------
         # Resumen final
         # ---------------------------------------------------------------------
         self.stdout.write(self.style.SUCCESS(
             '\n✅ Usuario ygumy44 listo para iniciar sesión.'
         ))
+        self.stdout.write(
+            f'   Estoks vinculados: {user.membresias.count()}'
+        )
         self.stdout.write(self.style.NOTICE(
             f'   Usuario: {USERNAME} / Email: {EMAIL} / Password: {PASSWORD}'
         ))
