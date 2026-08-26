@@ -250,7 +250,20 @@ const { nodosArbol = [], ...rest } = Astro.props;
       <!-- El único selector de clasificación es "Categoría" (11 oficiales). -->
       <!-- SECCION: UBICACION CON SELECTOR JERÁRQUICO EN ÁRBOL -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4">Ubicación de Almacenamiento</h2>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Ubicación de Almacenamiento</h2>
+          <!-- Creación rápida in-place: los modales viven en nuevo.astro (sin recargar la página) -->
+          <div class="flex flex-wrap gap-2">
+            <button id="btnNuevaUbicacion" type="button"
+              class="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
+              <span class="text-base leading-none">➕</span> Nueva Ubicación
+            </button>
+            <button id="btnNuevoContenedor" type="button"
+              class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
+              <span class="text-base leading-none">➕</span> Nuevo Contenedor
+            </button>
+          </div>
+        </div>
         <div class="mt-2">
           <SelectorArbolEspacios 
             nodos={nodosArbol} 

@@ -660,6 +660,292 @@ const nodosArbol: {
     cargarCategorias();
   });
 
+  // ===========================================================================
+  // CREACIÓN RÁPIDA DE UBICACIONES Y CONTENEDORES (In-place, sin recargar)
+  // Modales que POSTean a /api/ubicaciones/ y /api/contenedores/ usando
+  // getAuthHeaders() (Authorization JWT + X-Estok-Id multi-tenant) y actualizan
+  // en vivo el selector jerárquico vía 'estok:actualizarNodosArbol'.
+  // NO se usa window.location.reload() para no perder la foto analizada por IA
+  // ni los textos ya escritos en el formulario.
+  // ===========================================================================
+
+  /** Notificación vía toast global expuesto por BaseLayout (window.showToast). */
+  function notify(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    const fn = (window as any).showToast;
+    if (fn) fn(msg, type);
+    else alert(msg);
+  }
+
+  /** Convierte el payload de error del backend en un mensaje legible. */
+  async function leerErrorApi(res: Response, fallback: string): Promise<string> {
+    try {
+      const data = await res.json();
+      if (typeof data === 'string') return data;
+      const detalle = data?.detail || data?.error || data?.non_field_errors?.[0] || '';
+      if (detalle) return detalle;
+      const primerCampo = Object.keys(data || {}).find((k) => Array.isArray(data[k]) && data[k].length);
+      return primerCampo ? data[primerCampo][0] : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /** Re-renderiza el árbol y selecciona el nodo recién creado. */
+  function refrescarYSeleccionar(tipo: 'ubicacion' | 'contenedor', id: string, ubicacionPadreId?: string) {
+    window.dispatchEvent(new CustomEvent('estok:actualizarNodosArbol', {
+      detail: { nodos: nodosArbol },
+    }));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => seleccionarNodoArbol(tipo, id, ubicacionPadreId));
+    });
+  }
+
+  /** Hace click en el nodo del árbol para disparar la selección del componente. */
+  function seleccionarNodoArbol(tipo: 'ubicacion' | 'contenedor', id: string, ubicacionPadreId?: string) {
+    const selector = tipo === 'ubicacion'
+      ? `#arbolEspacios .nodo-opcion[data-tipo="ubicacion"][data-id="${id}"]`
+      : `#arbolEspacios .nodo-opcion[data-tipo="contenedor"][data-id="${id}"]`;
+    const btn = document.querySelector<HTMLButtonElement>(selector);
+    if (!btn) return;
+
+    // Expandir el grupo de contenedores del padre para que el nodo quede visible
+    if (tipo === 'contenedor' && ubicacionPadreId) {
+      const listaHijos = document.getElementById(`hijos-${ubicacionPadreId}`);
+      const toggle = document.querySelector<HTMLButtonElement>(
+        `#arbolEspacios .btn-toggle[data-target="hijos-${ubicacionPadreId}"]`
+      );
+      if (listaHijos && listaHijos.classList.contains('hidden') && toggle) {
+        toggle.click();
+      }
+    }
+
+    btn.click();
+  }
+
+  /** Elimina un modal del DOM por id. */
+  function cerrarModal(modalId: string) {
+    document.getElementById(modalId)?.remove();
+  }
+
+  /** Modal: crear una nueva Ubicación. POST /api/ubicaciones/. */
+  function abrirModalNuevaUbicacion() {
+    const modalId = 'modalNuevaUbicacion';
+    if (document.getElementById(modalId)) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = modalId;
+    overlay.className = 'fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span class="text-xl">📁</span> Nueva Ubicación
+          </h3>
+          <button id="cerrarNuevaUbicacionBtn" type="button" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <label for="inputNombreUbicacion" class="block text-sm font-medium text-gray-700 mb-1">Nombre de la ubicación <span class="text-red-500">*</span></label>
+            <input id="inputNombreUbicacion" type="text" placeholder="Ej: Living, Garaje, Biblioteca, Dormitorio..." autofocus
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div>
+            <label for="inputDescripcionUbicacion" class="block text-sm font-medium text-gray-700 mb-1">Descripción (opcional)</label>
+            <textarea id="inputDescripcionUbicacion" rows="2" placeholder="Detalles del espacio..."
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
+          </div>
+          <div id="errorNuevaUbicacion" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button id="cancelarNuevaUbicacionBtn" type="button"
+            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-base">Cancelar</button>
+          <button id="guardarNuevaUbicacionBtn" type="button"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Crear Ubicación</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const inputNombre = overlay.querySelector<HTMLInputElement>('#inputNombreUbicacion')!;
+    const inputDescripcion = overlay.querySelector<HTMLTextAreaElement>('#inputDescripcionUbicacion')!;
+    const errorDiv = overlay.querySelector<HTMLElement>('#errorNuevaUbicacion')!;
+    const guardarBtn = overlay.querySelector<HTMLButtonElement>('#guardarNuevaUbicacionBtn')!;
+
+    overlay.querySelector('#cerrarNuevaUbicacionBtn')!.addEventListener('click', () => cerrarModal(modalId));
+    overlay.querySelector('#cancelarNuevaUbicacionBtn')!.addEventListener('click', () => cerrarModal(modalId));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cerrarModal(modalId);
+    });
+    inputNombre.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') guardarBtn.click();
+    });
+
+    guardarBtn.addEventListener('click', async () => {
+      const nombre = inputNombre.value.trim();
+      if (!nombre) {
+        errorDiv.textContent = 'El nombre de la ubicación es obligatorio.';
+        errorDiv.classList.remove('hidden');
+        inputNombre.focus();
+        return;
+      }
+      errorDiv.classList.add('hidden');
+      guardarBtn.disabled = true;
+      guardarBtn.textContent = 'Guardando...';
+      try {
+        const response = await fetch(`${API_BASE_URL}/ubicaciones/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ nombre, descripcion: inputDescripcion.value.trim() }),
+        });
+        if (!response.ok) {
+          throw new Error(await leerErrorApi(response, 'Error al crear la ubicación.'));
+        }
+        const data = await response.json();
+        const nuevoId = String(data.id);
+        // Actualizar el árbol en memoria y notificar al selector sin recargar
+        nodosArbol.push({ id: nuevoId, nombre: data.nombre, contenedores: [] });
+        refrescarYSeleccionar('ubicacion', nuevoId);
+        notify(`📁 Ubicación "${data.nombre}" creada y seleccionada`, 'success');
+        cerrarModal(modalId);
+      } catch (err) {
+        errorDiv.textContent = err instanceof Error ? err.message : 'Error al crear la ubicación.';
+        errorDiv.classList.remove('hidden');
+        guardarBtn.disabled = false;
+        guardarBtn.textContent = 'Crear Ubicación';
+      }
+    });
+
+    setTimeout(() => inputNombre.focus(), 100);
+  }
+
+  /** Modal: crear un nuevo Contenedor. POST /api/contenedores/. */
+  function abrirModalNuevoContenedor() {
+    const modalId = 'modalNuevoContenedor';
+    if (document.getElementById(modalId)) return;
+
+    // Ubicación padre: la seleccionada en el árbol o un select con todas.
+    const ubicacionInput = document.getElementById('arbolUbicacionId') as HTMLInputElement | null;
+    const ubicacionActual = ubicacionInput?.value || '';
+    const opcionesUbicaciones = nodosArbol
+      .filter((n) => n.id !== '')
+      .map((n) => `<option value="${n.id}"${n.id === ubicacionActual ? ' selected' : ''}>📁 ${n.nombre}</option>`)
+      .join('');
+    const sinUbicaciones = opcionesUbicaciones === '';
+
+    const overlay = document.createElement('div');
+    overlay.id = modalId;
+    overlay.className = 'fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+    overlay.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h3 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <span class="text-xl">📦</span> Nuevo Contenedor
+          </h3>
+          <button id="cerrarNuevoContenedorBtn" type="button" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <label for="inputUbicacionContenedor" class="block text-sm font-medium text-gray-700 mb-1">Ubicación padre <span class="text-red-500">*</span></label>
+            <select id="inputUbicacionContenedor"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base">
+              <option value="">${sinUbicaciones ? 'Primero creá una ubicación' : 'Seleccionar ubicación...'}</option>
+              ${opcionesUbicaciones}
+            </select>
+          </div>
+          <div>
+            <label for="inputNombreContenedor" class="block text-sm font-medium text-gray-700 mb-1">Nombre del contenedor <span class="text-red-500">*</span></label>
+            <input id="inputNombreContenedor" type="text" placeholder="Ej: Caja N°1, Estante A, Cajón..." autofocus
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+          </div>
+          <div id="errorNuevoContenedor" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
+        </div>
+        <div class="flex gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button id="cancelarNuevoContenedorBtn" type="button"
+            class="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-base">Cancelar</button>
+          <button id="guardarNuevoContenedorBtn" type="button"
+            class="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Crear Contenedor</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const selectUbicacion = overlay.querySelector<HTMLSelectElement>('#inputUbicacionContenedor')!;
+    const inputNombre = overlay.querySelector<HTMLInputElement>('#inputNombreContenedor')!;
+    const errorDiv = overlay.querySelector<HTMLElement>('#errorNuevoContenedor')!;
+    const guardarBtn = overlay.querySelector<HTMLButtonElement>('#guardarNuevoContenedorBtn')!;
+
+    overlay.querySelector('#cerrarNuevoContenedorBtn')!.addEventListener('click', () => cerrarModal(modalId));
+    overlay.querySelector('#cancelarNuevoContenedorBtn')!.addEventListener('click', () => cerrarModal(modalId));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cerrarModal(modalId);
+    });
+    inputNombre.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') guardarBtn.click();
+    });
+
+    guardarBtn.addEventListener('click', async () => {
+      const ubicacionId = selectUbicacion.value;
+      const nombre = inputNombre.value.trim();
+      if (!ubicacionId) {
+        errorDiv.textContent = sinUbicaciones
+          ? 'Primero creá una ubicación para poder agregar un contenedor.'
+          : 'Seleccioná la ubicación donde irá el contenedor.';
+        errorDiv.classList.remove('hidden');
+        if (!sinUbicaciones) selectUbicacion.focus();
+        return;
+      }
+      if (!nombre) {
+        errorDiv.textContent = 'El nombre del contenedor es obligatorio.';
+        errorDiv.classList.remove('hidden');
+        inputNombre.focus();
+        return;
+      }
+      errorDiv.classList.add('hidden');
+      guardarBtn.disabled = true;
+      guardarBtn.textContent = 'Guardando...';
+      try {
+        const response = await fetch(`${API_BASE_URL}/contenedores/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ nombre, ubicacion: ubicacionId }),
+        });
+        if (!response.ok) {
+          throw new Error(await leerErrorApi(response, 'Error al crear el contenedor.'));
+        }
+        const data = await response.json();
+        const nuevoId = String(data.id);
+        const padreId = String(data.ubicacion || ubicacionId);
+        // Insertar el contenedor dentro de su ubicación en el árbol en memoria
+        const nodoPadre = nodosArbol.find((n) => n.id === padreId);
+        if (nodoPadre) {
+          nodoPadre.contenedores.push({ id: nuevoId, nombre: data.nombre });
+        }
+        refrescarYSeleccionar('contenedor', nuevoId, padreId);
+        notify(`📦 Contenedor "${data.nombre}" creado y seleccionado`, 'success');
+        cerrarModal(modalId);
+      } catch (err) {
+        errorDiv.textContent = err instanceof Error ? err.message : 'Error al crear el contenedor.';
+        errorDiv.classList.remove('hidden');
+        guardarBtn.disabled = false;
+        guardarBtn.textContent = 'Crear Contenedor';
+      }
+    });
+
+    setTimeout(() => inputNombre.focus(), 100);
+  }
+
+  // Conectar los botones de creación rápida de la sección de almacenamiento
+  $id<HTMLButtonElement>('btnNuevaUbicacion')?.addEventListener('click', abrirModalNuevaUbicacion);
+  $id<HTMLButtonElement>('btnNuevoContenedor')?.addEventListener('click', abrirModalNuevoContenedor);
+
   // La taxonomía es unificada: el único selector de clasificación es
   // "Categoría" (11 oficiales de Mercado Libre vía /api/categorias/).
   // Ya no existe selector "tipo" ni campos por sub-tipo que sincronizar.
