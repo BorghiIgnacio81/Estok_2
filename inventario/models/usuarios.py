@@ -69,6 +69,15 @@ class CustomUser(AbstractUser):
         verbose_name="Última actividad",
         help_text="Timestamp del último ping/heartbeat del usuario"
     )
+    tiene_clave_temporal = models.BooleanField(
+        default=False,
+        verbose_name="Tiene clave temporal",
+        help_text=(
+            "True si el usuario está usando una contraseña temporal "
+            "(flujo 'Olvidó su contraseña'). El frontend fuerza la "
+            "redirección a /perfil hasta que defina una clave nueva."
+        )
+    )
 
     class Meta:
         verbose_name = "Usuario"

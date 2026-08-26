@@ -52,6 +52,7 @@ export interface User {
   date_joined: string;
   estoks: EstokInfo[];
   ultimo_estok_activo_id: string | null;
+  tiene_clave_temporal: boolean;
 }
 
 // =============================================================================

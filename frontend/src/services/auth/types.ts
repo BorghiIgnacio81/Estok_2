@@ -29,6 +29,7 @@ export interface AuthUser {
   is_active: boolean;
   estoks: EstokInfo[];
   ultimo_estok_activo_id: string | null;
+  tiene_clave_temporal: boolean;
 }
 
 export interface AuthError {

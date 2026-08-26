@@ -12,6 +12,21 @@ import AuthGuard from '../../components/AuthGuard.astro';
 
 <BaseLayout title="Mi Perfil - Estok">
   <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- ================================================================ -->
+    <!-- CARTEL DE CLAVE TEMPORAL (flujo "Olvidó su contraseña") -->
+    <!-- Se muestra cuando el backend reporta tiene_clave_temporal=true. -->
+    <!-- ================================================================ -->
+    <div id="claveTemporalBanner" class="hidden mb-6 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl p-4 flex items-start gap-3">
+      <span class="text-xl leading-none">⚠️</span>
+      <div>
+        <p class="font-semibold text-sm">Estás usando una contraseña temporal</p>
+        <p class="text-xs mt-1">
+          Por seguridad, definí una contraseña nueva abajo antes de continuar.
+          Al actualizarla, se desbloqueará el acceso al Dashboard general.
+        </p>
+      </div>
+    </div>
+
     <!-- Encabezado -->
     <div class="mb-8">
       <h1 class="text-3xl font-bold text-gray-900">Mi Perfil</h1>
@@ -113,6 +128,13 @@ import AuthGuard from '../../components/AuthGuard.astro';
       (document.getElementById('email') as HTMLInputElement).value = user.email || '';
       (document.getElementById('first_name') as HTMLInputElement).value = user.first_name || '';
       (document.getElementById('last_name') as HTMLInputElement).value = user.last_name || '';
+
+      // Si la cuenta entró con clave temporal (flujo "Olvidó su contraseña"),
+      // se muestra el cartel de advertencia. El backend apaga el flag
+      // automáticamente al procesar el cambio de contraseña (PUT /perfil/).
+      if (user.tiene_clave_temporal) {
+        document.getElementById('claveTemporalBanner')?.classList.remove('hidden');
+      }
     } catch {
       // Silencioso: los campos quedan vacíos y el usuario puede editarlos
     }

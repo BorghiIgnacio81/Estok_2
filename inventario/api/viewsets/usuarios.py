@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from ...models import Role, CustomUser, Membresia, Estok
 from ..serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from .base import HasRolePermission
+from ...services.password_recovery import recuperar_password_usuario
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.core.exceptions import ValidationError
@@ -114,6 +115,10 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if self.action == 'create':
             return [permissions.AllowAny()]
+        if self.action == 'recuperar_password':
+            # Endpoint público de "Olvidó su contraseña": NO requiere
+            # autenticación (el usuario olvidó su clave, no puede loguearse).
+            return [permissions.AllowAny()]
         if self.action in ('me', 'perfil', 'ping', 'online', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
@@ -122,6 +127,55 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return UserCreateSerializer
         return UserSerializer
+
+    @action(detail=False, methods=['post'], url_path='recuperar-password')
+    def recuperar_password(self, request):
+        """
+        [PÚBLICO - SIN autenticación]
+        Flujo "Olvidó su contraseña": genera una clave temporal de 8
+        caracteres, la aplica con set_password(), activa el flag
+        `tiene_clave_temporal = True` y la envía por email al usuario.
+
+        POST /api/usuarios/recuperar-password/
+        Body (uno de los dos):
+          { "email": "user@example.com" }
+          { "username": "mi_usuario" }
+
+        La lógica de negocio vive en inventario/services/password_recovery.py.
+        Al loguearse con la clave temporal, el frontend detecta el flag y
+        redirige de forma obligatoria a /perfil para definir una clave nueva.
+        """
+        try:
+            user, _clave_temporal, enviado = recuperar_password_usuario(
+                email=request.data.get('email'),
+                username=request.data.get('username'),
+            )
+        except ValueError as exc:
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Anti-enumeración: si la cuenta no existe, la respuesta es genérica.
+        if user is None:
+            return Response({
+                'success': True,
+                'mensaje': (
+                    'Si el dato coincide con una cuenta registrada, '
+                    'recibirás un correo con tu clave temporal.'
+                ),
+            })
+
+        if not enviado:
+            return Response(
+                {'error': 'No se pudo enviar el correo. Intentá de nuevo más tarde.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({
+            'success': True,
+            'mensaje': 'Se envió una clave temporal a tu correo electrónico.',
+        })
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -221,6 +275,10 @@ class UserViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             user.set_password(password_nueva)
+            # Flujo "Olvidó su contraseña": el usuario entró con clave
+            # temporal y acaba de definir una clave propia → se apaga el
+            # flag para desbloquear el acceso al Dashboard general.
+            user.tiene_clave_temporal = False
             cambios = True
 
         if not cambios:

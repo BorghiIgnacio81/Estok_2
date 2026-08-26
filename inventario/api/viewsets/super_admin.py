@@ -12,8 +12,6 @@ membresías del usuario autenticado.
 """
 
 import logging
-import secrets
-import string
 
 from django.db import transaction
 
@@ -31,6 +29,7 @@ from ...services.email_service import (
     TIPOS_SOPORTADOS,
     enviar_email_usuario,
 )
+from ...services.password_recovery import generar_clave_temporal
 from ..serializers import (
     SuperAdminUserSerializer,
     SuperAdminUserCreateSerializer,
@@ -53,31 +52,6 @@ class IsYgumyMaster(permissions.BasePermission):
         if username != 'ygumy44':
             raise PermissionDenied(detail=self.message)
         return True
-
-
-def _generar_clave_temporal(longitud: int = 8) -> str:
-    """
-    Genera una contraseña temporal segura (criptográficamente aleatoria).
-
-    Garantiza al menos una mayúscula, una minúscula y un dígito, y mezcla el
-    resultado con Fisher-Yates sobre SystemRandom (fuente criptográfica).
-    """
-    if longitud < 4:
-        longitud = 8
-    alfabeto = string.ascii_letters + string.digits
-    caracteres = [
-        secrets.choice(string.ascii_uppercase),
-        secrets.choice(string.ascii_lowercase),
-        secrets.choice(string.digits),
-    ]
-    caracteres += [secrets.choice(alfabeto) for _ in range(longitud - 3)]
-
-    # Mezcla Fisher-Yates con fuente criptográfica (evita patrón de prefijo)
-    rng = secrets.SystemRandom()
-    for i in range(len(caracteres) - 1, 0, -1):
-        j = rng.randrange(i + 1)
-        caracteres[i], caracteres[j] = caracteres[j], caracteres[i]
-    return ''.join(caracteres)
 
 
 class SuperAdminUserViewSet(viewsets.ModelViewSet):
@@ -184,7 +158,7 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
         # temporal segura de 8 caracteres que viajará en el cuerpo del correo.
         clave_temporal = None
         if tipo == TIPO_BIENVENIDA:
-            clave_temporal = _generar_clave_temporal()
+            clave_temporal = generar_clave_temporal()
             user.set_password(clave_temporal)
             user.save(update_fields=['password'])
             logger.info(

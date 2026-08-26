@@ -30,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'description', 'phone', 'display_name',
             'is_active', 'date_joined', 'membresias',
+            'tiene_clave_temporal',
         ]
         read_only_fields = ['id', 'date_joined', 'membresias']
 

@@ -73,11 +73,26 @@ def _cuerpo_email(tipo: str, nombre: str, username: str, password: Optional[str]
             'Ingresá a tu panel para ver los detalles.'
         )
     if tipo == TIPO_RESETEO:
-        return (
-            f'¡Hola, {nombre}!\n'
-            'Se procesó una solicitud de restablecimiento de acceso a Estok.\n'
-            'Si no la realizaste, contactanos de inmediato.'
-        )
+        lineas = [
+            f'¡Hola, {nombre}!',
+            'Se procesó una solicitud de restablecimiento de acceso a Estok.',
+        ]
+        if password:
+            # El flujo "Olvidó su contraseña" genera una clave temporal
+            # en claro que DEBE viajar en el correo para que el usuario
+            # pueda ingresar. Al loguearse, el sistema lo redirige a su
+            # perfil para que defina una clave nueva definitiva.
+            lineas += [
+                'Aquí tienes tus credenciales temporales de acceso:',
+                f'👤 Usuario: {username}',
+                f'🔑 Contraseña temporal: {password}',
+                '',
+                '⚠️ IMPORTANTE: al ingresar serás redirigido a tu perfil',
+                'para que definas una contraseña nueva definitiva.',
+            ]
+        else:
+            lineas.append('Si no la realizaste, contactanos de inmediato.')
+        return '\n'.join(lineas)
     return f'¡Hola, {nombre}!\nComunicación oficial de Estok.'
 
 
