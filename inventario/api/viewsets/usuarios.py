@@ -129,11 +129,13 @@ class UserViewSet(viewsets.ModelViewSet):
         user = request.user
         serializer = UserSerializer(user)
 
-        # Incluir datos de Estok activo y membresías
-        # SOLO membresías con privacidad 'compartido' (las 'privado' son internas/ocultas)
+        # Incluir TODAS las membresías del usuario: la lista COMPLETA de Estoks
+        # donde el usuario tiene una membresía activa. El selector del Navbar
+        # ("MIS ESTOKS") necesita mostrar TODOS los inquilinatos (p.ej. los
+        # sumados por código de invitación o asignación de administración),
+        # no solo el Estok activo. Estructura contract: estoks[] = {id, nombre, role, role_id}.
         membresias = Membresia.objects.filter(
             usuario=user,
-            privacidad='compartido'
         ).select_related('estok', 'role')
 
         estoks_data = [

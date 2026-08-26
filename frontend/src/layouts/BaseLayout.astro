@@ -349,7 +349,7 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 </html>
 
 <script>
-  import { getCachedUser, getEstokActivoId, generarCodigoInvitacion, fetchRoles as fetchRolesFromAuth } from '../services/auth';
+  import { getCachedUser, getEstokActivoId, cacheUser, generarCodigoInvitacion, fetchRoles as fetchRolesFromAuth } from '../services/auth';
 
   // ===========================================================================
   // SISTEMA DE TOASTS GLOBAL
@@ -471,11 +471,15 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   }
 
   function renderEstokDropdown(estoks: any[], activoId: string | null) {
+    // Contrato de datos (BACKEND /api/usuarios/me/ → user.estoks[]):
+    //   { id: string, nombre: string, role: string | null, role_id: string | null }
+    // Se itera la lista COMPLETA de inquilinatos del usuario (no solo el activo).
     estokDropdownList.innerHTML = estoks.map(e => {
       const esActivo = e.id === activoId;
       return `
         <button
           data-estok-id="${e.id}"
+          title="Cambiar a ${e.nombre}"
           class="estok-dropdown-item flex items-center gap-3 w-full px-3 py-2.5 text-sm hover:bg-blue-50 transition-base text-left ${esActivo ? 'bg-blue-50 font-semibold text-blue-800' : 'text-gray-700'}"
         >
           <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-sm flex-shrink-0">
@@ -500,6 +504,10 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       const { fetchCurrentUser } = await import('../services/auth');
       const userFresco = await fetchCurrentUser();
       if (userFresco?.estoks) {
+        // Sincronizar el usuario cacheado con la lista completa del backend:
+        // el Navbar (botón + badge) y el dropdown muestran SIEMPRE los mismos
+        // inquilinatos, incluso los agregados después del login.
+        cacheUser(userFresco);
         const estokActivoId = getEstokActivoId();
         renderEstokDropdown(userFresco.estoks, estokActivoId);
       }
@@ -1081,11 +1089,15 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   });
 
   function renderEstokDropdownMobile(estoks: any[], activoId: string | null) {
+    // Contrato de datos (BACKEND /api/usuarios/me/ → user.estoks[]):
+    //   { id: string, nombre: string, role: string | null, role_id: string | null }
+    // Se itera la lista COMPLETA de inquilinatos del usuario (no solo el activo).
     estokDropdownListMobile.innerHTML = estoks.map(e => {
       const esActivo = e.id === activoId;
       return `
         <button
           data-estok-id="${e.id}"
+          title="Cambiar a ${e.nombre}"
           class="estok-dropdown-item-mobile flex items-center gap-3 w-full px-3 py-2.5 text-sm hover:bg-blue-50 transition-base text-left ${esActivo ? 'bg-blue-50 font-semibold text-blue-800' : 'text-gray-700'}"
         >
           <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-sm flex-shrink-0">
@@ -1109,6 +1121,8 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       const { fetchCurrentUser } = await import('../services/auth');
       const userFresco = await fetchCurrentUser();
       if (userFresco?.estoks) {
+        // Sincronizar el usuario cacheado (misma regla que el dropdown desktop)
+        cacheUser(userFresco);
         const estokActivoId = getEstokActivoId();
         renderEstokDropdownMobile(userFresco.estoks, estokActivoId);
       }

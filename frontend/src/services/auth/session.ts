@@ -237,13 +237,20 @@ export async function cambiarEstokActivo(estokId: string, token?: string): Promi
 
   const estokInfo: EstokInfo = await response.json();
 
-  // Actualizar copia local
+  // Actualizar copia local (clave 'estok_activo_id' → se inyecta como X-Estok-Id)
   setEstokActivoId(estokInfo.id);
 
-  // Actualizar también el usuario cacheado
+  // Actualizar también el usuario cacheado para mantener la sincronización
+  // entre el selector del Navbar ("MIS ESTOKS") y el backend: se marca el
+  // nuevo Estok activo y, si el Estok elegido no estaba en la lista cacheada
+  // (p.ej. se unió por código después del login), se agrega para que el
+  // dropdown lo liste siempre junto al resto de los inquilinatos.
   const cachedUser = getCachedUser();
   if (cachedUser) {
     cachedUser.ultimo_estok_activo_id = estokInfo.id;
+    if (!cachedUser.estoks?.some((e: EstokInfo) => e.id === estokInfo.id)) {
+      cachedUser.estoks = [...(cachedUser.estoks || []), estokInfo];
+    }
     cacheUser(cachedUser);
   }
 
