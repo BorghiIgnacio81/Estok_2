@@ -25,6 +25,7 @@ from .viewsets import (
     MercadoLibreViewSet,
     SuperAdminUserViewSet,
     SuperAdminEstokViewSet,
+    AiModelsView,
 )
 
 
@@ -65,6 +66,9 @@ router.register(r'admin/estoks', SuperAdminEstokViewSet, basename='admin-estok')
 # =============================================================================
 urlpatterns = [
     path('', include(router.urls)),
+    # Catálogo simulado de modelos de IA (evita 404 de /api/ai/models/
+    # cuando el servicio local LM Studio no está activo)
+    path('ai/models/', AiModelsView.as_view(), name='ai-models'),
     path('api-auth/', include('rest_framework.urls')),
 ]
 
