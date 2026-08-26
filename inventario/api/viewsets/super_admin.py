@@ -86,11 +86,13 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
     - GET    /api/admin/usuarios/{id}/           → detalle
     - PUT    /api/admin/usuarios/{id}/           → edición completa
     - PATCH  /api/admin/usuarios/{id}/           → edición parcial
-    - DELETE /api/admin/usuarios/{id}/           → DESACTIVA (is_active=False)
+    - DELETE /api/admin/usuarios/{id}/           → borrado físico (instance.delete())
     - POST   /api/admin/usuarios/{id}/reactivar/ → reactiva el usuario
 
-    DELETE es una desactivación lógica para preservar la integridad
-    referencial (objetos, membresías e historial asociados al usuario).
+    DELETE es un borrado físico completo (instance.delete()): elimina el
+    registro de CustomUser. Las relaciones con CASCADE se borran en cascada
+    (membresías, token de MercadoLibre) y las referencias con SET_NULL
+    (objetos, chat, notificaciones) quedan con valor nulo.
     """
 
     permission_classes = [IsYgumyMaster]
@@ -105,17 +107,14 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
         return SuperAdminUserSerializer
 
     def destroy(self, request, pk=None):
-        """Desactiva un usuario (borrado lógico). Protege a ygumy44."""
-        user = self.get_object()
-        if user.id == request.user.id:
-            return Response(
-                {'detail': 'No puedes desactivar tu propia cuenta de administración.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        user.is_active = False
-        user.save(update_fields=['is_active'])
+        """Elimina físicamente (borrado real en BD) a un usuario. Protege a ygumy44."""
+        instance = self.get_object()
+        if instance == request.user:
+            raise PermissionDenied("No puedes eliminar tu propio usuario maestro.")
+        username = instance.username
+        instance.delete()
         return Response(
-            {'detail': f'Usuario "{user.username}" desactivado correctamente.'},
+            {'detail': f'Usuario "{username}" eliminado correctamente.'},
             status=status.HTTP_200_OK,
         )
 
