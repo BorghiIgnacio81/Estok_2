@@ -429,6 +429,38 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   const estokDropdownMenu = document.getElementById('estokDropdownMenu')!;
   const estokDropdownList = document.getElementById('estokDropdownList')!;
 
+  // ===========================================================================
+  // LISTENER DELEGADO DE CAMBIO DE ESTOK (desktop) — RESTAURADO
+  // Se vincula UNA sola vez sobre el contenedor de opciones, por lo que el
+  // escuchador no se pierde aunque la lista se re-renderice al reabrir el
+  // dropdown (patrón resistente a la pérdida de listeners por innerHTML).
+  // Al seleccionar un Estok: persiste el UUID del nuevo tenant en localStorage
+  // (clave 'estok_activo_id' vía cambiarEstokActivo()) y recarga la página
+  // para refrescar las estadísticas del Dashboard con el Estok elegido.
+  // ===========================================================================
+  estokDropdownList.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.estok-dropdown-item') as HTMLElement | null;
+    if (!btn) return;
+    const estokId = btn.dataset.estokId;
+    if (!estokId) return;
+    if (estokId === getEstokActivoId()) {
+      cerrarDropdown();
+      return;
+    }
+    void (async () => {
+      try {
+        const { cambiarEstokActivo } = await import('../services/auth');
+        await cambiarEstokActivo(estokId);
+        cerrarDropdown();
+        (window as any).showSuccess?.('✅ Estok cambiado');
+        // Recargar la página para refrescar todos los datos del nuevo Estok
+        window.location.reload();
+      } catch (err: any) {
+        (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
+      }
+    })();
+  });
+
   function getRoleBadgeClass(role: string | null): string {
     switch (role) {
       case 'Admin': return 'bg-purple-100 text-purple-700';
@@ -460,26 +492,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       `;
     }).join('');
 
-    // Event listeners para cambiar de Estok
-    document.querySelectorAll('.estok-dropdown-item').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const estokId = (btn as HTMLElement).dataset.estokId!;
-        if (estokId === getEstokActivoId()) {
-          cerrarDropdown();
-          return;
-        }
-        try {
-          const { cambiarEstokActivo } = await import('../services/auth');
-          await cambiarEstokActivo(estokId);
-          cerrarDropdown();
-          (window as any).showSuccess?.('✅ Estok cambiado');
-          // Recargar la página para refrescar todos los datos
-          window.location.reload();
-        } catch (err: any) {
-          (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
-        }
-      });
-    });
   }
 
   async function abrirDropdown() {
@@ -1040,6 +1052,34 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   const estokDropdownMenuMobile = document.getElementById('estokDropdownMenuMobile')!;
   const estokDropdownListMobile = document.getElementById('estokDropdownListMobile')!;
 
+  // ===========================================================================
+  // LISTENER DELEGADO DE CAMBIO DE ESTOK (mobile) — RESTAURADO
+  // Mismo patrón que el desktop: se vincula una sola vez sobre el contenedor,
+  // garantizando que el cambio de tenant siga funcionando tras re-renders.
+  // ===========================================================================
+  estokDropdownListMobile.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.estok-dropdown-item-mobile') as HTMLElement | null;
+    if (!btn) return;
+    const estokId = btn.dataset.estokId;
+    if (!estokId) return;
+    if (estokId === getEstokActivoId()) {
+      cerrarDropdownMobile();
+      return;
+    }
+    void (async () => {
+      try {
+        const { cambiarEstokActivo } = await import('../services/auth');
+        await cambiarEstokActivo(estokId);
+        cerrarDropdownMobile();
+        (window as any).showSuccess?.('✅ Estok cambiado');
+        // Recargar la página para refrescar todos los datos del nuevo Estok
+        window.location.reload();
+      } catch (err: any) {
+        (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
+      }
+    })();
+  });
+
   function renderEstokDropdownMobile(estoks: any[], activoId: string | null) {
     estokDropdownListMobile.innerHTML = estoks.map(e => {
       const esActivo = e.id === activoId;
@@ -1062,24 +1102,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       `;
     }).join('');
 
-    document.querySelectorAll('.estok-dropdown-item-mobile').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const estokId = (btn as HTMLElement).dataset.estokId!;
-        if (estokId === getEstokActivoId()) {
-          cerrarDropdownMobile();
-          return;
-        }
-        try {
-          const { cambiarEstokActivo } = await import('../services/auth');
-          await cambiarEstokActivo(estokId);
-          cerrarDropdownMobile();
-          (window as any).showSuccess?.('✅ Estok cambiado');
-          window.location.reload();
-        } catch (err: any) {
-          (window as any).showError?.(err?.error || 'Error al cambiar de Estok');
-        }
-      });
-    });
   }
 
   async function abrirDropdownMobile() {
