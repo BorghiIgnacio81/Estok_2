@@ -154,6 +154,10 @@ class UtilsActionsMixin:
                 "estado_conservacion": obj.estado_conservacion,
                 "owner_action": obj.owner_action,
                 "owner_action_label": action_labels.get(obj.owner_action, obj.owner_action) if obj.owner_action else None,
+                # Necesario en el frontend de Alertas/Decisiones para decidir si
+                # el objeto YA fue publicado en Mercado Libre (regla del botón
+                # "Publicar": solo owner_action == 'vender' y sin publicar en ML).
+                "plataformas_publicadas": list(obj.plataformas_publicadas or []),
                 "dueno_original": str(obj.dueno_original) if obj.dueno_original else None,
                 "dueno_original_nombre": obj.dueno_original.get_full_name() if obj.dueno_original else None,
                 "beneficiario": str(obj.beneficiario) if obj.beneficiario else None,
@@ -226,6 +230,35 @@ class UtilsActionsMixin:
 
         return response
 
+    # ------------------------------------------------------------------
+    # Helpers del gráfico de decisiones (barras apiladas del dashboard)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _objeto_publicado_en_ml(obj) -> bool:
+        """
+        Indica si un objeto fue publicado en Mercado Libre.
+
+        Regla robusta: NO depende de estados estrictos de la API externa
+        (tipo `meli_status='active'`) que pueden estar vacíos en la base
+        de datos local de producción. Se aceptan DOS señales equivalentes:
+
+          1. `meli_id` presente (no nulo ni vacío) → el item ya existe en ML.
+          2. `'mercadolibre'` en `plataformas_publicadas` → señal histórica
+             del repo.
+
+        Se consultan ambas para tolerar datos cargados por flujos distintos
+        en producción donde solo una de las dos esté poblada.
+        """
+        # Señal canónica: ID del item publicado en Mercado Libre.
+        # getattr tolera esquemas donde el campo aún no existe (repo local)
+        # y usa el campo real donde ya fue agregado (producción).
+        meli_id = getattr(obj, 'meli_id', None)
+        if meli_id:
+            return True
+
+        plataformas = obj.plataformas_publicadas or []
+        return 'mercadolibre' in plataformas
+
     @action(detail=False, methods=['get'])
     def estadisticas(self, request):
         """Retorna estadísticas del inventario para el dashboard."""
@@ -282,7 +315,7 @@ class UtilsActionsMixin:
                     "sin_decision": 0,
                 })
                 if obj.owner_action == 'vender':
-                    if obj.plataformas_publicadas:
+                    if self._objeto_publicado_en_ml(obj):
                         entry["vender_publicado"] += 1
                     else:
                         entry["vender_no_publicado"] += 1
