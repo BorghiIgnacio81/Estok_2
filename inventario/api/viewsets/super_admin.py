@@ -15,6 +15,8 @@ import logging
 import secrets
 import string
 
+from django.db import transaction
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -23,6 +25,7 @@ from rest_framework.response import Response
 logger = logging.getLogger(__name__)
 
 from ...models import CustomUser, Estok
+from ...services.categorias_meli import aplicar_categorias_oficiales_a_estok
 from ...services.email_service import (
     TIPO_BIENVENIDA,
     TIPOS_SOPORTADOS,
@@ -230,3 +233,27 @@ class SuperAdminEstokViewSet(viewsets.ModelViewSet):
     permission_classes = [IsYgumyMaster]
     queryset = Estok.objects.all().order_by('nombre')
     serializer_class = SuperAdminEstokSerializer
+
+    def perform_create(self, serializer):
+        """
+        Crea el Estok y dispara el seeding automático de las 11 categorías
+        oficiales de Mercado Libre Argentina, en el MISMO bloque transaccional.
+
+        Justificación: el comando `cargar_categorias_meli` solo inyecta las
+        categorías al arrancar el contenedor. Un Estok creado en caliente desde
+        el panel Admin Global nacía sin categorías (combobox vacío). Este
+        trigger garantiza que el nuevo Estok quede con sus 11 categorías
+        atómicas asociadas a su UUID antes de responder HTTP 201 Created.
+        """
+        with transaction.atomic():
+            estok = serializer.save()
+            creadas, actualizadas = aplicar_categorias_oficiales_a_estok(estok)
+
+        logger.info(
+            'Estok "%s" (%s) creado con seeding de categorías ML: '
+            'creadas=%d actualizadas=%d.',
+            estok.nombre,
+            estok.id,
+            creadas,
+            actualizadas,
+        )
