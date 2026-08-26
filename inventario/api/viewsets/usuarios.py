@@ -404,35 +404,45 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         [RESTRINGIDO - SOLO ygumy44]
         Asigna un usuario a un Estok con un rol específico.
-        POST /api/usuarios/{id}/asignar-estok/
-        Body: { "estok_id": "<uuid>", "role_id": "<uuid>" }
 
-        CUALQUIER OTRO USUARIO recibe 404 Not Found.
+        POST /api/usuarios/{id}/asignar-estok/
+        Body: { "estok_id": "<uuid>", "rol": "Editor" | "<role_uuid>" }
+
+        - `estok_id` es obligatorio.
+        - `rol` es opcional (default 'Editor'); acepta el nombre del rol
+          ('Editor', 'Admin', 'Visualizador') o su UUID. Se acepta también
+          `role_id` como alias para no romper llamadas previas.
+        - Usa Membresia.objects.get_or_create(): hermético e idempotente
+          (no duplica filas ni pisa el rol de una membresía existente).
+        - El usuario se localiza por su pk de la URL con una query directa
+          (NO self.get_object()) para no chocar con el filtro multi-tenant
+          de get_queryset, que excluye a los usuarios aún no miembros del
+          Estok de contexto.
         """
+        # BLINDAJE MÁSTER: SOLO el usuario 'ygumy44' puede ejecutar esto.
         if request.user.username != 'ygumy44':
             return Response(
-                {"detail": "Not found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"detail": "No autorizado."},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Localizar el usuario por su pk (ID de la URL) sin el filtro
+        # multi-tenant del queryset.
         try:
-            user = self.get_object()
-        except Exception:
+            user = CustomUser.objects.get(pk=pk)
+        except CustomUser.DoesNotExist:
             return Response(
-                {"detail": "Not found."},
+                {"detail": "Usuario no encontrado."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         estok_id = request.data.get('estok_id')
-        role_id = request.data.get('role_id')
-
         if not estok_id:
             return Response(
                 {"error": "estok_id es requerido."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Verificar que el Estok existe
         try:
             estok = Estok.objects.get(id=estok_id)
         except Estok.DoesNotExist:
@@ -441,40 +451,43 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Verificar que el Role existe (si se especificó)
+        # Resolver rol: por nombre (default 'Editor') o por UUID. `role_id`
+        # se acepta como alias de `rol` para compatibilidad con llamadas viejas.
+        rol = request.data.get('rol') or request.data.get('role_id') or 'Editor'
         role = None
-        if role_id:
-            try:
-                role = Role.objects.get(id=role_id)
-            except Role.DoesNotExist:
+        if rol:
+            role = (
+                Role.objects.filter(name=rol).first()
+                or Role.objects.filter(id=rol).first()
+            )
+            if role is None:
                 return Response(
-                    {"error": "El Role especificado no existe."},
+                    {"error": f"El Role '{rol}' no existe."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        # Verificar si ya es miembro
-        if Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
-            return Response(
-                {"error": "El usuario ya es miembro de este Estok."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Crear membresía
-        membresia = Membresia.objects.create(
+        # Hermético e idempotente: crea si no existe; si ya es miembro,
+        # devuelve la membresía existente sin duplicar ni pisar su rol.
+        membresia, created = Membresia.objects.get_or_create(
             usuario=user,
             estok=estok,
-            role=role,
+            defaults={'role': role},
         )
 
         return Response({
             "success": True,
-            "mensaje": f"Usuario '{user.username}' asignado a '{estok.nombre}' correctamente.",
+            "creada": created,
+            "mensaje": (
+                f"Usuario '{user.username}' asignado a '{estok.nombre}' correctamente."
+                if created
+                else f"El usuario '{user.username}' ya era miembro de '{estok.nombre}'."
+            ),
             "membresia": {
                 "id": str(membresia.id),
-                "estok_id": str(estok_id),
+                "estok_id": str(estok.id),
                 "estok_nombre": estok.nombre,
-                "role": role.name if role else None,
-                "role_id": str(role_id) if role_id else None,
+                "role": membresia.role.name if membresia.role else None,
+                "role_id": str(membresia.role.id) if membresia.role else None,
                 "joined_at": membresia.joined_at.isoformat() if membresia.joined_at else None,
             },
         })

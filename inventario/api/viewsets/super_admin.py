@@ -22,7 +22,7 @@ from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
-from ...models import CustomUser, Estok, Membresia, Role
+from ...models import CustomUser, Estok
 from ...services.email_service import (
     TIPO_BIENVENIDA,
     TIPOS_SOPORTADOS,
@@ -88,7 +88,6 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
     - PATCH  /api/admin/usuarios/{id}/           → edición parcial
     - DELETE /api/admin/usuarios/{id}/           → borrado físico (instance.delete())
     - POST   /api/admin/usuarios/{id}/reactivar/ → reactiva el usuario
-    - POST   /api/admin/usuarios/{id}/asignar-estok/ → asigna el usuario a un Estok
 
     DELETE es un borrado físico completo (instance.delete()): elimina el
     registro de CustomUser. Las relaciones con CASCADE se borran en cascada
@@ -118,82 +117,6 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
             {'detail': f'Usuario "{username}" eliminado correctamente.'},
             status=status.HTTP_200_OK,
         )
-
-    @action(detail=True, methods=['post'], url_path='asignar-estok')
-    def asignar_estok(self, request, pk=None):
-        """
-        [MODO DIOS - SOLO ygumy44]
-        Asigna un usuario a un Estok con rol específico.
-
-        POST /api/admin/usuarios/{id}/asignar-estok/
-        Body: { "estok_id": "<uuid>", "role_id": "<uuid> (opcional)" }
-
-        - `estok_id` es obligatorio (viene en request.data).
-        - `role_id` es opcional; si no se envía, se usa el rol 'Editor'
-          (con fallback a 'Admin' si 'Editor' no existiera en la BD).
-        - La fila se crea de forma idempotente en la tabla Membresia
-          (unique_together usuario+estok). Si ya es miembro, responde 400.
-        """
-        user = self.get_object()
-
-        estok_id = request.data.get('estok_id')
-        role_id = request.data.get('role_id')
-
-        if not estok_id:
-            return Response(
-                {"error": "estok_id es requerido."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            estok = Estok.objects.get(id=estok_id)
-        except Estok.DoesNotExist:
-            return Response(
-                {"error": "El Estok especificado no existe."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        role = None
-        if role_id:
-            try:
-                role = Role.objects.get(id=role_id)
-            except Role.DoesNotExist:
-                return Response(
-                    {"error": "El Role especificado no existe."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        else:
-            # Rol por defecto si no se especificó: 'Editor', con fallback 'Admin'.
-            role = (
-                Role.objects.filter(name='Editor').first()
-                or Role.objects.filter(name='Admin').first()
-            )
-
-        # Idempotencia: unique_together (usuario, estok)
-        if Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
-            return Response(
-                {"error": "El usuario ya es miembro de este Estok."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        membresia = Membresia.objects.create(
-            usuario=user,
-            estok=estok,
-            role=role,
-        )
-
-        return Response({
-            "success": True,
-            "mensaje": f"Usuario '{user.username}' asignado a '{estok.nombre}' correctamente.",
-            "membresia": {
-                "id": str(membresia.id),
-                "estok_id": str(estok.id),
-                "estok_nombre": estok.nombre,
-                "role": role.name if role else None,
-                "role_id": str(role.id) if role else None,
-                "joined_at": membresia.joined_at.isoformat() if membresia.joined_at else None,
-            },
-        })
 
     @action(detail=True, methods=['post'])
     def reactivar(self, request, pk=None):
