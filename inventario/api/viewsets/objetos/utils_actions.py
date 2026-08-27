@@ -238,13 +238,14 @@ class UtilsActionsMixin:
         """
         Indica si un objeto fue publicado en Mercado Libre.
 
-        Regla robusta: NO depende de estados estrictos de la API externa
-        (tipo `meli_status='active'`) que pueden estar vacíos en la base
-        de datos local de producción. Se aceptan DOS señales equivalentes:
+        Regla robusta y FLEXIBLE: NO depende de estados estrictos de la API
+        externa (tipo `meli_status='active'`) que pueden estar vacíos en la
+        base de datos local de producción. Se aceptan DOS señales equivalentes:
 
-          1. `meli_id` presente (no nulo ni vacío) → el item ya existe en ML.
+          1. `meli_id` válido (no nulo, no cadena vacía ni solo espacios)
+             → el item ya existe en ML. Señal canónica del Dashboard.
           2. `'mercadolibre'` en `plataformas_publicadas` → señal histórica
-             del repo.
+             del repo (publicaciones registradas antes de existir meli_id).
 
         Se consultan ambas para tolerar datos cargados por flujos distintos
         en producción donde solo una de las dos esté poblada.
@@ -253,11 +254,20 @@ class UtilsActionsMixin:
         # getattr tolera esquemas donde el campo aún no existe (repo local)
         # y usa el campo real donde ya fue agregado (producción).
         meli_id = getattr(obj, 'meli_id', None)
+        if isinstance(meli_id, str):
+            meli_id = meli_id.strip()
         if meli_id:
             return True
 
+        # Señal histórica: la plataforma 'mercadolibre' puede venir como
+        # lista JSON (esquema actual) o como string separado por comas.
         plataformas = obj.plataformas_publicadas or []
-        return 'mercadolibre' in plataformas
+        if isinstance(plataformas, str):
+            plataformas = [p.strip() for p in plataformas.split(',')]
+        return any(
+            str(p).strip().lower() == 'mercadolibre'
+            for p in plataformas
+        )
 
     @action(detail=False, methods=['get'])
     def estadisticas(self, request):
@@ -315,6 +325,11 @@ class UtilsActionsMixin:
                     "sin_decision": 0,
                 })
                 if obj.owner_action == 'vender':
+                    # Casillero "Vender · Publicado" (verde claro del Dashboard):
+                    # cuenta CUALQUIER objeto con decisión 'vender' que tenga un
+                    # meli_id válido (no nulo ni vacío) o que esté marcado como
+                    # publicado en Mercado Libre. Regla flexible para que el
+                    # gráfico de barras se pinte de forma correcta.
                     if self._objeto_publicado_en_ml(obj):
                         entry["vender_publicado"] += 1
                     else:

@@ -6,7 +6,6 @@ Uso:
 """
 
 from django.core.management.base import BaseCommand
-from django.contrib.auth.hashers import make_password
 from inventario.models import Role, CustomUser, Membresia
 
 
@@ -39,7 +38,6 @@ class Command(BaseCommand):
         # ---------------------------------------------------------------------
         user_data = {
             'email': 'ygumy44@gmail.com',
-            'password': make_password('C05m05'),
             'first_name': 'Ygumy',
             'last_name': '44',
             # NOTA: CustomUser NO tiene campo `role` global (RBAC por Membresia).
@@ -48,6 +46,11 @@ class Command(BaseCommand):
             'is_staff': True,
             'is_superuser': True,
             'is_active': True,
+            # NOTA CRÍTICA: el campo `password` NO va en defaults. La contraseña
+            # por defecto se aplica EXCLUSIVAMENTE en la creación inicial con
+            # set_password() (abajo). Si el usuario ya existe, su clave
+            # personalizada jamás debe ser sobrescrita (bug crítico de
+            # persistencia de contraseñas en producción).
         }
 
         user, created = CustomUser.objects.update_or_create(
@@ -56,12 +59,19 @@ class Command(BaseCommand):
         )
 
         if created:
+            # Creación por primera vez: única oportunidad legítima para
+            # inyectar la contraseña por defecto (C05m05).
+            user.set_password('C05m05')
+            user.save(update_fields=['password'])
             self.stdout.write(self.style.SUCCESS(
-                '  ✓ Usuario ygumy44 creado exitosamente'
+                '  ✓ Usuario ygumy44 creado exitosamente (password por defecto aplicado)'
             ))
         else:
+            # El usuario YA EXISTE: se respeta su contraseña personalizada.
+            # NO se toca el hash del password bajo ninguna circunstancia.
+            # (update_or_create ya actualizó el perfil sin incluir la clave.)
             self.stdout.write(self.style.SUCCESS(
-                '  ✓ Usuario ygumy44 actualizado exitosamente'
+                '  ✓ Usuario ygumy44 actualizado (password PRESERVADO)'
             ))
 
         # ---------------------------------------------------------------------
@@ -89,7 +99,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE('\n--- Datos del usuario ---'))
         self.stdout.write(f'  Username:  {user.username}')
         self.stdout.write(f'  Email:     {user.email}')
-        self.stdout.write(f'  Password:  C05m05')
+        self.stdout.write(
+            f'  Password:  C05m05' if created
+            else '  Password:  (personalizada — preservada)'
+        )
         self.stdout.write(f'  Staff:     {user.is_staff}')
         self.stdout.write(f'  Superuser: {user.is_superuser}')
         self.stdout.write(f'  Activo:    {user.is_active}')
@@ -101,5 +114,9 @@ class Command(BaseCommand):
             '\n✅ Usuario ygumy44 listo para usar.'
         ))
         self.stdout.write(self.style.NOTICE(
-            '   Email: ygumy44@gmail.com / Contraseña: C05m05'
+            (
+                '   Email: ygumy44@gmail.com / Contraseña: C05m05'
+                if created
+                else '   Email: ygumy44@gmail.com / Contraseña: (personalizada — preservada)'
+            )
         ))
