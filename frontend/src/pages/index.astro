@@ -29,7 +29,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
       </div>
 
       <!-- Fila 2 - Bloque de bienvenida (izquierda) + CTA "Nuevo Objeto" (derecha) -->
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div class="flex flex-col lg:flex-row justify-between items-center gap-6 w-full">
         <div class="w-full">
           <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900">
             Bienvenido a <span class="text-blue-700">Estok</span>
@@ -54,7 +54,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
           )}
           <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
           <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
-            <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="w-auto h-12 hover:scale-105 transition-all cursor-pointer" />
+            <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </a>
         </div>
       </div>
