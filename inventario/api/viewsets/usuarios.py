@@ -16,6 +16,7 @@ from ...services.password_recovery import recuperar_password_usuario
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.core.exceptions import ValidationError
+from django.contrib.auth import update_session_auth_hash
 
 
 # Tiempo máximo desde última actividad para considerar a un usuario "online"
@@ -227,6 +228,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user = request.user
         data = request.data or {}
         cambios = False
+        password_cambiada = False
 
         # --- 1) Datos base ---
         for campo in ('username', 'email', 'first_name', 'last_name'):
@@ -275,6 +277,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             user.set_password(password_nueva)
+            password_cambiada = True
             # Flujo "Olvidó su contraseña": el usuario entró con clave
             # temporal y acaba de definir una clave propia → se apaga el
             # flag para desbloquear el acceso al Dashboard general.
@@ -288,6 +291,15 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
         user.save()
+
+        # ── PERSISTENCIA DE SESIÓN TRAS CAMBIO DE CLAVE ───────────────
+        # Si el usuario cambió su contraseña, se actualiza el hash de la
+        # sesión actual con update_session_auth_hash(). Sin esta llamada,
+        # los demás workers de Gunicorn conservan la sesión con el hash
+        # viejo cacheado y, al reciclarse, desloguean al usuario y dejan
+        # de reconocer su nueva contraseña.
+        if password_cambiada:
+            update_session_auth_hash(request, user)
 
         return Response({
             'success': True,

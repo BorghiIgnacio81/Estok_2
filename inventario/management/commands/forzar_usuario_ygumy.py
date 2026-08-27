@@ -94,23 +94,46 @@ class Command(BaseCommand):
             },
         )
 
-        # Forzar los flags y la contraseña SIEMPRE (aunque ya exista)
+        # Forzar los flags de acceso SIEMPRE (aunque ya exista), pero NUNCA
+        # tocar el hash de la contraseña si el usuario ya existe en PostgreSQL.
+        # ── PERSISTENCIA DE CONTRASEÑA (BUG CRÍTICO DE PRODUCCIÓN) ──────────
+        # Este comando se ejecuta en cada arranque del contenedor (entrypoint.sh).
+        # Pisar set_password() aquí hacía que la clave personalizada definida
+        # por el usuario en PUT /api/usuarios/perfil/ fuera sobrescrita de vuelta
+        # a la clave por defecto en cada reinicio/reciclado de workers de Gunicorn,
+        # provocando deslogueos y desconocimiento de la nueva contraseña.
+        # A partir de ahora la clave por defecto SOLO se aplica en la creación
+        # inicial del usuario; jamás sobre un registro existente.
         user.email = EMAIL
         user.first_name = FIRST_NAME
         user.last_name = LAST_NAME
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True
-        user.set_password(PASSWORD)
-        user.save()
 
         if created:
+            # Creación por primera vez: única oportunidad legítima para
+            # inyectar la contraseña por defecto (C05m05).
+            user.set_password(PASSWORD)
+            user.tiene_clave_temporal = False
+            user.save()
             self.stdout.write(self.style.SUCCESS(
-                f'  ✓ Usuario {USERNAME} creado exitosamente'
+                f'  ✓ Usuario {USERNAME} creado exitosamente (password por defecto aplicado)'
             ))
         else:
+            # El usuario YA EXISTE: se respeta su contraseña personalizada.
+            # NO se llama a set_password() ni se modifica el campo password
+            # bajo ninguna circunstancia. Si la clave actual ya no es la por
+            # defecto (el usuario definió una propia en su perfil), se apaga
+            # el flag de clave temporal para desbloquear el acceso normal.
+            if not user.check_password(PASSWORD):
+                user.tiene_clave_temporal = False
+                self.stdout.write(self.style.SUCCESS(
+                    f'  ✓ Usuario {USERNAME} tiene clave personalizada → flag temporal apagado'
+                ))
+            user.save()
             self.stdout.write(self.style.SUCCESS(
-                f'  ✓ Usuario {USERNAME} actualizado (flags superuser + password forzados)'
+                f'  ✓ Usuario {USERNAME} actualizado (flags asegurados, password PRESERVADO)'
             ))
 
         # ---------------------------------------------------------------------
