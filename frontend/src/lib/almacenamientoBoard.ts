@@ -67,6 +67,9 @@ const ICONO_CAJA =
 const ICONO_UBICACION =
   '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>';
 
+const ICONO_LAPIZ =
+  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>';
+
 // =============================================================================
 // CLASE PRINCIPAL DEL TABLERO
 // =============================================================================
@@ -189,6 +192,7 @@ export class AlmacenamientoBoard {
 
     this.enlazarDnD();
     this.enlazarEliminar();
+    this.enlazarEditar();
   }
 
   // -- Tarjeta de Ubicación (drop zone) -------------------------------------
@@ -203,13 +207,18 @@ export class AlmacenamientoBoard {
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <h3 class="font-semibold text-gray-900">${escapeHtml(u.nombre)}</h3>
+            <h3 class="font-semibold text-gray-900" data-nombre-ubicacion="${u.id}">${escapeHtml(u.nombre)}</h3>
             <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">${u.contenedores_count || 0} contenedores</span>
           </div>
-          ${u.descripcion ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(u.descripcion)}</p>` : ''}
+          <div data-desc-ubicacion-slot="${u.id}">
+            ${u.descripcion ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(u.descripcion)}</p>` : ''}
+          </div>
           <p class="text-xs text-gray-400 mt-0.5">📦 ${u.objetos_count || 0} objetos</p>
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
+          <button type="button" class="dnd-editar-ubicacion text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${u.id}" title="Editar ubicación">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_LAPIZ}</svg>
+          </button>
           <a href="/ubicaciones/${u.id}" draggable="false" class="text-gray-400 hover:text-blue-700 p-1 transition-base" title="Ver ubicación">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_OJO}</svg>
           </a>
@@ -237,11 +246,16 @@ export class AlmacenamientoBoard {
           <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_CAJA}</svg>
         </div>
         <div class="flex-1 min-w-0">
-          <h4 class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(c.nombre)}</h4>
-          ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
+          <h4 class="font-semibold text-gray-900 text-sm truncate" data-nombre-contenedor="${c.id}">${escapeHtml(c.nombre)}</h4>
+          <div data-desc-contenedor-slot="${c.id}">
+            ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
+          </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📦 ${c.objetos_count || 0} objetos${c.hijos.length ? ` · 🗂 ${c.hijos.length} sub-contenedor${c.hijos.length > 1 ? 'es' : ''}` : ''}</p>
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
+          <button type="button" class="dnd-editar-contenedor text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${c.id}" title="Editar contenedor">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_LAPIZ}</svg>
+          </button>
           <a href="/contenedores/${c.id}" draggable="false" class="text-gray-400 hover:text-blue-700 p-1 transition-base" title="Ver contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_OJO}</svg>
           </a>
@@ -264,10 +278,16 @@ export class AlmacenamientoBoard {
           <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_CAJA}</svg>
         </div>
         <div class="flex-1 min-w-0">
-          <h4 class="font-semibold text-gray-900 text-sm truncate">${escapeHtml(c.nombre)}</h4>
+          <h4 class="font-semibold text-gray-900 text-sm truncate" data-nombre-contenedor="${c.id}">${escapeHtml(c.nombre)}</h4>
+          <div data-desc-contenedor-slot="${c.id}">
+            ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
+          </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📍 ${escapeHtml(c.ubicacion_nombre || 'Sin ubicación')} · 📦 ${c.objetos_count || 0}${c.hijos.length ? ` · 🗂 ${c.hijos.length}` : ''}</p>
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
+          <button type="button" class="dnd-editar-contenedor text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${c.id}" title="Editar contenedor">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_LAPIZ}</svg>
+          </button>
           <a href="/contenedores/${c.id}" draggable="false" class="text-gray-400 hover:text-blue-700 p-1 transition-base" title="Ver contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_OJO}</svg>
           </a>
@@ -507,6 +527,132 @@ export class AlmacenamientoBoard {
   }
 
   // ---------------------------------------------------------------------------
+  // EDICIÓN EN CALIENTE (PUT /api/{ubicaciones|contenedores}/{id}/ sin reload)
+  // ---------------------------------------------------------------------------
+
+  private enlazarEditar(): void {
+    document.querySelectorAll<HTMLElement>('.dnd-editar-ubicacion').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (!id) return;
+        const u = this.ubicaciones.find((x) => x.id === id);
+        if (u) this.abrirModalEditar('ubicacion', u.id, u.nombre, u.descripcion);
+      });
+    });
+
+    document.querySelectorAll<HTMLElement>('.dnd-editar-contenedor').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (!id) return;
+        const c = this.contenedoresPorId.get(id);
+        if (c) this.abrirModalEditar('contenedor', c.id, c.nombre, c.descripcion);
+      });
+    });
+  }
+
+  private abrirModalEditar(tipo: 'ubicacion' | 'contenedor', id: string, nombre: string, descripcion: string): void {
+    const modal = document.getElementById('modalEditar');
+    if (!modal) return;
+    (document.getElementById('editarTitulo') as HTMLElement).textContent =
+      tipo === 'ubicacion' ? '✏️ Editar Ubicación' : '✏️ Editar Contenedor';
+    (document.getElementById('editarTipo') as HTMLInputElement).value = tipo;
+    (document.getElementById('editarId') as HTMLInputElement).value = id;
+    (document.getElementById('editarNombre') as HTMLInputElement).value = nombre;
+    (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value = descripcion || '';
+    const err = modal.querySelector('[data-form-error]');
+    if (err) err.classList.add('hidden');
+    modal.classList.remove('hidden');
+    (document.getElementById('editarNombre') as HTMLInputElement).focus();
+  }
+
+  private async enviarFormEditar(e: Event): Promise<void> {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const tipo = (document.getElementById('editarTipo') as HTMLInputElement).value as 'ubicacion' | 'contenedor';
+    const id = (document.getElementById('editarId') as HTMLInputElement).value;
+    const nombre = (document.getElementById('editarNombre') as HTMLInputElement).value.trim();
+    const descripcion = (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value.trim();
+    if (!id || !nombre) {
+      this.formError('editarFormError', 'El nombre es obligatorio.');
+      return;
+    }
+    const recurso = tipo === 'ubicacion' ? 'ubicaciones' : 'contenedores';
+    this.setGuardando('editar', true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/${recurso}/${id}/`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, descripcion }),
+      });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (res.ok) {
+        // Modelo en memoria: mantiene el Drag & Drop coherente tras el rename.
+        if (tipo === 'ubicacion') {
+          const u = this.ubicaciones.find((x) => x.id === id);
+          if (u) {
+            u.nombre = nombre;
+            u.descripcion = descripcion;
+          }
+        } else {
+          const c = this.contenedoresPorId.get(id);
+          if (c) {
+            c.nombre = nombre;
+            c.descripcion = descripcion;
+          }
+        }
+        this.cerrarModal('editar');
+        form.reset();
+        this.toast(`✏️ «${nombre}» actualizado.`);
+        this.actualizarDomTrasEdicion(tipo, id, nombre, descripcion);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.formError('editarFormError', this.extraerError(err));
+      }
+    } catch {
+      this.formError('editarFormError', 'Error de conexión.');
+    } finally {
+      this.setGuardando('editar', false);
+    }
+  }
+
+  /** Actualiza el texto del árbol en vivo (sin recargar la página). */
+  private actualizarDomTrasEdicion(
+    tipo: 'ubicacion' | 'contenedor',
+    id: string,
+    nombre: string,
+    descripcion: string,
+  ): void {
+    if (tipo === 'ubicacion') {
+      document.querySelectorAll<HTMLElement>(`[data-nombre-ubicacion="${id}"]`).forEach((el) => {
+        el.textContent = nombre;
+      });
+      document.querySelectorAll<HTMLElement>(`[data-desc-ubicacion-slot="${id}"]`).forEach((slot) => {
+        slot.innerHTML = descripcion
+          ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(descripcion)}</p>`
+          : '';
+      });
+    } else {
+      document.querySelectorAll<HTMLElement>(`[data-nombre-contenedor="${id}"]`).forEach((el) => {
+        el.textContent = nombre;
+      });
+      document.querySelectorAll<HTMLElement>(`[data-desc-contenedor-slot="${id}"]`).forEach((slot) => {
+        slot.innerHTML = descripcion
+          ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(descripcion)}</p>`
+          : '';
+      });
+    }
+    // Mantener el nombre nuevo en los botones de eliminar (confirm del navegador).
+    document.querySelectorAll<HTMLElement>(`[data-id="${id}"] [data-nombre]`).forEach((el) => {
+      el.setAttribute('data-nombre', nombre);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // TOAST
   // ---------------------------------------------------------------------------
 
@@ -548,20 +694,20 @@ export class AlmacenamientoBoard {
     if (tipo === 'contenedor') this.llenarSelectUbicaciones();
   }
 
-  private cerrarModal(tipo: 'ubicacion' | 'contenedor'): void {
-    const id = tipo === 'ubicacion' ? 'modalUbicacion' : 'modalContenedor';
+  private cerrarModal(tipo: 'ubicacion' | 'contenedor' | 'editar'): void {
+    const id = tipo === 'ubicacion' ? 'modalUbicacion' : tipo === 'contenedor' ? 'modalContenedor' : 'modalEditar';
     document.getElementById(id)?.classList.add('hidden');
   }
 
   private enlazarModales(): void {
     document.querySelectorAll<HTMLElement>('[data-cerrar-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const tipo = btn.getAttribute('data-cerrar-modal') as 'ubicacion' | 'contenedor' | null;
+        const tipo = btn.getAttribute('data-cerrar-modal') as 'ubicacion' | 'contenedor' | 'editar' | null;
         if (tipo) this.cerrarModal(tipo);
       });
     });
 
-    (['modalUbicacion', 'modalContenedor'] as const).forEach((idModal) => {
+    (['modalUbicacion', 'modalContenedor', 'modalEditar'] as const).forEach((idModal) => {
       document.getElementById(idModal)?.addEventListener('click', (e) => {
         if (e.target === document.getElementById(idModal)) {
           document.getElementById(idModal)?.classList.add('hidden');
@@ -571,6 +717,7 @@ export class AlmacenamientoBoard {
 
     (document.getElementById('ubiForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormUbicacion(e));
     (document.getElementById('conForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormContenedor(e));
+    (document.getElementById('editarForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormEditar(e));
 
     this.enlazarInputFoto('ubiFotoInput', 'ubiFotoLabel');
     this.enlazarInputFoto('conFotoInput', 'conFotoLabel');
@@ -679,7 +826,7 @@ export class AlmacenamientoBoard {
     }
   }
 
-  private setGuardando(prefix: 'ubi' | 'con', guardando: boolean): void {
+  private setGuardando(prefix: 'ubi' | 'con' | 'editar', guardando: boolean): void {
     const btn = document.getElementById(`${prefix}SaveBtn`) as HTMLButtonElement | null;
     const text = document.getElementById(`${prefix}SaveText`);
     const spinner = document.getElementById(`${prefix}SaveSpinner`);
