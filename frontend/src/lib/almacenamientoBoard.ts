@@ -30,6 +30,10 @@ export interface ContenedorDnD {
   parent_contenedor_nombre: string | null;
   objetos_count: number;
   qr_code_url: string | null;
+  largo?: string | number | null;
+  ancho?: string | number | null;
+  alto?: string | number | null;
+  foto?: string | null;
   hijos: ContenedorDnD[];
 }
 
@@ -39,7 +43,22 @@ export interface UbicacionDnD {
   descripcion: string;
   objetos_count: number;
   contenedores_count: number;
+  largo?: string | number | null;
+  ancho?: string | number | null;
+  alto?: string | number | null;
+  foto?: string | null;
   raices: ContenedorDnD[];
+}
+
+/** Campos comunes editables desde el modal (nombre + medidas + foto). */
+export interface EntidadEditable {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  largo?: string | number | null;
+  ancho?: string | number | null;
+  alto?: string | number | null;
+  foto?: string | null;
 }
 
 // =============================================================================
@@ -53,6 +72,15 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/** Formatea las medidas "Alto × Ancho × Largo" (solo si al menos una existe). */
+function formatearMedidas(e: EntidadEditable): string | null {
+  const valores = [e.alto, e.ancho, e.largo].filter(
+    (v) => v !== null && v !== undefined && v !== '',
+  ) as Array<string | number>;
+  if (!valores.length) return null;
+  return valores.map((v) => String(Number(v))).join(' × ');
 }
 
 const ICONO_OJO =
@@ -79,6 +107,7 @@ export class AlmacenamientoBoard {
   private contenedores: ContenedorDnD[] = [];
   private contenedoresPorId = new Map<string, ContenedorDnD>();
   private dragId: string | null = null;
+  private previewObjectUrl: string | null = null;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -214,6 +243,7 @@ export class AlmacenamientoBoard {
             ${u.descripcion ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(u.descripcion)}</p>` : ''}
           </div>
           <p class="text-xs text-gray-400 mt-0.5">📦 ${u.objetos_count || 0} objetos</p>
+          ${this.medidasHtml(u, 'ubicacion')}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
           <button type="button" class="dnd-editar-ubicacion text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${u.id}" title="Editar ubicación">
@@ -251,6 +281,7 @@ export class AlmacenamientoBoard {
             ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
           </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📦 ${c.objetos_count || 0} objetos${c.hijos.length ? ` · 🗂 ${c.hijos.length} sub-contenedor${c.hijos.length > 1 ? 'es' : ''}` : ''}</p>
+          ${this.medidasHtml(c, 'contenedor')}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
           <button type="button" class="dnd-editar-contenedor text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${c.id}" title="Editar contenedor">
@@ -283,6 +314,7 @@ export class AlmacenamientoBoard {
             ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
           </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📍 ${escapeHtml(c.ubicacion_nombre || 'Sin ubicación')} · 📦 ${c.objetos_count || 0}${c.hijos.length ? ` · 🗂 ${c.hijos.length}` : ''}</p>
+          ${this.medidasHtml(c, 'contenedor')}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
           <button type="button" class="dnd-editar-contenedor text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1" data-id="${c.id}" title="Editar contenedor">
@@ -537,7 +569,7 @@ export class AlmacenamientoBoard {
         const id = btn.dataset.id;
         if (!id) return;
         const u = this.ubicaciones.find((x) => x.id === id);
-        if (u) this.abrirModalEditar('ubicacion', u.id, u.nombre, u.descripcion);
+        if (u) this.abrirModalEditar('ubicacion', u);
       });
     });
 
@@ -547,20 +579,24 @@ export class AlmacenamientoBoard {
         const id = btn.dataset.id;
         if (!id) return;
         const c = this.contenedoresPorId.get(id);
-        if (c) this.abrirModalEditar('contenedor', c.id, c.nombre, c.descripcion);
+        if (c) this.abrirModalEditar('contenedor', c);
       });
     });
   }
 
-  private abrirModalEditar(tipo: 'ubicacion' | 'contenedor', id: string, nombre: string, descripcion: string): void {
+  private abrirModalEditar(tipo: 'ubicacion' | 'contenedor', entidad: EntidadEditable): void {
     const modal = document.getElementById('modalEditar');
     if (!modal) return;
     (document.getElementById('editarTitulo') as HTMLElement).textContent =
       tipo === 'ubicacion' ? '✏️ Editar Ubicación' : '✏️ Editar Contenedor';
     (document.getElementById('editarTipo') as HTMLInputElement).value = tipo;
-    (document.getElementById('editarId') as HTMLInputElement).value = id;
-    (document.getElementById('editarNombre') as HTMLInputElement).value = nombre;
-    (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value = descripcion || '';
+    (document.getElementById('editarId') as HTMLInputElement).value = entidad.id;
+    (document.getElementById('editarNombre') as HTMLInputElement).value = entidad.nombre;
+    (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value = entidad.descripcion || '';
+    (document.getElementById('editarAlto') as HTMLInputElement).value = entidad.alto == null ? '' : String(entidad.alto);
+    (document.getElementById('editarAncho') as HTMLInputElement).value = entidad.ancho == null ? '' : String(entidad.ancho);
+    (document.getElementById('editarLargo') as HTMLInputElement).value = entidad.largo == null ? '' : String(entidad.largo);
+    this.precargarFoto(entidad.foto || null);
     const err = modal.querySelector('[data-form-error]');
     if (err) err.classList.add('hidden');
     modal.classList.remove('hidden');
@@ -574,6 +610,10 @@ export class AlmacenamientoBoard {
     const id = (document.getElementById('editarId') as HTMLInputElement).value;
     const nombre = (document.getElementById('editarNombre') as HTMLInputElement).value.trim();
     const descripcion = (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value.trim();
+    const alto = (document.getElementById('editarAlto') as HTMLInputElement).value.trim();
+    const ancho = (document.getElementById('editarAncho') as HTMLInputElement).value.trim();
+    const largo = (document.getElementById('editarLargo') as HTMLInputElement).value.trim();
+    const foto = (document.getElementById('editarFotoInput') as HTMLInputElement).files?.[0] ?? null;
     if (!id || !nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
       return;
@@ -581,34 +621,66 @@ export class AlmacenamientoBoard {
     const recurso = tipo === 'ubicacion' ? 'ubicaciones' : 'contenedores';
     this.setGuardando('editar', true);
     try {
+      // FormData: empaqueta la foto (binario) + medidas decimales en multipart/form-data.
+      const formData = new FormData();
+      formData.append('nombre', nombre);
+      formData.append('descripcion', descripcion);
+      formData.append('alto', alto);
+      formData.append('ancho', ancho);
+      formData.append('largo', largo);
+      if (foto) formData.append('foto', foto);
+
+      // Sin Content-Type manual: el navegador fija el boundary de multipart/form-data.
       const res = await fetch(`${API_BASE_URL}/${recurso}/${id}/`, {
         method: 'PUT',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, descripcion }),
+        headers: getAuthHeaders(),
+        body: formData,
       });
       if (res.status === 401) {
         window.location.href = '/login';
         return;
       }
       if (res.ok) {
+        const actualizado = (await res.json().catch(() => null)) as (EntidadEditable & { foto?: string | null }) | null;
+        const nuevaFoto = actualizado?.foto ?? null;
+        const altoVal = alto !== '' ? alto : null;
+        const anchoVal = ancho !== '' ? ancho : null;
+        const largoVal = largo !== '' ? largo : null;
+
         // Modelo en memoria: mantiene el Drag & Drop coherente tras el rename.
+        let entidadActualizada: EntidadEditable;
         if (tipo === 'ubicacion') {
           const u = this.ubicaciones.find((x) => x.id === id);
           if (u) {
             u.nombre = nombre;
             u.descripcion = descripcion;
+            u.alto = altoVal;
+            u.ancho = anchoVal;
+            u.largo = largoVal;
+            u.foto = nuevaFoto ?? u.foto;
+            entidadActualizada = u;
+          } else {
+            entidadActualizada = { id, nombre, descripcion, alto: altoVal, ancho: anchoVal, largo: largoVal, foto: nuevaFoto };
           }
         } else {
           const c = this.contenedoresPorId.get(id);
           if (c) {
             c.nombre = nombre;
             c.descripcion = descripcion;
+            c.alto = altoVal;
+            c.ancho = anchoVal;
+            c.largo = largoVal;
+            c.foto = nuevaFoto ?? c.foto;
+            entidadActualizada = c;
+          } else {
+            entidadActualizada = { id, nombre, descripcion, alto: altoVal, ancho: anchoVal, largo: largoVal, foto: nuevaFoto };
           }
         }
+
         this.cerrarModal('editar');
         form.reset();
         this.toast(`✏️ «${nombre}» actualizado.`);
-        this.actualizarDomTrasEdicion(tipo, id, nombre, descripcion);
+        this.actualizarDomTrasEdicion(tipo, id, entidadActualizada);
       } else {
         const err = await res.json().catch(() => ({}));
         this.formError('editarFormError', this.extraerError(err));
@@ -624,31 +696,94 @@ export class AlmacenamientoBoard {
   private actualizarDomTrasEdicion(
     tipo: 'ubicacion' | 'contenedor',
     id: string,
-    nombre: string,
-    descripcion: string,
+    datos: EntidadEditable,
   ): void {
     if (tipo === 'ubicacion') {
       document.querySelectorAll<HTMLElement>(`[data-nombre-ubicacion="${id}"]`).forEach((el) => {
-        el.textContent = nombre;
+        el.textContent = datos.nombre;
       });
       document.querySelectorAll<HTMLElement>(`[data-desc-ubicacion-slot="${id}"]`).forEach((slot) => {
-        slot.innerHTML = descripcion
-          ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(descripcion)}</p>`
+        slot.innerHTML = datos.descripcion
+          ? `<p class="text-sm text-gray-500 mt-0.5 line-clamp-2">${escapeHtml(datos.descripcion)}</p>`
           : '';
+      });
+      document.querySelectorAll<HTMLElement>(`[data-medidas-ubicacion="${id}"]`).forEach((el) => {
+        this.pintarMedidas(el, datos);
       });
     } else {
       document.querySelectorAll<HTMLElement>(`[data-nombre-contenedor="${id}"]`).forEach((el) => {
-        el.textContent = nombre;
+        el.textContent = datos.nombre;
       });
       document.querySelectorAll<HTMLElement>(`[data-desc-contenedor-slot="${id}"]`).forEach((slot) => {
-        slot.innerHTML = descripcion
-          ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(descripcion)}</p>`
+        slot.innerHTML = datos.descripcion
+          ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(datos.descripcion)}</p>`
           : '';
+      });
+      document.querySelectorAll<HTMLElement>(`[data-medidas-contenedor="${id}"]`).forEach((el) => {
+        this.pintarMedidas(el, datos);
       });
     }
     // Mantener el nombre nuevo en los botones de eliminar (confirm del navegador).
     document.querySelectorAll<HTMLElement>(`[data-id="${id}"] [data-nombre]`).forEach((el) => {
-      el.setAttribute('data-nombre', nombre);
+      el.setAttribute('data-nombre', datos.nombre);
+    });
+  }
+
+  /** Rellena el texto de medidas (📐 A × B × C cm) y alterna su visibilidad. */
+  private pintarMedidas(el: HTMLElement, datos: EntidadEditable): void {
+    const med = formatearMedidas(datos);
+    el.textContent = med ? `📐 ${med} cm` : '';
+    el.classList.toggle('hidden', !med);
+  }
+
+  /** Devuelve el HTML de la línea de medidas para las tarjetas. */
+  private medidasHtml(e: EntidadEditable, tipo: 'ubicacion' | 'contenedor'): string {
+    const med = formatearMedidas(e);
+    return `<p class="text-[11px] text-gray-400 mt-0.5 ${med ? '' : 'hidden'}" data-medidas-${tipo}="${e.id}">${med ? `📐 ${med} cm` : ''}</p>`;
+  }
+
+  /** Precarga la vista previa de la foto actual y limpia el input de archivo. */
+  private precargarFoto(fotoUrl: string | null): void {
+    if (this.previewObjectUrl) {
+      URL.revokeObjectURL(this.previewObjectUrl);
+      this.previewObjectUrl = null;
+    }
+    const preview = document.getElementById('editarFotoPreview');
+    const img = document.getElementById('editarFotoPreviewImg') as HTMLImageElement | null;
+    const input = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const label = document.getElementById('editarFotoLabel');
+    if (input) input.value = '';
+    if (label) label.textContent = 'Seleccionar foto';
+    if (!preview || !img) return;
+    if (fotoUrl) {
+      img.src = fotoUrl;
+      preview.classList.remove('hidden');
+    } else {
+      img.removeAttribute('src');
+      preview.classList.add('hidden');
+    }
+  }
+
+  private enlazarInputFotoEditar(): void {
+    const input = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const label = document.getElementById('editarFotoLabel');
+    const preview = document.getElementById('editarFotoPreview');
+    const img = document.getElementById('editarFotoPreviewImg') as HTMLImageElement | null;
+    input?.addEventListener('change', () => {
+      const archivo = input.files?.[0];
+      if (label) label.textContent = archivo ? archivo.name : 'Seleccionar foto';
+      if (this.previewObjectUrl) {
+        URL.revokeObjectURL(this.previewObjectUrl);
+        this.previewObjectUrl = null;
+      }
+      if (archivo && preview && img) {
+        this.previewObjectUrl = URL.createObjectURL(archivo);
+        img.src = this.previewObjectUrl;
+        preview.classList.remove('hidden');
+      } else if (preview && img) {
+        img.removeAttribute('src');
+        preview.classList.add('hidden');
+      }
     });
   }
 
@@ -721,6 +856,7 @@ export class AlmacenamientoBoard {
 
     this.enlazarInputFoto('ubiFotoInput', 'ubiFotoLabel');
     this.enlazarInputFoto('conFotoInput', 'conFotoLabel');
+    this.enlazarInputFotoEditar();
   }
 
   private enlazarInputFoto(inputId: string, labelId: string): void {
