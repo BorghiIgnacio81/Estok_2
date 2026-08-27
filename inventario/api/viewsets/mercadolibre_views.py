@@ -346,7 +346,7 @@ def ml_callback(request):
             return HttpResponse(
                 '<h2>Error</h2><p>No se pudo obtener el token de MercadoLibre. '
                 'Esto puede deberse a que el código de autorización expiró o ya fue usado. '
-                'Volvé a intentar desde la página de Integraciones.</p>'
+                'Volvé a intentar desde Integraciones en Mi Perfil.</p>'
                 '<p style="font-size:12px;color:#9ca3af;">User ID: {}</p>'.format(user_id[:20]),
                 content_type='text/html; charset=utf-8',
                 status=500,
@@ -371,12 +371,12 @@ def ml_callback(request):
             f"""
             <html><head><meta charset="utf-8"><title>Estok - Conexión exitosa</title>
             <style>body{{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0fdf4;}}div{{text-align:center;background:white;padding:2rem;border-radius:1rem;box-shadow:0 4px 6px rgba(0,0,0,.1);}}h2{{color:#166534;}}p{{color:#4b5563;}}.btn{{display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#1d4ed8;color:white;text-decoration:none;border-radius:.5rem;font-weight:600;font-size:14px;}}</style></head>
-            <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><a href="/integraciones" class="btn">← Volver a Estok</a><p style="font-size:12px;color:#9ca3af;margin-top:1rem;">Redirigiendo a Integraciones...</p></div>
+            <body><div><h2>✅ ¡Cuenta conectada!</h2><p>Tu cuenta de MercadoLibre fue vinculada exitosamente.</p><a href="/perfil" class="btn">← Volver a Estok</a><p style="font-size:12px;color:#9ca3af;margin-top:1rem;">Redirigiendo a Mi Perfil...</p></div>
             <script>
             if (window.opener) {{
                 window.opener.postMessage({{ type: 'ml_connected', success: true }}, '*');
             }}
-            setTimeout(function() {{ window.location.href = '/integraciones'; }}, 1500);
+            setTimeout(function() {{ window.location.href = '/perfil'; }}, 1500);
             </script></body></html>
             """,
             content_type='text/html; charset=utf-8',

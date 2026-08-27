@@ -11,7 +11,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
 <AuthGuard />
 
 <BaseLayout title="Mi Perfil - Estok">
-  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="flex flex-col gap-8 w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- ================================================================ -->
     <!-- CARTEL DE CLAVE TEMPORAL (flujo "Olvidó su contraseña") -->
     <!-- Se muestra cuando el backend reporta tiene_clave_temporal=true. -->
@@ -36,7 +36,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
     <!-- ================================================================ -->
     <!-- DATOS BASE -->
     <!-- ================================================================ -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 class="text-lg font-semibold text-gray-900 mb-1">👤 Datos Base</h2>
       <p class="text-xs text-gray-400 mb-5">Usuario, correo electrónico y nombre de la cuenta</p>
 
@@ -108,12 +108,59 @@ import AuthGuard from '../../components/AuthGuard.astro';
         </div>
       </form>
     </div>
+
+    <!-- ================================================================ -->
+    <!-- INTEGRACIONES DEL ECOSISTEMA -->
+    <!-- ================================================================ -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1">🔌 Integraciones del Ecosistema</h2>
+      <p class="text-xs text-gray-400 mb-5">Conectá tus cuentas para publicar en marketplaces</p>
+
+      <!-- Mercado Libre -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-5 mb-5">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 bg-yellow-100 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl">🛒</div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-900">Mercado Libre</h3>
+            <p class="text-sm text-gray-500">Publicá tus objetos directamente en Mercado Libre</p>
+            <div id="mlStatusBadge" class="mt-1">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Verificando...</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <button id="btnConectarML" class="hidden px-4 py-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm">
+            🔗 Conectar cuenta
+          </button>
+          <button id="btnDesconectarML" class="hidden px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-base">
+            Desconectar
+          </button>
+        </div>
+      </div>
+      <div id="mlInfo" class="hidden mb-5 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <p class="text-sm text-green-800">
+          ✅ Conectado como <strong id="mlUserName">—</strong>
+          <span class="text-green-600 ml-1">(ML ID: <span id="mlUserId">—</span>)</span>
+        </p>
+      </div>
+
+      <!-- Facebook Marketplace -->
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center flex-shrink-0 text-3xl">📘</div>
+        <div>
+          <h3 class="text-lg font-bold text-gray-900">Facebook Marketplace</h3>
+          <p class="text-sm text-gray-500">Facebook no permite publicar automáticamente vía API. Podés copiar el anuncio generado y pegarlo manualmente.</p>
+          <span class="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Solo copia manual</span>
+        </div>
+      </div>
+    </div>
   </div>
 </BaseLayout>
 
 <script>
   import { getAuthHeaders, API_BASE_URL, getCachedUser, cacheUser, clearTokens } from '../../services/auth';
   import { apiPut } from '../../lib/api';
+  import { obtenerEstadoML, obtenerAuthUrlML, desconectarCuentaML } from '../../services/mercadolibre';
 
   // ===========================================================================
   // Carga de datos actuales (GET /api/usuarios/me/)
@@ -215,5 +262,81 @@ import AuthGuard from '../../components/AuthGuard.astro';
   });
 
   cargarPerfil();
+
+  // ===========================================================================
+  // Integraciones del Ecosistema - Control de vinculación Mercado Libre
+  // Todas las llamadas envían JWT + X-Estok-Id (inquilinato activo) vía el
+  // helper centralizado getAuthHeaders() de services/auth → hermetismo multi-tenant.
+  // ===========================================================================
+  const btnConectarML = document.getElementById('btnConectarML');
+  const btnDesconectarML = document.getElementById('btnDesconectarML');
+  const mlStatusBadge = document.getElementById('mlStatusBadge');
+  const mlInfo = document.getElementById('mlInfo');
+  const mlUserName = document.getElementById('mlUserName');
+  const mlUserId = document.getElementById('mlUserId');
+
+  const setMLBadge = (clases: string, texto: string) => {
+    if (mlStatusBadge) {
+      mlStatusBadge.innerHTML = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${clases}">${texto}</span>`;
+    }
+  };
+
+  async function cargarEstadoML() {
+    try {
+      const data = await obtenerEstadoML();
+      if (data.conectado) {
+        setMLBadge('bg-green-100 text-green-700', '✅ Conectado');
+        btnConectarML?.classList.add('hidden');
+        btnDesconectarML?.classList.remove('hidden');
+        mlInfo?.classList.remove('hidden');
+        if (mlUserName) {
+          if (data.nombre) {
+            mlUserName.textContent = data.nombre + (data.apellido ? ` ${data.apellido}` : '');
+            if (data.email) mlUserName.textContent += ` (${data.email})`;
+          } else if (data.nickname) {
+            mlUserName.textContent = data.nickname;
+          }
+        }
+        if (data.ml_user_id && mlUserId) mlUserId.textContent = String(data.ml_user_id);
+      } else {
+        setMLBadge('bg-amber-100 text-amber-700', '⚠️ No conectado');
+        btnConectarML?.classList.remove('hidden');
+        btnDesconectarML?.classList.add('hidden');
+        mlInfo?.classList.add('hidden');
+      }
+    } catch (err) {
+      console.error('Error al cargar estado ML:', err);
+      setMLBadge('bg-red-100 text-red-700', 'Error al verificar');
+    }
+  }
+
+  btnConectarML?.addEventListener('click', async () => {
+    try {
+      const data = await obtenerAuthUrlML();
+      // Abrir en misma pestaña: el callback OAuth redirige de vuelta a /perfil
+      window.location.href = data.auth_url;
+    } catch (err) {
+      alert('Error al obtener URL de autorización');
+    }
+  });
+
+  btnDesconectarML?.addEventListener('click', async () => {
+    if (!confirm('¿Desconectar tu cuenta de Mercado Libre?')) return;
+    try {
+      await desconectarCuentaML();
+      cargarEstadoML();
+    } catch (err) {
+      alert('Error al desconectar');
+    }
+  });
+
+  // Escuchar notificación postMessage desde el popup/callback de OAuth
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'ml_connected' && event.data.success) {
+      cargarEstadoML();
+    }
+  });
+
+  cargarEstadoML();
 </script>
 
