@@ -4,6 +4,8 @@ ViewSets para Estok, Membresia y CodigoInvitacion.
 
 import logging
 
+from django.db.models import F
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -146,6 +148,16 @@ class CambiarEstokActivoView(viewsets.ViewSet):
         estok_id = serializer.validated_data['estok_id']
         request.user.ultimo_estok_activo_id = estok_id
         request.user.save(update_fields=['ultimo_estok_activo_id'])
+
+        # ── CONTROL ANALÍTICO DE ACCESOS ──────────────────────────────────────
+        # Cada carga o conmutación a un Estok (sincronización de inquilinato
+        # activo) incrementa en +1 el contador de la Membresia que une al
+        # usuario con ese Estok específico. UPDATE atómico con F() → seguro
+        # ante dos conmutaciones simultáneas y sin re-disparar señales.
+        Membresia.objects.filter(
+            usuario=request.user,
+            estok_id=estok_id,
+        ).update(login_count=F('login_count') + 1)
 
         # Obtener datos del Estok para la respuesta
         from ...models import Membresia

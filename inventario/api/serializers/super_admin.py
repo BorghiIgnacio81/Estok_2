@@ -86,6 +86,9 @@ class SuperAdminUserSerializer(serializers.ModelSerializer):
                     'role_id': str(m.role.id) if m.role else None,
                     'role_nombre': m.role.name if m.role else None,
                     'joined_at': m.joined_at.isoformat() if m.joined_at else None,
+                    # Desglose de accesos por Estok conectado: cantidad de
+                    # veces que el usuario cargó o conmutó a ESTE Estok.
+                    'login_count': getattr(m, 'login_count', 0),
                 })
             except Exception:
                 # Fila inconsistente: se omite, nunca tira abajo el endpoint.

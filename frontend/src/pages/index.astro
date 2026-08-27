@@ -15,7 +15,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 <AuthGuard />
 
 <BaseLayout title="Estok - Dashboard | Sistema de Inventario">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: var(--bg-primary)">
     <!-- ================================================================ -->
     <!-- HERO SECTION - indicador IA en la cima + CTA principal "Nuevo Objeto" -->
     <!-- ================================================================ -->
@@ -52,12 +52,9 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
               Instalar App
             </button>
           )}
-          <!-- CTA principal - Nuevo Objeto: acción accesible del inventario -->
-          <a href="/objetos/nuevo" class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm flex-shrink-0">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo Objeto
+          <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
+          <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
+            <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="w-auto h-12 hover:scale-105 transition-all cursor-pointer" />
           </a>
         </div>
       </div>

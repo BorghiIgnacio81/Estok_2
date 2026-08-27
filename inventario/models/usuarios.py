@@ -129,6 +129,15 @@ class Membresia(models.Model):
         help_text="'compartido' = visible para el usuario, 'privado' = oculto (uso interno)"
     )
     joined_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de unión")
+    login_count = models.IntegerField(
+        default=0,
+        verbose_name="Accesos a este Estok",
+        help_text=(
+            "Contador de veces que el usuario cargó o conmutó a este Estok "
+            "(sincronización de inquilinato activo vía /api/cambiar-estok-activo/). "
+            "Control analítico de accesos por Estok conectado."
+        ),
+    )
 
     class Meta:
         verbose_name = "Membresía"
