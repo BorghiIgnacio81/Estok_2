@@ -6,6 +6,8 @@ import logging
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
@@ -17,10 +19,28 @@ from .base import HasRolePermission
 logger = logging.getLogger(__name__)
 
 
+class EstokPaginacion(PageNumberPagination):
+    """
+    Paginación que respeta ?page_size=N (máx 1000).
+    Sin el parámetro, conserva el PAGE_SIZE global (25).
+    """
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
+
+def _validar_membresia(user, estok_id):
+    """Valida que el usuario tenga membresía activa en el Estok destino."""
+    if user.is_superuser:
+        return
+    if not Membresia.objects.filter(usuario=user, estok_id=estok_id).exists():
+        raise PermissionDenied("No tienes membresia en el Estok destino.")
+
+
 class UbicacionViewSet(viewsets.ModelViewSet):
     queryset = Ubicacion.objects.all()
     serializer_class = UbicacionSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
+    pagination_class = EstokPaginacion
 
     def get_permissions(self):
         if self.action == 'create':
@@ -28,7 +48,7 @@ class UbicacionViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().select_related('estok')
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(estok_id=estok_id)
@@ -46,14 +66,7 @@ class UbicacionViewSet(viewsets.ModelViewSet):
             or self.request.data.get('estok_id')
         )
         if estok_id:
-            # Validar membresia (seguridad sin depender de HasRolePermission)
-            if not self.request.user.is_superuser:
-                if not Membresia.objects.filter(
-                    usuario=self.request.user,
-                    estok_id=estok_id
-                ).exists():
-                    from rest_framework.exceptions import PermissionDenied
-                    raise PermissionDenied("No tienes membresia en este Estok.")
+            _validar_membresia(self.request.user, estok_id)
             serializer.save(estok_id=estok_id)
         else:
             serializer.save()
@@ -63,6 +76,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()
     serializer_class = ContenedorSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
+    pagination_class = EstokPaginacion
 
     def get_permissions(self):
         if self.action == 'create':
@@ -70,21 +84,53 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().select_related('ubicacion', 'parent_contenedor')
         ubicacion_id = self.request.query_params.get('ubicacion')
         if ubicacion_id:
             qs = qs.filter(ubicacion_id=ubicacion_id)
+        # Sub-contenedores directos de un padre puntual
+        padre_id = self.request.query_params.get('padre')
+        if padre_id:
+            qs = qs.filter(parent_contenedor_id=padre_id)
+        # Solo contenedores raíz (sin padre jerárquico)
+        raiz = self.request.query_params.get('raiz')
+        if raiz and raiz.lower() in ('true', '1', 'yes'):
+            qs = qs.filter(parent_contenedor__isnull=True)
         # Filtrar por estok via ubicacion.estok
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(ubicacion__estok_id=estok_id)
         return qs
 
+    def update(self, request, *args, **kwargs):
+        """
+        PUT con soporte de actualización parcial: permite que el Drag & Drop
+        envíe únicamente las relaciones (ubicacion / parent_contenedor).
+        """
+        partial = True
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
+
     def perform_create(self, serializer):
         """
         Asigna automaticamente la ubicacion y valida membresia al Estok.
-        El estok_id se resuelve desde la ubicacion enviada en el body.
+        Si el body incluye parent_contenedor, la ubicacion se resuelve desde el padre.
         """
+        parent_id = self.request.data.get('parent_contenedor')
+        if parent_id:
+            try:
+                parent = Contenedor.objects.select_related('ubicacion').get(id=parent_id)
+            except (Contenedor.DoesNotExist, ValueError, ValidationError):
+                raise ValidationError("El contenedor padre especificado no existe.")
+            _validar_membresia(self.request.user, parent.ubicacion.estok_id)
+            serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
+            return
+
         ubicacion_id = (
             self.request.data.get('ubicacion')
             or self.request.query_params.get('ubicacion')
@@ -92,22 +138,88 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         if ubicacion_id:
             try:
                 ubicacion = Ubicacion.objects.select_related('estok').get(id=ubicacion_id)
-            except Ubicacion.DoesNotExist:
-                from rest_framework.exceptions import ValidationError
+            except (Ubicacion.DoesNotExist, ValueError, ValidationError):
                 raise ValidationError("La ubicacion especificada no existe.")
-
-            # Validar membresia (seguridad sin depender de HasRolePermission)
-            if not self.request.user.is_superuser:
-                if not Membresia.objects.filter(
-                    usuario=self.request.user,
-                    estok_id=ubicacion.estok_id
-                ).exists():
-                    from rest_framework.exceptions import PermissionDenied
-                    raise PermissionDenied("No tienes membresia en el Estok de esta ubicacion.")
-
+            _validar_membresia(self.request.user, ubicacion.estok_id)
             serializer.save(ubicacion_id=ubicacion_id)
         else:
             serializer.save()
+
+    def perform_update(self, serializer):
+        """
+        Validación herméticamente ligada al X-Estok-Id activo:
+          - El contenedor a mover debe pertenecer al Estok activo.
+          - El destino (ubicacion o contenedor padre) debe pertenecer al mismo Estok.
+          - No se permiten ciclos jerárquicos (padre == sí mismo o descendiente).
+          - Si hay padre, la ubicacion se resuelve desde el padre.
+          - El cambio de ubicacion se propaga en cascada a los sub-contenedores.
+        """
+        contenedor = self.get_object()
+        estok_id = (
+            self.request.headers.get('X-Estok-Id')
+            or self.request.query_params.get('estok_id')
+        )
+        if not estok_id:
+            raise ValidationError("Falta el header X-Estok-Id. La operación pertenece a un Estok activo.")
+        if contenedor.ubicacion.estok_id != estok_id:
+            raise PermissionDenied("El contenedor no pertenece al Estok activo.")
+
+        data = self.request.data
+        parent_id = data.get('parent_contenedor')
+        ubicacion_id = data.get('ubicacion')
+
+        # Operación 1: soltar dentro de OTRO contenedor (sub-nivel jerárquico)
+        if parent_id not in (None, '', 'null'):
+            try:
+                parent = Contenedor.objects.select_related('ubicacion').get(id=parent_id)
+            except (Contenedor.DoesNotExist, ValueError, ValidationError):
+                raise ValidationError("El contenedor padre especificado no existe.")
+
+            if parent.ubicacion.estok_id != estok_id:
+                raise PermissionDenied("El contenedor padre no pertenece al Estok activo.")
+            if str(parent.id) == str(contenedor.id):
+                raise ValidationError("Un contenedor no puede ser su propio contenedor padre.")
+            self._rechazar_ciclo(contenedor, parent)
+
+            serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
+            self._propagar_ubicacion(contenedor)
+            return
+
+        # Operación 2: soltar dentro de una UBICACION (contenedor raíz de esa ubicación)
+        if ubicacion_id not in (None, ''):
+            try:
+                ubicacion = Ubicacion.objects.select_related('estok').get(id=ubicacion_id)
+            except (Ubicacion.DoesNotExist, ValueError, ValidationError):
+                raise ValidationError("La ubicación destino no existe.")
+            if ubicacion.estok_id != estok_id:
+                raise PermissionDenied("La ubicación destino no pertenece al Estok activo.")
+
+            serializer.save(ubicacion=ubicacion, parent_contenedor=None)
+            self._propagar_ubicacion(contenedor)
+            return
+
+        # Sin relaciones nuevas: guardado normal (PUT parcial sin tocar vínculos)
+        serializer.save()
+
+    def _rechazar_ciclo(self, contenedor, nuevo_padre):
+        """Evita que un contenedor quede dentro de su propia descendencia."""
+        cursor = nuevo_padre.parent_contenedor
+        visitados = set()
+        while cursor is not None:
+            if str(cursor.id) == str(contenedor.id):
+                raise ValidationError("No se puede crear un ciclo jerárquico entre contenedores.")
+            if cursor.id in visitados:
+                break
+            visitados.add(cursor.id)
+            cursor = cursor.parent_contenedor
+
+    def _propagar_ubicacion(self, contenedor):
+        """Propaga en cascada la ubicacion actual a todos los sub-contenedores."""
+        for sub in contenedor.subcontenedores.all():
+            if sub.ubicacion_id != contenedor.ubicacion_id:
+                sub.ubicacion_id = contenedor.ubicacion_id
+                sub.save(update_fields=['ubicacion'])
+            self._propagar_ubicacion(sub)
 
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):

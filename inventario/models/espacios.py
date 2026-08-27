@@ -53,6 +53,15 @@ class Contenedor(models.Model):
         related_name='contenedores',
         verbose_name="Ubicación"
     )
+    parent_contenedor = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subcontenedores',
+        verbose_name="Contenedor padre",
+        help_text="Si está definido, este contenedor es un sub-contenedor jerárquico de otro."
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")

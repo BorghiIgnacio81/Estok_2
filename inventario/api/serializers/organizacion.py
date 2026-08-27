@@ -29,6 +29,18 @@ class ContenedorSerializer(serializers.ModelSerializer):
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True)
     qr_code_url = serializers.SerializerMethodField()
     objetos_count = serializers.SerializerMethodField()
+    # Jerarquía: sub-contenedores (padre auto-referencial)
+    parent_contenedor = serializers.PrimaryKeyRelatedField(
+        queryset=Contenedor.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    parent_contenedor_nombre = serializers.CharField(
+        source='parent_contenedor.nombre',
+        read_only=True,
+        default=None,
+    )
+    subcontenedores_count = serializers.SerializerMethodField()
     # Campos de dimensiones y material (editable desde el frontend)
     largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
     ancho = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
@@ -54,3 +66,7 @@ class ContenedorSerializer(serializers.ModelSerializer):
     def get_objetos_count(self, obj):
         """Retorna la cantidad de objetos NO eliminados dentro del contenedor."""
         return obj.objetos.filter(deleted_at__isnull=True).count()
+
+    def get_subcontenedores_count(self, obj):
+        """Retorna la cantidad de sub-contenedores directos dentro de este contenedor."""
+        return obj.subcontenedores.count()

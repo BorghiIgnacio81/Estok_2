@@ -18,12 +18,12 @@ export const prerender = false;
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Toolbar (solo pantalla, se oculta al imprimir) -->
       <div class="print-toolbar mb-6 flex flex-wrap items-center justify-between gap-4">
-        <a href="/contenedores"
+        <a href="/almacenamiento"
           class="inline-flex items-center px-4 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-base shadow-sm">
           <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
           </svg>
-          Volver a contenedores
+          Volver a almacenamiento
         </a>
         <div class="flex items-center gap-4">
           <span id="etiquetaCount" class="text-sm text-gray-600 font-medium"></span>
@@ -46,8 +46,8 @@ export const prerender = false;
       <!-- Estado de error -->
       <div id="errorState" class="hidden bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl text-center">
         <p id="errorMessage" class="font-medium">Error al cargar los contenedores.</p>
-        <a href="/contenedores" class="mt-3 inline-block px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
-          Volver a contenedores
+        <a href="/almacenamiento" class="mt-3 inline-block px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium">
+          Volver a almacenamiento
         </a>
       </div>
 
