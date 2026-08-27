@@ -43,10 +43,10 @@ class SuperAdminUserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'description', 'phone', 'display_name',
             'is_active', 'is_superuser', 'password',
-            'date_joined', 'last_login', 'ultimo_estok_activo_id',
+            'date_joined', 'last_login', 'login_count', 'ultimo_estok_activo_id',
             'membresias', 'membresias_count',
         ]
-        read_only_fields = ['id', 'date_joined', 'last_login']
+        read_only_fields = ['id', 'date_joined', 'last_login', 'login_count']
 
     def get_display_name(self, obj):
         try:

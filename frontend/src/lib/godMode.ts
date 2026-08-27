@@ -97,7 +97,7 @@ async function godCargarTodo(): Promise<void> {
 }
 
 // =============================================================================
-// Render: tabla de usuarios (Usuario | Email | Estoks Conectados | Acciones)
+// Render: tabla de usuarios (Usuario | Email | Estoks Conectados | Accesos | Acciones)
 // =============================================================================
 
 function godRenderUsuarios(): void {
@@ -105,7 +105,7 @@ function godRenderUsuarios(): void {
 
   if (godUsuarios.length === 0) {
     godUsuariosTbody.innerHTML =
-      '<tr><td colspan="4" class="px-3 py-6 text-center text-sm text-gray-400">No hay usuarios registrados.</td></tr>';
+      '<tr><td colspan="5" class="px-3 py-6 text-center text-sm text-gray-400">No hay usuarios registrados.</td></tr>';
     return;
   }
 
@@ -166,6 +166,9 @@ function godRenderUsuarios(): void {
         </td>
         <td class="px-3 py-3 text-xs text-gray-600">${esc(u.email || '—')}</td>
         <td class="px-3 py-3">${badgesHtml}</td>
+        <td class="px-3 py-3 text-center">
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[11px] font-medium whitespace-nowrap" title="Inicios de sesión exitosos">🔄 ${esc(u.login_count ?? 0)}</span>
+        </td>
         <td class="px-3 py-3">
           <div class="flex items-center justify-end gap-1.5 flex-wrap">${editBtn}${mailBtn}${asignarHtml}${deleteBtn}</div>
         </td>

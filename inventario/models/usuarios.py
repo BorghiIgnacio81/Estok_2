@@ -78,6 +78,15 @@ class CustomUser(AbstractUser):
             "redirección a /perfil hasta que defina una clave nueva."
         )
     )
+    login_count = models.IntegerField(
+        default=0,
+        verbose_name="Inicios de sesión",
+        help_text=(
+            "Contador total de autenticaciones exitosas del usuario. "
+            "Lo incrementa la señal user_logged_in (ver inventario/signals.py) "
+            "en el login JWT y en el admin de Django. Control de adopción en lanzamiento."
+        ),
+    )
 
     class Meta:
         verbose_name = "Usuario"

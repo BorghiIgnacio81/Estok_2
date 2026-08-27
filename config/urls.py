@@ -22,10 +22,10 @@ from django.utils.safestring import mark_safe
 from django.http import FileResponse
 from django.views.static import serve
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
+from inventario.api.viewsets.auth import TokenObtainPairViewConLoginCount
 
 # Personalización del Admin de Django
 admin.site.site_header = mark_safe('<span style="color: white; font-weight: bold;">Administración de Estok</span>')
@@ -43,7 +43,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('inventario.api.urls')),
     # JWT Authentication endpoints
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', TokenObtainPairViewConLoginCount.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
     # MercadoLibre OAuth callback (público, no requiere JWT)
