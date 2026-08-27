@@ -30,12 +30,12 @@ import ErrorState from '../components/ErrorState.astro';
 
       <!-- Columna izquierda: Ubicaciones raíz (drop zones) -->
       <section>
-        <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <div class="flex items-center gap-2">
             <h2 class="text-lg font-semibold text-gray-900">📍 Ubicaciones</h2>
             <span id="contadorUbicaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
           </div>
-          <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+          <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </div>
         <p class="text-xs text-gray-500 mb-4">Soltá contenedores dentro de una tarjeta para asignarlos a esa ubicación, o dentro de otro contenedor para crear sub-niveles.</p>
         <div id="columnaUbicaciones" class="space-y-5"></div>
@@ -43,12 +43,12 @@ import ErrorState from '../components/ErrorState.astro';
 
       <!-- Columna derecha: Contenedores disponibles (paleta draggable) -->
       <section>
-        <div class="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <div class="flex items-center gap-2">
             <h2 class="text-lg font-semibold text-gray-900">📦 Contenedores</h2>
             <span id="contadorContenedores" class="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">0</span>
           </div>
-          <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+          <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </div>
         <p class="text-xs text-gray-500 mb-4">Arrastrá un contenedor (✋) hacia una ubicación o dentro de otro contenedor. Todo se guarda automáticamente.</p>
         <div id="columnaContenedores" class="space-y-3"></div>
