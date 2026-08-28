@@ -37,6 +37,51 @@ MAX_IMAGE_DIMENSION = 1024   # resolución máxima en lado mayor
 
 
 # =============================================================================
+# EXCEPCIÓN DE CUOTA / RATE LIMIT DE LA API DE IA
+# =============================================================================
+MENSAJE_LIMITE_IA = (
+    "Error: Límite de la API de IA excedido temporalmente. "
+    "Por favor, espera un minuto."
+)
+
+
+class AIQuotaExceededError(Exception):
+    """
+    Se lanza cuando la API de IA externa responde con HTTP 429 (Rate Limit)
+    o con un error de cuota/uso excedido (RESOURCE_EXHAUSTED).
+
+    Permite a los endpoints distinguir un límite temporal de la API de un
+    fallo genérico de análisis y devolver un mensaje claro al usuario en
+    producción en lugar del mensaje genérico de "foto incorrecta".
+    """
+
+
+def es_error_cuota_excedida(error: Exception) -> bool:
+    """
+    Detecta errores de cuota / rate limit en las excepciones de la API de IA.
+
+    Compatible con google.genai.errors.APIError (expone el atributo `.code`
+    con el status HTTP real) y con cualquier otra excepción cuyo texto
+    contenga las marcas típicas de límite de uso (429, quota, rate limit).
+    """
+    codigo = getattr(error, 'code', None)
+    if codigo == 429:
+        return True
+    texto = str(error).lower()
+    return any(
+        marca in texto
+        for marca in (
+            '429',
+            'quota',
+            'rate limit',
+            'too many requests',
+            'resource_exhausted',
+            'resource exhausted',
+        )
+    )
+
+
+# =============================================================================
 # LAS 11 CATEGORÍAS OFICIALES DE MERCADO LIBRE ARGENTINA
 # (deben coincidir con inventario/management/commands/cargar_categorias_meli.py)
 # =============================================================================
@@ -284,6 +329,14 @@ class GeminiClient:
         except Exception as e:
             elapsed = time_module.time() - start_time
             logger.error("Error al comunicarse con Gemini después de %.1fs: %s", elapsed, e)
+            if es_error_cuota_excedida(e):
+                logger.error(
+                    "Cuota o rate limit de la API de IA alcanzado después de "
+                    "%.1fs: %s",
+                    elapsed, e,
+                )
+                raise AIQuotaExceededError(str(e)) from e
+
             return None
 
 
@@ -562,7 +615,17 @@ class AIVisionService:
         )
 
         gemini_client = self._get_gemini_client()
-        raw_result = gemini_client.analyze_base64(image_base64_comprimida, rag_context=rag_context)
+        try:
+            raw_result = gemini_client.analyze_base64(
+                image_base64_comprimida, rag_context=rag_context
+            )
+        except AIQuotaExceededError:
+            logger.error(
+                "Cuota de la API de IA excedida al procesar imagen "
+                "(motor=gemini). El error se propaga al endpoint para que "
+                "devuelva el mensaje claro de límite temporal."
+            )
+            raise
 
         if raw_result is None:
             return self._vision_result_no_disponible("Gemini no disponible")

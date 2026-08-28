@@ -15,7 +15,7 @@ from rest_framework import status
 
 from ....models import Objeto, Ubicacion, Contenedor
 from ....services.ai_vision_service import (
-    AIVisionService, GeminiClient,
+    AIVisionService, GeminiClient, AIQuotaExceededError, MENSAJE_LIMITE_IA,
 )
 
 
@@ -84,12 +84,68 @@ class IAActionsMixin:
                 "campos_pendientes": resultado.campos_pendientes,
             })
 
+        except AIQuotaExceededError:
+            logger.error(
+                "Rate limit o cuota de la API de IA al analizar objeto %s",
+                objeto.id,
+            )
+            return Response(
+                {"error": MENSAJE_LIMITE_IA},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         except Exception as e:
             logger.error("Error al analizar con IA: %s", e)
             return Response(
                 {"error": f"Error al analizar con IA: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @staticmethod
+    def _extraer_imagen_principal(request):
+        """
+        Selecciona la imagen que se envía al modelo de lenguaje y expone la
+        lista completa de fotos del multipart.
+
+        Regla de optimización multi-foto (reducción drástica de tokens y
+        latencia):
+        - Si el payload multipart contiene archivos bajo 'fotos'/'imagenes'
+          (o 'foto'/'imagen'), se selecciona ESTRICTAMENTE la PRIMERA imagen
+          (la principal) para el análisis de reconocimiento y clasificación
+          taxonómica. Las fotos restantes se persisten directo en PostgreSQL
+          y NUNCA se envían al modelo de lenguaje.
+        - Si no hay archivos, se usa el campo 'imagen_base64' (flujo JSON).
+
+        Returns:
+            Tupla (imagen_base64, lista_de_fotos_multipart). La lista solo
+            contiene archivos cuando el request es multipart.
+        """
+        archivos = (
+            request.FILES.getlist('fotos')
+            or request.FILES.getlist('imagenes')
+        )
+        if not archivos:
+            for clave in ('foto', 'imagen'):
+                archivo = request.FILES.get(clave)
+                if archivo:
+                    archivos = [archivo]
+                    break
+
+        if not archivos:
+            return request.data.get('imagen_base64', ''), []
+
+        if len(archivos) > 1:
+            logger.info(
+                "Payload multipart con %s fotos: se analiza SOLO la primera "
+                "(principal). El resto se persiste sin pasar por el LLM.",
+                len(archivos),
+            )
+
+        primera = archivos[0]
+        return (
+            base64.b64encode(primera.read()).decode('utf-8'),
+            archivos,
+        )
 
     @action(detail=False, methods=['post'])
     def analizar_imagen(self, request):
@@ -99,10 +155,19 @@ class IAActionsMixin:
         Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
         Si se envía `crear_objeto: true`, también crea el objeto en BD.
         """
-        imagen_base64 = request.data.get('imagen_base64')
+        # El payload puede venir como JSON (imagen_base64) o como multipart con
+        # archivos. Si el multipart trae MÚLTIPLES fotos, se selecciona
+        # ESTRICTAMENTE la primera (la principal) para el análisis; el resto se
+        # persiste directo en PostgreSQL y nunca se envía al modelo de lenguaje.
+        imagen_base64, fotos_multipart = self._extraer_imagen_principal(request)
         if not imagen_base64:
             return Response(
-                {"error": "Debes proporcionar 'imagen_base64'"},
+                {
+                    "error": (
+                        "Debes proporcionar 'imagen_base64' o al menos una "
+                        "foto para analizar"
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -219,7 +284,39 @@ class IAActionsMixin:
                 response_data["mensaje"] = "Objeto creado desde análisis de IA"
                 response_data["objeto"] = objeto_creado
 
+                # Multi-foto: las fotos restantes (todas menos la principal) se
+                # persisten DIRECTAMENTE en PostgreSQL sin pasar por el LLM.
+                if len(fotos_multipart) > 1:
+                    from ....models import FotoObjeto
+                    creadas_extra = 0
+                    for idx, archivo in enumerate(fotos_multipart[1:], start=2):
+                        try:
+                            FotoObjeto.objects.create(
+                                objeto_id=objeto_creado["id"],
+                                imagen=archivo,
+                                descripcion="Foto de carga",
+                                es_principal=False,
+                            )
+                            creadas_extra += 1
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "No se pudo persistir la foto extra %s: %s",
+                                idx, exc,
+                            )
+                    logger.info(
+                        "Persistidas %s foto(s) extra del multipart en PostgreSQL "
+                        "sin enviarlas al modelo de lenguaje.",
+                        creadas_extra,
+                    )
+
             return Response(response_data, status=status.HTTP_200_OK)
+
+        except AIQuotaExceededError:
+            logger.error("Rate limit o cuota de la API de IA al analizar imagen")
+            return Response(
+                {"error": MENSAJE_LIMITE_IA},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
         except Exception as e:
             logger.error("Error al analizar imagen Base64: %s", e)
