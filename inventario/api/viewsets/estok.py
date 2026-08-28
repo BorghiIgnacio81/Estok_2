@@ -4,8 +4,6 @@ ViewSets para Estok, Membresia y CodigoInvitacion.
 
 import logging
 
-from django.db.models import F
-
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -152,19 +150,35 @@ class CambiarEstokActivoView(viewsets.ViewSet):
         # ── CONTROL ANALÍTICO DE ACCESOS ──────────────────────────────────────
         # Cada carga o conmutación a un Estok (sincronización de inquilinato
         # activo) incrementa en +1 el contador de la Membresia que une al
-        # usuario con ese Estok específico. UPDATE atómico con F() → seguro
-        # ante dos conmutaciones simultáneas y sin re-disparar señales.
-        Membresia.objects.filter(
-            usuario=request.user,
-            estok_id=estok_id,
-        ).update(login_count=F('login_count') + 1)
-
-        # Obtener datos del Estok para la respuesta
-        from ...models import Membresia
-        membresia = Membresia.objects.filter(
-            usuario=request.user,
-            estok_id=estok_id,
-        ).select_related('estok', 'role').first()
+        # usuario con ese Estok específico. Se usa get_or_create para que, si
+        # la fila no existe o quedó en blanco, se cree con éxito y el endpoint
+        # devuelva HTTP 200 con el token actualizado sin colapsar (Error 500).
+        try:
+            membresia, created = Membresia.objects.get_or_create(
+                usuario=request.user,
+                estok_id=estok_id,
+                defaults={'login_count': 0},
+            )
+            membresia.login_count += 1
+            membresia.save(update_fields=['login_count'])
+            logger.info(
+                "cambiar-estok-activo: login_count de membresia incrementado "
+                "(usuario=%s, estok=%s, created=%s, total=%s)",
+                request.user.username, estok_id, created, membresia.login_count,
+            )
+        except Exception as exc:
+            # El contador analítico es un control no-crítico: si falla se
+            # loguea y NUNCA se tumba el cambio de Estok. Se recupera la
+            # membresía para armar la respuesta sin colapsar en producción.
+            logger.warning(
+                "No se pudo incrementar login_count de la membresia "
+                "(usuario=%s, estok=%s): %s",
+                request.user.username, estok_id, exc,
+            )
+            membresia = Membresia.objects.filter(
+                usuario=request.user,
+                estok_id=estok_id,
+            ).select_related('estok', 'role').first()
 
         return Response({
             "id": str(estok_id),
