@@ -57,7 +57,7 @@ def _cuerpo_email(tipo: str, nombre: str, username: str, password: Optional[str]
         else:
             # El panel admin no conoce la contraseña en claro (está hasheada).
             lineas.append(f'👤 Usuario: {username}')
-        lineas.append('Link de acceso: https://duckdns.org')
+        lineas.append('Link de acceso: https://eeestok.duckdns.org/')
         return '\n'.join(lineas)
 
     if tipo == TIPO_ACTUALIZACION:
