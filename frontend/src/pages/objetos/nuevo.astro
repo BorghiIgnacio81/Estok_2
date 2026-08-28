@@ -780,6 +780,9 @@ const nodosArbol: {
         categorias.forEach((c: any) => {
           const opt = document.createElement('option');
           opt.value = c.id;
+          // Guarda el meli_category_id para que el autocompletado de IA pueda
+          // seleccionar la categoría por su ID oficial (MLAxxxxx).
+          opt.dataset.meliId = c.meli_category_id ? String(c.meli_category_id) : '';
           opt.textContent = `${c.icono || '🏷️'} ${c.nombre}`;
           select.appendChild(opt);
         });
@@ -1187,41 +1190,79 @@ const nodosArbol: {
       const result = await response.json();
       const datos = result.datos_ia || result;
 
-      // Autocompletar campos en el formulario
-      if (datos.nombre) {
-        $id<HTMLInputElement>('nombre')!.value = datos.nombre;
+      // =====================================================================
+      // AUDITORÍA: estructura exacta del payload JSON que entrega el backend
+      // (debug de sincronización de keys entre Django y este script).
+      // Ej: { mensaje, datos_ia: { nombre, marca, autor, anio,
+      // estado_conservacion, precio_estimado_mercado, descripcion, color,
+      // categoria (legada), meli_category_id (MLAxxxxx), confianza_general,
+      // campos_pendientes, ... }, campos_pendientes }
+      // =====================================================================
+      console.log('[IA] Respuesta cruda del backend:', JSON.stringify(result));
+      console.log('[IA] Claves de datos_ia:', Object.keys(datos));
+
+      // Autocompletar campos en el formulario.
+      // Mapeo DEFENSIVO multi-key: soporta las keys del backend optimizado
+      // (nombre, descripcion, precio_estimado_mercado, meli_category_id) y
+      // sus alias (titulo, description, price, categoria_id) por robustez.
+      const nombreInput = $id<HTMLInputElement>('nombre');
+      const nombreValor = datos.titulo || datos.nombre || '';
+      if (nombreInput && nombreValor) {
+        nombreInput.value = nombreValor;
+        nombreInput.dispatchEvent(new Event('input'));
       }
-      if (datos.descripcion) {
-        $id<HTMLTextAreaElement>('descripcion')!.value = datos.descripcion;
+
+      const descripcionInput = $id<HTMLTextAreaElement>('descripcion');
+      const descripcionValor = datos.descripcion || datos.description || '';
+      if (descripcionInput && descripcionValor) {
+        descripcionInput.value = descripcionValor;
+        descripcionInput.dispatchEvent(new Event('input'));
       }
-      if (datos.estado_conservacion) {
-        const estadoSelect = $id<HTMLSelectElement>('estado_conservacion')!;
+      const estadoSelect = $id<HTMLSelectElement>('estado_conservacion');
+      if (estadoSelect && datos.estado_conservacion) {
         if ([...estadoSelect.options].some(o => o.value === datos.estado_conservacion)) {
           estadoSelect.value = datos.estado_conservacion;
+          estadoSelect.dispatchEvent(new Event('change'));
         }
       }
-      if (datos.color) {
-        $id<HTMLInputElement>('color')!.value = datos.color;
+      const colorInput = $id<HTMLInputElement>('color');
+      if (colorInput && datos.color) {
+        colorInput.value = datos.color;
+        colorInput.dispatchEvent(new Event('input'));
       }
-      if (datos.categoria) {
-        // Taxonomía unificada: seleccionar la categoría oficial en el select
+      // Categoría (combobox dinámico): el backend puede devolver
+      // 'categoria_id' (UUID), 'meli_category_id' (MLAxxxxx) o 'categoria'
+      // (nombre). Se selecciona la opción y se dispara 'change' para que el
+      // formulario persista y actualice cualquier dependencia del select.
+      const categoriaId =
+        datos.categoria_id ||
+        datos.meli_category_id ||
+        (typeof datos.categoria === 'object' && datos.categoria ? datos.categoria.id : null);
+      const categoriaNombre =
+        typeof datos.categoria === 'string' && datos.categoria.trim()
+          ? datos.categoria.trim()
+          : null;
+      if (categoriaId || categoriaNombre) {
         const categoriaSelect = $id<HTMLSelectElement>('categoria');
         if (categoriaSelect) {
-          const cats = datos.categoria;
-          // Si la IA devuelve un nombre, intentar matchear con las opciones
-          const catNombre = typeof cats === 'string' ? cats : cats?.nombre;
-          const catId = typeof cats === 'object' ? cats?.id : null;
-          const target = catId ? String(catId) : catNombre;
+          const targetId = String(categoriaId ?? '');
           const opt = [...categoriaSelect.options].find(
-            (o) => o.value === target || o.textContent?.trim() === target
+            (o) =>
+              (targetId && (o.value === targetId || o.dataset.meliId === targetId)) ||
+              (categoriaNombre && o.textContent?.trim().includes(categoriaNombre))
           );
           if (opt) {
             categoriaSelect.value = opt.value;
+            categoriaSelect.dispatchEvent(new Event('change'));
           }
         }
       }
-      if (datos.precio_estimado_mercado) {
-        $id<HTMLInputElement>('valor_estimado')!.value = datos.precio_estimado_mercado;
+
+      const precioInput = $id<HTMLInputElement>('valor_estimado');
+      const precioValor = datos.precio_estimado_mercado ?? datos.precio ?? datos.price ?? '';
+      if (precioInput && precioValor !== '' && precioValor != null) {
+        precioInput.value = String(precioValor);
+        precioInput.dispatchEvent(new Event('input'));
       }
 
       // Campos específicos
