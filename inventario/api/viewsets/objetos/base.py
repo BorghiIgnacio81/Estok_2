@@ -84,6 +84,22 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         if categoria:
             qs = qs.filter(categoria_id=categoria)
 
+        decision = self.request.query_params.get('decision')
+        if decision:
+            decision = decision.strip().lower()
+            if decision == 'sin_decision':
+                qs = qs.filter(owner_action__isnull=True)
+            elif decision in dict(Objeto.OWNER_ACTION_CHOICES):
+                qs = qs.filter(owner_action=decision)
+
+        publicado_ml = self.request.query_params.get('publicado_ml')
+        if publicado_ml:
+            publicado_ml = publicado_ml.strip().lower()
+            if publicado_ml in ('true', '1', 'si', 'publicado'):
+                qs = qs.filter(self._q_publicado_ml())
+            elif publicado_ml in ('false', '0', 'no', 'no_publicado'):
+                qs = qs.exclude(self._q_publicado_ml())
+
         es_contenedor = self.request.query_params.get('es_contenedor')
         if es_contenedor is not None:
             if es_contenedor.lower() in ('true', '1', 'yes'):
@@ -151,5 +167,25 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             'Materiales': 'objeto',
         }
         return mapping.get(categoria_nombre, 'objeto')
+
+    @staticmethod
+    def _q_publicado_ml():
+        """
+        Q de objetos publicados en Mercado Libre (robusto en todos los esquemas).
+
+        Un objeto está publicado en ML si 'mercadolibre' figura en
+        `plataformas_publicadas` (campo presente en TODOS los esquemas) o si el
+        campo `meli_id` (presente SOLO en producción) tiene un valor no nulo y
+        no vacío. La detección dinámica del campo evita FieldError en el
+        esquema local, que no tiene `meli_id`.
+        """
+        q = Q(plataformas_publicadas__contains=['mercadolibre'])
+        try:
+            Objeto._meta.get_field('meli_id')
+        except Exception:
+            pass
+        else:
+            q = q | (Q(meli_id__isnull=False) & ~Q(meli_id__regex=r'^\s*$'))
+        return q
 
 

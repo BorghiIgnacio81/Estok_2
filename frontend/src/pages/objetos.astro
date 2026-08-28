@@ -21,7 +21,8 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
         <h1 class="text-3xl font-bold text-gray-900">Objetos</h1>
         <p class="mt-1 text-gray-500">Gestiona todos los objetos de tu inventario</p>
       </div>
-      <div class="flex gap-2 flex-wrap">
+      <!-- Acciones principales: CategoriaCreator, Export CSV e imagen "Nuevo Objeto" alineada a la derecha (estética Dashboard) -->
+      <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
         <CategoriaCreator />
         <button id="exportCsvBtn" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -29,15 +30,43 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
           </svg>
           Exportar CSV
         </button>
-        <a
-          href="/objetos/nuevo"
-          class="inline-flex items-center px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm"
-        >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Nuevo Objeto
+        <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
+          <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </a>
+      </div>
+    </div>
+
+    <!-- Barra de filtros dinámicos (Decisión, Categoría y Publicación ML) -->
+    <div class="flex flex-wrap items-center gap-4 bg-slate-900/5 p-4 rounded-xl mb-6" id="filtrosBarra">
+      <!-- Filtro A: Decisión del dueño -->
+      <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+        <label for="filtroDecision" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Decisión</label>
+        <select id="filtroDecision" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+          <option value="">Todas</option>
+          <option value="vender">Vender</option>
+          <option value="conservar">Conservar</option>
+          <option value="tirar">Tirar</option>
+          <option value="sin_decision">Sin Decisión</option>
+        </select>
+      </div>
+
+      <!-- Filtro B: Categoría oficial (poblado dinámicamente desde /api/categorias/) -->
+      <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+        <label for="filtroCategoria" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</label>
+        <select id="filtroCategoria" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+          <option value="">Todas</option>
+          <!-- Se completa dinámicamente -->
+        </select>
+      </div>
+
+      <!-- Filtro C: Estado de publicación en Mercado Libre -->
+      <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+        <label for="filtroPublicado" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publicación</label>
+        <select id="filtroPublicado" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+          <option value="">Todos</option>
+          <option value="publicado">Publicados en Mercado Libre</option>
+          <option value="no_publicado">No Publicados</option>
+        </select>
       </div>
     </div>
 
@@ -54,15 +83,6 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
           class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
         />
       </div>
-    </div>
-
-
-    <!-- Filtros por categoría (dinámicos desde /api/categorias/) -->
-    <div class="flex flex-wrap gap-3 mb-8" id="filtrosContainer">
-      <button data-categoria="" class="filtro-btn px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-full transition-base">
-        Todos
-      </button>
-      <!-- Se completa dinámicamente -->
     </div>
 
 
@@ -96,10 +116,16 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
   const errorMessage = document.getElementById('errorMessage')!;
   const retryBtn = document.getElementById('retryBtn')!;
   const objetosGrid = document.getElementById('objetosGrid')!;
-  const filtrosContainer = document.getElementById('filtrosContainer')!;
 
-  let currentCategoria = '';
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+  const filtroDecision = document.getElementById('filtroDecision') as HTMLSelectElement | null;
+  const filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
+  const filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
+
   let categoriasCache: any[] = [];
+
+  // Estado reactivo de los filtros (sin recargar la página al cambiar)
+  const filtros = { decision: '', categoria: '', publicado_ml: '' };
 
 
   function showLoading() {
@@ -269,7 +295,7 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
           });
           if (res.ok || res.status === 204) {
             (window as any).showSuccess?.(`✅ "${nombre}" eliminado`);
-            cargarObjetos(currentCategoria);
+            cargarObjetos();
 
           } else {
             const err = await res.json().catch(() => ({}));
@@ -302,32 +328,33 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
       const data = await response.json();
       categoriasCache = Array.isArray(data) ? data : (data.results || []);
 
-      const botonesHtml = categoriasCache.map((cat: any) => `
-        <button data-categoria="${cat.id}" class="filtro-btn px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-full hover:bg-blue-50 hover:text-blue-700 transition-base">
-          ${cat.icono || '🏷️'} ${cat.nombre}
-        </button>
-      `).join('');
-
-      // Insertar después del botón "Todos"
-      const btnTodos = filtrosContainer.querySelector('.filtro-btn');
-      if (btnTodos) {
-        btnTodos.insertAdjacentHTML('afterend', botonesHtml);
-      } else {
-        filtrosContainer.innerHTML += botonesHtml;
-      }
+      // Poblar el combobox de categorías conservando la opción "Todas"
+      const optionsHtml = categoriasCache.map((cat: any) =>
+        `<option value="${cat.id}">${cat.icono || '🏷️'} ${cat.nombre}</option>`
+      ).join('');
+      if (filtroCategoria) filtroCategoria.insertAdjacentHTML('beforeend', optionsHtml);
     } catch (err) {
       console.error('Error al cargar categorías para filtros:', err);
     }
   }
 
-  async function cargarObjetos(categoria: string = '') {
+  // Construye la URL del listado combinando TODOS los filtros activos
+  // (decisión, categoría, publicación ML) y la búsqueda por texto.
+  function construirUrlObjetos(): string {
+    let url = `${API_BASE_URL}/objetos/?page_size=50`;
+    if (filtros.decision) url += `&decision=${encodeURIComponent(filtros.decision)}`;
+    if (filtros.categoria) url += `&categoria=${filtros.categoria}`;
+    if (filtros.publicado_ml) url += `&publicado_ml=${filtros.publicado_ml}`;
+    const query = (searchInput?.value || '').trim();
+    if (query.length >= 2) url += `&search=${encodeURIComponent(query)}`;
+    return url;
+  }
+
+  async function cargarObjetos() {
     showLoading();
 
     try {
-      let url = `${API_BASE_URL}/objetos/?page_size=50`;
-      if (categoria) url += `&categoria=${categoria}`;
-
-      const response = await fetch(url, { headers: getAuthHeaders() });
+      const response = await fetch(construirUrlObjetos(), { headers: getAuthHeaders() });
 
       if (response.status === 401) {
         window.location.href = '/login';
@@ -348,52 +375,37 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     }
   }
 
-  // Filtros
-  filtrosContainer?.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('.filtro-btn') as HTMLElement;
-    if (!btn) return;
+  // ===========================================================================
+  // FILTROS DINÁMICOS (Decisión, Categoría y Publicación ML)
+  // Al cambiar cualquier combobox se re-dispara la consulta a la API en caliente,
+  // sin recargar la página (window.location.reload NO se usa).
+  // ===========================================================================
 
-    const categoria = btn.getAttribute('data-categoria') || '';
-    currentCategoria = categoria;
+  function aplicarFiltros() {
+    filtros.decision = filtroDecision?.value || '';
+    filtros.categoria = filtroCategoria?.value || '';
+    filtros.publicado_ml = filtroPublicado?.value || '';
+    cargarObjetos();
+  }
 
-    // Actualizar estilo de botones
-    filtrosContainer.querySelectorAll('.filtro-btn').forEach((b) => {
-      b.className = 'filtro-btn px-4 py-2 text-sm font-medium rounded-full transition-base';
-      if (b === btn) {
-        b.classList.add('bg-blue-700', 'text-white');
-      } else {
-        b.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-blue-50', 'hover:text-blue-700');
-      }
-    });
-
-    cargarObjetos(categoria);
-  });
+  filtroDecision?.addEventListener('change', aplicarFiltros);
+  filtroCategoria?.addEventListener('change', aplicarFiltros);
+  filtroPublicado?.addEventListener('change', aplicarFiltros);
 
   // Retry
-  retryBtn?.addEventListener('click', () => cargarObjetos(currentCategoria));
+  retryBtn?.addEventListener('click', () => cargarObjetos());
 
   // ===========================================================================
   // BÚSQUEDA EN TIEMPO REAL
   // ===========================================================================
 
-  const searchInput = document.getElementById('searchInput') as HTMLInputElement;
   let searchTimeout: number | null = null;
 
   searchInput?.addEventListener('input', () => {
     if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = window.setTimeout(() => {
-      const query = searchInput.value.trim();
-      if (query.length > 0 && query.length < 2) return;
-
-      showLoading();
-      let url = `${API_BASE_URL}/objetos/?page_size=50`;
-      if (currentCategoria) url += `&categoria=${currentCategoria}`;
-      if (query) url += `&search=${encodeURIComponent(query)}`;
-
-      fetch(url, { headers: getAuthHeaders() })
-        .then(r => r.json())
-        .then(data => renderObjetos(data.results || data))
-        .catch(() => showError('Error al buscar.'));
+      // La búsqueda se combina con los filtros activos en la misma petición
+      cargarObjetos();
     }, 300);
   });
 
@@ -428,7 +440,8 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     }
   });
 
-  // Cargar al inicio
+  // Cargar al inicio: categorías para el combobox + listado completo
+  cargarCategoriasFiltros();
   cargarObjetos();
 </script>
 
