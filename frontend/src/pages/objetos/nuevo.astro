@@ -72,7 +72,7 @@ const nodosArbol: {
   // IMPORTS
   // ===========================================================================
   import {getAuthHeaders, getToken, getEstokActivoId, API_BASE_URL} from '../../services/auth';
-  import {comprimirImagenBase64} from '../../services/image';
+  import {comprimirImagenBase64, base64ToBlob} from '../../services/image';
 
   // ===========================================================================
   // HELPERS DE TIPADO (eliminan ~240 errores TS de null/type)
@@ -235,40 +235,172 @@ const nodosArbol: {
   const iaBtnText = $id<HTMLElement>('iaBtnText')!;
   const iaBtnSpinner = $id<HTMLElement>('iaBtnSpinner')!;
 
-  clearPhotoBtn?.addEventListener('click', () => {
-    photoImage.src = '';
-    photoImage.classList.add('hidden');
-    photoPlaceholder.classList.remove('hidden');
-    imagenBase64.value = '';
-    editPhotoBtn.classList.add('hidden');
-    clearPhotoBtn.classList.add('hidden');
-    analizarIaBtn.disabled = true;
+  // ===========================================================================
+  // GALERÍA MULTI-FOTO
+  // Cada captura/carga se ACUMULA en fotosArreglo en lugar de sobreescribir
+  // la anterior. El visor principal muestra la última foto; la fila de
+  // miniaturas renderiza la galería completa del objeto actual.
+  // ===========================================================================
+  const fotosThumbnails = $id<HTMLElement>('fotosThumbnails');
+
+  interface FotoCaptura {
+    id: string;
+    base64: string;
+  }
+  let fotosArreglo: FotoCaptura[] = [];
+  let fotoActualId: string | null = null;
+
+  function nuevoIdFoto(): string {
+    return `foto_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** Renderiza la fila horizontal de miniaturas debajo del visor principal. */
+  function renderFotosThumbnails() {
+    if (!fotosThumbnails) return;
+    fotosThumbnails.innerHTML = '';
+    if (fotosArreglo.length === 0) {
+      fotosThumbnails.classList.add('hidden');
+      fotosThumbnails.classList.remove('flex');
+      return;
+    }
+    fotosThumbnails.classList.remove('hidden');
+    fotosThumbnails.classList.add('flex');
+    fotosArreglo.forEach((foto) => {
+      const cont = document.createElement('div');
+      cont.className = 'relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-500 transition-base cursor-pointer group';
+      cont.title = 'Ver y editar esta foto';
+
+      const img = document.createElement('img');
+      img.src = foto.base64;
+      img.alt = 'Miniatura de foto capturada';
+      img.className = 'w-full h-full object-cover';
+      cont.appendChild(img);
+
+      const btnEliminar = document.createElement('button');
+      btnEliminar.type = 'button';
+      btnEliminar.className = 'absolute top-0 right-0 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-bl-lg flex items-center justify-center opacity-80 hover:opacity-100';
+      btnEliminar.textContent = '×';
+      btnEliminar.title = 'Quitar foto';
+      btnEliminar.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        eliminarFoto(foto.id);
+      });
+      cont.appendChild(btnEliminar);
+
+      cont.addEventListener('click', () => seleccionarFoto(foto.id));
+      fotosThumbnails.appendChild(cont);
+    });
+  }
+
+  /** Carga una foto de la galería en el visor principal (y abre el editor). */
+  function seleccionarFoto(id: string, abrirEditor = true) {
+    const foto = fotosArreglo.find((f) => f.id === id);
+    if (!foto) return;
+    fotoActualId = id;
+    photoImage.src = foto.base64;
+    photoImage.classList.remove('hidden');
+    photoPlaceholder.classList.add('hidden');
+    imagenBase64.value = foto.base64;
+    editPhotoBtn.classList.remove('hidden');
+    clearPhotoBtn.classList.remove('hidden');
+    if (iaAvailable) analizarIaBtn.disabled = false;
     iaStatus.classList.add('hidden');
-    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
-    showToast('🗑️ Foto eliminada', 'info');
+    if (abrirEditor) {
+      void openEditor();
+    }
+  }
+
+  /** Elimina una foto de la galería y re-renderiza el visor si era la actual. */
+  function eliminarFoto(id: string) {
+    const indice = fotosArreglo.findIndex((f) => f.id === id);
+    if (indice === -1) return;
+    fotosArreglo.splice(indice, 1);
+    renderFotosThumbnails();
+    if (fotoActualId === id) {
+      if (fotosArreglo.length > 0) {
+        const ultima = fotosArreglo[fotosArreglo.length - 1];
+        seleccionarFoto(ultima.id, false);
+      } else {
+        fotoActualId = null;
+        photoImage.src = '';
+        photoImage.classList.add('hidden');
+        photoPlaceholder.classList.remove('hidden');
+        imagenBase64.value = '';
+        editPhotoBtn.classList.add('hidden');
+        clearPhotoBtn.classList.add('hidden');
+        analizarIaBtn.disabled = true;
+        iaStatus.classList.add('hidden');
+        try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+      }
+    }
+    persistirFotos();
+  }
+
+  /** Persiste la galería en sessionStorage para sobrevivir a refrescos (F5). */
+  function persistirFotos() {
+    try {
+      sessionStorage.setItem('nuevo_objeto_fotos', JSON.stringify(fotosArreglo));
+    } catch (e) {
+      // Puede fallar si la galería supera la cuota de sessionStorage (~5MB)
+      console.warn('No se pudo persistir la galería de fotos en sessionStorage:', e);
+    }
+  }
+
+  clearPhotoBtn?.addEventListener('click', () => {
+    if (fotoActualId) {
+      eliminarFoto(fotoActualId);
+      showToast('🗑️ Foto eliminada', 'info');
+    }
   });
-
-
-
-  let savedObjectId: number | string | null = null;
 
   // ===========================================================================
   // RESTAURAR FOTO Y DATOS DESDE SESSIONSTORAGE (para sobrevivir a refrescos)
   // ===========================================================================
   (function restaurarEstadoCompleto() {
-    // 1) Restaurar foto
-    const fotoGuardada = sessionStorage.getItem('nuevo_objeto_foto');
-    if (fotoGuardada) {
-      photoImage.src = fotoGuardada;
-      photoImage.classList.remove('hidden');
-      photoPlaceholder.classList.add('hidden');
-      imagenBase64.value = fotoGuardada;
-      editPhotoBtn.classList.remove('hidden');
-      clearPhotoBtn.classList.remove('hidden');
-      if (iaAvailable) {
-        analizarIaBtn.disabled = false;
+    // 1) Restaurar la galería multi-foto
+    const fotosGuardadas = sessionStorage.getItem('nuevo_objeto_fotos');
+    if (fotosGuardadas) {
+      try {
+        const arrParseado = JSON.parse(fotosGuardadas);
+        if (Array.isArray(arrParseado) && arrParseado.length > 0) {
+          fotosArreglo = arrParseado.filter(
+            (f: any) => f && typeof f.id === 'string' && typeof f.base64 === 'string'
+          );
+          renderFotosThumbnails();
+          const ultima = fotosArreglo[fotosArreglo.length - 1];
+          if (ultima) {
+            fotoActualId = ultima.id;
+            photoImage.src = ultima.base64;
+            photoImage.classList.remove('hidden');
+            photoPlaceholder.classList.add('hidden');
+            imagenBase64.value = ultima.base64;
+            editPhotoBtn.classList.remove('hidden');
+            clearPhotoBtn.classList.remove('hidden');
+            if (iaAvailable) {
+              analizarIaBtn.disabled = false;
+            }
+          }
+        }
+      } catch (e) { /* JSON corrupto: ignorar */ }
+      try { sessionStorage.removeItem('nuevo_objeto_fotos'); } catch (e) {}
+    } else {
+      // Compatibilidad con el flujo anterior de foto única
+      const fotoGuardada = sessionStorage.getItem('nuevo_objeto_foto');
+      if (fotoGuardada) {
+        fotosArreglo = [{ id: nuevoIdFoto(), base64: fotoGuardada }];
+        fotoActualId = fotosArreglo[0].id;
+        photoImage.src = fotoGuardada;
+        photoImage.classList.remove('hidden');
+        photoPlaceholder.classList.add('hidden');
+        imagenBase64.value = fotoGuardada;
+        editPhotoBtn.classList.remove('hidden');
+        clearPhotoBtn.classList.remove('hidden');
+        if (iaAvailable) {
+          analizarIaBtn.disabled = false;
+        }
+        renderFotosThumbnails();
+        try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
       }
-      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
     }
     // 2) Restaurar datos del formulario
     const datosGuardados = sessionStorage.getItem('nuevo_objeto_form');
@@ -320,17 +452,9 @@ const nodosArbol: {
   // ===========================================================================
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
-      // Pagina restaurada de BFCache - limpiar foto
-      photoImage.src = '';
-      photoImage.classList.add('hidden');
-      photoPlaceholder.classList.remove('hidden');
-      imagenBase64.value = '';
-      editPhotoBtn.classList.add('hidden');
-      const clearBtn = $id<HTMLElement>('clearPhotoBtn')!;
-      if (clearBtn) clearBtn.classList.add('hidden');
-      analizarIaBtn.disabled = true;
-      iaStatus.classList.add('hidden');
-      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+      // Página restaurada de BFCache: reseteo absoluto para garantizar que
+      // la pantalla no muestre estado viejo (galería, campos, IA).
+      resetFormularioCompleto();
     }
   });
 
@@ -338,7 +462,7 @@ const nodosArbol: {
   // COMPRIMIR IMAGEN EN FRONTEND antes de enviar al backend
   // (función centralizada en services/image.ts)
   // ===========================================================================
-  function handleFileSelected(file) {
+  function handleFileSelected(file: File) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -351,22 +475,27 @@ const nodosArbol: {
         console.warn('Error al comprimir imagen, usando original:', err);
         compressed = result;
       }
+      // Acumular en la galería multi-foto (NO sobreescribir la anterior)
+      const esPrimeraFoto = fotosArreglo.length === 0;
+      const nuevaFoto: FotoCaptura = { id: nuevoIdFoto(), base64: compressed };
+      fotosArreglo.push(nuevaFoto);
+      fotoActualId = nuevaFoto.id;
+
       photoImage.src = compressed;
       photoImage.classList.remove('hidden');
       photoPlaceholder.classList.add('hidden');
       imagenBase64.value = compressed;
       editPhotoBtn.classList.remove('hidden');
       clearPhotoBtn.classList.remove('hidden');
-      analizarIaBtn.disabled = false;
+      if (iaAvailable) analizarIaBtn.disabled = false;
       iaStatus.classList.add('hidden');
-      // Persistir foto en sessionStorage para sobrevivir a refrescos
-      try {
-        sessionStorage.setItem('nuevo_objeto_foto', compressed);
-      } catch (e) {
-        // Puede fallar si la imagen es muy grande (>5MB aprox)
-        console.warn('No se pudo guardar la foto en sessionStorage (posiblemente muy grande):', e);
+      renderFotosThumbnails();
+      persistirFotos();
+      // El editor se abre automáticamente SOLO con la primera foto, para no
+      // interrumpir el flujo de captura rápida de varias fotos.
+      if (esPrimeraFoto) {
+        setTimeout(() => openEditor(), 300);
       }
-      setTimeout(() => openEditor(), 300);
     };
     reader.readAsDataURL(file);
   }
@@ -384,6 +513,11 @@ const nodosArbol: {
   });
 
   photoPreview.addEventListener('click', () => {
+    cameraInput.click();
+  });
+
+  const tomarOtraFotoBtn = $id<HTMLButtonElement>('tomarOtraFotoBtn');
+  tomarOtraFotoBtn?.addEventListener('click', () => {
     cameraInput.click();
   });
 
@@ -406,8 +540,15 @@ const nodosArbol: {
     }
     const editedImage = await editorFn(imagenBase64.value);
     if (editedImage) {
+      // Actualizar la entrada correspondiente de la galería multi-foto
+      if (fotoActualId) {
+        const fotoGaleria = fotosArreglo.find((f) => f.id === fotoActualId);
+        if (fotoGaleria) fotoGaleria.base64 = editedImage;
+      }
       imagenBase64.value = editedImage;
       photoImage.src = editedImage;
+      renderFotosThumbnails();
+      persistirFotos();
       showToast('✅ Imagen editada correctamente', 'success');
     }
   }
@@ -1323,7 +1464,91 @@ const nodosArbol: {
   });
 
   // ===========================================================================
-  // ENVÍO DEL FORMULARIO - Guardar objeto + subir foto
+  // RESETEO ABSOLUTO DEL FORMULARIO
+  // Vacía todos los inputs, desmarca selectores, apaga el feed de la cámara,
+  // limpia el visor y vacía el arreglo de fotos en memoria + sessionStorage.
+  // ===========================================================================
+  function resetFormularioCompleto() {
+    // 1) Galería multi-foto en memoria
+    fotosArreglo = [];
+    fotoActualId = null;
+
+    // 2) Visor de foto principal
+    photoImage.src = '';
+    photoImage.classList.add('hidden');
+    photoPlaceholder.classList.remove('hidden');
+    imagenBase64.value = '';
+    editPhotoBtn.classList.add('hidden');
+    clearPhotoBtn.classList.add('hidden');
+    renderFotosThumbnails();
+
+    // 3) Apagar el feed de la cámara si quedara algún stream activo (getUserMedia)
+    const videoCamara = document.querySelector<HTMLVideoElement>(
+      'video[data-camera], video#cameraFeed'
+    );
+    if (videoCamara && (videoCamara as any).srcObject) {
+      const stream = (videoCamara as any).srcObject as MediaStream;
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      (videoCamara as any).srcObject = null;
+    }
+    // Limpiar los inputs file de cámara/galería
+    cameraInput.value = '';
+    galleryInput.value = '';
+
+    // 4) Vaciar inputs de texto y desmarcar selectores/checkboxes del formulario
+    const formulario = $id<HTMLFormElement>('objetoForm');
+    if (formulario) {
+      formulario.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input[type="date"], textarea').forEach((el) => {
+        (el as HTMLInputElement | HTMLTextAreaElement).value = '';
+      });
+      formulario.querySelectorAll('select').forEach((sel) => {
+        const select = sel as HTMLSelectElement;
+        if (select.options.length > 0) select.selectedIndex = 0;
+      });
+      formulario.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach((el) => {
+        (el as HTMLInputElement).checked = false;
+      });
+      formulario.querySelectorAll('[aria-invalid="true"], .input-error').forEach((el) => {
+        el.removeAttribute('aria-invalid');
+        el.classList.remove('input-error');
+      });
+    }
+
+    // 5) Estado de IA y precio de referencia
+    if (analizarIaBtn) analizarIaBtn.disabled = true;
+    if (iaStatus) iaStatus.classList.add('hidden');
+    const iaProgressCont = $id<HTMLElement>('iaProgressContainer');
+    if (iaProgressCont) iaProgressCont.classList.add('hidden');
+    const precioRef = $id<HTMLElement>('precioReferencia');
+    if (precioRef) {
+      precioRef.classList.add('hidden');
+      precioRef.innerHTML = '';
+    }
+    const segundaFoto = $id<HTMLElement>('segundaFotoSection');
+    if (segundaFoto) segundaFoto.classList.add('hidden');
+
+    // 6) Botón de envío en estado inicial
+    const btnSubmit = $id<HTMLButtonElement>('submitBtn');
+    const txtSubmit = $id<HTMLElement>('submitText');
+    const spinSubmit = $id<HTMLElement>('submitSpinner');
+    if (btnSubmit) btnSubmit.disabled = false;
+    if (txtSubmit) txtSubmit.classList.remove('hidden');
+    if (spinSubmit) spinSubmit.classList.add('hidden');
+
+    // 7) Limpiar persistencia (foto única + galería + datos del formulario)
+    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+    try { sessionStorage.removeItem('nuevo_objeto_form'); } catch (e) {}
+    try { sessionStorage.removeItem('nuevo_objeto_fotos'); } catch (e) {}
+
+    // 8) Subir al tope para empezar la captura siguiente
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // Exponer el reseteo absoluto para uso externo (ej: cabecera superior) y debug
+  (window as any).resetFormularioCompleto = resetFormularioCompleto;
+
+  // ===========================================================================
+  // ENVÍO DEL FORMULARIO - Guardar objeto + subir fotos (multipart multi-foto)
   // ===========================================================================
   const submitBtn = $id<HTMLButtonElement>('submitBtn')!;
   const submitText = $id<HTMLElement>('submitText')!;
@@ -1336,33 +1561,45 @@ const nodosArbol: {
     submitSpinner.classList.remove('hidden');
 
     try {
-      const formData = new FormData(e.target);
-
-      // Construir payload del objeto
+      // Construir payload multipart del objeto.
       // Taxonomía unificada: NO se envía "tipo". El único selector de
       // clasificación es "categoria" (11 oficiales de Mercado Libre).
-      const categoriaId = formData.get('categoria');
-      const payload: Record<string, unknown> = {
-        nombre: formData.get('nombre'),
-        descripcion: formData.get('descripcion') || '',
-        categoria: categoriaId || null,
-        estado_conservacion: formData.get('estado_conservacion') || 'bueno',
-        color: formData.get('color') || '',
-        valor_estimado: formData.get('valor_estimado') || null,
-        ubicacion: formData.get('ubicacion') || null,
-        contenedor: formData.get('contenedor') || null,
-        dueno_original: formData.get('dueno_original') || null,
-        beneficiario: formData.get('beneficiario') || null,
+      // Se omite todo valor vacío para que DRF no intente parsear "" como
+      // UUID/entero en las FK opcionales.
+      const formOriginal = new FormData(e.target as HTMLFormElement);
+      const formData = new FormData();
+      const agregarSi = (clave: string, valor: FormDataEntryValue | null) => {
+        if (valor !== null && valor !== undefined && String(valor).trim() !== '') {
+          formData.append(clave, String(valor));
+        }
       };
+      agregarSi('nombre', formOriginal.get('nombre'));
+      agregarSi('descripcion', formOriginal.get('descripcion'));
+      agregarSi('categoria', formOriginal.get('categoria'));
+      agregarSi('estado_conservacion', formOriginal.get('estado_conservacion') || 'bueno');
+      agregarSi('color', formOriginal.get('color'));
+      agregarSi('valor_estimado', formOriginal.get('valor_estimado'));
+      agregarSi('ubicacion', formOriginal.get('ubicacion'));
+      agregarSi('contenedor', formOriginal.get('contenedor'));
+      agregarSi('dueno_original', formOriginal.get('dueno_original'));
+      agregarSi('beneficiario', formOriginal.get('beneficiario'));
 
-      // 1. Crear el objeto
+      // Adjuntar TODAS las fotos acumuladas bajo la clave 'fotos' (multi-foto).
+      for (const foto of fotosArreglo) {
+        try {
+          const blob = base64ToBlob(foto.base64);
+          formData.append('fotos', blob, `foto_${foto.id}.jpg`);
+        } catch (err) {
+          console.warn('No se pudo convertir una foto de la galería a Blob:', err);
+        }
+      }
+
+      // 1. Crear el objeto + subir fotos en una única petición multipart.
+      //    NO se fija Content-Type: el navegador agrega el boundary solo.
       const createResponse = await fetch(`${API_BASE_URL}/objetos/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify(payload),
+        headers: getAuthHeaders(),
+        body: formData,
       });
 
       if (!createResponse.ok) {
@@ -1378,37 +1615,10 @@ const nodosArbol: {
         throw new Error(errorMsg);
       }
 
-      const createdObject = await createResponse.json();
-      savedObjectId = createdObject.id || createdObject.data?.id;
-
-      // 2. Subir foto si existe
-      const base64Image = imagenBase64.value;
-      if (base64Image && savedObjectId) {
-        // Convertir Base64 a Blob para subir como multipart
-        const blob = await (await fetch(base64Image)).blob();
-        const formDataUpload = new FormData();
-        formDataUpload.append('imagen', blob, 'foto.jpg');
-        formDataUpload.append('es_principal', 'true');
-        formDataUpload.append('descripcion', 'Foto principal');
-
-        const uploadResponse = await fetch(`${API_BASE_URL}/objetos/${savedObjectId}/subir_foto/`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: formDataUpload,
-        });
-
-
-        if (!uploadResponse.ok) {
-          console.warn('Foto subida con advertencia:', await uploadResponse.text());
-        }
-      }
-
-      // 3. Limpiar sessionStorage (foto temporal) y redirigir
-      try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch {}
+      // 2. Éxito (201 Created): RESETEO ABSOLUTO del formulario para
+      //    capturar el siguiente objeto de inmediato.
+      resetFormularioCompleto();
       showToast('✅ Objeto guardado correctamente', 'success');
-      setTimeout(() => {
-        window.location.href = `/objetos/${savedObjectId}`;
-      }, 1000);
 
     } catch (err) {
       showToast(`❌ ${getErrorMessage(err)}`, 'error');

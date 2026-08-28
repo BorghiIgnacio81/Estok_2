@@ -3,12 +3,13 @@ ViewSet base de Objetos — CRUD estándar y filtros básicos.
 """
 
 import logging
+import os
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from django.db.models import Q
 
-from ....models import Objeto
+from ....models import Objeto, FotoObjeto
 from ...serializers import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
 )
@@ -38,12 +39,20 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         Crea un objeto usando ObjetoCreateSerializer para validar/crear,
         pero retorna la respuesta usando ObjetoDetailSerializer para
         que incluya correctamente el tipo y datos específicos.
+
+        Soporta multipart/form-data con MÚLTIPLES imágenes: los archivos
+        enviados bajo la clave 'fotos' (o 'imagenes', o la única 'foto'/
+        'imagen') se persisten en la tabla relacional FotoObjeto de forma
+        hermética para el Estok activo (el objeto se crea con el estok del
+        header X-Estok-Id y las fotos quedan vinculadas a ese objeto).
         """
         create_serializer = ObjetoCreateSerializer(
             data=request.data, context={'request': request}
         )
         create_serializer.is_valid(raise_exception=True)
         objeto = create_serializer.save()
+
+        self._guardar_fotos_multiple(objeto, request)
 
         objeto.refresh_from_db()
 
@@ -55,6 +64,79 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             detail_serializer.data,
             status=status.HTTP_201_CREATED,
             headers=headers,
+        )
+
+    def _guardar_fotos_multiple(self, objeto, request):
+        """
+        Persiste múltiples archivos de imagen del multipart en FotoObjeto.
+
+        Claves aceptadas (por prioridad):
+          - 'fotos'      → lista de archivos (flujo multi-foto del frontend)
+          - 'imagenes'   → alias de 'fotos'
+          - 'foto'/'imagen' → archivo único (compatibilidad con flujo previo)
+
+        Hermeticidad multi-tenant: el objeto fue creado con el estok_id del
+        header X-Estok-Id, por lo que las fotos quedan privadas del Estok
+        activo vía la FK objeto. Si el header no coincide con el estok del
+        objeto, se descarta el guardado por seguridad.
+        """
+        archivos = (
+            request.FILES.getlist('fotos')
+            or request.FILES.getlist('imagenes')
+        )
+        if not archivos:
+            for clave in ('foto', 'imagen'):
+                archivo = request.FILES.get(clave)
+                if archivo:
+                    archivos = [archivo]
+                    break
+        if not archivos:
+            return
+
+        estok_id = request.headers.get('X-Estok-Id')
+        if estok_id and objeto.estok_id and str(objeto.estok_id) != str(estok_id):
+            logger.error(
+                'SEGURIDAD: intento de asociar fotos a un objeto de otro '
+                'Estok. objeto=%s estok_objeto=%s header=%s',
+                objeto.id, objeto.estok_id, estok_id,
+            )
+            return
+
+        allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        max_size = 10 * 1024 * 1024  # 10 MB, igual que FotoObjetoUploadSerializer
+        creadas = 0
+        for idx, archivo in enumerate(archivos):
+            content_type = getattr(archivo, 'content_type', None)
+            if content_type and content_type not in allowed_types:
+                logger.warning(
+                    'Foto ignorada (tipo no soportado): %s', content_type
+                )
+                continue
+            if not archivo.size or archivo.size > max_size:
+                logger.warning(
+                    'Foto ignorada (tamaño inválido): %s bytes', archivo.size
+                )
+                continue
+            foto = FotoObjeto.objects.create(
+                objeto=objeto,
+                imagen=archivo,
+                descripcion='Foto principal' if idx == 0 else 'Foto de carga',
+                es_principal=(idx == 0),
+            )
+            creadas += 1
+            try:
+                if foto.imagen and foto.imagen.path and not os.path.exists(foto.imagen.path):
+                    logger.error(
+                        'INTEGRIDAD FALLIDA: la foto se guardó en BD pero no '
+                        'en disco: %s',
+                        foto.imagen.path,
+                    )
+            except Exception as e:  # noqa: BLE001
+                logger.warning('No se pudo verificar integridad del archivo: %s', e)
+
+        logger.info(
+            'Objeto %s creado con %s foto(s) de %s archivo(s) recibidos',
+            objeto.id, creadas, len(archivos),
         )
 
     def get_queryset(self):

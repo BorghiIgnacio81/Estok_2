@@ -108,7 +108,18 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
 
   import {getAuthHeaders, API_BASE_URL} from '../services/auth';
 
-  
+  // ===========================================================================
+  // BOTÓN GIGANTE "NUEVO OBJETO" (/nuevo objeto.png) — CABECERA SUPERIOR
+  // Reseteo absoluto del formulario de captura: al navegar a /objetos/nuevo
+  // se purga cualquier estado persistido (foto, galería y campos) para
+  // garantizar que la pantalla de captura se limpie por completo.
+  // ===========================================================================
+  const btnNuevoObjeto = document.querySelector<HTMLAnchorElement>('a[href="/objetos/nuevo"]');
+  btnNuevoObjeto?.addEventListener('click', () => {
+    try { sessionStorage.removeItem('nuevo_objeto_form'); } catch (e) {}
+    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
+    try { sessionStorage.removeItem('nuevo_objeto_fotos'); } catch (e) {}
+  });
 
   const loadingState = document.getElementById('loadingState')!;
   const emptyState = document.getElementById('emptyState')!;
