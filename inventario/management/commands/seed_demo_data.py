@@ -109,6 +109,7 @@ class Command(BaseCommand):
                     "nombre": cat["nombre"],
                     "icono": cat["icono"],
                     "es_contenedor": True,
+                    "es_sistema": True,
                 },
             )
         self.stdout.write(self.style.SUCCESS('  ✓ Categorías oficiales listas.'))

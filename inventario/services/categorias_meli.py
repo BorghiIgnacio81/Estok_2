@@ -38,6 +38,7 @@ def aplicar_categorias_oficiales_a_estok(estok):
                 "nombre": cat["nombre"],
                 "icono": cat["icono"],
                 "es_contenedor": True,
+                "es_sistema": True,
             },
         )
         if created:

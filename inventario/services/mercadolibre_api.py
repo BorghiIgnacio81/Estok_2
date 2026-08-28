@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 
 ML_API_BASE = "https://api.mercadolibre.com"
 
+# =============================================================================
+# Categoría general por defecto de Mercado Libre Argentina (MLA) para cuando la
+# API de predicción no responde o no encuentra coincidencia.
+# MLA1383 = "Otros" (hoja dentro de Antigüedades y Colecciones). VERIFICADO en
+# la API real: listing_allowed=true y acepta condition used/new/not_specified.
+# NOTA: NO usar MLA1747 como "Otros": en la API real es "Repuestos Autos y
+# Camionetas" con listing_allowed=false → publicar ahí produce HTTP 400.
+# =============================================================================
+CATEGORIA_MELI_DEFAULT = "MLA1383"
+
 
 def _api_request(method: str, endpoint: str, access_token: str, body: Optional[dict] = None) -> Optional[dict]:
     """
@@ -74,18 +84,17 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
-def predict_category(title: str, site: str = "MLA") -> Optional[str]:
+def predict_category(title: str, site: str = "MLA", timeout: int = 10) -> Optional[str]:
     """
     Predice la categoría de MercadoLibre más adecuada según el título del producto.
     Usa la API pública de ML (no requiere autenticación).
     Retorna el category_id de una categoría hoja, o None si no puede predecir.
     """
-    import urllib.parse
     try:
         q = urllib.parse.quote(title[:200])
         url = f"https://api.mercadolibre.com/sites/{site}/domain_discovery/search?q={q}&limit=1"
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         
         if data and isinstance(data, list):
@@ -280,7 +289,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     # Moneda: MLA Argentina opera estrictamente en ARS
     body = {
         "title": title,
-        "category_id": item_data.get("category_id", "MLA1747"),  # Argentina - Otros por defecto
+        "category_id": item_data.get("category_id", CATEGORIA_MELI_DEFAULT),  # Argentina - Otros por defecto (MLA1383, verificada)
         "price": price,
         "currency_id": "ARS",
         "available_quantity": int(item_data.get("available_quantity", 1) or 1),

@@ -14,7 +14,9 @@ class CategoriaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Categoria
         fields = '__all__'
-        read_only_fields = ['id', 'created_at', 'updated_at', 'estok']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'estok', 'es_sistema',
+        ]
 
     def get_objetos_count(self, obj):
         """Cuenta solo objetos NO eliminados (excluye soft-delete)."""

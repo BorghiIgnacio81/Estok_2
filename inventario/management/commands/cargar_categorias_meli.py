@@ -2,14 +2,20 @@
 Carga oficial de las 11 categorías atómicas de Mercado Libre Argentina.
 
 Reglas de este comando:
-1. SOLO existen las 11 categorías oficiales (hardcodeadas con su ID de ML).
-2. Es DESTRUCTIVO: elimina cualquier categoría que NO esté en la lista oficial
-   (incluye categorías custom sin meli_category_id y categorías combinadas
-   tipo "Muebles y Arte").
-3. Aislamiento multi-tenant: se aplica a TODOS los Estok. Cada Estok queda
-   con exactamente las 11 categorías oficiales.
+1. SOLO existen las 11 categorías oficiales (hardcodeadas con su ID de ML),
+   marcadas con es_sistema=True.
+2. La "limpieza destructiva" SOLO aplica sobre las categorías del SISTEMA
+   (es_sistema=True) que queden fuera de la lista oficial (residuos legados,
+   ej: categorías combinadas tipo "Muebles y Arte").
+   Queda ESTRICTAMENTE PROHIBIDO eliminar categorías creadas dinámicamente por
+   usuarios (es_sistema=False) dentro de sus Estoks privados: se preservan
+   SIEMPRE, aunque no tengan meli_category_id.
+3. Aislamiento multi-tenant: las 11 oficiales se aplican a TODOS los Estok.
 4. Objeto.categoria usa on_delete=SET_NULL, por lo que los objetos cuyas
    categorías se eliminen quedan con categoria=NULL (no se pierden objetos).
+5. Autocuración anti unique_together(nombre, estok): si un usuario creó una
+   categoría con el MISMO nombre de una oficial y sin meli_category_id, el
+   comando la adopta asignándole el ID oficial en vez de duplicar o borrar.
 
 Para evitar reintroducir el bug de "categorías combinadas", este comando NO
 consulta la API de Mercado Libre: la lista oficial vive hardcodeada aquí.
@@ -41,7 +47,8 @@ IDS_OFICIALES = {c["meli_category_id"] for c in CATEGORIAS_OFICIALES}
 class Command(BaseCommand):
     help = (
         'Inyecta las 11 categorías oficiales de Mercado Libre Argentina en TODOS '
-        'los Estok y ELIMINA cualquier categoría que no esté en la lista oficial.'
+        'los Estok. La limpieza destructiva SOLO aplica sobre categorías del '
+        'sistema (es_sistema=True); las categorías de usuario jamás se eliminan.'
     )
 
     def handle(self, *args, **options):
@@ -84,16 +91,28 @@ class Command(BaseCommand):
             f'en {len(estoks)} Estok(s).'
         ))
 
-        # Verificación final de integridad
-        sobrantes = Categoria.objects.exclude(meli_category_id__in=IDS_OFICIALES).count()
+        # Verificación final de integridad SOLO sobre categorías de SISTEMA.
+        # Las categorías de usuario (es_sistema=False) quedan fuera del chequeo
+        # porque su preservación es intencional (bug de pérdida de datos).
+        sobrantes = Categoria.objects.filter(
+            es_sistema=True
+        ).exclude(meli_category_id__in=IDS_OFICIALES).count()
         if sobrantes:
             self.stdout.write(self.style.ERROR(
-                f'⚠️  Quedaron {sobrantes} categorías fuera de la lista oficial. '
-                'Revisar manualmente.'
+                f'⚠️  Quedaron {sobrantes} categorías de SISTEMA fuera de la '
+                'lista oficial. Revisar manualmente.'
             ))
         else:
             self.stdout.write(self.style.SUCCESS(
-                '✅ Verificación: NO quedan categorías fuera de la lista oficial.'
+                '✅ Verificación: no quedan categorías de sistema fuera de la '
+                'lista oficial.'
+            ))
+
+        preservadas = Categoria.objects.filter(es_sistema=False).count()
+        if preservadas:
+            self.stdout.write(self.style.NOTICE(
+                f'🛡️  {preservadas} categoría(s) de usuario preservadas '
+                '(la limpieza destructiva no las toca).'
             ))
 
     def _aplicar_categorias_oficiales(self, estok):
@@ -101,6 +120,10 @@ class Command(BaseCommand):
         creadas = 0
         actualizadas = 0
         for cat in CATEGORIAS_OFICIALES:
+            if self._adoptar_categoria_de_usuario(estok, cat):
+                # Autocuración: la categoría del usuario pasó a ser la oficial.
+                actualizadas += 1
+                continue
             _, created = Categoria.objects.update_or_create(
                 meli_category_id=cat["meli_category_id"],
                 estok=estok,
@@ -108,6 +131,7 @@ class Command(BaseCommand):
                     "nombre": cat["nombre"],
                     "icono": cat["icono"],
                     "es_contenedor": True,
+                    "es_sistema": True,
                 },
             )
             if created:
@@ -116,22 +140,58 @@ class Command(BaseCommand):
                 actualizadas += 1
         return creadas, actualizadas
 
+    def _adoptar_categoria_de_usuario(self, estok, cat):
+        """
+        Autocuración anti unique_together(nombre, estok):
+        si existe una categoría de usuario (es_sistema=False) con el MISMO
+        nombre de una oficial y aún sin meli_category_id oficial, se la adopta
+        asignándole el ID oficial. Así el seeding no intenta crear un duplicado
+        (IntegrityError) ni borra la categoría del usuario.
+        """
+        fila = (
+            Categoria.objects.filter(
+                estok=estok,
+                nombre__iexact=cat["nombre"],
+                es_sistema=False,
+            )
+            .exclude(meli_category_id__in=IDS_OFICIALES)
+            .first()
+        )
+        if fila is None:
+            return False
+        fila.meli_category_id = cat["meli_category_id"]
+        fila.nombre = cat["nombre"]
+        fila.icono = cat["icono"]
+        fila.es_contenedor = True
+        fila.es_sistema = True
+        fila.save(update_fields=[
+            "meli_category_id", "nombre", "icono", "es_contenedor", "es_sistema",
+        ])
+        self.stdout.write(self.style.WARNING(
+            f'🔄 Categoría de usuario "{cat["nombre"]}" adoptada como oficial '
+            f'({cat["meli_category_id"]}) en Estok {estok.id}.'
+        ))
+        return True
+
     def _eliminar_categorias_residuales(self, estok):
         """
-        Elimina TODAS las categorías del Estok que no estén en la lista oficial:
-        - categorías combinadas (ej: 'Muebles y Arte')
-        - categorías custom sin meli_category_id
+        Limpieza destructiva SOLO sobre categorías del SISTEMA (es_sistema=True)
+        que no estén en la lista oficial (residuos legados de versiones
+        anteriores). Las categorías creadas por usuarios (es_sistema=False)
+        quedan BLINDADAS: el seeding jamás las elimina.
         Objeto.categoria es SET_NULL, así los objetos no se pierden.
         """
-        residuales = Categoria.objects.filter(estok=estok).exclude(
-            meli_category_id__in=IDS_OFICIALES
-        )
+        residuales = Categoria.objects.filter(
+            estok=estok,
+            es_sistema=True,
+        ).exclude(meli_category_id__in=IDS_OFICIALES)
         cantidad = residuales.count()
         if cantidad:
             nombres = list(residuales.values_list('nombre', flat=True))
             self.stdout.write(
                 self.style.WARNING(
-                    f'🗑️  Eliminando {cantidad} categoría(s) residual(es): {nombres}'
+                    f'🗑️  Eliminando {cantidad} categoría(s) residual(es) de '
+                    f'SISTEMA: {nombres}'
                 )
             )
             residuales.delete()

@@ -38,6 +38,19 @@ class Categoria(models.Model):
         null=True, 
         verbose_name="ID Categoría Mercado Libre"
     )
+    # Distingue las 11 categorías macro del sistema (es_sistema=True) de las
+    # creadas dinámicamente por usuarios (es_sistema=False). La limpieza
+    # destructiva del seeding SOLO aplica sobre es_sistema=True; las de usuario
+    # están BLINDADAS contra delete() (bug crítico de pérdida de datos).
+    es_sistema = models.BooleanField(
+        default=False,
+        verbose_name="Categoría del sistema",
+        help_text=(
+            "True si es una de las 11 categorías macro oficiales de Mercado "
+            "Libre inyectadas por el sistema. Las categorías creadas por "
+            "usuarios son False y el seeding jamás las elimina."
+        ),
+    )
     estok = models.ForeignKey(
         'inventario.Estok',
         on_delete=models.CASCADE,
