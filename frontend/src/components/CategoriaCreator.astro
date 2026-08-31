@@ -1,29 +1,30 @@
 ---
 // =============================================================================
-// COMPONENTE CategoriaCreator - Botón y modal para crear nuevas categorías
+// COMPONENTE CategoriaCreator - Imagen física y modal para crear nuevas categorías
 // Reusable en cualquier página. POST a /api/categorias/ con X-Estok-Id.
+// El trigger ya no es un botón de texto: es la imagen local "/Nueva Categoria.png"
+// (identidad texturizada ESTOK). El id kebab-case se mantiene como contrato para
+// que el script interno escuche el clic y abra el micro-modal asíncrono.
 // =============================================================================
 
 export interface Props {
-  /** Clases adicionales para el botón (opcional) */
+  /** Clases Tailwind COMPLETAS de la imagen. Si no se pasa, usa el tamaño masivo default (h-20). */
   class?: string;
-  /** Texto del botón (opcional, default: "+ Nueva Categoría") */
-  texto?: string;
 }
 
-const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
+// El `class` prop sobrescribe por completo la escala default para permitir
+// escalas responsivas específicas por página (ej: h-24 md:h-32 lg:h-36 en listados).
+const {
+  class: imgClass = 'h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain',
+} = Astro.props;
 ---
 
-<button
-  id="btnNuevaCategoria"
-  class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm {extraClass}"
-  type="button"
->
-  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-  </svg>
-  {texto}
-</button>
+<img
+  id="btn-nueva-categoria"
+  src="/Nueva Categoria.png"
+  alt="Nueva Categoría"
+  class={imgClass}
+/>
 
 <!-- Modal overlay (creado dinámicamente en el script para evitar duplicados) -->
 
@@ -31,7 +32,7 @@ const { class: extraClass = '', texto = '+ Nueva Categoría' } = Astro.props;
   import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
 
   function initCategoriaCreator() {
-    const btn = document.getElementById('btnNuevaCategoria');
+    const btn = document.getElementById('btn-nueva-categoria') || document.getElementById('btnNuevaCategoria');
     if (!btn) return;
 
     // Evitar múltiples inicializaciones

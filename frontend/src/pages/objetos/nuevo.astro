@@ -1140,9 +1140,11 @@ const nodosArbol: {
     setTimeout(() => inputNombre.focus(), 100);
   }
 
-  // Conectar los botones de creación rápida de la sección de almacenamiento
-  $id<HTMLButtonElement>('btnNuevaUbicacion')?.addEventListener('click', abrirModalNuevaUbicacion);
-  $id<HTMLButtonElement>('btnNuevoContenedor')?.addEventListener('click', abrirModalNuevoContenedor);
+  // Conectar los botones de creación rápida de la sección de almacenamiento.
+  // Ahora son <img> interactivas (imágenes físicas locales); el id kebab-case
+  // se corresponde con el marcado de ObjetoFormFields.astro.
+  $id<HTMLElement>('btn-nueva-ubicacion')?.addEventListener('click', abrirModalNuevaUbicacion);
+  $id<HTMLElement>('btn-nuevo-contenedor')?.addEventListener('click', abrirModalNuevoContenedor);
 
   // La taxonomía es unificada: el único selector de clasificación es
   // "Categoría" (11 oficiales de Mercado Libre vía /api/categorias/).

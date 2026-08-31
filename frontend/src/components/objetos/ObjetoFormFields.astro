@@ -211,12 +211,15 @@ const { nodosArbol = [], ...rest } = Astro.props;
           </div>
           <div>
             <label for="categoria" class="block text-sm font-medium text-gray-700 mb-1">Categoría <span class="text-red-500">*</span></label>
-            <div class="flex gap-2">
+            <!-- Contenedor simétrico: el select crece (flex-1) y la imagen "Nueva Categoría"
+                 se alinea centrada al lado. En pantallas chicas hace wrap y no colapsa. -->
+            <div class="flex flex-wrap items-center gap-4">
               <select id="categoria" name="categoria" required
-                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
+                class="flex-1 min-w-[160px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
                 <option value="">Sin categoría</option>
               </select>
-              <CategoriaCreator texto="+ Nueva" />
+              <!-- Botón "Nueva Categoría" como imagen física local (identidad texturizada ESTOK) -->
+              <CategoriaCreator />
             </div>
             <p class="mt-1 text-xs text-gray-400">Selecciona la categoría oficial (11 categorías de Mercado Libre) o crea una personalizada.</p>
           </div>
@@ -269,16 +272,14 @@ const { nodosArbol = [], ...rest } = Astro.props;
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h2 class="text-lg font-semibold text-gray-900">Ubicación de Almacenamiento</h2>
-          <!-- Creación rápida in-place: los modales viven en nuevo.astro (sin recargar la página) -->
-          <div class="flex flex-wrap gap-2">
-            <button id="btnNuevaUbicacion" type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
-              <span class="text-base leading-none">➕</span> Nueva Ubicación
-            </button>
-            <button id="btnNuevoContenedor" type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
-              <span class="text-base leading-none">➕</span> Nuevo Contenedor
-            </button>
+          <!-- Creación rápida in-place: los modales viven en nuevo.astro (sin recargar la página).
+               Los botones de texto fueron reemplazados por imágenes físicas locales. Los ids
+               kebab-case se corresponden con los listeners de nuevo.astro. -->
+          <div class="flex flex-wrap items-center gap-4">
+            <img src="/nueva ubicacion.png" alt="Nueva Ubicación" id="btn-nueva-ubicacion"
+              class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+            <img src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" id="btn-nuevo-contenedor"
+              class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </div>
         </div>
         <div class="mt-2">
