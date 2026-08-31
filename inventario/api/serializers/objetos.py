@@ -36,6 +36,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'id', 'nombre', 'estado_conservacion',
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre',
+            'parent_grid_row', 'parent_grid_col',
             'categoria', 'categoria_nombre',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
@@ -208,6 +209,7 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nombre', 'descripcion',
             'ubicacion', 'contenedor',
+            'parent_grid_row', 'parent_grid_col',
             'categoria', 'es_contenedor', 'objeto_padre',
             'estado_conservacion', 'valor_estimado', 'color',
             'dueno_original', 'beneficiario',

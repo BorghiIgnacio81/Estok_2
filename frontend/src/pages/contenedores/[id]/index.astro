@@ -91,6 +91,18 @@ export const prerender = false;
         </div>
       </div>
 
+      <!-- Minimapa de sección: posición en el contenedor padre + secciones internas -->
+      <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          Minimapa de sección
+        </h2>
+        <div id="minimapaPadre" class="hidden"></div>
+        <div id="minimapaInterno"></div>
+      </div>
+
       <!-- Lista de objetos dentro del contenedor -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -133,7 +145,13 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
+  const minimapaSection = document.getElementById('minimapaSection')!;
+  const minimapaPadre = document.getElementById('minimapaPadre')!;
+  const minimapaInterno = document.getElementById('minimapaInterno')!;
+
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
+  import { minimapaHtml, inyectarCssMinimapa } from '../../../lib/minimapa';
+  inyectarCssMinimapa();
 
   function getEstadoBadge(estado: string): string {
     const map: Record<string, string> = {
@@ -183,6 +201,20 @@ export const prerender = false;
       } else {
         qrImage.classList.add('hidden');
         qrPlaceholder.classList.remove('hidden');
+      }
+
+      // === Minimapa: posición de ESTE contenedor dentro de su contenedor padre ===
+      if (contenedor.parent_contenedor && contenedor.parent_grid_row && contenedor.parent_grid_col) {
+        minimapaPadre.innerHTML = minimapaHtml({
+          fila: contenedor.parent_grid_row,
+          columna: contenedor.parent_grid_col,
+          titulo: `Posición en «${contenedor.parent_contenedor_nombre || 'Contenedor padre'}»`,
+        });
+        minimapaPadre.classList.remove('hidden');
+        minimapaSection.classList.remove('hidden');
+      } else {
+        minimapaPadre.innerHTML = '';
+        minimapaPadre.classList.add('hidden');
       }
 
       // === Mostrar contenido ===
@@ -268,6 +300,38 @@ export const prerender = false;
           if (id) window.location.href = `/objetos/${id}`;
         });
       });
+
+      // === Minimapa interno: casilleros de ESTE contenedor ocupados por objetos ===
+      const ocupados = new Set<string>();
+      let conCoords = 0;
+      for (const o of objetos) {
+        if (o.parent_grid_row && o.parent_grid_col) {
+          ocupados.add(`${o.parent_grid_row}-${o.parent_grid_col}`);
+          conCoords++;
+        }
+      }
+      if (conCoords > 0) {
+        let celdas = '';
+        for (let r = 1; r <= 3; r++) {
+          for (let c = 1; c <= 3; c++) {
+            const ocupada = ocupados.has(`${r}-${c}`);
+            celdas += `<div class="minimapa-celda ${ocupada ? 'minimapa-celda-activa' : ''}" data-fila="${r}" data-columna="${c}" title="${ocupada ? `Casillero F${r}·C${c} ocupado` : 'Casillero libre'}">${ocupada ? '▣' : ''}</div>`;
+          }
+        }
+        minimapaInterno.innerHTML = `
+          <div class="minimapa" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
+            <div class="minimapa-titulo">Casilleros ocupados por objetos</div>
+            <div class="minimapa-grilla" style="grid-template-columns: repeat(3, minmax(0, 1fr))">${celdas}</div>
+            <div class="minimapa-detalle minimapa-detalle-activo">${conCoords} objeto${conCoords > 1 ? 's' : ''} con casillero asignado</div>
+          </div>`;
+        minimapaSection.classList.remove('hidden');
+      } else {
+        minimapaInterno.innerHTML = '';
+      }
+      // Mostrar la sección solo si hay al menos un minimapa (padre o interno)
+      const hayPadre = !minimapaPadre.classList.contains('hidden');
+      const hayInterno = minimapaInterno.innerHTML.trim() !== '';
+      minimapaSection.classList.toggle('hidden', !hayPadre && !hayInterno);
 
     } catch (err) {
       console.error('Error al cargar objetos:', err);

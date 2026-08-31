@@ -62,6 +62,18 @@ class Contenedor(models.Model):
         verbose_name="Contenedor padre",
         help_text="Si está definido, este contenedor es un sub-contenedor jerárquico de otro."
     )
+    parent_grid_row = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Fila del casillero en el contenedor padre",
+        help_text="Coordenada relativa (fila, 1-based) del casillero de la grilla del contenedor padre donde reside este elemento."
+    )
+    parent_grid_col = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Columna del casillero en el contenedor padre",
+        help_text="Coordenada relativa (columna, 1-based) del casillero de la grilla del contenedor padre donde reside este elemento."
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")

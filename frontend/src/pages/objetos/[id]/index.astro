@@ -131,6 +131,17 @@ export const prerender = false;
       </div>
 
       <!-- Campos específicos según tipo (herencia multi-tabla) -->
+      <!-- Minimapa de sección: celda exacta dentro del contenedor -->
+      <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          Minimapa de sección
+        </h2>
+        <div id="minimapaContenedor"></div>
+      </div>
+
       <div id="camposEspecificos" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -223,7 +234,12 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
+  const minimapaSection = document.getElementById('minimapaSection')!;
+  const minimapaContenedor = document.getElementById('minimapaContenedor')!;
+
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
+  import { minimapaHtml, inyectarCssMinimapa } from '../../../lib/minimapa';
+  inyectarCssMinimapa();
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -572,6 +588,19 @@ export const prerender = false;
       });
       document.getElementById('ubicacionObj')!.textContent = obj.ubicacion_nombre || 'Sin ubicación';
       document.getElementById('contenedorObj')!.textContent = obj.contenedor_nombre || 'Sin contenedor';
+
+      // === Minimapa: celda exacta donde reside este objeto dentro del contenedor ===
+      minimapaSection.classList.add('hidden');
+      minimapaContenedor.innerHTML = '';
+      if (obj.contenedor && obj.parent_grid_row && obj.parent_grid_col) {
+        minimapaContenedor.innerHTML = minimapaHtml({
+          fila: obj.parent_grid_row,
+          columna: obj.parent_grid_col,
+          titulo: `Posición en «${obj.contenedor_nombre || 'Contenedor'}»`,
+        });
+        minimapaSection.classList.remove('hidden');
+      }
+
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
       document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';
 

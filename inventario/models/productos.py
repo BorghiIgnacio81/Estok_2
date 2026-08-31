@@ -53,6 +53,18 @@ class Objeto(models.Model):
         related_name='objetos',
         verbose_name="Contenedor"
     )
+    parent_grid_row = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Fila del casillero en el contenedor",
+        help_text="Coordenada relativa (fila, 1-based) del casillero de la grilla del contenedor donde reside este objeto."
+    )
+    parent_grid_col = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Columna del casillero en el contenedor",
+        help_text="Coordenada relativa (columna, 1-based) del casillero de la grilla del contenedor donde reside este objeto."
+    )
 
     # Clasificación: ÚNICA vía Categoria (taxonomía unificada, sin "Tipo")
     categoria = models.ForeignKey(

@@ -30,6 +30,7 @@ class EstokSerializer(serializers.ModelSerializer):
         model = Estok
         fields = [
             'id', 'nombre', 'descripcion',
+            'tipo_layout',
             'miembros', 'miembros_count', 'objetos_count',
             'created_at', 'updated_at',
         ]

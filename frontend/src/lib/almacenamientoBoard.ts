@@ -28,6 +28,9 @@ export interface ContenedorDnD {
   ubicacion_nombre: string;
   parent_contenedor: string | null;
   parent_contenedor_nombre: string | null;
+  /** Coordenadas relativas del casillero dentro de la grilla del contenedor padre. */
+  parent_grid_row?: number | null;
+  parent_grid_col?: number | null;
   objetos_count: number;
   qr_code_url: string | null;
   largo?: string | number | null;
@@ -108,6 +111,7 @@ export class AlmacenamientoBoard {
   private contenedoresPorId = new Map<string, ContenedorDnD>();
   private dragId: string | null = null;
   private previewObjectUrl: string | null = null;
+  private cargarPromise: Promise<void> | null = null;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -142,6 +146,28 @@ export class AlmacenamientoBoard {
   }
 
   async cargar(): Promise<void> {
+    this.cargarPromise = this._cargar();
+    await this.cargarPromise;
+  }
+
+  /**
+   * Expone las ubicaciones ya cargadas para el Mapa Espacial adaptativo
+   * por Estok. Espera a que termine la carga en curso antes de devolverlas.
+   */
+  async obtenerUbicacionesParaMapa(): Promise<{ id: string; nombre: string; objetos_count: number; contenedores_count: number }[]> {
+    if (!this.cargarPromise) {
+      this.cargarPromise = this._cargar();
+    }
+    await this.cargarPromise;
+    return this.ubicaciones.map((u) => ({
+      id: u.id,
+      nombre: u.nombre,
+      objetos_count: u.objetos_count || 0,
+      contenedores_count: u.contenedores_count || 0,
+    }));
+  }
+
+  private async _cargar(): Promise<void> {
     this.mostrarCargando();
     try {
       const [ubiData, contData] = await Promise.all([
@@ -295,6 +321,7 @@ export class AlmacenamientoBoard {
           </button>
         </div>
       </div>
+      ${this.casillerosHtml(c)}
       ${subHtml}
     </div>`;
   }
@@ -328,6 +355,7 @@ export class AlmacenamientoBoard {
           </button>
         </div>
       </div>
+      ${this.casillerosHtml(c)}
     </div>`;
   }
 
@@ -399,6 +427,33 @@ export class AlmacenamientoBoard {
       });
     });
 
+    // Casilleros de la grilla de cada contenedor: zonas de drop finas que
+    // graban la coordenada relativa (parent_grid_row / parent_grid_col).
+    document.querySelectorAll<HTMLElement>('[data-casillero]').forEach((celda) => {
+      celda.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        this.marcarActivo(celda, true);
+      });
+
+      celda.addEventListener('dragleave', () => {
+        this.marcarActivo(celda, false);
+      });
+
+      celda.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.marcarActivo(celda, false);
+        const targetId = celda.dataset.casillero;
+        const fila = Number(celda.dataset.gridRow);
+        const col = Number(celda.dataset.gridCol);
+        if (targetId && fila && col) {
+          void this.procesarDropEnContenedor(e, targetId, { fila, col });
+        }
+      });
+    });
+
     // Tarjetas de ubicación: zonas de caída para asignar contenedores
     document.querySelectorAll<HTMLElement>('.dnd-ubicacion').forEach((zona) => {
       zona.addEventListener('dragover', (e) => {
@@ -429,7 +484,7 @@ export class AlmacenamientoBoard {
     );
   }
 
-  private async procesarDropEnContenedor(e: DragEvent, targetId?: string): Promise<void> {
+  private async procesarDropEnContenedor(e: DragEvent, targetId?: string, casillero?: { fila: number; col: number }): Promise<void> {
     const id = this.obtenerIdDrag(e);
     if (!id || !targetId) return;
     if (id === targetId) {
@@ -442,13 +497,25 @@ export class AlmacenamientoBoard {
       this.toast('⚠️ No podés soltar un contenedor dentro de sus propios sub-contenedores.');
       return;
     }
-    await this.moverContenedor(id, { ubicacion: padre.ubicacion, parent_contenedor: targetId });
+    await this.moverContenedor(id, {
+      ubicacion: padre.ubicacion,
+      parent_contenedor: targetId,
+      parent_grid_row: casillero?.fila ?? null,
+      parent_grid_col: casillero?.col ?? null,
+    });
   }
 
   private async procesarDropEnUbicacion(e: DragEvent, locId?: string): Promise<void> {
     const id = this.obtenerIdDrag(e);
     if (!id || !locId) return;
-    await this.moverContenedor(id, { ubicacion: locId, parent_contenedor: null });
+    // Al soltar en una ubicación el contenedor pasa a raíz: se limpian las
+    // coordenadas de casillero (ya no hay contenedor padre).
+    await this.moverContenedor(id, {
+      ubicacion: locId,
+      parent_contenedor: null,
+      parent_grid_row: null,
+      parent_grid_col: null,
+    });
   }
 
   /** True si `posibleDescendienteId` está dentro del subárbol de `padreId`. */
@@ -477,13 +544,30 @@ export class AlmacenamientoBoard {
   // PERSISTENCIA: PUT /api/contenedores/{id}/ (HTTP 200 => árbol en vivo)
   // ---------------------------------------------------------------------------
 
-  private async moverContenedor(id: string, payload: { ubicacion: string; parent_contenedor: string | null }): Promise<void> {
+  private async moverContenedor(
+    id: string,
+    payload: {
+      ubicacion: string;
+      parent_contenedor: string | null;
+      parent_grid_row?: number | null;
+      parent_grid_col?: number | null;
+    },
+  ): Promise<void> {
     const contenedor = this.contenedoresPorId.get(id);
     if (!contenedor) return;
 
-    // No-op si ya está exactamente en el mismo lugar
+    // No-op si ya está exactamente en el mismo lugar (incluye coordenadas)
     const parentActual = contenedor.parent_contenedor || null;
-    if (contenedor.ubicacion === payload.ubicacion && parentActual === payload.parent_contenedor) {
+    const filaActual = contenedor.parent_grid_row ?? null;
+    const colActual = contenedor.parent_grid_col ?? null;
+    const filaNueva = payload.parent_grid_row ?? null;
+    const colNueva = payload.parent_grid_col ?? null;
+    if (
+      contenedor.ubicacion === payload.ubicacion &&
+      parentActual === payload.parent_contenedor &&
+      filaActual === filaNueva &&
+      colActual === colNueva
+    ) {
       this.toast('ℹ️ Ese contenedor ya está en ese lugar.');
       return;
     }
@@ -492,7 +576,12 @@ export class AlmacenamientoBoard {
       const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ubicacion: payload.ubicacion,
+          parent_contenedor: payload.parent_contenedor,
+          parent_grid_row: filaNueva,
+          parent_grid_col: colNueva,
+        }),
       });
       if (res.status === 401) {
         window.location.href = '/login';
@@ -745,6 +834,33 @@ export class AlmacenamientoBoard {
   private medidasHtml(e: EntidadEditable, tipo: 'ubicacion' | 'contenedor'): string {
     const med = formatearMedidas(e);
     return `<p class="text-[11px] text-gray-400 mt-0.5 ${med ? '' : 'hidden'}" data-medidas-${tipo}="${e.id}">${med ? `📐 ${med} cm` : ''}</p>`;
+  }
+
+  /**
+   * Grilla de casilleros (3x3) del contenedor: cada celda es una zona de drop
+   * que graba parent_grid_row / parent_grid_col en el contenedor soltado.
+   * Las celdas que ya tienen un sub-contenedor asignado se pintan ocupadas.
+   */
+  private casillerosHtml(c: ContenedorDnD): string {
+    const filas = 3;
+    const columnas = 3;
+    const ocupadas = new Set<string>();
+    for (const h of c.hijos) {
+      if (h.parent_grid_row && h.parent_grid_col) {
+        ocupadas.add(`${h.parent_grid_row}-${h.parent_grid_col}`);
+      }
+    }
+    let celdas = '';
+    for (let r = 1; r <= filas; r++) {
+      for (let col = 1; col <= columnas; col++) {
+        const ocupada = ocupadas.has(`${r}-${col}`);
+        celdas += `<div class="casillero ${ocupada ? 'casillero-ocupado' : ''}" data-casillero="${c.id}" data-grid-row="${r}" data-grid-col="${col}" title="Casillero F${r}·C${col}">${ocupada ? '▣' : ''}</div>`;
+      }
+    }
+    return `<div class="casilleros" title="Soltá un contenedor sobre un casillero para asignar su posición exacta">
+      <div class="casilleros-titulo">Casilleros (grilla del contenedor)</div>
+      <div class="casilleros-grilla grid grid-cols-3 gap-1">${celdas}</div>
+    </div>`;
   }
 
   /** Precarga la vista previa de la foto actual y limpia el input de archivo. */

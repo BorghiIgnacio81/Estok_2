@@ -10,6 +10,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
+import '../styles/mapa-espacial.css';
 ---
 
 <AuthGuard />
@@ -24,6 +25,17 @@ import ErrorState from '../components/ErrorState.astro';
 
     <LoadingState mensaje="Cargando espacios de almacenamiento..." />
     <ErrorState mensaje="Error al cargar los espacios de almacenamiento." />
+
+    <!-- Mapa Espacial (adaptativo por tipo_layout del Estok activo) -->
+    <section class="mb-10" id="seccionMapaEspacial">
+      <div class="flex items-center justify-between gap-4 mb-4">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa Espacial</h2>
+        <span id="mapaEspacialBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
+      </div>
+      <div id="mapaEspacialCanvas" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
+      </div>
+    </section>
 
     <!-- Grid de dos columnas (sin scroll horizontal) -->
     <div id="tableroAlmacenamiento" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -312,6 +324,24 @@ import ErrorState from '../components/ErrorState.astro';
 
 <script>
   import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
+  import { fetchTipoLayoutEstokActivo, renderMapaEspacial } from '../lib/mapaEspacial';
+
   const tablero = new AlmacenamientoBoard();
   tablero.init();
+
+  // Mapa Espacial adaptativo por inquilino: lee el tipo_layout del Estok activo
+  // y renderiza el lienzo (CASA_2_PISOS => vertical dividido | VISTA_PLANTA_UNICA
+  // => lienzo único full-width estilo Word).
+  void (async () => {
+    const [tipoLayout, ubicaciones] = await Promise.all([
+      fetchTipoLayoutEstokActivo(),
+      tablero.obtenerUbicacionesParaMapa(),
+    ]);
+    renderMapaEspacial(
+      document.getElementById('mapaEspacialCanvas'),
+      tipoLayout,
+      ubicaciones,
+      document.getElementById('mapaEspacialBadge'),
+    );
+  })();
 </script>
