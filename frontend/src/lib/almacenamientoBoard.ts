@@ -14,7 +14,7 @@
 // { ubicacion, parent_contenedor }. HTTP 200 => re-render del árbol en vivo.
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
 
 // =============================================================================
 // TIPOS
@@ -630,10 +630,15 @@ export class AlmacenamientoBoard {
       formData.append('largo', largo);
       if (foto) formData.append('foto', foto);
 
+      // Ancla multi-tenant explícita: el backend valida que el recurso pertenece
+      // al Estok activo (header X-Estok-Id + campo 'estok' del multipart).
+      const estokId = getEstokActivoId();
+      if (estokId) formData.append('estok', estokId);
+
       // Sin Content-Type manual: el navegador fija el boundary de multipart/form-data.
       const res = await fetch(`${API_BASE_URL}/${recurso}/${id}/`, {
         method: 'PUT',
-        headers: getAuthHeaders(),
+        headers: { ...getAuthHeaders() },
         body: formData,
       });
       if (res.status === 401) {

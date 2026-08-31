@@ -3,6 +3,7 @@ ViewSets para organizacion espacial: Ubicaciones y Contenedores.
 """
 
 import logging
+from uuid import UUID
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -158,10 +159,17 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         estok_id = (
             self.request.headers.get('X-Estok-Id')
             or self.request.query_params.get('estok_id')
+            or self.request.data.get('estok')
         )
         if not estok_id:
             raise ValidationError("Falta el header X-Estok-Id. La operación pertenece a un Estok activo.")
-        if contenedor.ubicacion.estok_id != estok_id:
+        # Normaliza el estok_id (string del header/body) a uuid.UUID para comparar
+        # de forma type-safe contra los UUID del ORM (evita falsos 403).
+        try:
+            estok_id_uuid = UUID(str(estok_id))
+        except (TypeError, ValueError):
+            raise ValidationError("El Estok activo especificado no es un UUID válido.")
+        if contenedor.ubicacion.estok_id != estok_id_uuid:
             raise PermissionDenied("El contenedor no pertenece al Estok activo.")
 
         data = self.request.data
@@ -175,7 +183,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             except (Contenedor.DoesNotExist, ValueError, ValidationError):
                 raise ValidationError("El contenedor padre especificado no existe.")
 
-            if parent.ubicacion.estok_id != estok_id:
+            if parent.ubicacion.estok_id != estok_id_uuid:
                 raise PermissionDenied("El contenedor padre no pertenece al Estok activo.")
             if str(parent.id) == str(contenedor.id):
                 raise ValidationError("Un contenedor no puede ser su propio contenedor padre.")
@@ -191,7 +199,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
                 ubicacion = Ubicacion.objects.select_related('estok').get(id=ubicacion_id)
             except (Ubicacion.DoesNotExist, ValueError, ValidationError):
                 raise ValidationError("La ubicación destino no existe.")
-            if ubicacion.estok_id != estok_id:
+            if ubicacion.estok_id != estok_id_uuid:
                 raise PermissionDenied("La ubicación destino no pertenece al Estok activo.")
 
             serializer.save(ubicacion=ubicacion, parent_contenedor=None)
