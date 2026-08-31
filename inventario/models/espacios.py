@@ -24,6 +24,41 @@ class Ubicacion(models.Model):
         related_name='ubicaciones',
         verbose_name="Estok"
     )
+    # =====================================================================
+    # POSICIÓN EN LA JERARQUÍA DEL MACRO-ESTOK (plano de planta)
+    # =====================================================================
+    piso = models.CharField(
+        max_length=20,
+        choices=[
+            ('PRIMER_PISO', '1er piso'),
+            ('PLANTA_BAJA', 'Planta baja'),
+        ],
+        default='PLANTA_BAJA',
+        verbose_name="Piso de la casa",
+        help_text="Piso del macro-Estok donde se diagrama esta ubicación."
+    )
+    parent_grid_row = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Fila en la grilla del piso",
+        help_text="Coordenada relativa (fila, 1-based) del cuadrante de la grilla del piso donde reside esta ubicación."
+    )
+    parent_grid_col = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Columna en la grilla del piso",
+        help_text="Coordenada relativa (columna, 1-based) del cuadrante de la grilla del piso donde reside esta ubicación."
+    )
+    grid_colspan = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Ancho en celdas (colspan)",
+        help_text="Ancho variable del cuadrante en celdas de la grilla estilo Word."
+    )
+    grid_rowspan = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Alto en celdas (rowspan)",
+        help_text="Alto variable del cuadrante en celdas de la grilla estilo Word."
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")
@@ -73,6 +108,16 @@ class Contenedor(models.Model):
         blank=True,
         verbose_name="Columna del casillero en el contenedor padre",
         help_text="Coordenada relativa (columna, 1-based) del casillero de la grilla del contenedor padre donde reside este elemento."
+    )
+    grid_filas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Filas de la grilla interna",
+        help_text="Cantidad de filas de la grilla interna de casilleros del contenedor (ej: 2 en un armario empotrado)."
+    )
+    grid_columnas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Columnas de la grilla interna",
+        help_text="Cantidad de columnas de la grilla interna de casilleros del contenedor (ej: 3 en un armario empotrado)."
     )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")

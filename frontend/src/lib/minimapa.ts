@@ -23,14 +23,20 @@ export interface MinimapaConfig {
   fila?: number | null;
   /** Columna activa (1-based) donde reside el elemento. null => sin casillero. */
   columna?: number | null;
+  /** Celdas adicionales ocupadas (tinte suave), ej: otros objetos del contenedor. */
+  celdasAdicionales?: Array<{ fila: number; columna: number }>;
   /** Título opcional del minimapa. */
   titulo?: string;
   /** Texto de detalle (ej: "Casillero F2·C3"). Si no se pasa, se deduce. */
   detalle?: string;
+  /** Color de resalte hex (default verde '#10b981'; selector naranja '#f97316'). */
+  color?: string;
 }
 
 export const DEFAULT_FILAS = 3;
 export const DEFAULT_COLUMNAS = 3;
+/** Color de los selectores de posición (bosquejo estricto). */
+export const COLOR_NARANJA = '#f97316';
 
 // =============================================================================
 // HELPERS
@@ -59,19 +65,30 @@ export function minimapaHtml(cfg: MinimapaConfig = {}): string {
   const columnas = cfg.columnas || DEFAULT_COLUMNAS;
   const fila = cfg.fila ?? null;
   const columna = cfg.columna ?? null;
+  const adicionales = cfg.celdasAdicionales ?? [];
+  const color = cfg.color || '#10b981';
   const titulo = escapeHtml(cfg.titulo ?? 'Minimapa de sección');
   const detalle = escapeHtml(
     cfg.detalle ?? (fila && columna ? `Casillero ${etiquetaCasillero(fila, columna)}` : 'Sin casillero asignado'),
   );
 
+  const esAdicional = (r: number, c: number): boolean =>
+    adicionales.some((a) => a.fila === r && a.columna === c);
+
   let celdas = '';
   for (let r = 1; r <= filas; r++) {
     for (let c = 1; c <= columnas; c++) {
       const activa = r === fila && c === columna;
-      const cls = activa
-        ? 'minimapa-celda minimapa-celda-activa'
-        : 'minimapa-celda';
-      celdas += `<div class="${cls}" data-fila="${r}" data-columna="${c}" title="${activa ? `Casillero ${etiquetaCasillero(r, c)}` : 'Casillero libre'}">${activa ? '●' : ''}</div>`;
+      const ocupada = !activa && esAdicional(r, c);
+      let cls = 'minimapa-celda';
+      let estilo = '';
+      if (activa) {
+        cls = 'minimapa-celda minimapa-celda-activa';
+        estilo = `style="background:${color};border-color:${color};color:#fff"`;
+      } else if (ocupada) {
+        estilo = `style="background:${color}26;border-color:${color}80;color:${color}"`;
+      }
+      celdas += `<div class="${cls}" ${estilo} data-fila="${r}" data-columna="${c}" title="${activa ? `Casillero ${etiquetaCasillero(r, c)}` : 'Casillero libre'}">${activa ? '●' : ocupada ? '▣' : ''}</div>`;
     }
   }
 
@@ -94,6 +111,8 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
   const columnas = cfg.columnas || DEFAULT_COLUMNAS;
   const fila = cfg.fila ?? null;
   const columna = cfg.columna ?? null;
+  const adicionales = cfg.celdasAdicionales ?? [];
+  const color = cfg.color || '#10b981';
 
   const cell = 18;
   const gap = 3;
@@ -101,14 +120,18 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
   const w = pad * 2 + columnas * cell + (columnas - 1) * gap;
   const h = pad * 2 + filas * cell + (filas - 1) * gap;
 
+  const esAdicional = (r: number, c: number): boolean =>
+    adicionales.some((a) => a.fila === r && a.columna === c);
+
   let rects = '';
   for (let r = 0; r < filas; r++) {
     for (let c = 0; c < columnas; c++) {
       const activa = r + 1 === fila && c + 1 === columna;
+      const ocupada = !activa && esAdicional(r + 1, c + 1);
       const x = pad + c * (cell + gap);
       const y = pad + r * (cell + gap);
-      const fill = activa ? '#10b981' : '#f3f4f6';
-      const stroke = activa ? '#059669' : '#d1d5db';
+      const fill = activa ? color : ocupada ? `${color}26` : '#f3f4f6';
+      const stroke = activa ? color : ocupada ? `${color}80` : '#d1d5db';
       rects += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1" />`;
     }
   }

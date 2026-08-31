@@ -238,7 +238,7 @@ export const prerender = false;
   const minimapaContenedor = document.getElementById('minimapaContenedor')!;
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
-  import { minimapaHtml, inyectarCssMinimapa } from '../../../lib/minimapa';
+  import { minimapaHtml, inyectarCssMinimapa, COLOR_NARANJA } from '../../../lib/minimapa';
   inyectarCssMinimapa();
 
   // ===========================================================================
@@ -597,6 +597,7 @@ export const prerender = false;
           fila: obj.parent_grid_row,
           columna: obj.parent_grid_col,
           titulo: `Posición en «${obj.contenedor_nombre || 'Contenedor'}»`,
+          color: COLOR_NARANJA,
         });
         minimapaSection.classList.remove('hidden');
       }

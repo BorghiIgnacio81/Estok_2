@@ -26,6 +26,16 @@ class Estok(models.Model):
         verbose_name="Tipo de layout del mapa espacial",
         help_text="Define cómo se renderiza el mapa espacial del Estok (inquilino)."
     )
+    grid_filas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Filas de la grilla del macro-Estok",
+        help_text="Cantidad de filas de la grilla estilo Word del macro-Estok (por piso)."
+    )
+    grid_columnas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Columnas de la grilla del macro-Estok",
+        help_text="Cantidad de columnas de la grilla estilo Word del macro-Estok (por piso)."
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
 

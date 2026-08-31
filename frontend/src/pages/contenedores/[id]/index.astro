@@ -150,7 +150,7 @@ export const prerender = false;
   const minimapaInterno = document.getElementById('minimapaInterno')!;
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
-  import { minimapaHtml, inyectarCssMinimapa } from '../../../lib/minimapa';
+  import { minimapaHtml, inyectarCssMinimapa, COLOR_NARANJA } from '../../../lib/minimapa';
   inyectarCssMinimapa();
 
   function getEstadoBadge(estado: string): string {
@@ -209,6 +209,7 @@ export const prerender = false;
           fila: contenedor.parent_grid_row,
           columna: contenedor.parent_grid_col,
           titulo: `Posición en «${contenedor.parent_contenedor_nombre || 'Contenedor padre'}»`,
+          color: COLOR_NARANJA,
         });
         minimapaPadre.classList.remove('hidden');
         minimapaSection.classList.remove('hidden');
@@ -311,19 +312,17 @@ export const prerender = false;
         }
       }
       if (conCoords > 0) {
-        let celdas = '';
-        for (let r = 1; r <= 3; r++) {
-          for (let c = 1; c <= 3; c++) {
-            const ocupada = ocupados.has(`${r}-${c}`);
-            celdas += `<div class="minimapa-celda ${ocupada ? 'minimapa-celda-activa' : ''}" data-fila="${r}" data-columna="${c}" title="${ocupada ? `Casillero F${r}·C${c} ocupado` : 'Casillero libre'}">${ocupada ? '▣' : ''}</div>`;
-          }
-        }
-        minimapaInterno.innerHTML = `
-          <div class="minimapa" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #f3f4f6;">
-            <div class="minimapa-titulo">Casilleros ocupados por objetos</div>
-            <div class="minimapa-grilla" style="grid-template-columns: repeat(3, minmax(0, 1fr))">${celdas}</div>
-            <div class="minimapa-detalle minimapa-detalle-activo">${conCoords} objeto${conCoords > 1 ? 's' : ''} con casillero asignado</div>
-          </div>`;
+        minimapaInterno.innerHTML = `<div style="margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6;">${minimapaHtml({
+          filas: 3,
+          columnas: 3,
+          celdasAdicionales: Array.from(ocupados).map((clave) => {
+            const [f, cc] = clave.split('-').map(Number);
+            return { fila: f, columna: cc };
+          }),
+          titulo: 'Casilleros ocupados por objetos',
+          detalle: `${conCoords} objeto${conCoords > 1 ? 's' : ''} con casillero asignado`,
+          color: COLOR_NARANJA,
+        })}</div>`;
         minimapaSection.classList.remove('hidden');
       } else {
         minimapaInterno.innerHTML = '';

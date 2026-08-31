@@ -1,10 +1,11 @@
 /* =============================================================================
-   ESTILOS DEL MAPA ESPACIAL + CASILLEROS DE LA GRILLA DEL TABLERO
+   ESTILOS DEL MAPA JERÁRQUICO RECURSIVO + CASILLEROS DE LA GRILLA DEL TABLERO
    Se importan únicamente en src/pages/almacenamiento.astro
+   Selectores de posición: COLOR NARANJA #f97316 (bosquejo estricto)
    ============================================================================= */
 
 /* ---------------------------------------------------------------------------
-   Casilleros de la grilla del contenedor (minimapa interactivo del tablero)
+   Casilleros de la grilla interna del contenedor (minimapa interactivo)
    --------------------------------------------------------------------------- */
 .casilleros {
   margin-top: 10px;
@@ -36,74 +37,380 @@
 }
 
 .casillero:hover {
-  background: #dbeafe;
-  border-color: #3b82f6;
+  background: #ffedd5;
+  border-color: #f97316;
 }
 
 .casillero-ocupado {
-  background: #d1fae5;
-  border-color: #10b981;
-  color: #059669;
+  background: #ffedd5;
+  border-color: #f97316;
+  color: #c2410c;
 }
 
 .casillero.dnd-drop-activo {
-  background: #bfdbfe !important;
-  border-color: #2563eb !important;
+  background: #fdba74 !important;
+  border-color: #ea580c !important;
   transform: scale(1.08);
 }
 
 /* ---------------------------------------------------------------------------
-   Mapa Espacial (lienzo adaptativo por tipo_layout del Estok)
+   Macro-Estok (casa) + inputs de Filas/Columnas
    --------------------------------------------------------------------------- */
-.mapa-espacial-nota {
+.macro-estok {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.macro-estok-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.macro-estok-titulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.macro-estok-nombre {
   font-size: 12px;
+  font-weight: 600;
+  color: #ea580c;
+  background: #ffedd5;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.macro-estok-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.macro-input-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
   color: #6b7280;
-  margin-bottom: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.mapa-piso + .mapa-piso {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 2px solid #e5e7eb;
-}
-
-.mapa-piso-titulo {
+.macro-input {
+  width: 58px;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 700;
   color: #374151;
-  margin-bottom: 10px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.mapa-habitacion {
-  min-height: 96px;
+.macro-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.macro-estok-cuerpo {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.macro-estok-casa {
+  max-width: 300px;
+  width: 100%;
+  cursor: pointer;
   border-radius: 12px;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  padding: 10px 12px;
+}
+
+.macro-casa-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.macro-estok-piso-hover {
+  filter: brightness(1.06);
+  stroke-width: 3;
+}
+
+.macro-estok-leyenda {
+  flex: 1;
+  min-width: 200px;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.macro-estok-leyenda strong {
+  color: #ea580c;
+}
+
+.macro-estok-filas {
+  font-size: 12px;
+  color: #374151;
+}
+
+/* ---------------------------------------------------------------------------
+   Plano de planta (grilla estilo Word) + mini-casita + escala
+   --------------------------------------------------------------------------- */
+.plano-planta-seccion {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 2px solid #f3f4f6;
+}
+
+.plano-planta-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.plano-planta-titulo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.minicasita {
+  flex-shrink: 0;
+}
+
+.plano-planta-nombre {
+  font-size: 15px;
+  font-weight: 700;
+  color: #374151;
+  margin: 0;
+}
+
+.plano-planta-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 2px 0 0;
+}
+
+.plano-planta-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.plano-planta {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.plano-habitacion {
+  border: 2px solid #fdba74;
+  background: #fff7ed;
+  border-radius: 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 6px;
+  min-height: 72px;
+  cursor: grab;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.mapa-habitacion-nombre {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e40af;
-  line-height: 1.25;
+.plano-habitacion:hover {
+  border-color: #f97316;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15);
 }
 
-.mapa-habitacion-meta {
-  font-size: 11px;
-  color: #3b82f6;
+.plano-habitacion:active {
+  cursor: grabbing;
 }
 
-.mapa-habitacion-libre {
-  border-style: dashed;
+.plano-habitacion-nombre {
+  width: 100%;
   background: transparent;
-  border-color: #e5e7eb;
-  color: #9ca3af;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a3412;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.plano-habitacion-nombre:hover {
+  border-color: #fdba74;
+}
+
+.plano-habitacion-nombre:focus {
+  border-color: #f97316;
+  background: #ffffff;
+}
+
+.plano-escala {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #c2410c;
+  flex-wrap: wrap;
+}
+
+.escala-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #fdba74;
+  background: #ffffff;
+  color: #c2410c;
+  font-weight: 700;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
 }
+
+.escala-btn:hover {
+  background: #ffedd5;
+  border-color: #f97316;
+}
+
+.escala-valor {
+  font-weight: 700;
+  color: #9a3412;
+  min-width: 20px;
+  text-align: center;
+}
+
+.escala-sep {
+  color: #fdba74;
+}
+
+.plano-habitacion-meta {
+  font-size: 11px;
+  color: #c2410c;
+  margin: 0;
+}
+
+.plano-celda-libre {
+  border: 2px dashed #fcd34d;
+  background: #fffbeb;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f59e0b;
+  font-size: 18px;
+  min-height: 72px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.plano-celda-libre:hover {
+  border-color: #f97316;
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.plano-sin-casillero {
+  margin-top: 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #92400e;
+}
+
+.plano-sin-casillero-titulo {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.plano-sin-casillero-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chipsin {
+  background: #ffffff;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+/* ---------------------------------------------------------------------------
+   Minimapas naranjas en las tarjetas del tablero
+   --------------------------------------------------------------------------- */
+.minimapa-planta {
+  display: inline-block;
+  padding: 6px;
+  border: 1px solid #fdba74;
+  border-radius: 10px;
+  background: #fff7ed;
+}
+
+.minimapa-planta .minimapa {
+  gap: 4px;
+}
+
+.minimapa-planta .minimapa-grilla {
+  max-width: 96px;
+}
+
+.minimapa-planta .minimapa-titulo {
+  font-size: 10px;
+}
+
+.minimapa-planta-vacia {
+  font-size: 11px;
+  color: #b45309;
+  padding: 4px 8px;
+}
+
+.minimapa-interno {
+  display: inline-block;
+  padding: 4px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #fff7ed;
+  margin-top: 6px;
+}
+
+.minimapa-interno .minimapa-grilla {
+  max-width: 66px;
+}
+
+.minimapa-interno-vacio {
+  font-size: 10px;
+  color: #9ca3af;
+  padding: 2px 6px;
+}
+

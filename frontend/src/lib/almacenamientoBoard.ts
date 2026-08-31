@@ -15,6 +15,7 @@
 // =============================================================================
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
+import { minimapaPlantaHtml, minimapaInternoHtml } from './mapaJerarquico';
 
 // =============================================================================
 // TIPOS
@@ -31,6 +32,9 @@ export interface ContenedorDnD {
   /** Coordenadas relativas del casillero dentro de la grilla del contenedor padre. */
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /** Grilla interna de casilleros del contenedor (ej: 2×3 en un armario empotrado). */
+  grid_filas?: number | null;
+  grid_columnas?: number | null;
   objetos_count: number;
   qr_code_url: string | null;
   largo?: string | number | null;
@@ -44,6 +48,12 @@ export interface UbicacionDnD {
   id: string;
   nombre: string;
   descripcion: string;
+  /** Piso de la casa (PRIMER_PISO | PLANTA_BAJA) + cuadrante en el plano. */
+  piso?: string;
+  parent_grid_row?: number | null;
+  parent_grid_col?: number | null;
+  grid_colspan?: number | null;
+  grid_rowspan?: number | null;
   objetos_count: number;
   contenedores_count: number;
   largo?: string | number | null;
@@ -62,6 +72,8 @@ export interface EntidadEditable {
   ancho?: string | number | null;
   alto?: string | number | null;
   foto?: string | null;
+  grid_filas?: string | number | null;
+  grid_columnas?: string | number | null;
 }
 
 // =============================================================================
@@ -112,6 +124,9 @@ export class AlmacenamientoBoard {
   private dragId: string | null = null;
   private previewObjectUrl: string | null = null;
   private cargarPromise: Promise<void> | null = null;
+  /** Grilla (filas×columnas) del macro-Estok, usada para los minimapas de planta. */
+  private estokFilas = 3;
+  private estokColumnas = 3;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -121,6 +136,8 @@ export class AlmacenamientoBoard {
     this.enlazarBotonesHeader();
     this.enlazarModales();
     document.getElementById('retryBtn')?.addEventListener('click', () => { void this.cargar(); });
+    // Si el Mapa Jerárquico cambió ubicaciones/grillas, el tablero se refresca.
+    window.addEventListener('estok:espacios-cambiados', () => { void this.cargar(); });
     await this.cargar();
   }
 
@@ -145,35 +162,37 @@ export class AlmacenamientoBoard {
     return todos;
   }
 
+  private async fetchJson(url: string): Promise<any | null> {
+    try {
+      const res = await fetch(url, { headers: getAuthHeaders() });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return null;
+      }
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
   async cargar(): Promise<void> {
     this.cargarPromise = this._cargar();
     await this.cargarPromise;
   }
 
-  /**
-   * Expone las ubicaciones ya cargadas para el Mapa Espacial adaptativo
-   * por Estok. Espera a que termine la carga en curso antes de devolverlas.
-   */
-  async obtenerUbicacionesParaMapa(): Promise<{ id: string; nombre: string; objetos_count: number; contenedores_count: number }[]> {
-    if (!this.cargarPromise) {
-      this.cargarPromise = this._cargar();
-    }
-    await this.cargarPromise;
-    return this.ubicaciones.map((u) => ({
-      id: u.id,
-      nombre: u.nombre,
-      objetos_count: u.objetos_count || 0,
-      contenedores_count: u.contenedores_count || 0,
-    }));
-  }
-
   private async _cargar(): Promise<void> {
     this.mostrarCargando();
     try {
-      const [ubiData, contData] = await Promise.all([
+      const estokId = getEstokActivoId();
+      const [ubiData, contData, estokData] = await Promise.all([
         this.fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`),
         this.fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000`),
+        estokId ? this.fetchJson(`${API_BASE_URL}/estoks/${estokId}/`) : Promise.resolve(null),
       ]);
+
+      this.estokFilas = Number(estokData?.grid_filas) || 3;
+      this.estokColumnas = Number(estokData?.grid_columnas) || 3;
 
       this.ubicaciones = ubiData.map((u) => ({ ...u, raices: [] }));
       this.contenedores = contData.map((c) => ({ ...c, hijos: [] }));
@@ -291,12 +310,13 @@ export class AlmacenamientoBoard {
 
   // -- Tarjeta de Contenedor (recursiva: muestra sub-contenedores) ----------
 
-  private contenedorHtml(c: ContenedorDnD, profundidad: number): string {
+  private contenedorHtml(c: ContenedorDnD, profundidad: number, padreGrid?: { filas: number; columnas: number }): string {
     const subHtml = c.hijos.length
-      ? `<div class="mt-2.5 pl-3 border-l-2 border-green-100 space-y-2">${c.hijos.map((h) => this.contenedorHtml(h, profundidad + 1)).join('')}</div>`
+      ? `<div class="mt-2.5 pl-3 border-l-2 border-orange-100 space-y-2">${c.hijos.map((h) => this.contenedorHtml(h, profundidad + 1, { filas: Math.max(1, Number(c.grid_filas) || 3), columnas: Math.max(1, Number(c.grid_columnas) || 3) })).join('')}</div>`
       : '';
     return `
     <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="true" title="Arrastrá para mover">
+      ${this.minimapasContenedorHtml(c, padreGrid)}
       <div class="flex items-start gap-2.5">
         <div class="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
           <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_CAJA}</svg>
@@ -331,6 +351,7 @@ export class AlmacenamientoBoard {
   private contenedorPaletaHtml(c: ContenedorDnD): string {
     return `
     <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="true" title="Arrastrá a una ubicación o dentro de otro contenedor">
+      ${this.minimapasContenedorHtml(c)}
       <div class="flex items-start gap-2.5">
         <div class="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
           <svg class="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_CAJA}</svg>
@@ -685,6 +706,19 @@ export class AlmacenamientoBoard {
     (document.getElementById('editarAlto') as HTMLInputElement).value = entidad.alto == null ? '' : String(entidad.alto);
     (document.getElementById('editarAncho') as HTMLInputElement).value = entidad.ancho == null ? '' : String(entidad.ancho);
     (document.getElementById('editarLargo') as HTMLInputElement).value = entidad.largo == null ? '' : String(entidad.largo);
+    // Grilla interna de casilleros: solo para contenedores (ej. 2×3 armario empotrado)
+    const grillaRow = document.getElementById('editarGrillaRow');
+    if (grillaRow) {
+      if (tipo === 'contenedor') {
+        grillaRow.classList.remove('hidden');
+        (document.getElementById('editarGridFilas') as HTMLInputElement).value =
+          entidad.grid_filas == null ? '' : String(entidad.grid_filas);
+        (document.getElementById('editarGridColumnas') as HTMLInputElement).value =
+          entidad.grid_columnas == null ? '' : String(entidad.grid_columnas);
+      } else {
+        grillaRow.classList.add('hidden');
+      }
+    }
     this.precargarFoto(entidad.foto || null);
     const err = modal.querySelector('[data-form-error]');
     if (err) err.classList.add('hidden');
@@ -703,6 +737,8 @@ export class AlmacenamientoBoard {
     const ancho = (document.getElementById('editarAncho') as HTMLInputElement).value.trim();
     const largo = (document.getElementById('editarLargo') as HTMLInputElement).value.trim();
     const foto = (document.getElementById('editarFotoInput') as HTMLInputElement).files?.[0] ?? null;
+    const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value.trim();
+    const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value.trim();
     if (!id || !nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
       return;
@@ -717,6 +753,11 @@ export class AlmacenamientoBoard {
       formData.append('alto', alto);
       formData.append('ancho', ancho);
       formData.append('largo', largo);
+      // Grilla interna de casilleros (solo contenedores: ej. 2×3 armario empotrado)
+      if (tipo === 'contenedor') {
+        if (gridFilas) formData.append('grid_filas', gridFilas);
+        if (gridColumnas) formData.append('grid_columnas', gridColumnas);
+      }
       if (foto) formData.append('foto', foto);
 
       // Ancla multi-tenant explícita: el backend valida que el recurso pertenece
@@ -765,6 +806,10 @@ export class AlmacenamientoBoard {
             c.ancho = anchoVal;
             c.largo = largoVal;
             c.foto = nuevaFoto ?? c.foto;
+            const gridFilasVal = gridFilas ? Number(gridFilas) : null;
+            const gridColumnasVal = gridColumnas ? Number(gridColumnas) : null;
+            if (gridFilasVal) c.grid_filas = gridFilasVal;
+            if (gridColumnasVal) c.grid_columnas = gridColumnasVal;
             entidadActualizada = c;
           } else {
             entidadActualizada = { id, nombre, descripcion, alto: altoVal, ancho: anchoVal, largo: largoVal, foto: nuevaFoto };
@@ -837,13 +882,13 @@ export class AlmacenamientoBoard {
   }
 
   /**
-   * Grilla de casilleros (3x3) del contenedor: cada celda es una zona de drop
-   * que graba parent_grid_row / parent_grid_col en el contenedor soltado.
+   * Grilla de casilleros del contenedor (dims configurables, ej: 2×3 armario):
+   * cada celda es una zona de drop que graba parent_grid_row / parent_grid_col.
    * Las celdas que ya tienen un sub-contenedor asignado se pintan ocupadas.
    */
   private casillerosHtml(c: ContenedorDnD): string {
-    const filas = 3;
-    const columnas = 3;
+    const filas = Math.max(1, Number(c.grid_filas) || 3);
+    const columnas = Math.max(1, Number(c.grid_columnas) || 3);
     const ocupadas = new Set<string>();
     for (const h of c.hijos) {
       if (h.parent_grid_row && h.parent_grid_col) {
@@ -858,9 +903,28 @@ export class AlmacenamientoBoard {
       }
     }
     return `<div class="casilleros" title="Soltá un contenedor sobre un casillero para asignar su posición exacta">
-      <div class="casilleros-titulo">Casilleros (grilla del contenedor)</div>
-      <div class="casilleros-grilla grid grid-cols-3 gap-1">${celdas}</div>
+      <div class="casilleros-titulo">Casilleros (grilla ${filas}×${columnas} del contenedor)</div>
+      <div class="casilleros-grilla gap-1" style="grid-template-columns: repeat(${columnas}, minmax(0, 1fr))">${celdas}</div>
     </div>`;
+  }
+
+  /**
+   * Minimapas naranjas de la tarjeta de un contenedor:
+   *  - Tarjeta raíz: minimapa de la planta del macro-Estok con el cuadrante
+   *    naranja de su Ubicación (esquina superior izquierda).
+   *  - Sub-contenedor (padreGrid presente): minimapa de sección interna que
+   *    replica la grilla del padre y pinta su casillero de residencia.
+   */
+  private minimapasContenedorHtml(c: ContenedorDnD, padreGrid?: { filas: number; columnas: number }): string {
+    const planta = padreGrid
+      ? ''
+      : minimapaPlantaHtml(this.estokFilas, this.estokColumnas, this.ubicaciones.find((x) => x.id === c.ubicacion));
+    const seccion =
+      padreGrid && c.parent_grid_row && c.parent_grid_col
+        ? minimapaInternoHtml(padreGrid.filas, padreGrid.columnas, c.parent_grid_row, c.parent_grid_col)
+        : '';
+    if (!planta && !seccion) return '';
+    return `<div class="flex gap-2 items-start flex-wrap mb-2">${planta}${seccion}</div>`;
   }
 
   /** Precarga la vista previa de la foto actual y limpia el input de archivo. */
