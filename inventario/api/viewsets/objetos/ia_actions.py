@@ -178,8 +178,9 @@ class IAActionsMixin:
         if isinstance(es_segunda_foto, str):
             es_segunda_foto = es_segunda_foto.lower() == 'true'
 
-        # La segunda foto (parte trasera para ISBN) SIEMPRE usa Gemini
-        motor = 'gemini' if es_segunda_foto else request.data.get('motor', 'local')
+        # El motor por defecto es 'gemini' (capa gratuita de Google). La
+        # segunda foto (parte trasera para ISBN) SIEMPRE usa Gemini.
+        motor = 'gemini' if es_segunda_foto else request.data.get('motor', 'gemini')
         if motor not in ('local', 'gemini'):
             return Response(
                 {"error": "El motor debe ser 'local' o 'gemini'"},

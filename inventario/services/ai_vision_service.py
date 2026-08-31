@@ -17,6 +17,7 @@ import json
 import logging
 import base64
 import os
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field, asdict
@@ -132,6 +133,9 @@ class VisionResult:
     confianza_general: float = 0.0
     campos_pendientes: List[str] = field(default_factory=list)
     raw_response: str = ""
+    # Motor que efectivamente analizó la imagen: "gemini" o el nombre del
+    # modelo de respaldo (failover) cuando Gemini devolvió HTTP 429.
+    motor_utilizado: str = "gemini"
     # Campos específicos de libros / revistas / cómics
     isbn_issn: str = ""
     edicion: str = ""
@@ -143,6 +147,105 @@ class VisionResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if k != 'raw_response'}
+
+
+# =============================================================================
+# PROMPT ÚNICO DE CATALOGACIÓN (compartido entre Gemini y el motor de respaldo)
+# Mantener ESTE único prompt garantiza que ambos motores devuelvan el MISMO
+# esquema JSON unificado, sin duplicar lógica de prompt entre motores.
+# =============================================================================
+PROMPT_SISTEMA_CATALOGACION = (
+    "Eres un experto en catalogación de objetos. Responde ÚNICAMENTE con JSON válido, "
+    "sin texto adicional, sin markdown. Usa esta estructura:\n\n"
+    "{\n"
+    '  "nombre": "Nombre del objeto",\n'
+    '  "marca": "Marca o fabricante",\n'
+    '  "autor": "Autor del libro",\n'
+    '  "anio": 2020,\n'
+    '  "isbn_issn": "ISBN o ISSN si visible",\n'
+    '  "edicion": "Edición",\n'
+    '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
+    '  "precio_estimado_mercado": 150.00,\n'
+    '  "descripcion": "Descripción breve del objeto",\n'
+    '  "color": "Color predominante",\n'
+    '  "categoria": "libro|tecnologia|mueble|ropa|arte|computacion|otro",\n'
+    '  "meli_category_id": "MLAXXXXX",\n'
+    '  "confianza_general": 0.85,\n'
+    '  "nombre_serie": "Serie si es cómic",\n'
+    '  "titulo_tomo": "Título del tomo",\n'
+    '  "numero_tomo": 1,\n'
+    '  "editorial": "Editorial",\n'
+    '  "idioma": "Idioma"\n'
+    "}\n\n"
+    "CATEGORÍAS OFICIALES (elegí UNA sola de esta lista para 'meli_category_id'):\n"
+    "MLA1574 Muebles\n"
+    "MLA1798 Arte\n"
+    "MLA1367 Coleccionables\n"
+    "MLA1368 Antigüedades\n"
+    "MLA1592 Jardín\n"
+    "MLA1648 Computación\n"
+    "MLA1051 Electrónica\n"
+    "MLA1403 Cocina\n"
+    "MLA1577 Hogar\n"
+    "MLA1500 Herramientas\n"
+    "MLA1506 Materiales\n"
+    "- Si el objeto no encaja en ninguna de las 11 oficiales, usa 'meli_category_id': null.\n"
+    "- El campo 'categoria' (libro|tecnologia|mueble|ropa|arte|computacion|otro) describe "
+    "el tipo físico del objeto; 'meli_category_id' es la clasificación oficial.\n\n"
+    "REGLAS:\n"
+    "- Si es un LIBRO: pon el título en 'nombre', autor en 'autor', editorial en 'editorial', "
+    "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
+    "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
+    "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia' o 'computacion'.\n"
+    "- Si no puedes determinar un campo, déjalo vacío o null.\n"
+    "- confianza_general: 0-1. Sé conservador.\n"
+    "- Lee el texto visible en la imagen (títulos, autores).\n"
+    "- No inventes información."
+)
+
+# Instrucción de usuario que acompaña a la imagen (idéntica en ambos motores).
+TEXTO_USUARIO_ANALISIS = (
+    "Analiza este objeto y devuelve los datos en JSON valido, sin texto "
+    "adicional, sin markdown."
+)
+
+
+def _extraer_json_de_respuesta(content: str) -> Optional[Dict[str, Any]]:
+    """
+    Intenta parsear la respuesta cruda del modelo como JSON.
+
+    Primero intenta json.loads directo; si falla, busca un bloque JSON dentro
+    de un bloque de código markdown o el primer objeto JSON del texto.
+
+    Es el ÚNICO parser de respuestas de IA del proyecto: lo usan Gemini y el
+    motor de respaldo (failover) para garantizar el mismo resultado unificado.
+    """
+    try:
+        result = json.loads(content)
+        logger.info("JSON parseado correctamente. Campos: %s", list(result.keys()))
+        return result
+    except json.JSONDecodeError:
+        pass
+
+    json_match = re.search(
+        r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', content, re.DOTALL
+    )
+    if not json_match:
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+    if json_match:
+        try:
+            candidate = json_match.group(1) if json_match.lastindex else json_match.group()
+            result = json.loads(candidate)
+            logger.info(
+                "JSON extraído de bloque de código. Campos: %s",
+                list(result.keys()),
+            )
+            return result
+        except json.JSONDecodeError as e2:
+            logger.error("JSON candidate también falló: %s", e2)
+
+    logger.error("No se pudo parsear la respuesta del modelo como JSON")
+    return None
 
 
 # =============================================================================
@@ -179,6 +282,16 @@ class GeminiClient:
             self._client = genai.Client(api_key=self.api_key)
         return self._client
 
+    def _get_model_name(self) -> str:
+        """
+        Retorna el modelo Gemini configurado (GEMINI_MODEL de settings) o el
+        default gemini-2.5-flash-lite. Permite cambiar de modelo (p. ej.
+        gemini-1.5-flash) sin tocar código, solo con variable de entorno.
+        """
+        from django.conf import settings
+
+        return getattr(settings, 'GEMINI_MODEL', None) or self.MODEL_NAME
+
     def _check_health(self) -> bool:
         """Verifica que la API key de Gemini sea válida."""
         try:
@@ -204,55 +317,8 @@ class GeminiClient:
         if ',' in image_base64:
             image_base64 = image_base64.split(',', 1)[1]
 
-        # Prompt del sistema
-        system_prompt = (
-            "Eres un experto en catalogación de objetos. Responde ÚNICAMENTE con JSON válido, "
-            "sin texto adicional, sin markdown. Usa esta estructura:\n\n"
-            "{\n"
-            '  "nombre": "Nombre del objeto",\n'
-            '  "marca": "Marca o fabricante",\n'
-            '  "autor": "Autor del libro",\n'
-            '  "anio": 2020,\n'
-            '  "isbn_issn": "ISBN o ISSN si visible",\n'
-            '  "edicion": "Edición",\n'
-            '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
-            '  "precio_estimado_mercado": 150.00,\n'
-            '  "descripcion": "Descripción breve del objeto",\n'
-            '  "color": "Color predominante",\n'
-            '  "categoria": "libro|tecnologia|mueble|ropa|arte|computacion|otro",\n'
-            '  "meli_category_id": "MLAXXXXX",\n'
-            '  "confianza_general": 0.85,\n'
-            '  "nombre_serie": "Serie si es cómic",\n'
-            '  "titulo_tomo": "Título del tomo",\n'
-            '  "numero_tomo": 1,\n'
-            '  "editorial": "Editorial",\n'
-            '  "idioma": "Idioma"\n'
-            "}\n\n"
-            "CATEGORÍAS OFICIALES (elegí UNA sola de esta lista para 'meli_category_id'):\n"
-            "MLA1574 Muebles\n"
-            "MLA1798 Arte\n"
-            "MLA1367 Coleccionables\n"
-            "MLA1368 Antigüedades\n"
-            "MLA1592 Jardín\n"
-            "MLA1648 Computación\n"
-            "MLA1051 Electrónica\n"
-            "MLA1403 Cocina\n"
-            "MLA1577 Hogar\n"
-            "MLA1500 Herramientas\n"
-            "MLA1506 Materiales\n"
-            "- Si el objeto no encaja en ninguna de las 11 oficiales, usa 'meli_category_id': null.\n"
-            "- El campo 'categoria' (libro|tecnologia|mueble|ropa|arte|computacion|otro) describe "
-            "el tipo físico del objeto; 'meli_category_id' es la clasificación oficial.\n\n"
-            "REGLAS:\n"
-            "- Si es un LIBRO: pon el título en 'nombre', autor en 'autor', editorial en 'editorial', "
-            "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
-            "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
-            "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia' o 'computacion'.\n"
-            "- Si no puedes determinar un campo, déjalo vacío o null.\n"
-            "- confianza_general: 0-1. Sé conservador.\n"
-            "- Lee el texto visible en la imagen (títulos, autores).\n"
-            "- No inventes información."
-        )
+        # Prompt del sistema (constante única compartida con el motor de respaldo)
+        system_prompt = PROMPT_SISTEMA_CATALOGACION
 
         if rag_context:
             system_prompt += "\n\n" + rag_context
@@ -270,14 +336,14 @@ class GeminiClient:
             client = self._get_client()
 
             response = client.models.generate_content(
-                model=self.MODEL_NAME,
+                model=self._get_model_name(),
                 contents=[
                     genai_types.Part.from_bytes(
                         data=base64.b64decode(image_base64),
                         mime_type="image/jpeg",
                     ),
                     genai_types.Part.from_text(
-                        text="Analiza este objeto y devuelve los datos en JSON valido, sin texto adicional, sin markdown."
+                        text=TEXTO_USUARIO_ANALISIS
                     ),
                 ],
                 config=genai_types.GenerateContentConfig(
@@ -304,27 +370,8 @@ class GeminiClient:
             logger.info("Gemini respondió en %.1fs.", elapsed)
             logger.info("Gemini respuesta (primeros 300): %s", content[:300])
 
-            # Intentar parsear como JSON
-            try:
-                result = json.loads(content)
-                logger.info("JSON parseado correctamente. Campos: %s", list(result.keys()))
-                return result
-            except json.JSONDecodeError:
-                # Intentar extraer JSON de un bloque de código
-                import re
-                json_match = re.search(r'```(?:json)?\s*\n?(\{.*?\})\s*\n?```', content, re.DOTALL)
-                if not json_match:
-                    json_match = re.search(r'\{.*\}', content, re.DOTALL)
-                if json_match:
-                    try:
-                        candidate = json_match.group(1) if json_match.lastindex else json_match.group()
-                        result = json.loads(candidate)
-                        logger.info("JSON extraído de bloque de código. Campos: %s", list(result.keys()))
-                        return result
-                    except json.JSONDecodeError as e2:
-                        logger.error("JSON candidate también falló: %s", e2)
-                logger.error("No se pudo parsear la respuesta de Gemini como JSON")
-                return None
+            # Intentar parsear como JSON (helper compartido con el motor de respaldo)
+            return _extraer_json_de_respuesta(content)
 
         except Exception as e:
             elapsed = time_module.time() - start_time
@@ -619,18 +666,86 @@ class AIVisionService:
             raw_result = gemini_client.analyze_base64(
                 image_base64_comprimida, rag_context=rag_context
             )
-        except AIQuotaExceededError:
-            logger.error(
-                "Cuota de la API de IA excedida al procesar imagen "
-                "(motor=gemini). El error se propaga al endpoint para que "
-                "devuelva el mensaje claro de límite temporal."
+        except AIQuotaExceededError as e:
+            # FAILOVER AUTOMÁTICO: Gemini devolvió HTTP 429 (rate limit /
+            # cuota agotada). Se conmuta al motor de respaldo (OpenRouter /
+            # DeepSeek u otro OpenAI-compatible) sin que el usuario note el
+            # corte. El motor de respaldo devuelve el MISMO JSON unificado.
+            logger.warning(
+                "Cuota/rate limit de Gemini (HTTP 429) al procesar imagen. "
+                "Ejecutando failover automático al motor de respaldo..."
             )
-            raise
+            return self._procesar_con_failover(
+                image_base64_comprimida,
+                rag_context=rag_context,
+                error_original=e,
+            )
 
         if raw_result is None:
             return self._vision_result_no_disponible("Gemini no disponible")
 
         return self._mapear_resultado(raw_result)
+
+    def _procesar_con_failover(
+        self,
+        image_base64: str,
+        rag_context: str = "",
+        error_original: Optional[Exception] = None,
+    ) -> VisionResult:
+        """
+        Conmuta al motor de respaldo (OpenAI-compatible) cuando Gemini devuelve
+        HTTP 429.
+
+        Si el motor de respaldo también falla o no está configurado, re-lanza
+        la excepción original de cuota para que el endpoint responda 429 con
+        el mensaje claro al usuario (nunca se deja al usuario sin respuesta).
+        """
+        from django.conf import settings
+
+        if not getattr(settings, 'FALLBACK_AI_ENABLED', True):
+            logger.warning(
+                "Failover deshabilitado (FALLBACK_AI_ENABLED=False). "
+                "Se propaga el error original de cuota."
+            )
+            raise error_original if error_original else AIQuotaExceededError()
+
+        try:
+            from .ai_failover_service import OpenAICompatVisionClient
+
+            fallback = OpenAICompatVisionClient()
+            raw_result = fallback.analyze_base64(
+                image_base64, rag_context=rag_context
+            )
+        except ImproperlyConfigured as e:
+            logger.error(
+                "Motor de respaldo no configurado (%s). Re-propagando el error "
+                "original de cuota.",
+                e,
+            )
+            raise error_original if error_original else AIQuotaExceededError()
+        except Exception as e:
+            logger.error(
+                "El motor de respaldo también falló (%s). Re-propagando el "
+                "error original de cuota.",
+                e,
+            )
+            raise error_original if error_original else AIQuotaExceededError()
+
+        if raw_result is None:
+            logger.error(
+                "El motor de respaldo no devolvió resultado. Re-propagando el "
+                "error original de cuota."
+            )
+            raise error_original if error_original else AIQuotaExceededError()
+
+        logger.warning(
+            "Failover exitoso: la imagen se procesó con el motor de respaldo "
+            "(%s) en lugar de Gemini.",
+            fallback.model,
+        )
+        resultado = self._mapear_resultado(raw_result)
+        resultado.motor_utilizado = fallback.model
+        return resultado
 
     def crear_objeto_desde_vision(
         self,

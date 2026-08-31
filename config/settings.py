@@ -237,6 +237,44 @@ AI_API_TIMEOUT = int(os.environ.get('AI_API_TIMEOUT', '180'))
 AI_HIGH_RES_TIMEOUT = int(os.environ.get('AI_HIGH_RES_TIMEOUT', '240'))
 
 # =============================================================================
+# IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER)
+# Motor primario : Gemini (GEMINI_API_KEY) aprovechando su capa gratuita.
+# Motor de respaldo: cliente OpenAI-compatible (OpenRouter, DeepSeek u otro
+# proveedor con /v1/chat/completions + soporte de imágenes). Se activa de forma
+# AUTOMÁTICA cuando Gemini responde HTTP 429 (Rate Limit / cuota agotada).
+# El respaldo devuelve el MISMO esquema JSON unificado, por lo que el usuario
+# no nota el corte.
+# =============================================================================
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+
+# Habilita/deshabilita el failover (la llamada primaria a Gemini no cambia).
+FALLBACK_AI_ENABLED = os.environ.get(
+    'FALLBACK_AI_ENABLED', 'True'
+).lower() in ('true', '1', 'yes')
+
+# La API key del motor de respaldo acepta 3 aliases de entorno. El orden de
+# prioridad es: FALLBACK_AI_API_KEY > DEEPSEEK_API_KEY > OPENROUTER_API_KEY.
+FALLBACK_AI_API_KEY = (
+    os.environ.get('FALLBACK_AI_API_KEY')
+    or os.environ.get('DEEPSEEK_API_KEY')
+    or os.environ.get('OPENROUTER_API_KEY')
+    or ''
+)
+
+# Por defecto apunta a OpenRouter con un modelo de visión gratuito/barato.
+# Para DeepSeek: FALLBACK_AI_BASE_URL=https://api.deepseek.com
+# (NOTA: la API pública de DeepSeek es texto-only; verificar soporte de
+# imágenes antes de usarla como fallback de visión).
+FALLBACK_AI_BASE_URL = os.environ.get(
+    'FALLBACK_AI_BASE_URL', 'https://openrouter.ai/api/v1'
+)
+FALLBACK_AI_MODEL = os.environ.get(
+    'FALLBACK_AI_MODEL', 'meta-llama/llama-3.2-11b-vision-instruct:free'
+)
+FALLBACK_AI_TIMEOUT = int(os.environ.get('FALLBACK_AI_TIMEOUT', '120'))
+
+# =============================================================================
 # DJANGO ADMIN - Personalización
 # =============================================================================
 ADMIN_SITE_HEADER = 'Administración de Estok'
