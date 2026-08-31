@@ -65,6 +65,60 @@ const nodosArbol: {
 
   <!-- Image Editor Component (Modal) -->
   <ImageEditor imageSrc="" />
+
+  <!-- ================================================================ -->
+  <!-- MODAL DE ÉXITO - Cierre de flujo direccional tras guardar objeto -->
+  <!-- Oculta por defecto. Se abre solo cuando el backend confirma 201. -->
+  <!-- ================================================================ -->
+  <div
+    id="exitoModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="exitoModalTitulo"
+  >
+    <!-- Backdrop con blur para detener el flujo visual -->
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+
+    <!-- Tarjeta premium mimetizada con la textura de fondo de la app -->
+    <div
+      class="relative w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
+      style="background-color: var(--bg-primary)"
+    >
+      <div class="px-8 pb-8 pt-10 text-center">
+        <!-- Icono central de verificación -->
+        <div
+          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/70 text-3xl shadow-inner ring-1 ring-black/5"
+        >
+          ✅
+        </div>
+        <h2 id="exitoModalTitulo" class="text-xl font-bold text-gray-900">
+          Objeto cargado exitosamente
+        </h2>
+        <p class="mt-1 text-sm text-gray-600">
+          El objeto fue grabado en el inventario.
+        </p>
+      </div>
+
+      <!-- Fila horizontal de acciones direccionales -->
+      <div class="flex gap-3 border-t border-black/5 bg-white px-6 py-5">
+        <button
+          id="cargarOtroBtn"
+          type="button"
+          class="flex-1 rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-base hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Cargar otro
+        </button>
+        <button
+          id="volverInicioBtn"
+          type="button"
+          class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-base hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Volver al inicio
+        </button>
+      </div>
+    </div>
+  </div>
 </BaseLayout>
 
 <script>
@@ -1589,6 +1643,31 @@ const nodosArbol: {
   (window as any).resetFormularioCompleto = resetFormularioCompleto;
 
   // ===========================================================================
+  // MODAL DE ÉXITO - Control direccional tras guardar un objeto
+  // ===========================================================================
+  const exitoModal = $id<HTMLElement>('exitoModal');
+
+  /** Abre el modal de éxito (detiene el flujo visual tras el 201 Created). */
+  function abrirModalExito() {
+    if (exitoModal) exitoModal.classList.remove('hidden');
+  }
+
+  /** Cierra el modal de éxito dejando al operador en la misma pantalla. */
+  function cerrarModalExito() {
+    if (exitoModal) exitoModal.classList.add('hidden');
+  }
+
+  // "Cargar otro": solo oculta el modal. resetFormularioCompleto() ya vació
+  // los campos tras el guardado, así que el formulario queda listo para una
+  // nueva carga inmediata sin recargar la página.
+  $id<HTMLButtonElement>('cargarOtroBtn')?.addEventListener('click', cerrarModalExito);
+
+  // "Volver al inicio": redirección directa al Dashboard principal.
+  $id<HTMLButtonElement>('volverInicioBtn')?.addEventListener('click', () => {
+    window.location.href = '/';
+  });
+
+  // ===========================================================================
   // ENVÍO DEL FORMULARIO - Guardar objeto + subir fotos (multipart multi-foto)
   // ===========================================================================
   const submitBtn = $id<HTMLButtonElement>('submitBtn')!;
@@ -1656,10 +1735,11 @@ const nodosArbol: {
         throw new Error(errorMsg);
       }
 
-      // 2. Éxito (201 Created): RESETEO ABSOLUTO del formulario para
-      //    capturar el siguiente objeto de inmediato.
+      // 2. Éxito (201 Created): RESETEO ABSOLUTO del formulario + apertura
+      //    del modal de confirmación. El flujo visual se detiene: el operador
+      //    decide direccionalmente entre "Cargar otro" o "Volver al inicio".
       resetFormularioCompleto();
-      showToast('✅ Objeto guardado correctamente', 'success');
+      abrirModalExito();
 
     } catch (err) {
       showToast(`❌ ${getErrorMessage(err)}`, 'error');
