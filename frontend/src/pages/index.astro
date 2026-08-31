@@ -868,13 +868,15 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         const icono = cat.icono || '🏷️';
         const count = cat.objetos_count ?? 0;
         return `
-          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base">
+          <a href="/objetos?categoria_id=${encodeURIComponent(cat.id)}"
+             class="block bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-base hover:scale-[1.02] transition-transform cursor-pointer"
+             aria-label="Ver objetos de la categoría ${cat.nombre}">
             <div class="w-10 h-10 ${color.bg} rounded-lg flex items-center justify-center mb-3">
               <span class="text-xl">${icono}</span>
             </div>
             <h3 class="font-semibold text-gray-900 text-sm line-clamp-2">${cat.nombre}</h3>
             <p class="text-xs ${color.text} font-medium mt-2">${count} objeto${count === 1 ? '' : 's'}</p>
-          </div>
+          </a>
         `;
       }).join('');
     } catch (err) {

@@ -451,9 +451,34 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     }
   });
 
-  // Cargar al inicio: categorías para el combobox + listado completo
-  cargarCategoriasFiltros();
-  cargarObjetos();
+  // ===========================================================================
+  // NAVEGACIÓN CRUZADA DESDE EL DASHBOARD
+  // Las tarjetas de categorías del dashboard enlazan con /objetos?categoria_id=XX.
+  // Si el parámetro viene en la URL, se aplica como filtro inicial en caliente:
+  // se asigna el valor al combobox de categorías, se dispara 'change'
+  // (aplicarFiltros() → cargarObjetos()) y la cuadrícula carga filtrada en el
+  // acto, sin recargas duras de pantalla (window.location.reload NO se usa).
+  // ===========================================================================
+  const params = new URLSearchParams(window.location.search);
+  const catId = params.get('categoria_id');
+
+  if (catId) {
+    // El combobox de categorías se puebla de forma asíncrona desde /api/categorias/:
+    // esperamos a que las opciones existan antes de asignar el valor filtrado.
+    cargarCategoriasFiltros().then(() => {
+      if (filtroCategoria && filtroCategoria.querySelector(`option[value="${catId}"]`)) {
+        filtroCategoria.value = catId;
+        filtroCategoria.dispatchEvent(new Event('change')); // fetch filtrado inmediato
+      } else {
+        // Fallback seguro: si el ID no está entre las opciones, listado completo.
+        cargarObjetos();
+      }
+    });
+  } else {
+    // Carga normal: categorías para el combobox + listado completo
+    cargarCategoriasFiltros();
+    cargarObjetos();
+  }
 </script>
 
 
