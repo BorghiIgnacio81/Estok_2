@@ -524,47 +524,47 @@
    --------------------------------------------------------------------------- */
 .minimapa-planta {
   display: inline-block;
-  padding: 6px;
-  border: 1px solid #fdba74;
-  border-radius: 10px;
+  padding: 3px;
+  border: 0.5px solid #fdba74;
+  border-radius: 6px;
   background: #fff7ed;
 }
 
 .minimapa-planta .minimapa {
-  gap: 4px;
+  gap: 2px;
 }
 
 .minimapa-planta .minimapa-grilla {
-  max-width: 96px;
+  max-width: 40px;
 }
 
 .minimapa-planta .minimapa-titulo {
-  font-size: 10px;
+  font-size: 6px;
 }
 
 .minimapa-planta-vacia {
-  font-size: 11px;
+  font-size: 6px;
   color: #b45309;
-  padding: 4px 8px;
+  padding: 2px 4px;
 }
 
 .minimapa-interno {
   display: inline-block;
-  padding: 4px;
-  border: 1px solid #fdba74;
-  border-radius: 8px;
+  padding: 2px;
+  border: 0.5px solid #fdba74;
+  border-radius: 4px;
   background: #fff7ed;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .minimapa-interno .minimapa-grilla {
-  max-width: 66px;
+  max-width: 32px;
 }
 
 .minimapa-interno-vacio {
-  font-size: 10px;
+  font-size: 5px;
   color: #9ca3af;
-  padding: 2px 6px;
+  padding: 1px 3px;
 }
 
 

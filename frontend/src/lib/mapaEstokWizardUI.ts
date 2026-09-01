@@ -24,6 +24,8 @@ import {
   renderVistaWizard,
 } from './mapaEstokWizard';
 import type { MapaEstokWizardState, CeldaWizard } from './mapaEstokWizard';
+import { estructuraDesdeDatos } from './mapaEstokEstructura';
+import type { DatosEstructuraEstok, UbiDTO, ContDTO } from './mapaEstokEstructura';
 
 // =============================================================================
 // TIPOS
@@ -44,6 +46,10 @@ export class MapaEstokWizardUI {
   private root: HTMLElement;
   private state: MapaEstokWizardState | null = null;
   private opciones: MapaEstokWizardOpciones = {};
+  /** true = modo "Editar Estructura" (Almacenamiento); false = alta de Estok. */
+  private modoEdicion = false;
+  /** Datos completos del Estok cargados del GET (para el PUT con campos requeridos). */
+  private estokOriginal: Record<string, unknown> = {};
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -52,6 +58,8 @@ export class MapaEstokWizardUI {
   /** Abre el wizard para un Estok recién creado (estok.id + estok.nombre). */
   abrir(estok: { id: string; nombre: string }, opciones: MapaEstokWizardOpciones = {}): void {
     this.opciones = opciones;
+    this.modoEdicion = false;
+    this.estokOriginal = {};
     inyectarCssMinimapa();
     this.state = {
       estokId: estok.id,
@@ -63,6 +71,48 @@ export class MapaEstokWizardUI {
       ruta: [],
     };
     this.render();
+  }
+
+  /**
+   * Abre el wizard en MODO EDICIÓN (botón "✏️ Editar Estructura" de
+   * Almacenamiento): precarga la grilla actual del Estok y sus sub-divisiones
+   * desde el backend. Al "Guardar Mapa" hace PUTs granulares por nodo.
+   */
+  async abrirEdicion(estok: { id: string; nombre: string }, opciones: MapaEstokWizardOpciones = {}): Promise<void> {
+    this.opciones = opciones;
+    this.modoEdicion = true;
+    inyectarCssMinimapa();
+    const { estok: estokData, datos } = await this.cargarEstructura(estok.id);
+    this.estokOriginal = estokData;
+    this.state = {
+      estokId: estok.id,
+      estokNombre: estok.nombre,
+      ...datos,
+      ruta: [],
+    };
+    this.render();
+  }
+
+  /** Carga el Estok + ubicaciones + contenedores del backend (X-Estok-Id). */
+  private async cargarEstructura(estokId: string): Promise<{ estok: Record<string, unknown>; datos: DatosEstructuraEstok }> {
+    const headers = getAuthHeaders();
+    const [estokRes, ubiRes, contRes] = await Promise.all([
+      fetch(`${API_BASE_URL}/estoks/${estokId}/`, { headers }),
+      fetch(`${API_BASE_URL}/ubicaciones/?page_size=1000`, { headers }),
+      fetch(`${API_BASE_URL}/contenedores/?page_size=1000`, { headers }),
+    ]);
+    if (estokRes.status === 401 || ubiRes.status === 401 || contRes.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Sesión expirada.');
+    }
+    if (!estokRes.ok || !ubiRes.ok || !contRes.ok) {
+      throw new Error('No se pudo cargar la estructura actual del Estok.');
+    }
+    const estok = (await estokRes.json()) as Record<string, unknown>;
+    const ubiData = (await ubiRes.json()) as { results?: UbiDTO[] };
+    const contData = (await contRes.json()) as { results?: ContDTO[] };
+    const datos = estructuraDesdeDatos(estok, ubiData.results || [], contData.results || []);
+    return { estok, datos };
   }
 
   /** Cierra el modal sin guardar (invoca onCerrar). */
@@ -229,7 +279,9 @@ export class MapaEstokWizardUI {
   }
 
   // ---------------------------------------------------------------------------
-  // PERSISTENCIA (POST /api/estoks/{id}/mapa/)
+  // PERSISTENCIA
+  //  - Alta de Estok      : POST /api/estoks/{id}/mapa/ (crea la jerarquía).
+  //  - Editar Estructura  : PUTs granulares por nodo (Almacenamiento).
   // ---------------------------------------------------------------------------
 
   private async guardar(): Promise<void> {
@@ -248,20 +300,11 @@ export class MapaEstokWizardUI {
       btn.textContent = '⏳ Guardando...';
     }
     try {
-      const payload = construirPayload(estado);
-      const response = await fetch(`${API_BASE_URL}/estoks/${estado.estokId}/mapa/`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data?.error || `Error del servidor (${response.status}).`);
+      if (this.modoEdicion) {
+        await this.guardarEdicion(estado);
+      } else {
+        const payload = construirPayload(estado);
+        await this.requestOk(`${API_BASE_URL}/estoks/${estado.estokId}/mapa/`, 'POST', payload);
       }
 
       this.state = null;
@@ -277,6 +320,131 @@ export class MapaEstokWizardUI {
         btn.textContent = '💾 Guardar Mapa';
       }
     }
+  }
+
+  /**
+   * Guardado de EDICIÓN: PUT/POST granulares con JWT + X-Estok-Id para
+   * actualizar PostgreSQL y refrescar el lienzo del Drag & Drop en vivo.
+   */
+  private async guardarEdicion(estado: MapaEstokWizardState): Promise<void> {
+    // 1. Grilla del macro-Estok (PUT completo: incluye campos requeridos).
+    await this.requestOk(`${API_BASE_URL}/estoks/${estado.estokId}/`, 'PUT', {
+      nombre: (this.estokOriginal.nombre as string) || estado.estokNombre,
+      descripcion: (this.estokOriginal.descripcion as string) || '',
+      tipo_layout: (this.estokOriginal.tipo_layout as string) || 'VISTA_PLANTA_UNICA',
+      grid_filas: estado.grid_filas,
+      grid_columnas: estado.grid_columnas,
+      grid_filas_config: estado.grid_filas_config,
+    });
+
+    // 2. Reconciliación de los 4 niveles (PUT si existe, POST si es nueva).
+    for (let i = 0; i < estado.celdas.length; i++) {
+      const { fila, col } = coordenadasDeIndice(i, estado.grid_filas, estado.grid_columnas, estado.grid_filas_config);
+      await this.reconciliarCelda(estado.celdas[i], 1, {
+        parentRow: fila,
+        parentCol: col,
+        parentId: null,
+        habitacionId: null,
+      });
+    }
+
+    // 3. Refresco en vivo del lienzo (el tablero DnD escucha este evento).
+    window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  }
+
+  /** Reconciliación recursiva de una celda del árbol (PUT existente / POST nuevo). */
+  private async reconciliarCelda(
+    celda: CeldaWizard,
+    nivel: number,
+    ctx: { parentRow: number; parentCol: number; parentId: string | null; habitacionId: string | null },
+  ): Promise<string | null> {
+    const nombreFinal = celda.nombre || nombreDefault(nivel, ctx.parentRow, ctx.parentCol);
+    let id = celda.id ?? null;
+
+    if (id) {
+      // Nodo existente → PUT (UbicacionViewSet y ContenedorViewSet son parciales).
+      const body: Record<string, unknown> = {
+        nombre: nombreFinal,
+        parent_grid_row: ctx.parentRow,
+        parent_grid_col: ctx.parentCol,
+        grid_filas: celda.grid_filas,
+        grid_columnas: celda.grid_columnas,
+        grid_filas_config: celda.grid_filas_config,
+      };
+      if (nivel <= 2) {
+        await this.requestOk(`${API_BASE_URL}/ubicaciones/${id}/`, 'PUT', body);
+      } else {
+        await this.requestOk(`${API_BASE_URL}/contenedores/${id}/`, 'PUT', body);
+      }
+    } else {
+      // Celda nueva → POST de creación con sus coordenadas.
+      const body: Record<string, unknown> = {
+        nombre: nombreFinal,
+        parent_grid_row: ctx.parentRow,
+        parent_grid_col: ctx.parentCol,
+        grid_filas: celda.grid_filas,
+        grid_columnas: celda.grid_columnas,
+        grid_filas_config: celda.grid_filas_config,
+      };
+      let respuesta: Record<string, unknown>;
+      if (nivel === 1) {
+        body.piso = ctx.parentRow === 1 ? 'PRIMER_PISO' : 'PLANTA_BAJA';
+        body.grid_colspan = 1;
+        body.grid_rowspan = 1;
+        respuesta = await this.requestJson(`${API_BASE_URL}/ubicaciones/`, 'POST', body);
+      } else if (nivel === 2) {
+        body.parent_ubicacion = ctx.parentId;
+        body.grid_colspan = 1;
+        body.grid_rowspan = 1;
+        respuesta = await this.requestJson(`${API_BASE_URL}/ubicaciones/`, 'POST', body);
+      } else if (nivel === 3) {
+        body.ubicacion = ctx.habitacionId ?? ctx.parentId;
+        respuesta = await this.requestJson(`${API_BASE_URL}/contenedores/`, 'POST', body);
+      } else {
+        body.ubicacion = ctx.habitacionId;
+        body.parent_contenedor = ctx.parentId;
+        respuesta = await this.requestJson(`${API_BASE_URL}/contenedores/`, 'POST', body);
+      }
+      id = (respuesta?.id as string) ?? null;
+    }
+
+    // Recurrir hijos (el padre recién creado/actualizado es su contexto).
+    if (nivel < 4) {
+      const habitacionId = nivel === 2 ? id : ctx.habitacionId;
+      for (let i = 0; i < celda.hijos.length; i++) {
+        const { fila, col } = coordenadasDeIndice(i, celda.grid_filas, celda.grid_columnas, celda.grid_filas_config);
+        await this.reconciliarCelda(celda.hijos[i], nivel + 1, {
+          parentRow: fila,
+          parentCol: col,
+          parentId: id,
+          habitacionId,
+        });
+      }
+    }
+    return id;
+  }
+
+  /** Fetch JSON con auth centralizada (JWT + X-Estok-Id) que valida y parsea. */
+  private async requestJson(url: string, method: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const response = await fetch(url, {
+      method,
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (response.status === 401) {
+      window.location.href = '/login';
+      throw new Error('Sesión expirada.');
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data?.error || `Error del servidor (${response.status}).`);
+    }
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  /** Fetch con auth centralizada que solo valida el estado HTTP. */
+  private async requestOk(url: string, method: string, body: Record<string, unknown>): Promise<void> {
+    await this.requestJson(url, method, body);
   }
 
   /** Pinta el cartel rojo del modal con texto 100% legible (sin difuminado). */

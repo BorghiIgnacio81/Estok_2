@@ -210,12 +210,14 @@ export async function guardarUbicacion(id: string, data: Record<string, unknown>
 }
 
 /**
- * Una Ubicacion es DIVISIÓN de fila del Mapa Estok si tiene fila
- * (parent_grid_row) pero NINGUNA columna (parent_grid_col == null).
- * Las habitaciones reales siempre tienen fila Y columna.
+ * Una Ubicación es DIVISIÓN del Mapa Estok si está posicionada en el
+ * macro-plano (parent_grid_row) y NO está encastrada dentro de otra división
+ * (sin parent_ubicacion). Cubre el modelo legacy (fila sin columna) y el del
+ * wizard (celda fila × columna). Las habitaciones reales siempre tienen
+ * parent_ubicacion.
  */
 export function esDivisionUbicacion(u: UbicacionPlano): boolean {
-  return Boolean(u.parent_grid_row && !u.parent_grid_col);
+  return Boolean(u.parent_grid_row && !u.parent_ubicacion);
 }
 
 /** Crea una división de fila (POST /api/ubicaciones/) con nombre, fila y sub-grilla. */

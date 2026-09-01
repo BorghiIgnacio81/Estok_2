@@ -140,9 +140,9 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
     return columnas;
   };
 
-  const cell = 18;
-  const gap = 3;
-  const pad = 4;
+  const cell = 9;   // ULTRA-MINI: la celda se reduce 4× (antes 18)
+  const gap = 2;
+  const pad = 3;
   const maxColumnas = Math.max(...Array.from({ length: filas }, (_, i) => columnasDeFila(i + 1)));
   const w = pad * 2 + maxColumnas * cell + (maxColumnas - 1) * gap;
   const h = pad * 2 + filas * cell + (filas - 1) * gap;
@@ -160,7 +160,7 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
       const y = pad + r * (cell + gap);
       const fill = activa ? color : ocupada ? `${color}26` : '#f3f4f6';
       const stroke = activa ? color : ocupada ? `${color}80` : '#d1d5db';
-      rects += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="1" />`;
+      rects += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
     }
   }
 
@@ -170,7 +170,7 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
   return `
   <svg class="minimapa-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Minimapa de sección">
     ${rects}
-    ${fila && columna ? `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#ffffff" />` : ''}
+    ${fila && columna ? `<circle cx="${cx}" cy="${cy}" r="2" fill="#ffffff" />` : ''}
   </svg>`;
 }
 
@@ -185,23 +185,25 @@ export function inyectarCssMinimapa(): void {
   minimapaCssInyectado = true;
   const style = document.createElement('style');
   style.textContent = `
-    .minimapa { display: flex; flex-direction: column; gap: 8px; }
-    .minimapa-titulo { font-size: 12px; font-weight: 600; color: #374151; }
-    .minimapa-grilla { display: flex; flex-direction: column; gap: 4px; max-width: 150px; }
-    .minimapa-fila { display: grid; gap: 4px; }
+    /* Minimapa ULTRA-MINI (4× más chico): nitidez total en NARANJA #f97316 */
+    .minimapa { display: flex; flex-direction: column; gap: 2px; }
+    .minimapa-titulo { font-size: 5px; font-weight: 700; color: #374151; line-height: 1.2; }
+    .minimapa-grilla { display: flex; flex-direction: column; gap: 2px; max-width: 40px; }
+    .minimapa-fila { display: grid; gap: 2px; }
     .minimapa-celda {
       aspect-ratio: 1 / 1;
-      border-radius: 6px;
-      border: 1px solid #e5e7eb;
+      border-radius: 2px;
+      border: 0.5px solid #e5e7eb;
       background: #f9fafb;
       display: flex; align-items: center; justify-content: center;
-      font-size: 10px; color: #9ca3af;
+      font-size: 5px; color: #9ca3af;
+      line-height: 1;
     }
     .minimapa-celda-activa {
       font-weight: 700;
     }
-    .minimapa-detalle { font-size: 11px; color: #6b7280; }
-    .minimapa-detalle-activo { color: #ea580c; font-weight: 600; }
+    .minimapa-detalle { font-size: 5px; color: #6b7280; line-height: 1.2; }
+    .minimapa-detalle-activo { color: #ea580c; font-weight: 700; }
   `;
   document.head.appendChild(style);
 }

@@ -248,16 +248,18 @@ export class AlmacenamientoBoard {
         this.estokFilas = Number(estokData?.grid_filas) || 3;
         this.estokColumnas = Number(estokData?.grid_columnas) || 3;
 
-        // Las divisiones de fila (parent_grid_row sin parent_grid_col) NO son
-        // habitaciones: se excluyen de la cascada Nivel 2 y se indexan por id.
+        // Las divisiones del macro-plano (parent_grid_row sin parent_ubicacion)
+        // NO son habitaciones: se excluyen de la cascada Nivel 2 y se indexan
+        // por id. Cubre el modelo legacy (fila sin columna) y el del wizard
+        // (celda fila × columna).
         this.divisionesPorId.clear();
         for (const u of ubiData as UbicacionDnD[]) {
-          if (u.parent_grid_row && !u.parent_grid_col) {
+          if (u.parent_grid_row && !u.parent_ubicacion) {
             this.divisionesPorId.set(u.id, { ...u, raices: [] });
           }
         }
         this.ubicaciones = (ubiData as UbicacionDnD[])
-          .filter((u) => !(u.parent_grid_row && !u.parent_grid_col))
+          .filter((u) => !(u.parent_grid_row && !u.parent_ubicacion))
           .map((u) => ({ ...u, raices: [] }));
         this.contenedores = contData.map((c) => ({
           ...c,

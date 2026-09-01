@@ -11,6 +11,7 @@ import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
+import '../styles/mapa-estok-wizard.css';
 ---
 
 <AuthGuard />
@@ -57,6 +58,11 @@ import '../styles/mapa-espacial.css';
             <div class="flex items-center gap-2 flex-wrap">
               <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
+              <button type="button" id="editarEstructuraBtn"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-full hover:bg-orange-700 transition-base shadow-sm"
+                title="Abrir el modelador jerárquico del Mapa de Estok (plantas, habitaciones, muebles y estanterías)">
+                ✏️ Editar Estructura
+              </button>
             </div>
             <div class="flex items-center gap-2">
               <label class="macro-input-label">Filas
@@ -378,6 +384,9 @@ import '../styles/mapa-espacial.css';
         <p id="editarFormError" data-form-error class="hidden mt-3 text-sm text-red-600"></p>
       </div>
     </div>
+
+  <!-- Contenedor raíz del Wizard "✏️ Editar Estructura" (Mapa de Estok) -->
+  <div id="mapaEstokWizardRoot"></div>
 </BaseLayout>
 
 <style is:global>
@@ -413,9 +422,45 @@ import '../styles/mapa-espacial.css';
   import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
   import { initMapaJerarquico } from '../lib/mapaJerarquicoUI';
   import { initVisor } from '../lib/visorHabitacion';
+  import { MapaEstokWizardUI } from '../lib/mapaEstokWizardUI';
+  import { getEstokActivoId, getCachedUser } from '../services/auth';
 
   const tablero = new AlmacenamientoBoard();
   void tablero.init();
+
+  // ===========================================================================
+  // WIZARD "✏️ EDICION DE ESTRUCTURA" — REUTILIZA EL MODAL DE ALTA DE ESTOK
+  // Abre el modelador jerárquico precargado con la estructura ACTUAL y, al
+  // "Guardar Mapa", hace PUTs granulares (JWT + X-Estok-Id) y refresca en vivo
+  // el lienzo del Drag & Drop (evento estok:espacios-cambiados).
+  // ===========================================================================
+  const editarEstructuraBtn = document.getElementById('editarEstructuraBtn');
+  const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
+
+  editarEstructuraBtn?.addEventListener('click', async () => {
+    const estokId = getEstokActivoId();
+    if (!estokId) {
+      (window as any).showError?.('No hay un Estok activo para editar.');
+      return;
+    }
+    const estokNombre = getCachedUser()?.estoks?.find((e) => e.id === estokId)?.nombre || 'Estok';
+    const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
+    try {
+      await wizard.abrirEdicion(
+        { id: estokId, nombre: estokNombre },
+        {
+          onGuardado: () => {
+            (window as any).showSuccess?.('✅ Estructura del Mapa Estok actualizada.');
+          },
+          onCerrar: () => {
+            // Sin acción: el usuario cerró el modal sin guardar.
+          },
+        },
+      );
+    } catch (err: any) {
+      (window as any).showError?.(err?.message || 'No se pudo abrir el editor de estructura.');
+    }
+  });
 
   // Filtrado en caliente: cuando se selecciona una división (fila) en el Mapa
   // Estok (izquierda), la cascada inferior muta SIN recargar la página.

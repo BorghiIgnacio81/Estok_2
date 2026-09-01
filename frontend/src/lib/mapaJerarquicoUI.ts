@@ -114,6 +114,22 @@ export async function initMapaJerarquico(opts: {
   enlazar();
   enlazarControlesGrilla();
   notificarPlanta();
+
+  // Refresco en vivo: cuando el wizard "✏️ Editar Estructura" (o cualquier
+  // mutación del mapa) dispara estok:espacios-cambiados, se recarga el panel
+  // SIN re-enlazar los controles estáticos (evita listeners duplicados).
+  window.addEventListener('estok:espacios-cambiados', () => recargarMapaJerarquico());
+}
+
+/** Recarga divisiones/habitaciones y re-renderiza el panel del Mapa Estok. */
+function recargarMapaJerarquico(): void {
+  if (!estok) return;
+  void (async () => {
+    await cargarDatos();
+    render();
+    enlazar();
+    notificarPlanta();
+  })();
 }
 
 function render(): void {

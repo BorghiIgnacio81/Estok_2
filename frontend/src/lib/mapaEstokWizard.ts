@@ -41,6 +41,9 @@ export const NIVELES: Record<number, NivelInfo> = {
 // =============================================================================
 
 export interface CeldaWizard {
+  /** ID persistido del nodo (Ubicacion/Contenedor). Solo existe si se editó
+   *  una estructura existente; undefined = celda nueva creada en el wizard. */
+  id?: string;
   nombre: string;
   grid_filas: number;
   grid_columnas: number;
@@ -368,7 +371,7 @@ export function renderVistaWizard(state: MapaEstokWizardState): string {
         <div class="wizard-header-info">
           <h3 class="wizard-titulo">${info.icono} Mapa de Estok · Nivel ${nivel} — ${info.nombre}</h3>
           <p class="wizard-subtitulo">${esNivel1
-            ? 'Paso obligatorio del alta: definí la distribución raíz. Nombra cada celda en caliente y usá «🔍 Entrar» para modelar su interior.'
+            ? 'Definí la distribución raíz del Estok: nombrá cada celda en caliente y usá «🔍 Entrar» para modelar su interior.'
             : `Sub-divisiones de «${escapeHtml(nodo.nombreNodo)}». Cada celda se nombra en caliente y puede subdividirse.`}</p>
         </div>
         <button type="button" class="wizard-cerrar" data-cerrar-wizard title="Cerrar sin guardar">✕</button>
@@ -394,4 +397,6 @@ export function renderVistaWizard(state: MapaEstokWizardState): string {
     </div>
   </div>`;
 }
+
+// La reconstrucción del árbol en modo edición vive en ./mapaEstokEstructura
 

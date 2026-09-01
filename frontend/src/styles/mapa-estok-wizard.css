@@ -199,20 +199,20 @@
 .wizard-minimapa {
   order: 2;
   margin-left: auto;
-  padding: 10px;
+  padding: 6px;
   background: #fff7ed;
   border: 1px solid #fed7aa;
-  border-radius: 12px;
-  max-width: 190px;
+  border-radius: 10px;
+  max-width: 110px;
 }
 
 .wizard-minimapa-titulo {
-  font-size: 10px;
+  font-size: 6px;
   font-weight: 700;
   color: #ea580c;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .wizard-minimapa-placeholder {
