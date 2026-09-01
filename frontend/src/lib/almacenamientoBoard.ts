@@ -56,6 +56,8 @@ export interface ContenedorDnD {
   grid_columnas?: number | null;
   /** Columnas por fila para grillas asimétricas (ej: [3,2,2]). */
   grid_filas_config?: number[] | null;
+  /** Mueble inmueble fijo: no se arrastra ni elimina desde la pantalla. */
+  es_inmueble?: boolean;
   objetos_count: number;
   qr_code_url: string | null;
   largo?: string | number | null;
@@ -113,6 +115,8 @@ export interface EntidadEditable {
   grid_filas?: string | number | null;
   grid_columnas?: string | number | null;
   grid_filas_config?: number[] | null;
+  /** Mueble inmueble fijo: no se arrastra ni elimina desde la pantalla. */
+  es_inmueble?: boolean;
 }
 
 // =============================================================================
@@ -468,11 +472,13 @@ export class AlmacenamientoBoard {
   // -- Tarjeta de Contenedor (recursiva: muestra sub-contenedores) ----------
 
   private contenedorHtml(c: ContenedorDnD, profundidad: number, padreGrid?: { filas: number; columnas: number; columnasPorFila?: number[] | null }): string {
+    const inmueble = Boolean(c.es_inmueble);
     const subHtml = c.hijos.length
       ? `<div class="mt-2.5 pl-3 border-l-2 border-orange-100 space-y-2">${c.hijos.map((h) => this.contenedorHtml(h, profundidad + 1, { filas: this.filasDe(c), columnas: Math.max(1, Number(c.grid_columnas) || 3), columnasPorFila: c.grid_filas_config })).join('')}</div>`
       : '';
     return `
-    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="true" title="Arrastrá para mover">
+    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Mueble inmueble fijo (no mudable)' : 'Arrastrá para mover'}">
+      ${inmueble ? '<span class="dnd-inmueble-badge">📌 Fijo · No mudable</span>' : ''}
       ${this.minimapasContenedorHtml(c, padreGrid)}
       <div class="flex items-start gap-2.5">
         <img src="${imagenContenedor(c)}" alt="${escapeHtml(c.nombre)}" class="h-16 w-auto draggable" draggable="false" />
@@ -491,9 +497,9 @@ export class AlmacenamientoBoard {
           <a href="/contenedores/${c.id}" draggable="false" class="text-gray-400 hover:text-blue-700 p-1 transition-base" title="Ver contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_OJO}</svg>
           </a>
-          <button type="button" class="dnd-eliminar-contenedor text-red-300 hover:text-red-600 p-1 transition-base" data-id="${c.id}" data-nombre="${escapeHtml(c.nombre)}" title="Eliminar contenedor">
+          ${inmueble ? '' : `<button type="button" class="dnd-eliminar-contenedor text-red-300 hover:text-red-600 p-1 transition-base" data-id="${c.id}" data-nombre="${escapeHtml(c.nombre)}" title="Eliminar contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_PAPELERA}</svg>
-          </button>
+          </button>`}
         </div>
       </div>
       ${this.objetosHtml(c)}
@@ -505,8 +511,10 @@ export class AlmacenamientoBoard {
   // -- Tarjeta de Contenedor en la paleta (sin anidados) --------------------
 
   private contenedorPaletaHtml(c: ContenedorDnD): string {
+    const inmueble = Boolean(c.es_inmueble);
     return `
-    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="true" title="Arrastrá a una ubicación o dentro de otro contenedor">
+    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Mueble inmueble fijo (no mudable)' : 'Arrastrá a una ubicación o dentro de otro contenedor'}">
+      ${inmueble ? '<span class="dnd-inmueble-badge">📌 Fijo · No mudable</span>' : ''}
       ${this.minimapasContenedorHtml(c)}
       <div class="flex items-start gap-2.5">
         <img src="${imagenContenedor(c)}" alt="${escapeHtml(c.nombre)}" class="h-16 w-auto draggable" draggable="false" />
@@ -525,9 +533,9 @@ export class AlmacenamientoBoard {
           <a href="/contenedores/${c.id}" draggable="false" class="text-gray-400 hover:text-blue-700 p-1 transition-base" title="Ver contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_OJO}</svg>
           </a>
-          <button type="button" class="dnd-eliminar-contenedor text-red-300 hover:text-red-600 p-1 transition-base" data-id="${c.id}" data-nombre="${escapeHtml(c.nombre)}" title="Eliminar contenedor">
+          ${inmueble ? '' : `<button type="button" class="dnd-eliminar-contenedor text-red-300 hover:text-red-600 p-1 transition-base" data-id="${c.id}" data-nombre="${escapeHtml(c.nombre)}" title="Eliminar contenedor">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_PAPELERA}</svg>
-          </button>
+          </button>`}
         </div>
       </div>
       ${this.objetosHtml(c)}
@@ -680,6 +688,12 @@ export class AlmacenamientoBoard {
       card.addEventListener('dragstart', (e) => {
         const id = card.dataset.id;
         if (!id) return;
+        // Restricción estricta: los muebles inmuebles fijos NO se arrastran.
+        const cont = this.contenedoresPorId.get(id);
+        if (cont?.es_inmueble) {
+          e.preventDefault();
+          return;
+        }
         this.dragTipo = 'contenedor';
         this.dragId = id;
         if (e.dataTransfer) {
@@ -1237,6 +1251,18 @@ export class AlmacenamientoBoard {
         grillaRow.classList.add('hidden');
       }
     }
+    // Mueble inmueble fijo: solo aplica a contenedores.
+    const inmuebleRow = document.getElementById('editarInmuebleRow');
+    const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
+    if (inmuebleRow && inmuebleCheck) {
+      if (tipo === 'contenedor') {
+        inmuebleRow.classList.remove('hidden');
+        inmuebleCheck.checked = Boolean(entidad.es_inmueble);
+      } else {
+        inmuebleRow.classList.add('hidden');
+        inmuebleCheck.checked = false;
+      }
+    }
     this.precargarFoto(entidad.foto ?? null);
     modal.classList.remove('hidden');
   }
@@ -1253,6 +1279,7 @@ export class AlmacenamientoBoard {
     const largo = (document.getElementById('editarLargo') as HTMLInputElement).value;
     const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value;
     const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
+    const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
 
     if (!nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
@@ -1268,6 +1295,7 @@ export class AlmacenamientoBoard {
     if (largo !== '') formData.append('largo', largo);
     if (tipo === 'contenedor' && gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (tipo === 'contenedor' && gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
+    if (tipo === 'contenedor') formData.append('es_inmueble', esInmueble ? 'true' : 'false');
 
     // Al cambiar las filas globales en el modal se reescala la configuración
     // asimétrica (grid_filas_config) para no perder las columnas por fila.
@@ -1330,6 +1358,7 @@ export class AlmacenamientoBoard {
             if (gridFilas !== '') c.grid_filas = Number(gridFilas);
             if (gridColumnas !== '') c.grid_columnas = Number(gridColumnas);
             if (configNuevo) c.grid_filas_config = configNuevo;
+            c.es_inmueble = esInmueble;
           }
         }
 

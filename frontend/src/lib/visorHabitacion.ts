@@ -26,6 +26,7 @@ import {
   guardarUbicacion,
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+import { minimapaSvg, COLOR_NARANJA } from './minimapa';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
@@ -39,6 +40,8 @@ interface ContenedorVisor {
   subcontenedores_count?: number;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /** Mueble inmueble fijo: no se arrastra ni elimina. */
+  es_inmueble?: boolean;
 }
 
 interface ObjetoVisor {
@@ -52,6 +55,15 @@ interface ObjetoVisor {
 let roomActual: UbicacionPlano | null = null;
 let contenedoresRoom: ContenedorVisor[] = [];
 let objetosRoom: ObjetoVisor[] = [];
+
+/** Grilla de la planta (división) para el minimapa de orientación del Visor. */
+interface GrillaDivisionVisor {
+  filas: number;
+  columnas: number;
+  columnasPorFila?: number[] | null;
+  nombre: string;
+}
+let divisionGrid: GrillaDivisionVisor | null = null;
 
 // =============================================================================
 // HELPERS
@@ -90,6 +102,7 @@ async function cargarContenido(): Promise<void> {
   if (!roomActual) {
     contenedoresRoom = [];
     objetosRoom = [];
+    divisionGrid = null;
     return;
   }
   const [contData, objData] = await Promise.all([
@@ -98,11 +111,39 @@ async function cargarContenido(): Promise<void> {
   ]);
   contenedoresRoom = (contData as unknown as ContenedorVisor[]).filter((c) => !c.parent_contenedor);
   objetosRoom = (objData as unknown as ObjetoVisor[]).filter((o) => !o.contenedor);
+
+  // Grilla de la planta (división) donde está encastrada la habitación, para
+  // pintar el minimapa naranja del cuadrante auditado en la cabecera del Visor.
+  divisionGrid = null;
+  if (roomActual.parent_ubicacion) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/${roomActual.parent_ubicacion}/`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const d = (await res.json()) as Record<string, unknown>;
+        divisionGrid = {
+          filas: Math.max(1, Number(d.grid_filas) || 3),
+          columnas: Math.max(1, Number(d.grid_columnas) || 3),
+          columnasPorFila: Array.isArray(d.grid_filas_config) ? (d.grid_filas_config as number[]) : null,
+          nombre: String(d.nombre || 'Planta'),
+        };
+      }
+    } catch {
+      divisionGrid = null;
+    }
+  }
 }
 
 // =============================================================================
 // RENDER
 // =============================================================================
+
+/** Icono contextual de tercer nivel para contenedores internos del Visor. */
+function iconoContenedorVisor(nombre: string): string {
+  const n = (nombre || '').trim().toLowerCase();
+  if (n.startsWith('ropero')) return '🗄️';
+  if (n.startsWith('cama')) return '🛏️';
+  return '';
+}
 
 /** Contenido de una celda del Visor (contenedores y objetos con esa coordenada). */
 function celdasContenidoHtml(r: number, c: number): string {
@@ -113,8 +154,13 @@ function celdasContenidoHtml(r: number, c: number): string {
   const contsHtml = conts
     .map((x) => {
       const img = (x.subcontenedores_count || 0) > 0 ? IMG_CONTENEDOR_GRANDE : IMG_CONTENEDOR_PEQUENO;
-      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" title="${escapeHtml(x.nombre)}">
-        <img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />
+      const ico = iconoContenedorVisor(x.nombre);
+      const visual = ico
+        ? `<span class="visor-celda-emoji">${ico}</span>`
+        : `<img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />`;
+      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" title="${escapeHtml(x.nombre)}${x.es_inmueble ? ' · 📌 Mueble inmueble fijo (no mudable)' : ''}">
+        ${x.es_inmueble ? '<span class="visor-celda-fijo" title="Mueble inmueble fijo">📌</span>' : ''}
+        ${visual}
         <span class="visor-celda-nombre">${escapeHtml(x.nombre)}</span>
       </div>`;
     })
@@ -142,6 +188,23 @@ function renderVisor(): void {
   const room = roomActual;
   const filasInt = filasInternasDe(room);
   const med = medidasDe(room);
+
+  // Minimapa compacto de la planta actual con el cuadrante de la habitación
+  // auditada pintado en NARANJA (#f97316).
+  const minimapaPlanta = divisionGrid && room.parent_grid_row
+    ? `<div class="visor-minimapa-planta" title="Planta: ${escapeHtml(divisionGrid.nombre)} · Cuadrante F${room.parent_grid_row}·C${room.parent_grid_col || '—'}">
+        <span class="visor-minimapa-titulo">📍 Planta · ${escapeHtml(divisionGrid.nombre)}</span>
+        ${minimapaSvg({
+          filas: divisionGrid.filas,
+          columnas: divisionGrid.columnas,
+          columnasPorFila: divisionGrid.columnasPorFila ?? undefined,
+          fila: room.parent_grid_row,
+          columna: room.parent_grid_col ?? null,
+          color: COLOR_NARANJA,
+        })}
+        <span class="visor-minimapa-detalle">Cuadrante F${room.parent_grid_row}·C${room.parent_grid_col || '—'}</span>
+      </div>`
+    : '';
 
   const filasHtml: string[] = [];
   for (let r = 1; r <= filasInt; r++) {
@@ -179,6 +242,7 @@ function renderVisor(): void {
         ${med ? `<p class="visor-medidas">📐 ${escapeHtml(med)}</p>` : ''}
       </div>
     </div>
+    ${minimapaPlanta}
     <div class="visor-encabezado">
       <span class="visor-titulo">Lienzo matricial de la habitación</span>
       <span class="mapa-filas-internas-control">

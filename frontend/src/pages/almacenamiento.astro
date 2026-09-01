@@ -337,6 +337,14 @@ import '../styles/mapa-casita.css';
             </div>
             <p class="text-xs text-gray-400 mt-1">Ej: 2×3 en un armario empotrado. Las Columnas por fila (grilla asimétrica) se configuran en la tarjeta del contenedor con los selectores − / +.</p>
           </div>
+          <div id="editarInmuebleRow" class="hidden">
+            <label class="flex items-center gap-2 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">
+              <input id="editarInmueble" name="es_inmueble" type="checkbox"
+                class="w-4 h-4 text-orange-600 focus:ring-orange-500 rounded" />
+              <span class="text-sm font-medium text-gray-700">📌 Fijar como mueble inmueble <span class="text-orange-600 font-semibold">(No mudable)</span></span>
+            </label>
+            <p class="text-xs text-gray-400 mt-1">El mueble quedará fijo y adherido permanentemente a la habitación que lo contiene: no podrá arrastrarse ni eliminarse desde la pantalla de almacenamiento.</p>
+          </div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Foto</label>
             <div class="flex items-center gap-3">
               <div id="editarFotoPreview" class="hidden w-16 h-16 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0">

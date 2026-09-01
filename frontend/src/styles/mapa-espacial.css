@@ -1081,3 +1081,83 @@
   text-decoration: underline;
 }
 
+
+/* =============================================================================
+   MUEBLES INMUEBLES FIJOS (contenedor.es_inmueble)
+   ============================================================================= */
+
+.dnd-contenedor-inmueble {
+  background: #fffbeb !important;
+  border-color: #f97316 !important;
+  cursor: not-allowed;
+}
+
+.dnd-contenedor-inmueble:hover {
+  border-color: #f97316 !important;
+}
+
+.dnd-inmueble-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+}
+
+/* =============================================================================
+   VISOR DE HABITACIÓN - minimapa de planta + iconografía contextual
+   ============================================================================= */
+
+.visor-minimapa-planta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px dashed #f97316;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.visor-minimapa-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b45309;
+}
+
+.visor-minimapa-detalle {
+  font-size: 10px;
+  font-weight: 600;
+  color: #ea580c;
+}
+
+.visor-minimapa-planta svg {
+  flex-shrink: 0;
+}
+
+.visor-celda-cont {
+  position: relative;
+}
+
+.visor-celda-fijo {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 11px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+}
+
+.visor-celda-emoji {
+  font-size: 26px;
+  line-height: 1;
+}
+

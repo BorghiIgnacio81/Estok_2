@@ -193,6 +193,11 @@ class Contenedor(models.Model):
         verbose_name="Tipo de Madera",
         help_text="Solo aplica si el material es 'Madera'"
     )
+    es_inmueble = models.BooleanField(
+        default=False,
+        verbose_name="Mueble inmueble",
+        help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
+    )
     qr_code_image = models.ImageField(
         upload_to='qrcodes/',
         blank=True,
