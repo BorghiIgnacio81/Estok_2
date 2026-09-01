@@ -1,0 +1,346 @@
+/* =============================================================================
+   ESTILOS DEL WIZARD "MAPA DE ESTOK" (modelado espacial multi-nivel 1-4)
+   Se importan únicamente en src/pages/estoks/index.astro.
+   Selectores de orientación: COLOR NARANJA #f97316 (bosquejo estricto).
+   Reutiliza .num-btn/.num-input/.macro-input-label de mapa-espacial.css.
+   ============================================================================= */
+
+.wizard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.wizard-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+  width: 100%;
+  max-width: 960px;
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------------
+   Encabezado + breadcrumb
+   --------------------------------------------------------------------------- */
+
+.wizard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+
+.wizard-header-info {
+  min-width: 0;
+}
+
+.wizard-titulo {
+  font-size: 17px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.wizard-subtitulo {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+  max-width: 620px;
+}
+
+.wizard-cerrar {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #9ca3af;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.wizard-cerrar:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.wizard-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 20px;
+  font-size: 12px;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.wizard-crumb {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.wizard-crumb:hover {
+  color: #ea580c;
+  background: #ffedd5;
+}
+
+.wizard-crumb-actual {
+  color: #1f2937;
+  pointer-events: none;
+}
+
+.wizard-crumb-sep {
+  color: #d1d5db;
+}
+
+/* ---------------------------------------------------------------------------
+   Cuerpo: controles + minimapa (esquina superior) + grilla
+   --------------------------------------------------------------------------- */
+
+.wizard-cuerpo {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+.wizard-superior {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.wizard-controles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  min-width: 220px;
+}
+
+.wizard-ctrl-filas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wizard-ctrl-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-ctrl-fila-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 44px;
+}
+
+/* Minimapa de orientación (esquina superior derecha; obligatorio ≥ Nivel 2) */
+.wizard-minimapa {
+  order: 2;
+  margin-left: auto;
+  padding: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  max-width: 190px;
+}
+
+.wizard-minimapa-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ea580c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.wizard-minimapa-placeholder {
+  order: 2;
+  margin-left: auto;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+}
+
+/* Grilla de celdas del nivel actual */
+.wizard-grilla {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-fila {
+  display: grid;
+  gap: 8px;
+}
+
+.wizard-celda {
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 112px;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.wizard-celda:hover {
+  border-color: #f97316;
+  background: #fffaf5;
+}
+
+.wizard-celda-coords {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wizard-celda-nombre {
+  width: 100%;
+  border: 1px solid transparent;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.wizard-celda-nombre:focus {
+  border-color: #f97316;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.wizard-entrar-btn {
+  margin-top: auto;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: none;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wizard-entrar-btn:hover:not(:disabled) {
+  background: #f97316;
+  color: #ffffff;
+}
+
+.wizard-entrar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   Pie del modal
+   --------------------------------------------------------------------------- */
+
+.wizard-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-top: 1px solid #f3f4f6;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+
+.wizard-aviso {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.wizard-pie-botones {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wizard-volver-btn {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wizard-volver-btn:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+
+.wizard-guardar-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  background: #f97316;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.35);
+  transition: all 0.15s;
+}
+
+.wizard-guardar-btn:hover {
+  background: #ea580c;
+}
+
+.wizard-guardar-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

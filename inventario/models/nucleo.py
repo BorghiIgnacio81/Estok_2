@@ -36,6 +36,12 @@ class Estok(models.Model):
         verbose_name="Columnas de la grilla del macro-Estok",
         help_text="Cantidad de columnas de la grilla estilo Word del macro-Estok (por piso)."
     )
+    grid_filas_config = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="Columnas por fila del macro-plano (grilla asimétrica)",
+        help_text="Arreglo opcional con las columnas de cada fila del macro-plano (ej: [3,2]). Si es null, todas las filas usan grid_columnas."
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
 

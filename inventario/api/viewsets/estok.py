@@ -6,13 +6,16 @@ import logging
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role, CustomUser
+from ...services.mapa_estok_service import MapaEstokService
 from ..serializers import (
     EstokSerializer, EstokCreateSerializer,
     MembresiaSerializer, CodigoInvitacionSerializer,
     UnirseConCodigoSerializer, CambiarEstokActivoSerializer,
+    MapaEstokSerializer,
 )
 from .base import HasRolePermission, EsAdminDelEstok
 
@@ -36,6 +39,8 @@ class EstokViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ('unirse', 'mis_estoks', 'create', 'list', 'retrieve'):
             return [permissions.IsAuthenticated()]
+        if self.action == 'mapa':
+            return [permissions.IsAuthenticated(), EsAdminDelEstok()]
         return super().get_permissions()
 
     def get_serializer_class(self):
@@ -56,6 +61,42 @@ class EstokViewSet(viewsets.ModelViewSet):
         estoks = self.get_queryset()
         serializer = EstokSerializer(estoks, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='mapa')
+    def mapa(self, request, pk=None):
+        """
+        POST /api/estoks/{id}/mapa/
+
+        Persiste el Mapa de Estok generado por el wizard del frontend:
+        la jerarquía completa de Ubicaciones (Niveles 1-2) y Contenedores
+        (Niveles 3-4) con sus coordenadas, en UNA sola transacción.
+        Exige membresía Admin en el Estok (EsAdminDelEstok vía X-Estok-Id)
+        y que el Estok del path coincida con el header X-Estok-Id activo.
+        """
+        estok = self.get_object()
+
+        estok_header = request.headers.get('X-Estok-Id')
+        if estok_header and str(estok.id) != str(estok_header):
+            return Response(
+                {'error': 'El Estok del mapa no coincide con el Estok activo (X-Estok-Id).'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = MapaEstokSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            resultado = MapaEstokService.guardar_mapa(estok, serializer.validated_data)
+        except ValidationError as exc:
+            detalle = exc.detail
+            if isinstance(detalle, (list, tuple)):
+                detalle = ' '.join(str(d) for d in detalle)
+            return Response(
+                {'error': str(detalle)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(resultado, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['post'])
     def unirse(self, request):

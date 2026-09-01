@@ -31,7 +31,7 @@ class EstokSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nombre', 'descripcion',
             'tipo_layout',
-            'grid_filas', 'grid_columnas',
+            'grid_filas', 'grid_columnas', 'grid_filas_config',
             'miembros', 'miembros_count', 'objetos_count',
             'created_at', 'updated_at',
         ]

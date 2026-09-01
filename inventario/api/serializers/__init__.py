@@ -19,6 +19,7 @@ from .historial import HistorialPrecioSerializer, AlertaStockSerializer
 from .multimedia import FotoObjetoSerializer, FotoObjetoUploadSerializer
 from .chat import MensajeSerializer, MensajeCreateSerializer
 from .categorias import CategoriaSerializer
+from .mapa_estok import MapaEstokSerializer, CeldaMapaSerializer
 from .super_admin import (
     SuperAdminUserSerializer,
     SuperAdminUserCreateSerializer,
@@ -36,6 +37,7 @@ __all__ = [
     'FotoObjetoSerializer', 'FotoObjetoUploadSerializer',
     'MensajeSerializer', 'MensajeCreateSerializer',
     'CategoriaSerializer',
+    'MapaEstokSerializer', 'CeldaMapaSerializer',
     'SuperAdminUserSerializer', 'SuperAdminUserCreateSerializer',
     'SuperAdminEstokSerializer',
 ]

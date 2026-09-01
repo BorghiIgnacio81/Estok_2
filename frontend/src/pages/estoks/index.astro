@@ -8,6 +8,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
 import LoadingState from '../../components/LoadingState.astro';
 import ErrorState from '../../components/ErrorState.astro';
+// Estilos del Wizard "Mapa de Estok" (reutiliza .num-btn/.macro-input-label de mapa-espacial.css)
+import '../../styles/mapa-espacial.css';
+import '../../styles/mapa-estok-wizard.css';
 ---
 
 <AuthGuard />
@@ -114,6 +117,9 @@ import ErrorState from '../../components/ErrorState.astro';
       </div>
     </div>
   </div>
+
+  <!-- Contenedor raíz del Wizard "Mapa de Estok": se inyecta al confirmar el alta del Estok -->
+  <div id="mapaEstokWizardRoot"></div>
 </BaseLayout>
 
 <script>
@@ -121,8 +127,9 @@ import ErrorState from '../../components/ErrorState.astro';
   // MANEJO DE LA PÁGINA DE ESTOKS
   // ===========================================================================
 
-  import { getCachedUser, fetchCurrentUser, crearEstok, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
+  import { fetchCurrentUser, crearEstok, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
   import type { EstokInfo } from '../../types';
+  import { MapaEstokWizardUI } from '../../lib/mapaEstokWizardUI';
 
   // ===========================================================================
   // REFERENCIAS DOM
@@ -317,6 +324,8 @@ import ErrorState from '../../components/ErrorState.astro';
   // FORMULARIO: CREAR ESTOK
   // ===========================================================================
 
+  const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
+
   crearForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError(crearError);
@@ -332,15 +341,32 @@ import ErrorState from '../../components/ErrorState.astro';
     try {
       const nuevoEstok = await crearEstok(nombre);
 
-      // Establecer como activo y redirigir al dashboard
+      // Establecer el nuevo Estok como activo (para que getAuthHeaders() envíe
+      // X-Estok-Id) y DESPLEGAR el wizard "Mapa de Estok" en vez de cerrar el flujo.
       try {
         await cambiarEstokActivo(nuevoEstok.id);
       } catch (err: any) {
         // El estok se creó correctamente aunque cambiarEstokActivo falle
         console.warn('Estok creado pero falló cambiar activo:', err);
       }
-      (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado correctamente`);
-      window.location.href = '/';
+
+      (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado. Ahora modelá su mapa espacial.`);
+      const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
+      wizard.abrir(
+        { id: nuevoEstok.id, nombre: nuevoEstok.nombre },
+        {
+          // Persistencia confirmada por el backend → cerrar y entrar al dashboard
+          onGuardado: () => {
+            (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado con su mapa espacial`);
+            window.location.href = '/';
+          },
+          // El usuario cerró el modal sin guardar → el Estok ya existe igualmente
+          onCerrar: () => {
+            (window as any).showInfo?.(`ℹ️ Estok "${nuevoEstok.nombre}" creado sin mapa. Podés modelarlo después desde Almacenamiento.`);
+            window.location.href = '/';
+          },
+        },
+      );
     } catch (err: any) {
       showError(crearError, err?.error || 'Error al crear el Estok');
       console.error('Error al crear Estok:', err);
