@@ -16,6 +16,8 @@
 //                         'estok:habitacion-seleccionada'.
 // La configuración numérica de la estructura vive ÚNICAMENTE dentro del wizard
 // "✏️ Editar Estructura" (mapaEstokWizardUI.ts). Aquí NO hay inputs numéricos.
+// Estado inicial forzado: la navegación NACE en el Nivel 1 y la casa se pinta
+// de forma SÍNCRONA al iniciar (el lienzo nunca queda vacío esperando datos).
 // =============================================================================
 
 import {
@@ -45,7 +47,8 @@ let divisiones: UbicacionPlano[] = [];
 let habitaciones: UbicacionPlano[] = [];
 /** Planta activa (parent_grid_row). null = vista general sin filtro. */
 let filaActiva: number | null = null;
-/** Nivel de navegación: 1 = casa general, 2 = habitaciones de una planta. */
+/** Nivel de navegación: 1 = casa general, 2 = habitaciones de una planta.
+ *  NACE estrictamente en el Nivel 1 para que la casa se dibuje apenas carga. */
 let nivelActual: 1 | 2 = 1;
 
 // =============================================================================
@@ -293,39 +296,58 @@ function enlazar(): void {
 // ENTRADA
 // =============================================================================
 
-export async function initMapaCasita(opts: {
+export function initMapaCasita(opts: {
   mapa?: HTMLElement | null;
   badge?: HTMLElement | null;
-}): Promise<void> {
+}): void {
   refs = { mapa: opts.mapa ?? null, badge: opts.badge ?? null };
   if (!refs.mapa) return;
 
-  const conf = await fetchEstokConfig();
-  if (!conf) {
-    refs.mapa.innerHTML =
-      '<p class="text-sm text-gray-400 text-center py-6">No se pudo cargar la configuración del Estok.</p>';
-    return;
-  }
-  estok = conf;
-  await cargarDatos();
-
+  // Estado inicial estricto: la navegación NACE en el Nivel 1 (casa general).
+  // La silueta con techo puntiagudo se dibuja de forma INSTANTÁNEA y luego,
+  // al llegar los datos del Estok activo, se re-renderiza con las divisiones
+  // raíz reales (Planta Alta arriba, Planta Baja abajo).
   filaActiva = null;
   nivelActual = 1;
-  render();
-  enlazar();
-  notificarPlanta();
+  pintarCasaInicial();
+
+  // Carga asíncrona de las macro-divisiones del Estok activo. Si el fetch
+  // falla de forma transitoria (p. ej. sesión aún restaurándose), se reintenta
+  // SIN que el lienzo quede vacío: la casa ya quedó pintada por defecto.
+  void cargarConReintentos();
 
   // Refresco en vivo ante mutaciones externas (wizard "Editar Estructura",
   // movimientos/eliminaciones): se recarga SIN re-enlazar controles fijos.
   window.addEventListener('estok:espacios-cambiados', () => {
-    if (!estok) return;
-    void (async () => {
-      await cargarDatos();
-      render();
-      enlazar();
-      notificarPlanta();
-    })();
+    void cargarYRefrescar();
   });
+}
+
+/** Pinta el Nivel 1 (casa) de forma síncrona e inmediata con los datos actuales. */
+function pintarCasaInicial(): void {
+  render();
+  enlazar();
+}
+
+/** Carga config del Estok + divisiones/habitaciones y re-renderiza. */
+async function cargarYRefrescar(): Promise<boolean> {
+  const conf = await fetchEstokConfig();
+  if (!conf) return false;
+  estok = conf;
+  await cargarDatos();
+  render();
+  enlazar();
+  notificarPlanta();
+  return true;
+}
+
+/** Reintentos acotados ante fallos transitorios de la inicialización. */
+async function cargarConReintentos(intentosMax = 6, esperaMs = 700): Promise<void> {
+  for (let intento = 1; intento <= intentosMax; intento++) {
+    if (await cargarYRefrescar()) return;
+    await new Promise((resolve) => setTimeout(resolve, esperaMs));
+  }
+  if (refs.badge) refs.badge.textContent = 'Nivel 1 · Sin datos';
 }
 
 

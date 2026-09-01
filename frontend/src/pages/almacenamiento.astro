@@ -410,55 +410,72 @@ import '../styles/mapa-casita.css';
   import { MapaEstokWizardUI } from '../lib/mapaEstokWizardUI';
   import { getEstokActivoId, getCachedUser } from '../services/auth';
 
-  const tablero = new AlmacenamientoBoard();
-  void tablero.init();
-
   // ===========================================================================
-  // WIZARD "✏️ EDICION DE ESTRUCTURA" — REUTILIZA EL MODAL DE ALTA DE ESTOK
-  // Abre el modelador jerárquico precargado con la estructura ACTUAL y, al
-  // "Guardar Mapa", hace PUTs granulares (JWT + X-Estok-Id) y refresca en vivo
-  // el lienzo del Drag & Drop (evento estok:espacios-cambiados).
+  // ARRANQUE CON GARANTÍA DE DOM LISTO
+  // El render del lienzo "Mapa Estok" se enlaza dentro de DOMContentLoaded para
+  // que la silueta con techo puntiagudo dibuje de forma instantánea el Nivel 1
+  // (divisiones raíz del Estok activo) apenas carga la página. Si el script ya
+  // corre con el DOM listo (módulo deferred), se ejecuta de inmediato.
   // ===========================================================================
-  const editarEstructuraBtn = document.getElementById('editarEstructuraBtn');
-  const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
-
-  editarEstructuraBtn?.addEventListener('click', async () => {
-    const estokId = getEstokActivoId();
-    if (!estokId) {
-      (window as any).showError?.('No hay un Estok activo para editar.');
-      return;
+  function alCargarDom(accion: () => void): void {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => accion());
+    } else {
+      accion();
     }
-    const estokNombre = getCachedUser()?.estoks?.find((e) => e.id === estokId)?.nombre || 'Estok';
-    const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
-    try {
-      await wizard.abrirEdicion(
-        { id: estokId, nombre: estokNombre },
-        {
-          onGuardado: () => {
-            (window as any).showSuccess?.('✅ Estructura del Mapa Estok actualizada.');
-          },
-          onCerrar: () => {
-            // Sin acción: el usuario cerró el modal sin guardar.
-          },
-        },
-      );
-    } catch (err: any) {
-      (window as any).showError?.(err?.message || 'No se pudo abrir el editor de estructura.');
-    }
-  });
+  }
 
-  // Filtrado en caliente: cuando se selecciona una división (fila) en el Mapa
-  // Estok (izquierda), la cascada inferior muta SIN recargar la página.
-  window.addEventListener('estok:planta-seleccionada', (e) => {
-    const detalle = (e as CustomEvent<{ fila: number | null; nombre: string | null }>).detail;
-    tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
-  });
+  alCargarDom(() => {
+    const tablero = new AlmacenamientoBoard();
+    void tablero.init();
 
-  // Lienzo navegable "Mapa Estok" (Nivel 1 casa → Nivel 2 habitaciones) +
-  // Visor de la habitación seleccionada en la columna derecha.
-  void initMapaCasita({
-    mapa: document.getElementById('mapaEstokPanel'),
-    badge: document.getElementById('mapaJerarquicoBadge'),
+    // =========================================================================
+    // WIZARD "✏️ EDICION DE ESTRUCTURA" — REUTILIZA EL MODAL DE ALTA DE ESTOK
+    // Abre el modelador jerárquico precargado con la estructura ACTUAL y, al
+    // "Guardar Mapa", hace PUTs granulares (JWT + X-Estok-Id) y refresca en vivo
+    // el lienzo del Drag & Drop (evento estok:espacios-cambiados).
+    // =========================================================================
+    const editarEstructuraBtn = document.getElementById('editarEstructuraBtn');
+    const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
+
+    editarEstructuraBtn?.addEventListener('click', async () => {
+      const estokId = getEstokActivoId();
+      if (!estokId) {
+        (window as any).showError?.('No hay un Estok activo para editar.');
+        return;
+      }
+      const estokNombre = getCachedUser()?.estoks?.find((e) => e.id === estokId)?.nombre || 'Estok';
+      const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
+      try {
+        await wizard.abrirEdicion(
+          { id: estokId, nombre: estokNombre },
+          {
+            onGuardado: () => {
+              (window as any).showSuccess?.('✅ Estructura del Mapa Estok actualizada.');
+            },
+            onCerrar: () => {
+              // Sin acción: el usuario cerró el modal sin guardar.
+            },
+          },
+        );
+      } catch (err: any) {
+        (window as any).showError?.(err?.message || 'No se pudo abrir el editor de estructura.');
+      }
+    });
+
+    // Filtrado en caliente: cuando se selecciona una división (fila) en el Mapa
+    // Estok (izquierda), la cascada inferior muta SIN recargar la página.
+    window.addEventListener('estok:planta-seleccionada', (e) => {
+      const detalle = (e as CustomEvent<{ fila: number | null; nombre: string | null }>).detail;
+      tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
+    });
+
+    // Lienzo navegable "Mapa Estok" (Nivel 1 casa → Nivel 2 habitaciones) +
+    // Visor de la habitación seleccionada en la columna derecha.
+    initMapaCasita({
+      mapa: document.getElementById('mapaEstokPanel'),
+      badge: document.getElementById('mapaJerarquicoBadge'),
+    });
+    initVisor();
   });
-  initVisor();
 </script>
