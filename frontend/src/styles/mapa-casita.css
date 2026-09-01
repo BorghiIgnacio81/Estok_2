@@ -1,0 +1,328 @@
+/* =============================================================================
+   LIENZO NAVEGABLE "MAPA ESTOK" - CASA CON TECHO PUNTIAGUDO (Nivel 1 → Nivel 2)
+   Naranja estricto #f97316 para la planta activa (selector de posición).
+   Se importa únicamente en src/pages/almacenamiento.astro
+   ============================================================================= */
+
+.casita-raiz {
+  width: 100%;
+}
+
+.casita-lienzo {
+  max-width: 340px;
+  margin: 0 auto;
+  user-select: none;
+}
+
+/* --- Silueta de la casa (Nivel 1) ----------------------------------------- */
+
+.casita-silhouette {
+  position: relative;
+  filter: drop-shadow(0 12px 16px rgba(120, 53, 15, 0.18));
+}
+
+.casita-techo-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.casita-cuerpo {
+  position: relative;
+  z-index: 1;
+  width: 86%;
+  margin: -3px auto 0;
+  border: 2px solid #7c2d12;
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.6) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 78% 70%, rgba(255, 255, 255, 0.45) 0 1.5px, transparent 2.5px),
+    repeating-linear-gradient(0deg, rgba(146, 64, 14, 0.07) 0 1px, transparent 1px 27px),
+    linear-gradient(180deg, #fffbeb 0%, #fde68a 100%);
+  overflow: hidden;
+}
+
+.casita-piso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 14px;
+  border: none;
+  border-bottom: 1px dashed rgba(146, 64, 14, 0.28);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.casita-piso:last-child {
+  border-bottom: none;
+}
+
+.casita-piso:hover {
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.casita-piso:active {
+  transform: scale(0.985);
+}
+
+.casita-piso:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: -2px;
+}
+
+.casita-piso-activo {
+  background: rgba(249, 115, 22, 0.16);
+  box-shadow: inset 4px 0 0 #f97316;
+}
+
+.casita-piso-izq {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.casita-piso-ico {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.casita-piso-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #7c2d12;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.casita-piso-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #b45309;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.casita-piso-flecha {
+  font-size: 14px;
+  color: #f97316;
+}
+
+.casita-leyenda {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* --- Nivel 2: cabecera ----------------------------------------------------- */
+
+.casita-nivel2-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.casita-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c2410c;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.casita-volver:hover {
+  background: #ffedd5;
+}
+
+.casita-volver:active {
+  transform: scale(0.96);
+}
+
+.casita-volver:focus-visible {
+  outline: 2px solid #f97316;
+}
+
+.casita-nivel2-titulo {
+  font-size: 13px;
+  font-weight: 800;
+  color: #7c2d12;
+}
+
+
+/* --- Minimapa ultra-mini de la casita -------------------------------------- */
+
+.casita-minimapa-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: #fffbeb;
+  border: 1px dashed #f97316;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 8px 0 12px;
+}
+
+.casita-minimapa-casilla {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 7px;
+}
+
+.casita-minimapa-svg {
+  display: block;
+}
+
+.casita-minimapa-svg rect {
+  transition: fill 0.15s ease;
+  cursor: pointer;
+}
+
+.casita-minimapa-svg rect:hover {
+  filter: brightness(0.92);
+}
+
+.casita-minimapa-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.casita-minimapa-leyenda {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.casita-minimapa-info strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #ea580c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.casita-minimapa-hint {
+  font-size: 10px;
+  color: #b45309;
+}
+
+/* --- Grilla de habitaciones (Nivel 2) -------------------------------------- */
+
+.casita-habitaciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.casita-habitacion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 11px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.casita-habitacion:hover {
+  border-color: #f97316;
+  box-shadow: 0 4px 10px rgba(249, 115, 22, 0.12);
+  transform: translateY(-1px);
+}
+
+.casita-habitacion:active {
+  transform: scale(0.97);
+}
+
+.casita-habitacion:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 1px;
+}
+
+.casita-hab-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.casita-hab-nombre {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.casita-hab-meta {
+  font-size: 10px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.casita-hab-vacia {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 16px;
+  background: #fffbeb;
+  border: 2px dashed #fdba74;
+  border-radius: 14px;
+  text-align: center;
+}
+
+.casita-hab-vacia-ico {
+  font-size: 26px;
+}
+
+.casita-hab-vacia p {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b45309;
+  margin: 0;
+}
+
+.casita-hab-vacia-sub {
+  font-weight: 500 !important;
+  color: #9ca3af !important;
+}

@@ -2,7 +2,7 @@
 // =============================================================================
 // PÁGINA DE ALMACENAMIENTO - FLUJO EN CASCADA POR NIVELES
 // Nivel 1 (Mapa Estok) → Nivel 2 (Habitaciones) → Nivel 3 (Contenedores).
-// La lógica vive en src/lib/almacenamientoBoard.ts y src/lib/mapaJerarquicoUI.ts
+// La lógica vive en src/lib/almacenamientoBoard.ts y src/lib/mapaCasitaNavegable.ts
 // para mantener la página liviana.
 // =============================================================================
 
@@ -12,6 +12,7 @@ import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-estok-wizard.css';
+import '../styles/mapa-casita.css';
 ---
 
 <AuthGuard />
@@ -46,8 +47,8 @@ import '../styles/mapa-estok-wizard.css';
 
     <!-- =========================================================================
          SECCIÓN SUPERIOR - FLUJO EN CASCADA (NIVELES 1 y 2)
-         Izquierda: Mapa Estok (Nivel 1) con NumericUp/Down de Filas y Columnas.
-         Derecha  : Habitaciones (Nivel 2) arrastrables hacia las celdas macro.
+         Izquierda: Mapa Estok (Nivel 1) navegable tipo casa (sin inputs numéricos).
+         Derecha  : Cascada de Habitaciones (Nivel 2) y Contenedores (Nivel 3).
          ========================================================================= -->
     <section class="mb-10" id="seccionMapaEstok">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -56,7 +57,7 @@ import '../styles/mapa-estok-wizard.css';
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
           <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa Estok</h2>
+              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
               <button type="button" id="editarEstructuraBtn"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-full hover:bg-orange-700 transition-base shadow-sm"
@@ -64,24 +65,8 @@ import '../styles/mapa-estok-wizard.css';
                 ✏️ Editar Estructura
               </button>
             </div>
-            <div class="flex items-center gap-2">
-              <label class="macro-input-label">Filas
-                <span class="num-control">
-                  <button type="button" class="num-btn" data-macro-filas="menos" title="Menos filas en el Mapa Estok">−</button>
-                  <input id="macroFilas" type="number" min="1" max="12" value="3" class="num-input" aria-label="Filas de la grilla del Mapa Estok" />
-                  <button type="button" class="num-btn" data-macro-filas="mas" title="Más filas en el Mapa Estok">+</button>
-                </span>
-              </label>
-              <label class="macro-input-label">Columnas
-                <span class="num-control">
-                  <button type="button" class="num-btn" data-macro-columnas="menos" title="Menos columnas en el Mapa Estok">−</button>
-                  <input id="macroColumnas" type="number" min="1" max="12" value="3" class="num-input" aria-label="Columnas de la grilla del Mapa Estok" />
-                  <button type="button" class="num-btn" data-macro-columnas="mas" title="Más columnas en el Mapa Estok">+</button>
-                </span>
-              </label>
-            </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Cada división tiene su PROPIA sub-grilla (Filas Internas × Columnas por fila, asimétrica). Soltá habitaciones sobre las celdas (Drop Zones) para encastrarlas. Al aumentar las Filas se pedirá el nombre de la nueva división.</p>
+          <p class="text-xs text-gray-500 mb-3">Navegación táctil por niveles en cascada: tocá una planta de la casa para desplegar el plano de sus habitaciones. La configuración numérica de la estructura quedó encapsulada dentro de «✏️ Editar Estructura».</p>
           <div id="mapaEstokPanel" class="mt-1">
             <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
           </div>
@@ -420,7 +405,7 @@ import '../styles/mapa-estok-wizard.css';
 
 <script>
   import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
-  import { initMapaJerarquico } from '../lib/mapaJerarquicoUI';
+  import { initMapaCasita } from '../lib/mapaCasitaNavegable';
   import { initVisor } from '../lib/visorHabitacion';
   import { MapaEstokWizardUI } from '../lib/mapaEstokWizardUI';
   import { getEstokActivoId, getCachedUser } from '../services/auth';
@@ -469,9 +454,9 @@ import '../styles/mapa-estok-wizard.css';
     tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
   });
 
-  // Mapa Estok (Nivel 1) con sub-grillas asimétricas + Visor de la habitación
-  // seleccionada (Nivel 2) en la columna derecha.
-  void initMapaJerarquico({
+  // Lienzo navegable "Mapa Estok" (Nivel 1 casa → Nivel 2 habitaciones) +
+  // Visor de la habitación seleccionada en la columna derecha.
+  void initMapaCasita({
     mapa: document.getElementById('mapaEstokPanel'),
     badge: document.getElementById('mapaJerarquicoBadge'),
   });
