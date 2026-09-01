@@ -198,6 +198,13 @@ export class AlmacenamientoBoard {
     document.getElementById('retryBtn')?.addEventListener('click', () => { void this.cargar(); });
     // Si el Mapa Jerárquico cambió ubicaciones/grillas, el tablero se refresca.
     window.addEventListener('estok:espacios-cambiados', () => { void this.cargar(); });
+    // Edición en caliente pedida desde el Visor (✏️ junto a cada mueble).
+    window.addEventListener('estok:editar-contenedor', (e) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (!id) return;
+      const c = this.contenedoresPorId.get(id);
+      if (c) this.abrirModalEditar('contenedor', c);
+    });
     await this.cargar();
   }
 

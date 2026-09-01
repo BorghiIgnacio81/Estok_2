@@ -26,12 +26,14 @@ import {
   guardarUbicacion,
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-import { minimapaSvg, COLOR_NARANJA } from './minimapa';
-
-// Iconografía local estricta del Lienzo de Mapeo Espacial.
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+import {
+  ETIQUETAS_PARED,
+  celdaVisorContenidoHtml,
+  cuerpoConParedesHtml,
+  paletaPuertaHtml,
+  medidasDe,
+  minimapaPlantaHtml,
+} from './visorHabitacionHtml';
 
 interface ContenedorVisor {
   id: string;
@@ -55,12 +57,12 @@ interface ObjetoVisor {
 let roomActual: UbicacionPlano | null = null;
 let contenedoresRoom: ContenedorVisor[] = [];
 let objetosRoom: ObjetoVisor[] = [];
+/** Tipo de elemento arrastrándose sobre el Visor (para las Drop Zones de pared). */
+let dragTipoVisor: 'contenedor' | 'objeto' | 'puerta' | null = null;
 
 /** Grilla de la planta (división) para el minimapa de orientación del Visor. */
 interface GrillaDivisionVisor {
   filas: number;
-  columnas: number;
-  columnasPorFila?: number[] | null;
   nombre: string;
 }
 let divisionGrid: GrillaDivisionVisor | null = null;
@@ -90,14 +92,6 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
   return todos;
 }
 
-function medidasDe(room: UbicacionPlano): string | null {
-  const valores = [room.alto, room.ancho, room.largo].filter(
-    (v) => v !== null && v !== undefined && v !== '',
-  ) as Array<string | number>;
-  if (!valores.length) return null;
-  return `${valores.map((v) => String(Number(v))).join(' × ')} cm`;
-}
-
 async function cargarContenido(): Promise<void> {
   if (!roomActual) {
     contenedoresRoom = [];
@@ -122,8 +116,6 @@ async function cargarContenido(): Promise<void> {
         const d = (await res.json()) as Record<string, unknown>;
         divisionGrid = {
           filas: Math.max(1, Number(d.grid_filas) || 3),
-          columnas: Math.max(1, Number(d.grid_columnas) || 3),
-          columnasPorFila: Array.isArray(d.grid_filas_config) ? (d.grid_filas_config as number[]) : null,
           nombre: String(d.nombre || 'Planta'),
         };
       }
@@ -137,43 +129,7 @@ async function cargarContenido(): Promise<void> {
 // RENDER
 // =============================================================================
 
-/** Icono contextual de tercer nivel para contenedores internos del Visor. */
-function iconoContenedorVisor(nombre: string): string {
-  const n = (nombre || '').trim().toLowerCase();
-  if (n.startsWith('ropero')) return '🗄️';
-  if (n.startsWith('cama')) return '🛏️';
-  return '';
-}
-
 /** Contenido de una celda del Visor (contenedores y objetos con esa coordenada). */
-function celdasContenidoHtml(r: number, c: number): string {
-  const conts = contenedoresRoom.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  const objs = objetosRoom.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  if (!conts.length && !objs.length) return '<span class="visor-celda-vacia">＋</span>';
-
-  const contsHtml = conts
-    .map((x) => {
-      const img = (x.subcontenedores_count || 0) > 0 ? IMG_CONTENEDOR_GRANDE : IMG_CONTENEDOR_PEQUENO;
-      const ico = iconoContenedorVisor(x.nombre);
-      const visual = ico
-        ? `<span class="visor-celda-emoji">${ico}</span>`
-        : `<img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />`;
-      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" title="${escapeHtml(x.nombre)}${x.es_inmueble ? ' · 📌 Mueble inmueble fijo (no mudable)' : ''}">
-        ${x.es_inmueble ? '<span class="visor-celda-fijo" title="Mueble inmueble fijo">📌</span>' : ''}
-        ${visual}
-        <span class="visor-celda-nombre">${escapeHtml(x.nombre)}</span>
-      </div>`;
-    })
-    .join('');
-  const objsHtml = objs
-    .map(
-      (x) =>
-        `<img src="${IMG_OBJETO}" alt="${escapeHtml(x.nombre)}" class="h-12 w-12 rounded-full draggable" draggable="false" title="${escapeHtml(x.nombre)}" />`,
-    )
-    .join('');
-  return `${contsHtml}${objsHtml}`;
-}
-
 function renderVisor(): void {
   const cont = document.getElementById('visorHabitacion');
   if (!cont) return;
@@ -188,23 +144,7 @@ function renderVisor(): void {
   const room = roomActual;
   const filasInt = filasInternasDe(room);
   const med = medidasDe(room);
-
-  // Minimapa compacto de la planta actual con el cuadrante de la habitación
-  // auditada pintado en NARANJA (#f97316).
-  const minimapaPlanta = divisionGrid && room.parent_grid_row
-    ? `<div class="visor-minimapa-planta" title="Planta: ${escapeHtml(divisionGrid.nombre)} · Cuadrante F${room.parent_grid_row}·C${room.parent_grid_col || '—'}">
-        <span class="visor-minimapa-titulo">📍 Planta · ${escapeHtml(divisionGrid.nombre)}</span>
-        ${minimapaSvg({
-          filas: divisionGrid.filas,
-          columnas: divisionGrid.columnas,
-          columnasPorFila: divisionGrid.columnasPorFila ?? undefined,
-          fila: room.parent_grid_row,
-          columna: room.parent_grid_col ?? null,
-          color: COLOR_NARANJA,
-        })}
-        <span class="visor-minimapa-detalle">Cuadrante F${room.parent_grid_row}·C${room.parent_grid_col || '—'}</span>
-      </div>`
-    : '';
+  const puerta = room.posicion_puerta || null;
 
   const filasHtml: string[] = [];
   for (let r = 1; r <= filasInt; r++) {
@@ -213,7 +153,7 @@ function renderVisor(): void {
     for (let c = 1; c <= cols; c++) {
       celdas.push(`
         <div class="visor-celda" data-visor-celda data-visor-row="${r}" data-visor-col="${c}" title="Soltá contenedores u objetos aquí">
-          ${celdasContenidoHtml(r, c)}
+          ${celdaVisorContenidoHtml(contenedoresRoom, objetosRoom, r, c)}
         </div>`);
     }
     filasHtml.push(`
@@ -242,7 +182,7 @@ function renderVisor(): void {
         ${med ? `<p class="visor-medidas">📐 ${escapeHtml(med)}</p>` : ''}
       </div>
     </div>
-    ${minimapaPlanta}
+    ${minimapaPlantaHtml(divisionGrid, room.parent_grid_row, room.parent_grid_col)}
     <div class="visor-encabezado">
       <span class="visor-titulo">Lienzo matricial de la habitación</span>
       <span class="mapa-filas-internas-control">
@@ -254,8 +194,9 @@ function renderVisor(): void {
         </span>
       </span>
     </div>
-    <div class="visor-grid">${filasHtml.join('')}</div>
-    <p class="visor-ayuda">Arrastrá contenedores u objetos desde la paleta inferior y soltalos en una celda del lienzo.</p>
+    ${cuerpoConParedesHtml(filasHtml.join(''), puerta)}
+    ${paletaPuertaHtml()}
+    <p class="visor-ayuda">Arrastrá muebles entre casilleros libres, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación.</p>
   </div>`;
 }
 
@@ -283,8 +224,82 @@ function enlazarVisor(): void {
       celda.classList.remove('visor-celda-dnd-activo');
       const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
       const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-      if (contId) void asignarContenedorACelda(contId, r, c);
-      else if (objId) void asignarObjetoACelda(objId, r, c);
+      if (contId) {
+        // Reacomodo seguro: solo se permite soltar en un casillero LIBRE.
+        const ocupado =
+          contenedoresRoom.some((x) => x.parent_grid_row === r && x.parent_grid_col === c) ||
+          objetosRoom.some((x) => x.parent_grid_row === r && x.parent_grid_col === c);
+        if (ocupado) {
+          toast('⚠️ Ese casillero ya está ocupado. Elegí un casillero libre.');
+          return;
+        }
+        void asignarContenedorACelda(contId, r, c);
+      } else if (objId) void asignarObjetoACelda(objId, r, c);
+    });
+  });
+
+  // Reacomodo por Drag & Drop dentro del Visor: muebles arrastrables
+  // (excepto los inmuebles fijos) hacia otro casillero libre.
+  cont.querySelectorAll<HTMLElement>('[data-contenedor-id]').forEach((el) => {
+    el.addEventListener('dragstart', (e) => {
+      const de = e as DragEvent;
+      const id = el.dataset.contenedorId;
+      if (!id) { de.preventDefault(); return; }
+      const c = contenedoresRoom.find((x) => x.id === id);
+      if (c?.es_inmueble) { de.preventDefault(); return; }
+      dragTipoVisor = 'contenedor';
+      if (de.dataTransfer) {
+        de.dataTransfer.setData('application/x-estok-contenedor', id);
+        de.dataTransfer.setData('text/plain', id);
+        de.dataTransfer.effectAllowed = 'move';
+      }
+      el.classList.add('opacity-50');
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('opacity-50');
+      dragTipoVisor = null;
+    });
+  });
+
+  // Edición técnica en caliente desde el Visor (✏️ junto a cada mueble).
+  cont.querySelectorAll<HTMLElement>('[data-editar-contenedor-visor]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.editarContenedorVisor;
+      if (!id) return;
+      window.dispatchEvent(new CustomEvent('estok:editar-contenedor', { detail: { id } }));
+    });
+  });
+
+  // Puerta arrastrable: origen "🚪 Puerta" + las cuatro paredes como Drop Zones.
+  cont.querySelector<HTMLElement>('[data-puerta-drag]')?.addEventListener('dragstart', (e) => {
+    const de = e as DragEvent;
+    dragTipoVisor = 'puerta';
+    if (de.dataTransfer) {
+      de.dataTransfer.setData('application/x-estok-puerta', '1');
+      de.dataTransfer.setData('text/plain', 'PUERTA');
+      de.dataTransfer.effectAllowed = 'move';
+    }
+  });
+  cont.querySelector<HTMLElement>('[data-puerta-drag]')?.addEventListener('dragend', () => {
+    dragTipoVisor = null;
+  });
+
+  cont.querySelectorAll<HTMLElement>('[data-visor-pared]').forEach((pared) => {
+    pared.addEventListener('dragover', (e) => {
+      if (dragTipoVisor !== 'puerta') return;
+      e.preventDefault();
+      (e as DragEvent).dataTransfer!.dropEffect = 'move';
+      pared.classList.add('visor-pared-dnd-activo');
+    });
+    pared.addEventListener('dragleave', () => pared.classList.remove('visor-pared-dnd-activo'));
+    pared.addEventListener('drop', (e) => {
+      const de = e as DragEvent;
+      e.preventDefault();
+      pared.classList.remove('visor-pared-dnd-activo');
+      if (!de.dataTransfer?.getData('application/x-estok-puerta')) return;
+      const lado = pared.dataset.visorPared as 'TOP' | 'BOTTOM' | 'LEFT' | 'RIGHT';
+      if (lado) void guardarPuerta(lado);
     });
   });
 
@@ -377,6 +392,11 @@ async function cambiarColumnasVisor(fila: number, cols: number): Promise<void> {
 
 async function asignarContenedorACelda(id: string, r: number, c: number): Promise<void> {
   if (!roomActual) return;
+  const cont = contenedoresRoom.find((x) => x.id === id);
+  if (cont?.es_inmueble) {
+    toast('📌 Este mueble es inmueble fijo y no puede reacomodarse.');
+    return;
+  }
   const filaEntera = Math.floor(Number(r));
   const colEntera = Math.floor(Number(c));
   try {
@@ -441,6 +461,21 @@ async function asignarObjetoACelda(id: string, r: number, c: number): Promise<vo
   }
   renderVisor();
   enlazarVisor();
+}
+
+/** Persiste la puerta en una de las cuatro paredes (PUT /api/ubicaciones/{id}/). */
+async function guardarPuerta(pared: 'TOP' | 'BOTTOM' | 'LEFT' | 'RIGHT'): Promise<void> {
+  if (!roomActual) return;
+  const ok = await guardarUbicacion(roomActual.id, { posicion_puerta: pared });
+  if (ok) {
+    roomActual.posicion_puerta = pared;
+    toast(`🚪 Puerta ubicada en la pared ${ETIQUETAS_PARED[pared]}.`);
+    notificarEspacios();
+    renderVisor();
+    enlazarVisor();
+  } else {
+    toast('❌ No se pudo guardar la posición de la puerta.');
+  }
 }
 
 // =============================================================================

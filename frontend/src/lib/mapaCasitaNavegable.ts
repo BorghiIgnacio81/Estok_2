@@ -38,7 +38,7 @@ import {
   columnasDeFilaInterna,
 } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
-import { COLOR_NARANJA } from './minimapa';
+import { minimapaCasitaSvg } from './minimapa';
 import {
   celdaOcupadaHtml,
   celdaVaciaHtml,
@@ -115,36 +115,6 @@ function notificarPlanta(): void {
 // =============================================================================
 // RENDER
 // =============================================================================
-
-/** Minimapa de la casita en ULTRA-MINI (celda 9px, 4× más chico) con techo. */
-function casitaMinimapaSvg(opts: { filas: number; filaActiva: number }): string {
-  const { filas, filaActiva } = opts;
-  // Silueta ANCHA tipo casa real: cuerpo rectangular horizontal (no una
-  // flecha vertical estrecha). Cada piso es una barra que ocupa todo el ancho
-  // y el techo puntiagudo corona la silueta (proporciones w-18 h-10 / w-20 h-12).
-  const cuerpoAncho = 34;
-  const cell = 8; // alto de cada barra-piso
-  const gap = 2;
-  const pad = 4;
-  const techoAlto = 13;
-  const ancho = pad * 2 + cuerpoAncho;
-  const altoCuerpo = pad * 2 + filas * cell + (filas - 1) * gap;
-  const h = techoAlto + altoCuerpo;
-
-  let celdas = '';
-  for (let r = 1; r <= filas; r++) {
-    const y = techoAlto + pad + (r - 1) * (cell + gap);
-    const activa = r === filaActiva;
-    celdas += `<rect data-mini-fila="${r}" x="${pad}" y="${y}" width="${cuerpoAncho}" height="${cell}" rx="2" fill="${activa ? COLOR_NARANJA : '#fef3c7'}" stroke="${activa ? '#c2410c' : '#d1d5db'}" stroke-width="0.5" />`;
-  }
-
-  const mitad = ancho / 2;
-  const techo = `
-    <path d="M2 ${techoAlto} L${mitad} 1 L${ancho - 2} ${techoAlto} Z" fill="#9a3412" stroke="#7c2d12" stroke-width="0.6" stroke-linejoin="round" />
-    <rect x="${ancho - 22}" y="4" width="7" height="10" rx="1.5" fill="#7c2d12" stroke="#5b1f0a" stroke-width="0.5" />`;
-
-  return `<svg class="casita-minimapa-svg" width="${ancho}" height="${h + 2}" viewBox="0 0 ${ancho} ${h + 2}" role="img" aria-label="Minimapa de la casita (planta activa en naranja)">${techo}${celdas}</svg>`;
-}
 
 /** Nivel 1: la casa con techo puntiagudo y sus plantas como botones. */
 function renderCasa(): string {
@@ -257,7 +227,7 @@ function renderHabitaciones(): string {
       <span class="casita-nivel2-titulo">🏠 ${escapeHtml(nombre)}</span>
     </div>
     <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa está en naranja">
-      <div class="casita-minimapa-casilla">${casitaMinimapaSvg({ filas: total, filaActiva: fila })}</div>
+      <div class="casita-minimapa-casilla">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</div>
       <div class="casita-minimapa-info">
         <span class="casita-minimapa-leyenda">Estás en</span>
         <strong>${escapeHtml(nombre)}</strong>

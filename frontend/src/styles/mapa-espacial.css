@@ -1161,3 +1161,129 @@
   line-height: 1;
 }
 
+
+/* =============================================================================
+   VISOR DE HABITACIÓN - paredes con puerta arrastrable + reacomodo de muebles
+   ============================================================================= */
+
+.visor-habitacion-cuerpo {
+  border: 2px solid #7c2d12;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.visor-pared-medio {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.visor-pared-medio .visor-grid {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.visor-pared {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f0e8;
+  border: 2px dashed #d6c7b5;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.visor-pared-top,
+.visor-pared-bottom {
+  min-height: 22px;
+}
+
+.visor-pared-left,
+.visor-pared-right {
+  width: 26px;
+}
+
+.visor-pared-dnd-activo {
+  background: #ffedd5 !important;
+  border-color: #f97316 !important;
+}
+
+.visor-pared-con-puerta {
+  background: #7c2d12 !important;
+  border-color: #5b1f0a !important;
+}
+
+.visor-puerta-indicador {
+  font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.visor-puerta-paleta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  background: #fffbeb;
+  border: 1px dashed #f97316;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.visor-puerta-paleta-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b45309;
+}
+
+.visor-puerta-drag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  cursor: grab;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  user-select: none;
+}
+
+.visor-puerta-drag:active {
+  cursor: grabbing;
+}
+
+.visor-celda-cont[draggable="true"] {
+  cursor: grab;
+}
+
+.visor-celda-cont[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.visor-celda-editar {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 10px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: #6b7280;
+  transition: background 0.15s, color 0.15s;
+}
+
+.visor-celda-editar:hover {
+  background: #ffedd5;
+  color: #c2410c;
+}
+

@@ -94,6 +94,19 @@ class Ubicacion(models.Model):
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")
     foto = models.ImageField(upload_to='ubicaciones/', blank=True, null=True, verbose_name="Foto")
+    posicion_puerta = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        choices=[
+            ('TOP', 'Superior'),
+            ('BOTTOM', 'Inferior'),
+            ('LEFT', 'Izquierda'),
+            ('RIGHT', 'Derecha'),
+        ],
+        verbose_name="Posición de la puerta",
+        help_text="Pared de la habitación donde se colocó la puerta arrastrable (valores: TOP, BOTTOM, LEFT, RIGHT)."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

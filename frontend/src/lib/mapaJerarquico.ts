@@ -49,6 +49,8 @@ export interface UbicacionPlano {
   id: string;
   nombre: string;
   piso?: string;
+  /** Pared donde se colocó la puerta arrastrable (TOP | BOTTOM | LEFT | RIGHT). */
+  posicion_puerta?: string | null;
   /** División padre del Mapa Estok donde se encastra esta habitación. */
   parent_ubicacion?: string | null;
   parent_ubicacion_nombre?: string | null;
@@ -156,6 +158,7 @@ export async function fetchUbicacionesPlano(): Promise<UbicacionPlano[]> {
       id: u.id,
       nombre: u.nombre,
       piso: u.piso || PISO_BAJA,
+      posicion_puerta: u.posicion_puerta ?? null,
       parent_ubicacion: u.parent_ubicacion ?? null,
       parent_ubicacion_nombre: u.parent_ubicacion_nombre ?? null,
       parent_grid_row: u.parent_grid_row ?? null,
