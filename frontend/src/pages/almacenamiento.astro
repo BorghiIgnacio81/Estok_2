@@ -18,9 +18,26 @@ import '../styles/mapa-espacial.css';
 <BaseLayout title="Estok - Almacenamiento | Inventario">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Encabezado -->
-    <div class="mb-8">
+    <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
       <p class="mt-1 text-gray-500">Gestioná ubicaciones y contenedores con arrastrar y soltar</p>
+    </div>
+
+    <!-- Leyenda de iconografía local del Lienzo de Mapeo Espacial -->
+    <div class="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Iconografía del lienzo</span>
+      <span class="flex items-center gap-2 text-xs text-gray-600">
+        <img src="/archivador-login.png" class="h-16 w-auto draggable" alt="Contenedor grande" />
+        Contenedor grande (contiene contenedores)
+      </span>
+      <span class="flex items-center gap-2 text-xs text-gray-600">
+        <img src="/Nuevo Contenedor.png" class="h-16 w-auto draggable" alt="Contenedor pequeño" />
+        Contenedor pequeño (solo objetos)
+      </span>
+      <span class="flex items-center gap-2 text-xs text-gray-600">
+        <img src="/fluffy_plush_ball.jpg" class="h-12 w-12 rounded-full draggable" alt="Objeto individual" />
+        Objeto individual
+      </span>
     </div>
 
     <LoadingState mensaje="Cargando espacios de almacenamiento..." />
@@ -49,7 +66,7 @@ import '../styles/mapa-espacial.css';
           </div>
           <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </div>
-        <p class="text-xs text-gray-500 mb-4">Soltá contenedores dentro de una tarjeta para asignarlos a esa ubicación, o dentro de otro contenedor para crear sub-niveles.</p>
+        <p class="text-xs text-gray-500 mb-4">Soltá contenedores dentro de una tarjeta para asignarlos a esa ubicación, o dentro de otro contenedor para crear sub-niveles. Cada contenedor tiene su propia grilla asimétrica: usá los selectores numéricos (− / +) para definir Filas globales y Columnas exclusivas por fila.</p>
         <div id="columnaUbicaciones" class="space-y-5"></div>
       </section>
 
@@ -62,7 +79,7 @@ import '../styles/mapa-espacial.css';
           </div>
           <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </div>
-        <p class="text-xs text-gray-500 mb-4">Arrastrá un contenedor (✋) hacia una ubicación o dentro de otro contenedor. Todo se guarda automáticamente.</p>
+        <p class="text-xs text-gray-500 mb-4">Arrastrá un contenedor (✋) hacia una ubicación o dentro de otro contenedor. Los objetos individuales (bolita) se sueltan sobre un casillero para fijar su coordenada. Todo se guarda automáticamente.</p>
         <div id="columnaContenedores" class="space-y-3"></div>
       </section>
     </div>
@@ -271,7 +288,7 @@ import '../styles/mapa-espacial.css';
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">Ej: 2×3 en un armario empotrado. Cada celda es un casillero de drop.</p>
+            <p class="text-xs text-gray-400 mt-1">Ej: 2×3 en un armario empotrado. Las Columnas por fila (grilla asimétrica) se configuran en la tarjeta del contenedor con los selectores − / +.</p>
           </div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Foto</label>
             <div class="flex items-center gap-3">

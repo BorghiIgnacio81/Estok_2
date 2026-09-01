@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // CONTROLADOR DEL MAPA JERÁRQUICO - estado, render y eventos
 // -----------------------------------------------------------------------------
 // Orquesta el Mapa Jerárquico Recursivo en la página de almacenamiento.
@@ -209,7 +209,6 @@ function enlazar(): void {
   });
 }
 
-
 // =============================================================================
 // MUTACIONES (persistencia + refresco)
 // =============================================================================
@@ -303,4 +302,3 @@ async function cambiarPisoUbicacion(id: string, piso: string): Promise<void> {
   render();
   enlazar();
 }
-

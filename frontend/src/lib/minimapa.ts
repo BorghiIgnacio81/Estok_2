@@ -19,6 +19,9 @@ export interface MinimapaConfig {
   filas?: number;
   /** Cantidad de columnas de la grilla (default 3). */
   columnas?: number;
+  /** Cantidad de casilleros por fila para grillas asimétricas (ej: [3,2,2]).
+   *  Si se provee, reemplaza `columnas` por fila. */
+  columnasPorFila?: number[];
   /** Fila activa (1-based) donde reside el elemento. null => sin casillero. */
   fila?: number | null;
   /** Columna activa (1-based) donde reside el elemento. null => sin casillero. */
@@ -72,12 +75,25 @@ export function minimapaHtml(cfg: MinimapaConfig = {}): string {
     cfg.detalle ?? (fila && columna ? `Casillero ${etiquetaCasillero(fila, columna)}` : 'Sin casillero asignado'),
   );
 
+  // Grilla asimétrica: si se define columnasPorFila, cada fila tiene su propio
+  // ancho (ej: [3,2,2]); de lo contrario todas las filas usan `columnas`.
+  const esAsimetrico =
+    Array.isArray(cfg.columnasPorFila) &&
+    cfg.columnasPorFila.length >= filas &&
+    cfg.columnasPorFila.every((n) => Number.isFinite(Number(n)));
+  const columnasDeFila = (r: number): number => {
+    if (esAsimetrico) return Math.max(1, Math.floor(Number(cfg.columnasPorFila![r - 1])) || columnas);
+    return columnas;
+  };
+
   const esAdicional = (r: number, c: number): boolean =>
     adicionales.some((a) => a.fila === r && a.columna === c);
 
-  let celdas = '';
+  let grilla = '';
   for (let r = 1; r <= filas; r++) {
-    for (let c = 1; c <= columnas; c++) {
+    const cols = columnasDeFila(r);
+    let filaHtml = '';
+    for (let c = 1; c <= cols; c++) {
       const activa = r === fila && c === columna;
       const ocupada = !activa && esAdicional(r, c);
       let cls = 'minimapa-celda';
@@ -88,15 +104,16 @@ export function minimapaHtml(cfg: MinimapaConfig = {}): string {
       } else if (ocupada) {
         estilo = `style="background:${color}26;border-color:${color}80;color:${color}"`;
       }
-      celdas += `<div class="${cls}" ${estilo} data-fila="${r}" data-columna="${c}" title="${activa ? `Casillero ${etiquetaCasillero(r, c)}` : 'Casillero libre'}">${activa ? '●' : ocupada ? '▣' : ''}</div>`;
+      filaHtml += `<div class="${cls}" ${estilo} data-fila="${r}" data-columna="${c}" title="${activa ? `Casillero ${etiquetaCasillero(r, c)}` : 'Casillero libre'}">${activa ? '●' : ocupada ? '▣' : ''}</div>`;
     }
+    grilla += `<div class="minimapa-fila" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">${filaHtml}</div>`;
   }
 
   return `
   <div class="minimapa">
     <div class="minimapa-titulo">${titulo}</div>
-    <div class="minimapa-grilla" style="grid-template-columns: repeat(${columnas}, minmax(0, 1fr))">
-      ${celdas}
+    <div class="minimapa-grilla">
+      ${grilla}
     </div>
     <div class="minimapa-detalle ${fila && columna ? 'minimapa-detalle-activo' : ''}">${detalle}</div>
   </div>`;
@@ -114,10 +131,20 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
   const adicionales = cfg.celdasAdicionales ?? [];
   const color = cfg.color || '#10b981';
 
+  const esAsimetrico =
+    Array.isArray(cfg.columnasPorFila) &&
+    cfg.columnasPorFila.length >= filas &&
+    cfg.columnasPorFila.every((n) => Number.isFinite(Number(n)));
+  const columnasDeFila = (r: number): number => {
+    if (esAsimetrico) return Math.max(1, Math.floor(Number(cfg.columnasPorFila![r - 1])) || columnas);
+    return columnas;
+  };
+
   const cell = 18;
   const gap = 3;
   const pad = 4;
-  const w = pad * 2 + columnas * cell + (columnas - 1) * gap;
+  const maxColumnas = Math.max(...Array.from({ length: filas }, (_, i) => columnasDeFila(i + 1)));
+  const w = pad * 2 + maxColumnas * cell + (maxColumnas - 1) * gap;
   const h = pad * 2 + filas * cell + (filas - 1) * gap;
 
   const esAdicional = (r: number, c: number): boolean =>
@@ -125,7 +152,8 @@ export function minimapaSvg(cfg: MinimapaConfig = {}): string {
 
   let rects = '';
   for (let r = 0; r < filas; r++) {
-    for (let c = 0; c < columnas; c++) {
+    const cols = columnasDeFila(r + 1);
+    for (let c = 0; c < cols; c++) {
       const activa = r + 1 === fila && c + 1 === columna;
       const ocupada = !activa && esAdicional(r + 1, c + 1);
       const x = pad + c * (cell + gap);
@@ -159,7 +187,8 @@ export function inyectarCssMinimapa(): void {
   style.textContent = `
     .minimapa { display: flex; flex-direction: column; gap: 8px; }
     .minimapa-titulo { font-size: 12px; font-weight: 600; color: #374151; }
-    .minimapa-grilla { display: grid; gap: 4px; max-width: 150px; }
+    .minimapa-grilla { display: flex; flex-direction: column; gap: 4px; max-width: 150px; }
+    .minimapa-fila { display: grid; gap: 4px; }
     .minimapa-celda {
       aspect-ratio: 1 / 1;
       border-radius: 6px;
@@ -169,13 +198,10 @@ export function inyectarCssMinimapa(): void {
       font-size: 10px; color: #9ca3af;
     }
     .minimapa-celda-activa {
-      background: #10b981 !important;
-      border-color: #059669 !important;
-      color: #ffffff !important;
       font-weight: 700;
     }
     .minimapa-detalle { font-size: 11px; color: #6b7280; }
-    .minimapa-detalle-activo { color: #059669; font-weight: 600; }
+    .minimapa-detalle-activo { color: #ea580c; font-weight: 600; }
   `;
   document.head.appendChild(style);
 }

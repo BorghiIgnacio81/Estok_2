@@ -1,5 +1,5 @@
-// =============================================================================
-// MAPA JERÃƒÂRQUICO RECURSIVO - Minimapas jerÃƒÂ¡rquicos con selectores naranjas
+﻿// =============================================================================
+// MAPA JERÁRQUICO RECURSIVO - Minimapas jerárquicos con selectores naranjas
 // -----------------------------------------------------------------------------
 // Implementa el sistema visual del bosquejo:
 //   1. Macro-Estok en forma de casa (1er piso / Planta baja) con inputs de
@@ -7,8 +7,8 @@
 //   2. Plano de planta por piso: grilla configurable cuyos cuadrantes son
 //      Ubicaciones con nombres editables y anchos variables (escala).
 //      Arriba, una mini-casita pinta en NARANJA (#f97316) el piso activo.
-//   3. Ficha tÃƒÂ©cnica de contenedor: minimapa de la planta en la esquina
-//      superior izquierda pintando el cuadrante exacto de su UbicaciÃƒÂ³n.
+//   3. Ficha técnica de contenedor: minimapa de la planta en la esquina
+//      superior izquierda pintando el cuadrante exacto de su Ubicación.
 //   4. Sub-contenedores: minimapa horizontal que replica la grilla interna
 //      del contenedor padre y pinta en naranja el casillero de residencia.
 //
@@ -129,7 +129,7 @@ async function fetchTodos(url: string): Promise<any[]> {
     const res = await fetch(nextUrl, { headers: getAuthHeaders() });
     if (res.status === 401) {
       window.location.href = '/login';
-      throw new Error('SesiÃƒÂ³n expirada');
+      throw new Error('Sesión expirada');
     }
     if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
     const data = await res.json();
@@ -172,12 +172,12 @@ export async function guardarEstokGrid(filas: number, columnas: number): Promise
       return false;
     }
     if (!res.ok) {
-      toast('Ã¢Å¡Â Ã¯Â¸Â Solo el admin del Estok puede cambiar la grilla del macro-Estok.');
+      toast('⚠️ Solo el admin del Estok puede cambiar la grilla del macro-Estok.');
       return false;
     }
     return true;
   } catch {
-    toast('Ã¢ÂÅ’ Error de conexiÃƒÂ³n al guardar la grilla.');
+    toast('❌ Error de conexión al guardar la grilla.');
     return false;
   }
 }
@@ -210,7 +210,7 @@ export function casaSvgHtml(pisoActivo: string | null, filas: number, columnas: 
   const base = '#fef3c7';
   const borde = '#d97706';
   return `
-  <svg class="macro-casa-svg" viewBox="0 0 220 168" role="img" aria-label="Macro-Estok: casa de dos pisos (${filas}Ãƒâ€”${columnas})">
+  <svg class="macro-casa-svg" viewBox="0 0 220 168" role="img" aria-label="Macro-Estok: casa de dos pisos (${filas}×${columnas})">
     <!-- Techo -->
     <polygon points="20,54 110,6 200,54" fill="${base}" stroke="${borde}" stroke-width="2" stroke-linejoin="round" />
     <polygon points="110,6 200,54 110,54" fill="#fde68a" opacity="0.45" />
@@ -242,17 +242,17 @@ export function minicasitaHtml(pisoActivo: string | null): string {
 // MINIMAPAS (selectores naranjas)
 // =============================================================================
 
-/** Minimapa de la planta: pinta en naranja el cuadrante de una UbicaciÃƒÂ³n. */
+/** Minimapa de la planta: pinta en naranja el cuadrante de una Ubicación. */
 export function minimapaPlantaHtml(
   filas: number,
   columnas: number,
   u: UbicacionPlano | null | undefined,
 ): string {
   if (!u) {
-    return `<div class="minimapa-planta minimapa-planta-vacia">Ã°Å¸â€œÂ Sin ubicaciÃƒÂ³n</div>`;
+    return `<div class="minimapa-planta minimapa-planta-vacia">📍 Sin ubicación</div>`;
   }
   if (!u.parent_grid_row || !u.parent_grid_col) {
-    return `<div class="minimapa-planta minimapa-planta-vacia">Ã°Å¸â€œÂ ${escapeHtml(u.nombre)} (sin cuadrante)</div>`;
+    return `<div class="minimapa-planta minimapa-planta-vacia">📍 ${escapeHtml(u.nombre)} (sin cuadrante)</div>`;
   }
   return `<div class="minimapa-planta">
     ${minimapaHtml({
@@ -260,36 +260,37 @@ export function minimapaPlantaHtml(
       columnas,
       fila: u.parent_grid_row,
       columna: u.parent_grid_col,
-      titulo: `Ã°Å¸â€œÂ ${u.piso ? (ETIQUETAS_PISO[u.piso] || 'Planta') : 'Planta'}`,
+      titulo: `📍 ${u.piso ? (ETIQUETAS_PISO[u.piso] || 'Planta') : 'Planta'}`,
       detalle: escapeHtml(u.nombre),
       color: COLOR_NARANJA,
     })}
   </div>`;
 }
 
-/** Minimapa interno: replica la grilla del contenedor padre y pinta la secciÃƒÂ³n. */
+/** Minimapa interno: replica la grilla del contenedor padre y pinta la sección. */
 export function minimapaInternoHtml(
   filas: number,
   columnas: number,
   fila: number | null | undefined,
   columna: number | null | undefined,
+  columnasPorFila?: number[] | null,
 ): string {
   if (!fila || !columna) {
-    return `<div class="minimapa-interno minimapa-interno-vacio">Ã¢â€“Â« Sin secciÃƒÂ³n</div>`;
+    return `<div class="minimapa-interno minimapa-interno-vacio">▫ Sin sección</div>`;
   }
   return `<div class="minimapa-interno">
     ${minimapaHtml({
       filas,
       columnas,
+      columnasPorFila: columnasPorFila ?? undefined,
       fila,
       columna,
-      titulo: 'SecciÃƒÂ³n en contenedor',
-      detalle: `Casillero F${fila}Ã‚Â·C${columna}`,
+      titulo: 'Sección en contenedor',
+      detalle: `Casillero F${fila}·C${columna}`,
       color: COLOR_NARANJA,
     })}
   </div>`;
 }
-
 
 // =============================================================================
 // PLANO DE PLANTA (grilla estilo Word con nombres editables y escalas)
@@ -320,19 +321,19 @@ export function planoPlantaHtml(opts: {
       for (let cc = c; cc < c + cs; cc++) ocupadas.add(`${rr}-${cc}`);
     }
     tiles.push(`
-      <div class="plano-habitacion" data-ubicacion-id="${u.id}" data-grid-row="${r}" data-grid-col="${c}" data-colspan="${cs}" data-rowspan="${rs}" draggable="true" title="ArrastrÃƒÂ¡ sobre un piso de la casa para cambiar de nivel"
+      <div class="plano-habitacion" data-ubicacion-id="${u.id}" data-grid-row="${r}" data-grid-col="${c}" data-colspan="${cs}" data-rowspan="${rs}" draggable="true" title="Arrastrá sobre un piso de la casa para cambiar de nivel"
         style="grid-column: ${c} / span ${cs}; grid-row: ${r} / span ${rs};">
-        <input class="plano-habitacion-nombre" data-nombre-ubicacion="${u.id}" value="${escapeHtml(u.nombre)}" aria-label="Nombre de la habitaciÃƒÂ³n" />
+        <input class="plano-habitacion-nombre" data-nombre-ubicacion="${u.id}" value="${escapeHtml(u.nombre)}" aria-label="Nombre de la habitación" />
         <div class="plano-escala">
-          <span class="escala-btn" data-escala="menos" data-eje="colspan" data-ubicacion="${u.id}" title="Reducir ancho">Ã¢Ë†â€™</span>
-          <span class="escala-valor">${cs}Ãƒâ€”${rs}</span>
+          <span class="escala-btn" data-escala="menos" data-eje="colspan" data-ubicacion="${u.id}" title="Reducir ancho">−</span>
+          <span class="escala-valor">${cs}×${rs}</span>
           <span class="escala-btn" data-escala="mas" data-eje="colspan" data-ubicacion="${u.id}" title="Ampliar ancho">+</span>
-          <span class="escala-sep">Ã‚Â·</span>
-          <span class="escala-btn" data-escala="menos" data-eje="rowspan" data-ubicacion="${u.id}" title="Reducir alto">Ã¢Ë†â€™</span>
+          <span class="escala-sep">·</span>
+          <span class="escala-btn" data-escala="menos" data-eje="rowspan" data-ubicacion="${u.id}" title="Reducir alto">−</span>
           <span class="escala-valor">${rs}</span>
           <span class="escala-btn" data-escala="mas" data-eje="rowspan" data-ubicacion="${u.id}" title="Ampliar alto">+</span>
         </div>
-        <p class="plano-habitacion-meta">Ã°Å¸â€œÂ¦ ${u.contenedores_count || 0} Ã‚Â· Ã°Å¸Â§Âº ${u.objetos_count || 0}</p>
+        <p class="plano-habitacion-meta">📦 ${u.contenedores_count || 0} · 🧺 ${u.objetos_count || 0}</p>
       </div>`);
   }
 
@@ -340,7 +341,7 @@ export function planoPlantaHtml(opts: {
     for (let c = 1; c <= columnas; c++) {
       if (!ocupadas.has(`${r}-${c}`)) {
         tiles.push(`
-          <div class="plano-celda-libre" data-celda-libre data-grid-row="${r}" data-grid-col="${c}" data-piso="${piso}" title="HacÃƒÂ© clic para diagramar una habitaciÃƒÂ³n libre aquÃƒÂ­">Ã¢Å¾â€¢</div>`);
+          <div class="plano-celda-libre" data-celda-libre data-grid-row="${r}" data-grid-col="${c}" data-piso="${piso}" title="Hacé clic para diagramar una habitación libre aquí">➕</div>`);
       }
     }
   }
@@ -352,7 +353,7 @@ export function planoPlantaHtml(opts: {
         ${minicasitaHtml(piso)}
         <div>
           <h4 class="plano-planta-nombre">Plano de planta: ${tituloPiso}</h4>
-          <p class="plano-planta-sub">Grilla estilo Word ${filas}Ãƒâ€”${columnas} Ã‚Â· nombres editables y anchos variables</p>
+          <p class="plano-planta-sub">Grilla estilo Word ${filas}×${columnas} · nombres editables y anchos variables</p>
         </div>
       </div>
       <span class="plano-planta-badge">${asignadas.length}/${delPiso.length} habitaciones</span>
@@ -362,11 +363,10 @@ export function planoPlantaHtml(opts: {
     </div>
     ${sinAsignar.length ? `
     <div class="plano-sin-casillero">
-      <p class="plano-sin-casillero-titulo">Ã°Å¸â€œÂ Habitaciones sin diagramar (clic en una celda libre para asignarlas):</p>
+      <p class="plano-sin-casillero-titulo">📍 Habitaciones sin diagramar (clic en una celda libre para asignarlas):</p>
       <div class="plano-sin-casillero-lista">
         ${sinAsignar.map((u) => `<span class="chipsin">${escapeHtml(u.nombre)}</span>`).join('')}
       </div>
     </div>` : ''}
   </div>`;
 }
-

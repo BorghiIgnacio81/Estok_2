@@ -119,6 +119,12 @@ class Contenedor(models.Model):
         verbose_name="Columnas de la grilla interna",
         help_text="Cantidad de columnas de la grilla interna de casilleros del contenedor (ej: 3 en un armario empotrado)."
     )
+    grid_filas_config = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="Columnas por fila (grilla asimétrica)",
+        help_text="Arreglo opcional con la cantidad de casilleros de cada fila (ej: [3,2,2]). Si es null, todas las filas usan grid_columnas. Permite layouts asimétricos (Fila 1 de 3 celdas, Fila 2 de 2 celdas)."
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")

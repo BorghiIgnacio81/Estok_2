@@ -34,6 +34,22 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             return ObjetoCreateSerializer
         return ObjetoDetailSerializer
 
+    def update(self, request, *args, **kwargs):
+        """
+        PUT con soporte de actualización parcial: permite que el Lienzo de
+        Mapeo Espacial envíe únicamente { contenedor, parent_grid_row,
+        parent_grid_col } cuando un objeto individual se suelta en un
+        casillero de la grilla de un contenedor.
+        """
+        partial = True
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
+
     def create(self, request, *args, **kwargs):
         """
         Crea un objeto usando ObjetoCreateSerializer para validar/crear,

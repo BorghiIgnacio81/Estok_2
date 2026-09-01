@@ -55,6 +55,23 @@ class UbicacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(estok_id=estok_id)
         return qs
 
+    def update(self, request, *args, **kwargs):
+        """
+        PUT con soporte de actualización parcial: permite que el Drag & Drop
+        del Mapa Espacial envíe únicamente las coordenadas de cuadrante
+        (parent_grid_row / parent_grid_col), el piso, el nombre o la escala
+        sin requerir el resto de los campos obligatorios del modelo
+        (antes esto producía HTTP 400 "nombre: Este campo es obligatorio").
+        """
+        partial = True
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+        return Response(serializer.data)
+
     def perform_create(self, serializer):
         """
         Asigna automaticamente el estok_id al crear una ubicacion.
