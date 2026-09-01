@@ -26,10 +26,16 @@ import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
 // ESTADO DEL MAPA
 // =============================================================================
 
-let refs = { contenedor: null as HTMLElement | null, badge: null as HTMLElement | null };
+interface RefsMapaEstok {
+  mapa: HTMLElement | null;
+  paleta: HTMLElement | null;
+  badge: HTMLElement | null;
+}
+
+let refs: RefsMapaEstok = { mapa: null, paleta: null, badge: null };
 let estok: EstokConfig | null = null;
 let ubicaciones: UbicacionPlano[] = [];
-let pisoActivo = PISO_PRIMERO;
+let pisoActivo = PISO_BAJA;
 
 function esCasa(): boolean {
   return estok?.tipo_layout === TIPO_CASA_2_PISOS;
@@ -48,21 +54,38 @@ function notificarEspacios(): void {
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
 }
 
+/** Notifica la planta/macro-división seleccionada para filtrar en caliente. */
+function notificarPlanta(): void {
+  const piso = esCasa() ? pisoActivo : null;
+  window.dispatchEvent(new CustomEvent('estok:planta-seleccionada', { detail: { piso } }));
+}
+
+/** Sincroniza los selectores numéricos del encabezado con la grilla del Estok. */
+function sincronizarInputsGrilla(): void {
+  const f = document.getElementById('macroFilas') as HTMLInputElement | null;
+  const c = document.getElementById('macroColumnas') as HTMLInputElement | null;
+  if (f) f.value = String(filasActivas());
+  if (c) c.value = String(columnasActivas());
+}
+
 // =============================================================================
 // ENTRADA
 // =============================================================================
 
-export async function initMapaJerarquico(
-  contenedor: HTMLElement | null,
-  badge?: HTMLElement | null,
-): Promise<void> {
-  refs = { contenedor, badge: badge ?? null };
-  if (!contenedor) return;
+export async function initMapaJerarquico(opts: {
+  mapa?: HTMLElement | null;
+  paleta?: HTMLElement | null;
+  badge?: HTMLElement | null;
+}): Promise<void> {
+  refs = { mapa: opts.mapa ?? null, paleta: opts.paleta ?? null, badge: opts.badge ?? null };
+  if (!refs.mapa && !refs.paleta) return;
 
   const conf = await fetchEstokConfig();
   if (!conf) {
-    contenedor.innerHTML =
-      '<p class="text-sm text-gray-400 text-center py-6">No se pudo cargar la configuración del Estok.</p>';
+    if (refs.mapa) {
+      refs.mapa.innerHTML =
+        '<p class="text-sm text-gray-400 text-center py-6">No se pudo cargar la configuración del Estok.</p>';
+    }
     return;
   }
   estok = conf;
@@ -78,6 +101,8 @@ export async function initMapaJerarquico(
 
   render();
   enlazar();
+  enlazarControlesGrilla();
+  notificarPlanta();
 }
 
 function htmlCasa(): string {
@@ -86,46 +111,69 @@ function htmlCasa(): string {
   <div class="macro-estok">
     <div class="macro-estok-encabezado">
       <h3 class="macro-estok-titulo">🏠 Macro-Estok <span class="macro-estok-nombre">${escapeHtml(estok?.nombre || '')}</span></h3>
-      <div class="macro-estok-inputs">
-        <label class="macro-input-label">Filas
-          <input id="macroFilas" type="number" min="1" max="12" value="${filasActivas()}" class="macro-input" aria-label="Filas de la grilla del macro-Estok" />
-        </label>
-        <label class="macro-input-label">Cols
-          <input id="macroColumnas" type="number" min="1" max="12" value="${columnasActivas()}" class="macro-input" aria-label="Columnas de la grilla del macro-Estok" />
-        </label>
-      </div>
     </div>
     <div class="macro-estok-cuerpo">
       <div class="macro-estok-casa">${casaSvgHtml(pisoActivo, filasActivas(), columnasActivas())}</div>
       <div class="macro-estok-leyenda">
         <p><strong>1er piso</strong> y <strong>Planta baja</strong> son zonas de drag &amp; drop.</p>
-        <p>Hacé clic en un piso para inspeccionarlo · Arrastrá una habitación del plano sobre otro piso para re-diagramarla.</p>
-        <p class="macro-estok-filas">Grilla actual: <strong>${filasActivas()}×${columnasActivas()}</strong> (editable a la derecha).</p>
+        <p>Hacé clic en un piso para seleccionar la planta · Arrastrá una habitación sobre otro piso para re-diagramarla.</p>
+        <p class="macro-estok-filas">Grilla actual: <strong>${filasActivas()}×${columnasActivas()}</strong> (editable en el encabezado del Mapa Estok).</p>
       </div>
     </div>
   </div>`;
 }
 
+function paletaChipHtml(u: UbicacionPlano): string {
+  const pisoLabel = esCasa() ? (ETIQUETAS_PISO[u.piso || ''] || 'Planta baja') : 'Planta única';
+  const asignada = Boolean(u.parent_grid_row && u.parent_grid_col);
+  return `
+  <div class="paleta-habitacion${asignada ? '' : ' paleta-habitacion-libre'}" draggable="true" data-ubicacion-id="${u.id}"
+    title="${asignada ? `Diagramada en F${u.parent_grid_row}·C${u.parent_grid_col} · ${pisoLabel}` : 'Sin diagramar: arrastrala a una celda del Mapa Estok'}">
+    <span class="paleta-habitacion-ico">🏠</span>
+    <span class="paleta-habitacion-info">
+      <span class="paleta-habitacion-nombre">${escapeHtml(u.nombre)}</span>
+      <span class="paleta-habitacion-meta">${asignada ? `F${u.parent_grid_row}·C${u.parent_grid_col}` : 'Sin diagramar'} · ${pisoLabel}</span>
+    </span>
+  </div>`;
+}
+
+function paletaHtml(): string {
+  if (!ubicaciones.length) {
+    return '<p class="text-sm text-gray-400 text-center py-6">No hay habitaciones todavía. Creá una en la sección inferior.</p>';
+  }
+  return `<div class="paleta-habitaciones">${ubicaciones.map((u) => paletaChipHtml(u)).join('')}</div>`;
+}
+
 function render(): void {
-  if (!refs.contenedor || !estok) return;
+  if (!estok) return;
   const piso = esCasa() ? pisoActivo : PISO_BAJA;
-  refs.contenedor.innerHTML = `
-    <div class="mapaJerarquico">
-      ${htmlCasa()}
-      ${planoPlantaHtml({
-        filas: filasActivas(),
-        columnas: columnasActivas(),
-        piso,
-        ubicaciones,
-        esCasa: esCasa(),
-      })}
-    </div>`;
+  if (refs.mapa) {
+    refs.mapa.innerHTML = `
+      <div class="mapaJerarquico">
+        ${htmlCasa()}
+        ${planoPlantaHtml({
+          filas: filasActivas(),
+          columnas: columnasActivas(),
+          piso,
+          ubicaciones,
+          esCasa: esCasa(),
+        })}
+      </div>`;
+  }
+  if (refs.paleta) {
+    refs.paleta.innerHTML = paletaHtml();
+  }
+  const contador = document.getElementById('contadorHabitaciones');
+  if (contador) contador.textContent = `${ubicaciones.length}`;
+  sincronizarInputsGrilla();
 }
 
 function enlazar(): void {
-  const casa = refs.contenedor?.querySelector('.macro-estok-casa');
+  const contenedor = refs.mapa ?? refs.paleta;
+  const casa = refs.mapa?.querySelector('.macro-estok-casa');
+
   if (casa) {
-    // Selección de piso por clic
+    // Selección de piso por clic → filtra la cascada inferior en caliente.
     casa.addEventListener('click', (e) => {
       const pisoEl = (e.target as Element).closest('[data-piso-select]');
       const piso = pisoEl?.getAttribute('data-piso-select');
@@ -133,6 +181,7 @@ function enlazar(): void {
         pisoActivo = piso;
         render();
         enlazar();
+        notificarPlanta();
       }
     });
     // Drag & drop de habitaciones entre pisos
@@ -156,7 +205,7 @@ function enlazar(): void {
   }
 
   // Drag start en las habitaciones del plano
-  refs.contenedor?.querySelectorAll<HTMLElement>('.plano-habitacion').forEach((tile) => {
+  contenedor?.querySelectorAll<HTMLElement>('.plano-habitacion').forEach((tile) => {
     tile.addEventListener('dragstart', (e) => {
       const id = tile.dataset.ubicacionId;
       if (!id) return;
@@ -165,16 +214,18 @@ function enlazar(): void {
     });
   });
 
-  // Inputs del macro-Estok (Filas / Columnas)
-  refs.contenedor?.querySelector('#macroFilas')?.addEventListener('change', (e) => {
-    void cambiarGrillaEstok(Number((e.target as HTMLInputElement).value), null);
-  });
-  refs.contenedor?.querySelector('#macroColumnas')?.addEventListener('change', (e) => {
-    void cambiarGrillaEstok(null, Number((e.target as HTMLInputElement).value));
+  // Drag start en los chips de la paleta Nivel 2 (Habitaciones)
+  refs.paleta?.querySelectorAll<HTMLElement>('.paleta-habitacion').forEach((chip) => {
+    chip.addEventListener('dragstart', (e) => {
+      const id = chip.dataset.ubicacionId;
+      if (!id) return;
+      e.dataTransfer?.setData('application/x-estok-ubicacion', id);
+      e.dataTransfer?.setData('text/plain', id);
+    });
   });
 
   // Nombres editables de habitaciones
-  refs.contenedor?.querySelectorAll<HTMLInputElement>('[data-nombre-ubicacion]').forEach((input) => {
+  contenedor?.querySelectorAll<HTMLInputElement>('[data-nombre-ubicacion]').forEach((input) => {
     input.addEventListener('change', () => {
       const id = input.dataset.nombreUbicacion;
       const nombre = input.value.trim();
@@ -183,7 +234,7 @@ function enlazar(): void {
   });
 
   // Selectores de escala (ancho/alto variables)
-  refs.contenedor?.querySelectorAll<HTMLElement>('[data-escala]').forEach((btn) => {
+  contenedor?.querySelectorAll<HTMLElement>('[data-escala]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.ubicacion;
       const eje = btn.dataset.eje as 'colspan' | 'rowspan';
@@ -198,13 +249,47 @@ function enlazar(): void {
     });
   });
 
-  // Celdas libres: asignar la primera habitación sin diagramar del piso
-  refs.contenedor?.querySelectorAll<HTMLElement>('[data-celda-libre]').forEach((celda) => {
-    celda.addEventListener('click', () => {
-      const r = Number(celda.dataset.gridRow);
-      const c = Number(celda.dataset.gridCol);
-      const piso = celda.dataset.piso;
-      if (r && c && piso) void asignarEnCelda(piso, r, c);
+  // Celdas libres del Mapa Estok: clic asigna la primera habitación sin
+  // diagramar del piso; drop asigna la habitación arrastrada desde la paleta.
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-celda-libre]').forEach((celda) => {
+    const r = Number(celda.dataset.gridRow);
+    const c = Number(celda.dataset.gridCol);
+    const piso = celda.dataset.piso;
+    if (!r || !c || !piso) return;
+    celda.addEventListener('click', () => void asignarEnCelda(piso, r, c));
+    celda.addEventListener('dragover', (e: Event) => {
+      e.preventDefault();
+      if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'move';
+    });
+    celda.addEventListener('drop', (e: Event) => {
+      const de = e as DragEvent;
+      e.preventDefault();
+      const id = de.dataTransfer?.getData('application/x-estok-ubicacion');
+      if (id) void asignarEnCelda(piso, r, c, id);
+    });
+  });
+}
+
+/** Bindea UNA SOLA VEZ los controles numéricos del encabezado del Mapa Estok. */
+function enlazarControlesGrilla(): void {
+  const macroFilas = document.getElementById('macroFilas') as HTMLInputElement | null;
+  const macroColumnas = document.getElementById('macroColumnas') as HTMLInputElement | null;
+  macroFilas?.addEventListener('change', () => {
+    void cambiarGrillaEstok(Number(macroFilas.value), null);
+  });
+  macroColumnas?.addEventListener('change', () => {
+    void cambiarGrillaEstok(null, Number(macroColumnas.value));
+  });
+  document.querySelectorAll<HTMLElement>('[data-macro-filas]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const delta = btn.dataset.macroFilas === 'mas' ? 1 : -1;
+      void cambiarGrillaEstok(filasActivas() + delta, null);
+    });
+  });
+  document.querySelectorAll<HTMLElement>('[data-macro-columnas]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const delta = btn.dataset.macroColumnas === 'mas' ? 1 : -1;
+      void cambiarGrillaEstok(null, columnasActivas() + delta);
     });
   });
 }
@@ -263,11 +348,13 @@ async function escalarUbicacion(id: string, eje: 'colspan' | 'rowspan', valor: n
   enlazar();
 }
 
-async function asignarEnCelda(piso: string, r: number, c: number): Promise<void> {
+async function asignarEnCelda(piso: string, r: number, c: number, ubicacionId?: string): Promise<void> {
   const delPiso = esCasa() ? ubicaciones.filter((x) => x.piso === piso) : ubicaciones;
-  const sinAsignar = delPiso.find((x) => !x.parent_grid_row || !x.parent_grid_col);
+  const sinAsignar = ubicacionId
+    ? delPiso.find((x) => x.id === ubicacionId)
+    : delPiso.find((x) => !x.parent_grid_row || !x.parent_grid_col);
   if (!sinAsignar) {
-    toast('ℹ️ No quedan habitaciones sin diagramar en este piso.');
+    toast(ubicacionId ? 'ℹ️ Esa habitación no pertenece a esta planta.' : 'ℹ️ No quedan habitaciones sin diagramar en este piso.');
     return;
   }
   const ok = await guardarUbicacion(sinAsignar.id, { parent_grid_row: r, parent_grid_col: c });
@@ -301,4 +388,5 @@ async function cambiarPisoUbicacion(id: string, piso: string): Promise<void> {
   }
   render();
   enlazar();
+  notificarPlanta();
 }

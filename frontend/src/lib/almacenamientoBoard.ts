@@ -22,7 +22,7 @@
 // =============================================================================
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
-import { minimapaPlantaHtml, minimapaInternoHtml } from './mapaJerarquico';
+import { minimapaPlantaHtml, minimapaInternoHtml, PISO_BAJA } from './mapaJerarquico';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -170,6 +170,8 @@ export class AlmacenamientoBoard {
   /** Grilla (filas×columnas) del macro-Estok, usada para los minimapas de planta. */
   private estokFilas = 3;
   private estokColumnas = 3;
+  /** Planta/macro-división seleccionada en el Mapa Estok (Nivel 1). null = todas. */
+  private pisoFiltro: string | null = null;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -300,6 +302,12 @@ export class AlmacenamientoBoard {
     }
   }
 
+  /** Filtra la columna de Habitaciones (Nivel 2) por la planta seleccionada. */
+  setPisoActivo(piso: string | null): void {
+    this.pisoFiltro = piso || null;
+    this.render();
+  }
+
   // ---------------------------------------------------------------------------
   // RENDER
   // ---------------------------------------------------------------------------
@@ -311,7 +319,6 @@ export class AlmacenamientoBoard {
 
     const contUbi = document.getElementById('contadorUbicaciones');
     const contCon = document.getElementById('contadorContenedores');
-    if (contUbi) contUbi.textContent = `${this.ubicaciones.length}`;
     if (contCon) contCon.textContent = `${this.contenedores.length}`;
 
     this.construirArbol();
@@ -319,15 +326,28 @@ export class AlmacenamientoBoard {
       (c) => !c.parent_contenedor || !this.contenedoresPorId.has(c.parent_contenedor),
     );
 
-    if (this.ubicaciones.length === 0) {
+    // Nivel 2 filtrado en caliente: solo las habitaciones de la planta activa.
+    const visibles = this.pisoFiltro
+      ? this.ubicaciones.filter((u) => (u.piso || PISO_BAJA) === this.pisoFiltro)
+      : this.ubicaciones;
+    if (contUbi) contUbi.textContent = `${visibles.length}`;
+    const badge = document.getElementById('cascadaUbicacionesTitulo');
+    if (badge) {
+      const etiquetas: Record<string, string> = { PRIMER_PISO: '1er piso', PLANTA_BAJA: 'Planta baja' };
+      badge.textContent = this.pisoFiltro
+        ? `Planta: ${etiquetas[this.pisoFiltro] || this.pisoFiltro}`
+        : 'Todas las plantas';
+    }
+
+    if (visibles.length === 0) {
       colUbicaciones.innerHTML = `<div class="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-10 text-center">
-        <div class="text-5xl mb-3">📍</div>
-        <p class="text-gray-400 font-medium mb-4">No hay ubicaciones todavía</p>
+        <div class="text-5xl mb-3">🏠</div>
+        <p class="text-gray-400 font-medium mb-4">${this.ubicaciones.length === 0 ? 'No hay ubicaciones todavía' : 'No hay habitaciones en la planta seleccionada'}</p>
         <button id="emptyUbicacionBtn" class="inline-flex items-center px-4 py-2 bg-blue-700 text-white text-sm font-medium rounded-lg hover:bg-blue-800 transition-base">+ Crear Ubicación</button>
       </div>`;
       document.getElementById('emptyUbicacionBtn')?.addEventListener('click', () => this.abrirModal('ubicacion'));
     } else {
-      colUbicaciones.innerHTML = this.ubicaciones.map((u) => this.ubicacionHtml(u)).join('');
+      colUbicaciones.innerHTML = visibles.map((u) => this.ubicacionHtml(u)).join('');
     }
 
     if (raices.length === 0) {
@@ -345,6 +365,7 @@ export class AlmacenamientoBoard {
     this.enlazarEliminar();
     this.enlazarEditar();
     this.enlazarCasilleros();
+    this.enlazarEscalaUbicacion();
   }
 
   // -- Tarjeta de Ubicación (drop zone) -------------------------------------
@@ -378,6 +399,25 @@ export class AlmacenamientoBoard {
           <button type="button" class="dnd-eliminar-ubicacion text-red-300 hover:text-red-600 p-1 transition-base" data-id="${u.id}" data-nombre="${escapeHtml(u.nombre)}" title="Eliminar ubicación">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_PAPELERA}</svg>
           </button>
+        </div>
+      </div>
+      <div class="casillero-nivel2">
+        ${minimapaPlantaHtml(this.estokFilas, this.estokColumnas, u)}
+        <div class="casillero-fila-control">
+          <span class="casillero-fila-etiqueta">Filas (alto del cuadrante)</span>
+          <div class="num-control">
+            <button type="button" class="num-btn" data-ubi-escala="menos" data-eje="rowspan" data-ubicacion="${u.id}" title="Reducir alto del cuadrante">−</button>
+            <input type="number" class="num-input" min="1" max="12" value="${u.grid_rowspan || 1}" readonly aria-label="Filas (alto) de la habitación" />
+            <button type="button" class="num-btn" data-ubi-escala="mas" data-eje="rowspan" data-ubicacion="${u.id}" title="Ampliar alto del cuadrante">+</button>
+          </div>
+        </div>
+        <div class="casillero-fila-control">
+          <span class="casillero-fila-etiqueta">Columnas (ancho del cuadrante)</span>
+          <div class="num-control">
+            <button type="button" class="num-btn" data-ubi-escala="menos" data-eje="colspan" data-ubicacion="${u.id}" title="Reducir ancho del cuadrante">−</button>
+            <input type="number" class="num-input" min="1" max="12" value="${u.grid_colspan || 1}" readonly aria-label="Columnas (ancho) de la habitación" />
+            <button type="button" class="num-btn" data-ubi-escala="mas" data-eje="colspan" data-ubicacion="${u.id}" title="Ampliar ancho del cuadrante">+</button>
+          </div>
         </div>
       </div>
       <div class="dnd-hijos space-y-2 min-h-[44px]">
@@ -880,6 +920,58 @@ export class AlmacenamientoBoard {
     } catch {
       this.toast('❌ Error de conexión al mover el objeto.');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ESCALA DE HABITACIONES (Nivel 2) - NumericUp/Down de Filas/Columnas
+  // Persisten vía PUT /api/ubicaciones/{id}/ con grid_rowspan / grid_colspan.
+  // ---------------------------------------------------------------------------
+
+  private cambiarEscalaUbicacion(id: string, eje: 'colspan' | 'rowspan', delta: number): void {
+    const u = this.ubicaciones.find((x) => x.id === id);
+    if (!u) return;
+    const actual = eje === 'colspan' ? (u.grid_colspan || 1) : (u.grid_rowspan || 1);
+    const nuevo = acotar(actual + delta, 1, 12);
+    if (nuevo === actual) return;
+    void this.persistirEscalaUbicacion(u, eje, nuevo);
+  }
+
+  private async persistirEscalaUbicacion(u: UbicacionDnD, eje: 'colspan' | 'rowspan', valor: number): Promise<void> {
+    if (eje === 'colspan') u.grid_colspan = valor;
+    else u.grid_rowspan = valor;
+    this.render();
+    try {
+      const res = await fetch(`${API_BASE_URL}/ubicaciones/${u.id}/`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(eje === 'colspan' ? { grid_colspan: valor } : { grid_rowspan: valor }),
+      });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (res.ok) {
+        this.toast(`✅ «${u.nombre}» reescalada (${eje === 'colspan' ? 'ancho' : 'alto'} = ${valor}).`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.toast('❌ ' + this.extraerError(err));
+        await this.cargar();
+      }
+    } catch {
+      this.toast('❌ Error de conexión al reescalar la habitación.');
+      await this.cargar();
+    }
+  }
+
+  private enlazarEscalaUbicacion(): void {
+    document.querySelectorAll<HTMLElement>('[data-ubi-escala]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.ubicacion;
+        const eje = btn.dataset.eje as 'colspan' | 'rowspan';
+        const delta = btn.dataset.escala === 'mas' ? 1 : -1;
+        if (id && (eje === 'colspan' || eje === 'rowspan')) this.cambiarEscalaUbicacion(id, eje, delta);
+      });
+    });
   }
 
   // ---------------------------------------------------------------------------

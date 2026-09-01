@@ -1,9 +1,9 @@
 ---
 // =============================================================================
-// PÁGINA DE ALMACENAMIENTO (UNIFICADA)
-// Unifica "Ubicaciones" y "Contenedores" en una única vista de dos columnas
-// con Drag & Drop nativo (HTML5 API). La lógica vive en
-// src/lib/almacenamientoBoard.ts para mantener la página liviana.
+// PÁGINA DE ALMACENAMIENTO - FLUJO EN CASCADA POR NIVELES
+// Nivel 1 (Mapa Estok) → Nivel 2 (Habitaciones) → Nivel 3 (Contenedores).
+// La lógica vive en src/lib/almacenamientoBoard.ts y src/lib/mapaJerarquicoUI.ts
+// para mantener la página liviana.
 // =============================================================================
 
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -20,7 +20,7 @@ import '../styles/mapa-espacial.css';
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
-      <p class="mt-1 text-gray-500">Gestioná ubicaciones y contenedores con arrastrar y soltar</p>
+      <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok → Habitaciones → Contenedores Mayores</p>
     </div>
 
     <!-- Leyenda de iconografía local del Lienzo de Mapeo Espacial -->
@@ -43,46 +43,98 @@ import '../styles/mapa-espacial.css';
     <LoadingState mensaje="Cargando espacios de almacenamiento..." />
     <ErrorState mensaje="Error al cargar los espacios de almacenamiento." />
 
-    <!-- Mapa Jerárquico Recursivo (adaptativo por tipo_layout del Estok activo) -->
-    <section class="mb-10" id="seccionMapaJerarquico">
-      <div class="flex items-center justify-between gap-4 mb-4">
-        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa Espacial</h2>
-        <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
-      </div>
-      <div id="mapaJerarquico" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-        <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
+    <!-- =========================================================================
+         SECCIÓN SUPERIOR - FLUJO EN CASCADA (NIVELES 1 y 2)
+         Izquierda: Mapa Estok (Nivel 1) con NumericUp/Down de Filas y Columnas.
+         Derecha  : Habitaciones (Nivel 2) arrastrables hacia las celdas macro.
+         ========================================================================= -->
+    <section class="mb-10" id="seccionMapaEstok">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- LADO IZQUIERDO: Mapa Estok (Nivel 1) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+          <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa Estok</h2>
+              <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="macro-input-label">Filas
+                <span class="num-control">
+                  <button type="button" class="num-btn" data-macro-filas="menos" title="Menos filas en el Mapa Estok">−</button>
+                  <input id="macroFilas" type="number" min="1" max="12" value="3" class="num-input" aria-label="Filas de la grilla del Mapa Estok" />
+                  <button type="button" class="num-btn" data-macro-filas="mas" title="Más filas en el Mapa Estok">+</button>
+                </span>
+              </label>
+              <label class="macro-input-label">Columnas
+                <span class="num-control">
+                  <button type="button" class="num-btn" data-macro-columnas="menos" title="Menos columnas en el Mapa Estok">−</button>
+                  <input id="macroColumnas" type="number" min="1" max="12" value="3" class="num-input" aria-label="Columnas de la grilla del Mapa Estok" />
+                  <button type="button" class="num-btn" data-macro-columnas="mas" title="Más columnas en el Mapa Estok">+</button>
+                </span>
+              </label>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Seleccioná una planta o macro-división para filtrar la cascada inferior. Las celdas vacías (➕) son zonas de caída para habitaciones.</p>
+          <div id="mapaEstokPanel" class="mt-1">
+            <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
+          </div>
+        </div>
+
+        <!-- LADO DERECHO: Habitaciones (Nivel 2) - paleta draggable -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+          <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Habitaciones <span class="text-sm font-normal text-gray-400">(Nivel 2)</span></h2>
+              <span id="contadorHabitaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala sobre una celda libre (➕) del Mapa Estok para diagramarla, o sobre un piso de la casa para cambiar de nivel.</p>
+          <div id="nivel2Paleta" class="min-h-[110px]">
+            <p class="text-sm text-gray-400 text-center py-6">Cargando habitaciones...</p>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Grid de dos columnas (sin scroll horizontal) -->
-    <div id="tableroAlmacenamiento" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- =========================================================================
+         SECCIÓN INFERIOR - CASCADA EN CALIENTE
+         Izquierda: Habitaciones de la planta seleccionada (Nivel 2 filtrado),
+                    cada una con su grilla interna y controles numéricos.
+         Derecha  : Contenedores Mayores / Muebles (Nivel 3) con DnD directo.
+         ========================================================================= -->
+    <section class="mb-10" id="seccionCascada">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-      <!-- Columna izquierda: Ubicaciones raíz (drop zones) -->
-      <section>
-        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <div class="flex items-center gap-2">
-            <h2 class="text-lg font-semibold text-gray-900">📍 Ubicaciones</h2>
-            <span id="contadorUbicaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
+        <!-- LADO IZQUIERDO INFERIOR: Habitaciones del piso seleccionado -->
+        <section>
+          <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-lg font-semibold text-gray-900">📍 Habitaciones</h2>
+              <span id="cascadaUbicacionesTitulo" class="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium">Planta seleccionada</span>
+              <span id="contadorUbicaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
+            </div>
+            <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </div>
-          <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-        </div>
-        <p class="text-xs text-gray-500 mb-4">Soltá contenedores dentro de una tarjeta para asignarlos a esa ubicación, o dentro de otro contenedor para crear sub-niveles. Cada contenedor tiene su propia grilla asimétrica: usá los selectores numéricos (− / +) para definir Filas globales y Columnas exclusivas por fila.</p>
-        <div id="columnaUbicaciones" class="space-y-5"></div>
-      </section>
+          <p class="text-xs text-gray-500 mb-4">Solo se muestran las habitaciones de la planta seleccionada en el Mapa Estok. Cada tarjeta expone su grilla interna (minimapa) y su control numérico de Filas/Columnas. Soltá contenedores dentro de una tarjeta para asignarlos.</p>
+          <div id="columnaUbicaciones" class="space-y-5"></div>
+        </section>
 
-      <!-- Columna derecha: Contenedores disponibles (paleta draggable) -->
-      <section>
-        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-          <div class="flex items-center gap-2">
-            <h2 class="text-lg font-semibold text-gray-900">📦 Contenedores</h2>
-            <span id="contadorContenedores" class="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">0</span>
+        <!-- LADO DERECHO INFERIOR: Contenedores Mayores (Nivel 3) -->
+        <section>
+          <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="text-lg font-semibold text-gray-900">🗄️ Contenedores Mayores</h2>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Nivel 3 · Muebles</span>
+              <span id="contadorContenedores" class="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">0</span>
+            </div>
+            <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </div>
-          <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-        </div>
-        <p class="text-xs text-gray-500 mb-4">Arrastrá un contenedor (✋) hacia una ubicación o dentro de otro contenedor. Los objetos individuales (bolita) se sueltan sobre un casillero para fijar su coordenada. Todo se guarda automáticamente.</p>
-        <div id="columnaContenedores" class="space-y-3"></div>
-      </section>
-    </div>
+          <p class="text-xs text-gray-500 mb-4">Arrastrá un mueble (✋) hacia una habitación o dentro de otro contenedor para crear sub-niveles. Los objetos individuales (bolita) se sueltan sobre un casillero para fijar su coordenada. Todo se guarda automáticamente.</p>
+          <div id="columnaContenedores" class="space-y-3"></div>
+        </section>
+      </div>
+    </section>
 
     <!-- Modal: Nueva Ubicación -->
     <div id="modalUbicacion" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -360,12 +412,21 @@ import '../styles/mapa-espacial.css';
   import { initMapaJerarquico } from '../lib/mapaJerarquicoUI';
 
   const tablero = new AlmacenamientoBoard();
-  tablero.init();
+  void tablero.init();
 
-  // Mapa Jerárquico Recursivo: casa (1er piso / Planta baja), plano de planta
-  // con nombres editables, y minimapas naranjas. Lee el tipo_layout del Estok.
-  void initMapaJerarquico(
-    document.getElementById('mapaJerarquico'),
-    document.getElementById('mapaJerarquicoBadge'),
-  );
+  // Filtrado en caliente: cuando se selecciona una planta/macro-división en el
+  // Mapa Estok (izquierda), la cascada inferior muta SIN recargar la página.
+  window.addEventListener('estok:planta-seleccionada', (e) => {
+    const detalle = (e as CustomEvent<{ piso: string | null }>).detail;
+    tablero.setPisoActivo(detalle?.piso ?? null);
+  });
+
+  // Flujo en cascada por niveles:
+  //   - mapaEstokPanel : Nivel 1 (Mapa Estok con casa + grilla macro).
+  //   - nivel2Paleta   : Nivel 2 (Habitaciones draggables hacia las celdas).
+  void initMapaJerarquico({
+    mapa: document.getElementById('mapaEstokPanel'),
+    paleta: document.getElementById('nivel2Paleta'),
+    badge: document.getElementById('mapaJerarquicoBadge'),
+  });
 </script>
