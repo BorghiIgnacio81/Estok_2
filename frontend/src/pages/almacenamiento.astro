@@ -75,7 +75,7 @@ import '../styles/mapa-espacial.css';
               </label>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Seleccioná una planta o macro-división para filtrar la cascada inferior. Las celdas vacías (➕) son zonas de caída para habitaciones.</p>
+          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Cada fila es una división nombrada. Seleccioná una fila para filtrar la cascada inferior y arrastrá habitaciones sobre CUALQUIER fila para re-divisionarlas. Al aumentar las Filas se pedirá el nombre de la nueva división.</p>
           <div id="mapaEstokPanel" class="mt-1">
             <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
           </div>
@@ -89,7 +89,7 @@ import '../styles/mapa-espacial.css';
               <span id="contadorHabitaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala sobre una celda libre (➕) del Mapa Estok para diagramarla, o sobre un piso de la casa para cambiar de nivel.</p>
+          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala sobre CUALQUIER fila del Mapa Estok para asignarla a esa división. Usá ❌ en una tarjeta para eliminarla de la base de datos.</p>
           <div id="nivel2Paleta" class="min-h-[110px]">
             <p class="text-sm text-gray-400 text-center py-6">Cargando habitaciones...</p>
           </div>
@@ -111,12 +111,12 @@ import '../styles/mapa-espacial.css';
           <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
             <div class="flex items-center gap-2 flex-wrap">
               <h2 class="text-lg font-semibold text-gray-900">📍 Habitaciones</h2>
-              <span id="cascadaUbicacionesTitulo" class="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium">Planta seleccionada</span>
+              <span id="cascadaUbicacionesTitulo" class="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium">División seleccionada</span>
               <span id="contadorUbicaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
             </div>
             <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </div>
-          <p class="text-xs text-gray-500 mb-4">Solo se muestran las habitaciones de la planta seleccionada en el Mapa Estok. Cada tarjeta expone su grilla interna (minimapa) y su control numérico de Filas/Columnas. Soltá contenedores dentro de una tarjeta para asignarlos.</p>
+          <p class="text-xs text-gray-500 mb-4">Solo se muestran las habitaciones de la división seleccionada en el Mapa Estok. Cada tarjeta expone su grilla interna (minimapa) y su control numérico de Filas/Columnas. Soltá contenedores dentro de una tarjeta para asignarlos.</p>
           <div id="columnaUbicaciones" class="space-y-5"></div>
         </section>
 
@@ -414,11 +414,11 @@ import '../styles/mapa-espacial.css';
   const tablero = new AlmacenamientoBoard();
   void tablero.init();
 
-  // Filtrado en caliente: cuando se selecciona una planta/macro-división en el
-  // Mapa Estok (izquierda), la cascada inferior muta SIN recargar la página.
+  // Filtrado en caliente: cuando se selecciona una división (fila) en el Mapa
+  // Estok (izquierda), la cascada inferior muta SIN recargar la página.
   window.addEventListener('estok:planta-seleccionada', (e) => {
-    const detalle = (e as CustomEvent<{ piso: string | null }>).detail;
-    tablero.setPisoActivo(detalle?.piso ?? null);
+    const detalle = (e as CustomEvent<{ fila: number | null; nombre: string | null }>).detail;
+    tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
   });
 
   // Flujo en cascada por niveles:

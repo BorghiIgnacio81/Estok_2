@@ -22,7 +22,7 @@
 // =============================================================================
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
-import { minimapaPlantaHtml, minimapaInternoHtml, PISO_BAJA } from './mapaJerarquico';
+import { minimapaPlantaHtml, minimapaInternoHtml } from './mapaJerarquico';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -170,8 +170,10 @@ export class AlmacenamientoBoard {
   /** Grilla (filas×columnas) del macro-Estok, usada para los minimapas de planta. */
   private estokFilas = 3;
   private estokColumnas = 3;
-  /** Planta/macro-división seleccionada en el Mapa Estok (Nivel 1). null = todas. */
-  private pisoFiltro: string | null = null;
+  /** Fila/división seleccionada en el Mapa Estok (Nivel 1). null = todas. */
+  private filaFiltro: number | null = null;
+  /** Nombre de la división seleccionada (para el badge de la cascada). */
+  private filaFiltroNombre: string | null = null;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -237,7 +239,11 @@ export class AlmacenamientoBoard {
         this.estokFilas = Number(estokData?.grid_filas) || 3;
         this.estokColumnas = Number(estokData?.grid_columnas) || 3;
 
-        this.ubicaciones = ubiData.map((u) => ({ ...u, raices: [] }));
+        // Las divisiones de fila (parent_grid_row sin parent_grid_col) NO son
+        // habitaciones: se excluyen de la cascada Nivel 2.
+        this.ubicaciones = ubiData
+          .filter((u: UbicacionDnD) => !(u.parent_grid_row && !u.parent_grid_col))
+          .map((u) => ({ ...u, raices: [] }));
         this.contenedores = contData.map((c) => ({
           ...c,
           hijos: [],
@@ -302,9 +308,10 @@ export class AlmacenamientoBoard {
     }
   }
 
-  /** Filtra la columna de Habitaciones (Nivel 2) por la planta seleccionada. */
-  setPisoActivo(piso: string | null): void {
-    this.pisoFiltro = piso || null;
+  /** Filtra la columna de Habitaciones (Nivel 2) por la división (fila) activa. */
+  setFilaActiva(fila: number | null, nombre?: string | null): void {
+    this.filaFiltro = fila ?? null;
+    this.filaFiltroNombre = nombre ?? null;
     this.render();
   }
 
@@ -326,17 +333,16 @@ export class AlmacenamientoBoard {
       (c) => !c.parent_contenedor || !this.contenedoresPorId.has(c.parent_contenedor),
     );
 
-    // Nivel 2 filtrado en caliente: solo las habitaciones de la planta activa.
-    const visibles = this.pisoFiltro
-      ? this.ubicaciones.filter((u) => (u.piso || PISO_BAJA) === this.pisoFiltro)
+    // Nivel 2 filtrado en caliente: solo las habitaciones de la división activa.
+    const visibles = this.filaFiltro
+      ? this.ubicaciones.filter((u) => (u.parent_grid_row || 1) === this.filaFiltro)
       : this.ubicaciones;
     if (contUbi) contUbi.textContent = `${visibles.length}`;
     const badge = document.getElementById('cascadaUbicacionesTitulo');
     if (badge) {
-      const etiquetas: Record<string, string> = { PRIMER_PISO: '1er piso', PLANTA_BAJA: 'Planta baja' };
-      badge.textContent = this.pisoFiltro
-        ? `Planta: ${etiquetas[this.pisoFiltro] || this.pisoFiltro}`
-        : 'Todas las plantas';
+      badge.textContent = this.filaFiltro
+        ? (this.filaFiltroNombre || `Fila ${this.filaFiltro}`)
+        : 'Todas las divisiones';
     }
 
     if (visibles.length === 0) {
