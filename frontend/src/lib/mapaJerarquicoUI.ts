@@ -1,19 +1,16 @@
 ﻿// =============================================================================
 // CONTROLADOR DEL MAPA ESTOK - divisiones con sub-grillas matriciales
 // -----------------------------------------------------------------------------
-// Orquesta el "Mapa Estok" (Nivel 1) y la paleta de Habitaciones (Nivel 2).
-// Cada división define su PROPIA sub-grilla (Filas Internas × Columnas por
-// fila, asimétrica) donde se encastran las habitaciones vía Drag & Drop.
-// El PUT /api/ubicaciones/{id}/ persiste parent_ubicacion (parent_id) +
-// parent_grid_row (grid_row) + parent_grid_col (grid_col) como enteros.
-// Toda la lógica de estado y mutaciones vive acá; los renderizadores puros
-// (sub-grillas, minimapas) viven en ./mapaJerarquico.
+// Orquesta el "Mapa Estok" (Nivel 1). Cada división define su PROPIA sub-grilla
+// (Filas Internas × Columnas por fila, asimétrica) donde se encastran las
+// habitaciones vía Drag & Drop. Al hacer clic sobre una habitación encastrada
+// se emite 'estok:habitacion-seleccionada' para que el Visor (visorHabitacion.ts)
+// la inspeccione en la columna derecha.
 // =============================================================================
 
 import {
   PISO_PRIMERO,
   PISO_BAJA,
-  escapeHtml,
   toast,
   fetchEstokConfig,
   fetchUbicacionesPlano,
@@ -21,7 +18,6 @@ import {
   guardarUbicacion,
   esDivisionUbicacion,
   crearDivisionUbicacion,
-  eliminarUbicacion,
   filasInternasDe,
   columnasInternasDe,
   columnasDeFilaInterna,
@@ -35,11 +31,10 @@ import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
 
 interface RefsMapaEstok {
   mapa: HTMLElement | null;
-  paleta: HTMLElement | null;
   badge: HTMLElement | null;
 }
 
-let refs: RefsMapaEstok = { mapa: null, paleta: null, badge: null };
+let refs: RefsMapaEstok = { mapa: null, badge: null };
 let estok: EstokConfig | null = null;
 /** Divisiones de fila (parent_grid_row set, parent_grid_col null). */
 let divisiones: UbicacionPlano[] = [];
@@ -93,11 +88,10 @@ async function cargarDatos(): Promise<void> {
 
 export async function initMapaJerarquico(opts: {
   mapa?: HTMLElement | null;
-  paleta?: HTMLElement | null;
   badge?: HTMLElement | null;
 }): Promise<void> {
-  refs = { mapa: opts.mapa ?? null, paleta: opts.paleta ?? null, badge: opts.badge ?? null };
-  if (!refs.mapa && !refs.paleta) return;
+  refs = { mapa: opts.mapa ?? null, badge: opts.badge ?? null };
+  if (!refs.mapa) return;
 
   const conf = await fetchEstokConfig();
   if (!conf) {
@@ -122,27 +116,6 @@ export async function initMapaJerarquico(opts: {
   notificarPlanta();
 }
 
-function paletaChipHtml(u: UbicacionPlano): string {
-  const asignada = Boolean(u.parent_grid_row && u.parent_grid_col);
-  return `
-  <div class="paleta-habitacion${asignada ? '' : ' paleta-habitacion-libre'}" draggable="true" data-ubicacion-id="${u.id}"
-    title="${asignada ? `Encastrada en F${u.parent_grid_row}·C${u.parent_grid_col}` : 'Sin encastre: arrastrala a una celda de la sub-grilla de una división'}">
-    <span class="paleta-habitacion-ico">🏠</span>
-    <span class="paleta-habitacion-info">
-      <span class="paleta-habitacion-nombre">${escapeHtml(u.nombre)}</span>
-      <span class="paleta-habitacion-meta">${asignada ? `F${u.parent_grid_row}·C${u.parent_grid_col}` : 'Sin diagramar'}</span>
-    </span>
-    <button type="button" draggable="false" class="paleta-habitacion-del" data-eliminar-ubicacion="${u.id}" data-nombre="${escapeHtml(u.nombre)}" title="Eliminar esta habitación">❌</button>
-  </div>`;
-}
-
-function paletaHtml(): string {
-  if (!habitaciones.length) {
-    return '<p class="text-sm text-gray-400 text-center py-6">No hay habitaciones todavía. Creá una en la sección inferior.</p>';
-  }
-  return `<div class="paleta-habitaciones">${habitaciones.map((u) => paletaChipHtml(u)).join('')}</div>`;
-}
-
 function render(): void {
   if (!estok) return;
   if (refs.mapa) {
@@ -156,11 +129,6 @@ function render(): void {
         })}
       </div>`;
   }
-  if (refs.paleta) {
-    refs.paleta.innerHTML = paletaHtml();
-  }
-  const contador = document.getElementById('contadorHabitaciones');
-  if (contador) contador.textContent = `${habitaciones.length}`;
   sincronizarInputsGrilla();
 }
 
@@ -289,25 +257,15 @@ function enlazar(): void {
     });
   });
 
-  // Drag start en los chips de la paleta Nivel 2 (Habitaciones)
-  refs.paleta?.querySelectorAll<HTMLElement>('.paleta-habitacion').forEach((chip) => {
-    chip.addEventListener('dragstart', (e) => {
-      const id = chip.dataset.ubicacionId;
-      if (!id) return;
-      e.dataTransfer?.setData('application/x-estok-ubicacion', id);
-      e.dataTransfer?.setData('text/plain', id);
-    });
-  });
-
-  // Eliminación en caliente de habitaciones (DELETE /api/ubicaciones/{id}/)
-  refs.paleta?.querySelectorAll<HTMLElement>('[data-eliminar-ubicacion]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+  // Selección de habitación encastrada → abre el Visor en la columna derecha.
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-seleccionar-habitacion]').forEach((el) => {
+    el.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = btn.dataset.eliminarUbicacion;
-      const nombre = btn.dataset.nombre || '';
-      if (!id) return;
-      if (!window.confirm(`¿Eliminar la habitación «${nombre}»? Esta acción no se puede deshacer.`)) return;
-      void eliminarHabitacion(id);
+      const id = el.dataset.seleccionarHabitacion;
+      const room = habitaciones.find((h) => h.id === id);
+      if (room) {
+        window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }));
+      }
     });
   });
 }
@@ -533,18 +491,4 @@ async function crearDivisionConNombre(fila: number, nombre: string): Promise<voi
   render();
   enlazar();
   notificarPlanta();
-}
-
-/** Elimina una habitación con DELETE y refresca la UI en caliente. */
-async function eliminarHabitacion(id: string): Promise<void> {
-  const ok = await eliminarUbicacion(id);
-  if (ok) {
-    habitaciones = habitaciones.filter((h) => h.id !== id);
-    toast('🗑️ Habitación eliminada.');
-    notificarEspacios();
-  } else {
-    toast('❌ No se pudo eliminar la habitación.');
-  }
-  render();
-  enlazar();
 }

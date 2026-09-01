@@ -410,7 +410,7 @@ export class AlmacenamientoBoard {
         }
       : { filas: this.estokFilas, columnas: this.estokColumnas, colsPorFila: null };
     return `
-    <article class="dnd-ubicacion bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border-2 border-dashed border-gray-300 transition-base p-5" data-id="${u.id}">
+    <article class="dnd-ubicacion bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border-2 border-dashed border-gray-300 transition-base p-5" data-id="${u.id}" draggable="true" title="Arrastrala sobre una celda del Mapa Estok para encastrarla">
       <div class="flex items-start gap-3 mb-3">
         <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
           <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">${ICONO_UBICACION}</svg>
@@ -641,6 +641,16 @@ export class AlmacenamientoBoard {
   // ---------------------------------------------------------------------------
 
   private enlazarDnD(): void {
+    // Habitaciones de la cascada: origen arrastrable hacia las celdas del Mapa Estok
+    document.querySelectorAll<HTMLElement>('.dnd-ubicacion').forEach((card) => {
+      card.addEventListener('dragstart', (e) => {
+        const id = card.dataset.id;
+        if (!id) return;
+        e.dataTransfer?.setData('application/x-estok-ubicacion', id);
+        e.dataTransfer?.setData('text/plain', id);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+      });
+    });
     // Objetos individuales: origen arrastrable hacia casilleros
     document.querySelectorAll<HTMLElement>('[data-objeto-dnd]').forEach((img) => {
       img.addEventListener('dragstart', (e) => {

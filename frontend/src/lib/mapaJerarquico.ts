@@ -60,6 +60,10 @@ export interface UbicacionPlano {
   grid_filas?: number | null;
   grid_columnas?: number | null;
   grid_filas_config?: number[] | null;
+  largo?: string | number | null;
+  ancho?: string | number | null;
+  alto?: string | number | null;
+  foto?: string | null;
   contenedores_count?: number;
   objetos_count?: number;
   sububicaciones_count?: number;
@@ -368,9 +372,9 @@ export function columnasDeFilaInterna(div: UbicacionPlano, filaInterna: number):
   return def;
 }
 
-/** Habitación encastrada: ocupa el 100% del cuadrante de la sub-grilla. */
+/** Habitación encastrada: ocupa el 100% del cuadrante y abre el Visor al clic. */
 function habitacionNestedHtml(u: UbicacionPlano): string {
-  return `<div class="mapa-celda-hab" data-ubicacion-id="${u.id}" title="${escapeHtml(u.nombre)}">
+  return `<div class="mapa-celda-hab" data-seleccionar-habitacion="${u.id}" title="Ver «${escapeHtml(u.nombre)}» en el Visor">
     <span class="mapa-celda-hab-ico">🏠</span>
     <span class="mapa-celda-hab-nombre">${escapeHtml(u.nombre)}</span>
     <em class="mapa-celda-hab-meta">F${u.parent_grid_row}·C${u.parent_grid_col}</em>
@@ -478,5 +482,5 @@ export function mapaEstokFilasHtml(opts: {
 /** Chip compacto de habitación suelta (sin encastre) dentro de una división. */
 function habitacionMiniChip(u: UbicacionPlano): string {
   const col = u.parent_grid_col ? ` · C${u.parent_grid_col}` : '';
-  return `<span class="mapa-fila-hab" data-ubicacion-id="${u.id}" title="${escapeHtml(u.nombre)}">🏠 ${escapeHtml(u.nombre)}<em>F${u.parent_grid_row}${col}</em></span>`;
+  return `<span class="mapa-fila-hab" data-seleccionar-habitacion="${u.id}" title="Ver «${escapeHtml(u.nombre)}» en el Visor">🏠 ${escapeHtml(u.nombre)}<em>F${u.parent_grid_row}${col}</em></span>`;
 }

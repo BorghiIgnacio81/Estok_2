@@ -81,17 +81,19 @@ import '../styles/mapa-espacial.css';
           </div>
         </div>
 
-        <!-- LADO DERECHO: Habitaciones (Nivel 2) - paleta draggable -->
+        <!-- LADO DERECHO: Visor de la Habitación Seleccionada (Nivel 2) -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
           <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div class="flex items-center gap-2">
-              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Habitaciones <span class="text-sm font-normal text-gray-400">(Nivel 2)</span></h2>
-              <span id="contadorHabitaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
+              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Visor de Habitación <span class="text-sm font-normal text-gray-400">(Nivel 2)</span></h2>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala dentro de CUALQUIER celda de la sub-grilla de una división para encastrarla (coordenadas F·C). Usá ❌ en una tarjeta para eliminarla de la base de datos.</p>
-          <div id="nivel2Paleta" class="min-h-[110px]">
-            <p class="text-sm text-gray-400 text-center py-6">Cargando habitaciones...</p>
+          <p class="text-xs text-gray-500 mb-3">Hacé clic sobre una habitación encastrada en el Mapa Estok para inspeccionarla. Su lienzo matricial recibe contenedores y objetos por Drag &amp; Drop.</p>
+          <div id="visorHabitacion" class="min-h-[180px]">
+            <div class="visor-placeholder">
+              <div class="visor-placeholder-ico">🏠</div>
+              <p class="visor-placeholder-texto">Seleccioná una habitación del Mapa Estok...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -410,6 +412,7 @@ import '../styles/mapa-espacial.css';
 <script>
   import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
   import { initMapaJerarquico } from '../lib/mapaJerarquicoUI';
+  import { initVisor } from '../lib/visorHabitacion';
 
   const tablero = new AlmacenamientoBoard();
   void tablero.init();
@@ -421,12 +424,11 @@ import '../styles/mapa-espacial.css';
     tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
   });
 
-  // Flujo en cascada por niveles:
-  //   - mapaEstokPanel : Nivel 1 (Mapa Estok con casa + grilla macro).
-  //   - nivel2Paleta   : Nivel 2 (Habitaciones draggables hacia las celdas).
+  // Mapa Estok (Nivel 1) con sub-grillas asimétricas + Visor de la habitación
+  // seleccionada (Nivel 2) en la columna derecha.
   void initMapaJerarquico({
     mapa: document.getElementById('mapaEstokPanel'),
-    paleta: document.getElementById('nivel2Paleta'),
     badge: document.getElementById('mapaJerarquicoBadge'),
   });
+  initVisor();
 </script>
