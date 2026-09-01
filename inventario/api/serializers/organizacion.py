@@ -2,6 +2,8 @@
 Serializers de Organización Espacial (Ubicaciones y Contenedores).
 """
 
+from uuid import UUID
+
 from rest_framework import serializers
 
 from ...models import Ubicacion, Contenedor
@@ -10,6 +12,18 @@ from ...models import Ubicacion, Contenedor
 class UbicacionSerializer(serializers.ModelSerializer):
     objetos_count = serializers.SerializerMethodField()
     contenedores_count = serializers.SerializerMethodField()
+    # Jerarquía del Mapa Estok: división padre (sub-grilla de Nivel 1) → habitación
+    parent_ubicacion = serializers.PrimaryKeyRelatedField(
+        queryset=Ubicacion.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    parent_ubicacion_nombre = serializers.CharField(
+        source='parent_ubicacion.nombre',
+        read_only=True,
+        default=None,
+    )
+    sububicaciones_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Ubicacion
@@ -23,6 +37,39 @@ class UbicacionSerializer(serializers.ModelSerializer):
     def get_contenedores_count(self, obj):
         """Cuenta los contenedores dentro de esta ubicación."""
         return obj.contenedores.count()
+
+    def get_sububicaciones_count(self, obj):
+        """Cuenta las habitaciones encastradas dentro de esta división."""
+        return obj.sububicaciones.count()
+
+    def validate_parent_ubicacion(self, value):
+        """Aislamiento multi-tenant estricto: la división padre debe pertenecer
+        al mismo Estok que la habitación (o al Estok activo vía X-Estok-Id)."""
+        if value is None:
+            return value
+        instance = self.instance
+        if instance is not None and instance.estok_id and value.estok_id != instance.estok_id:
+            raise serializers.ValidationError("La división padre no pertenece al mismo Estok.")
+        headers = getattr(self.context.get('request'), 'headers', {})
+        estok_activo = headers.get('X-Estok-Id')
+        if estok_activo and value.estok_id:
+            try:
+                estok_activo_uuid = UUID(str(estok_activo))
+            except (TypeError, ValueError):
+                return value
+            if value.estok_id != estok_activo_uuid:
+                raise serializers.ValidationError("La división padre no pertenece al Estok activo.")
+        return value
+
+    def validate_grid_filas_config(self, value):
+        """Grilla asimétrica: arreglo de enteros 1..12 (una entrada por fila interna)."""
+        if value is None:
+            return value
+        if not isinstance(value, list) or not value:
+            raise serializers.ValidationError("grid_filas_config debe ser un arreglo no vacío.")
+        if not all(isinstance(x, int) and 1 <= x <= 12 for x in value):
+            raise serializers.ValidationError("grid_filas_config debe contener enteros entre 1 y 12.")
+        return value
 
 
 class ContenedorSerializer(serializers.ModelSerializer):

@@ -59,6 +59,37 @@ class Ubicacion(models.Model):
         verbose_name="Alto en celdas (rowspan)",
         help_text="Alto variable del cuadrante en celdas de la grilla estilo Word."
     )
+    # =====================================================================
+    # SUB-GRILLA MATRICIAL DE LA DIVISIÓN (Mapa Estok - Nivel 1)
+    # Cada división de primer nivel define una grilla interna configurable
+    # (Filas Internas × Columnas por fila, asimétrica) donde se encastran
+    # las habitaciones (Nivel 2) vía parent_ubicacion + parent_grid_row/col.
+    # =====================================================================
+    parent_ubicacion = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sububicaciones',
+        verbose_name="División padre",
+        help_text="División del Mapa Estok donde se encastra esta habitación (parent_id)."
+    )
+    grid_filas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Filas internas de la división",
+        help_text="Cantidad de filas internas de la sub-grilla de la división."
+    )
+    grid_columnas = models.PositiveIntegerField(
+        default=3,
+        verbose_name="Columnas internas de la división",
+        help_text="Cantidad de columnas por defecto de cada fila interna."
+    )
+    grid_filas_config = models.JSONField(
+        null=True,
+        blank=True,
+        verbose_name="Columnas por fila interna (grilla asimétrica)",
+        help_text="Arreglo opcional con las columnas de cada fila interna (ej: [3,2,2]). Si es null, todas usan grid_columnas."
+    )
     largo = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Largo (cm)")
     ancho = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Ancho (cm)")
     alto = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="Alto (cm)")

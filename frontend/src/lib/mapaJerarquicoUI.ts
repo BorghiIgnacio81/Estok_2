@@ -1,12 +1,13 @@
 ﻿// =============================================================================
-// CONTROLADOR DEL MAPA ESTOK - filas como divisiones Drag & Drop nombradas
+// CONTROLADOR DEL MAPA ESTOK - divisiones con sub-grillas matriciales
 // -----------------------------------------------------------------------------
 // Orquesta el "Mapa Estok" (Nivel 1) y la paleta de Habitaciones (Nivel 2).
-// Cada fila del Mapa Estok es una división persistida como Ubicacion con
-// parent_grid_row = N y parent_grid_col = null (esDivisionUbicacion).
-// Al incrementar Filas se exige el nombre de la nueva división y se POSTea.
+// Cada división define su PROPIA sub-grilla (Filas Internas × Columnas por
+// fila, asimétrica) donde se encastran las habitaciones vía Drag & Drop.
+// El PUT /api/ubicaciones/{id}/ persiste parent_ubicacion (parent_id) +
+// parent_grid_row (grid_row) + parent_grid_col (grid_col) como enteros.
 // Toda la lógica de estado y mutaciones vive acá; los renderizadores puros
-// (filas-división, minimapas) viven en ./mapaJerarquico.
+// (sub-grillas, minimapas) viven en ./mapaJerarquico.
 // =============================================================================
 
 import {
@@ -21,6 +22,9 @@ import {
   esDivisionUbicacion,
   crearDivisionUbicacion,
   eliminarUbicacion,
+  filasInternasDe,
+  columnasInternasDe,
+  columnasDeFilaInterna,
   mapaEstokFilasHtml,
 } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
@@ -122,7 +126,7 @@ function paletaChipHtml(u: UbicacionPlano): string {
   const asignada = Boolean(u.parent_grid_row && u.parent_grid_col);
   return `
   <div class="paleta-habitacion${asignada ? '' : ' paleta-habitacion-libre'}" draggable="true" data-ubicacion-id="${u.id}"
-    title="${asignada ? `Diagramada en F${u.parent_grid_row}·C${u.parent_grid_col}` : 'Sin diagramar: arrastrala a una fila del Mapa Estok'}">
+    title="${asignada ? `Encastrada en F${u.parent_grid_row}·C${u.parent_grid_col}` : 'Sin encastre: arrastrala a una celda de la sub-grilla de una división'}">
     <span class="paleta-habitacion-ico">🏠</span>
     <span class="paleta-habitacion-info">
       <span class="paleta-habitacion-nombre">${escapeHtml(u.nombre)}</span>
@@ -146,7 +150,6 @@ function render(): void {
       <div class="mapaJerarquico">
         ${mapaEstokFilasHtml({
           filas: filasActivas(),
-          columnas: columnasActivas(),
           divisiones,
           habitaciones,
           filaActiva,
@@ -175,10 +178,32 @@ function enlazar(): void {
     });
   });
 
-  // Drag & drop: soltar una habitación en CUALQUIER fila la re-divisiona.
+  // Drag & drop: soltar una habitación en una CELDA concreta de la sub-grilla.
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-celda-division]').forEach((celda) => {
+    const divisionId = celda.dataset.celdaDivision;
+    const r = Number(celda.dataset.celdaRow);
+    const c = Number(celda.dataset.celdaCol);
+    if (!divisionId || !r || !c) return;
+    celda.addEventListener('dragover', (e: Event) => {
+      e.preventDefault();
+      if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'move';
+      celda.classList.add('mapa-celda-dnd-activo');
+    });
+    celda.addEventListener('dragleave', () => celda.classList.remove('mapa-celda-dnd-activo'));
+    celda.addEventListener('drop', (e: Event) => {
+      const de = e as DragEvent;
+      e.preventDefault();
+      celda.classList.remove('mapa-celda-dnd-activo');
+      const id = de.dataTransfer?.getData('application/x-estok-ubicacion');
+      if (id) void asignarHabitacionACelda(id, divisionId, r, c);
+    });
+  });
+
+  // Drag & drop: soltar una habitación en el cuerpo de la división → 1ª celda libre.
   refs.mapa?.querySelectorAll<HTMLElement>('[data-fila-drop]').forEach((filaEl) => {
-    const fila = Number(filaEl.dataset.filaDrop);
-    if (!fila) return;
+    const cont = filaEl.closest<HTMLElement>('[data-division-id]');
+    const divisionId = cont?.dataset.divisionId || '';
+    if (!divisionId) return;
     filaEl.addEventListener('dragover', (e: Event) => {
       e.preventDefault();
       if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'move';
@@ -190,7 +215,7 @@ function enlazar(): void {
       e.preventDefault();
       filaEl.classList.remove('mapa-fila-drop-activo');
       const id = de.dataTransfer?.getData('application/x-estok-ubicacion');
-      if (id) void asignarHabitacionAFila(id, fila);
+      if (id) void asignarHabitacionADivision(id, divisionId);
     });
   });
 
@@ -207,6 +232,60 @@ function enlazar(): void {
       } else {
         void crearDivisionConNombre(fila, nombre);
       }
+    });
+  });
+
+  // Filas Internas de la división (NumericUp/Down en el encabezado).
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-div-filas]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const divisionId = btn.dataset.division;
+      const div = divisiones.find((d) => d.id === divisionId);
+      if (!div) return;
+      const delta = btn.dataset.divFilas === 'mas' ? 1 : -1;
+      void cambiarFilasInternas(div, filasInternasDe(div) + delta);
+    });
+  });
+  refs.mapa?.querySelectorAll<HTMLInputElement>('[data-div-filas-input]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const divisionId = input.dataset.divFilasInput;
+      const div = divisiones.find((d) => d.id === divisionId);
+      if (!div) return;
+      void cambiarFilasInternas(div, Number(input.value));
+    });
+  });
+
+  // Columnas exclusivas por fila interna (grilla asimétrica [3,2,2]).
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-div-cols]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const divisionId = btn.dataset.division;
+      const fila = Number(btn.dataset.fila);
+      const div = divisiones.find((d) => d.id === divisionId);
+      if (!div || !fila) return;
+      const actual = columnasDeFilaInterna(div, fila);
+      const delta = btn.dataset.divCols === 'mas' ? 1 : -1;
+      void cambiarColumnasFilaInterna(div, fila, actual + delta);
+    });
+  });
+  refs.mapa?.querySelectorAll<HTMLInputElement>('[data-div-cols-input]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const divisionId = input.dataset.divColsInput;
+      const fila = Number(input.dataset.fila);
+      const div = divisiones.find((d) => d.id === divisionId);
+      if (!div || !fila) return;
+      void cambiarColumnasFilaInterna(div, fila, Number(input.value));
+    });
+  });
+
+  // Crear división en caliente desde el placeholder de una fila sin registro.
+  refs.mapa?.querySelectorAll<HTMLElement>('[data-crear-division]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const fila = Number(btn.dataset.crearDivision);
+      if (!fila) return;
+      const nombre = window.prompt(
+        `Ingrese el nombre de la nueva división (ej: 1er Piso, Planta Baja) — Fila ${fila}`,
+        fila === 1 ? '1er Piso' : fila === 2 ? 'Planta Baja' : `División ${fila}`,
+      );
+      if (nombre && nombre.trim()) void crearDivisionConNombre(fila, nombre.trim());
     });
   });
 
@@ -312,38 +391,117 @@ async function crearDivisionesFaltantes(hastaFila: number): Promise<boolean> {
   return true;
 }
 
-/** Asigna una habitación arrastrada a una fila-división (PUT con fila y coordenada). */
-async function asignarHabitacionAFila(id: string, fila: number): Promise<void> {
+/** Primera celda libre de la sub-grilla de una división (1-based). */
+function primerCeldaLibre(div: UbicacionPlano): { r: number; c: number } | null {
+  const filasInt = filasInternasDe(div);
+  const ocupadas = new Set(
+    habitaciones
+      .filter((h) => h.parent_ubicacion === div.id && h.parent_grid_row && h.parent_grid_col)
+      .map((h) => `${h.parent_grid_row}-${h.parent_grid_col}`),
+  );
+  for (let r = 1; r <= filasInt; r++) {
+    const cols = columnasDeFilaInterna(div, r);
+    for (let c = 1; c <= cols; c++) {
+      if (!ocupadas.has(`${r}-${c}`)) return { r, c };
+    }
+  }
+  return null;
+}
+
+/**
+ * Encastra una habitación en la celda (r,c) de la sub-grilla de una división.
+ * PUT /api/ubicaciones/{id}/ con parent_ubicacion (parent_id) + parent_grid_row
+ * (grid_row) + parent_grid_col (grid_col) como enteros 1-based válidos.
+ */
+async function asignarHabitacionACelda(id: string, divisionId: string, r: number, c: number): Promise<void> {
   const u = habitaciones.find((x) => x.id === id);
-  if (!u) return;
-  const div = divisiones.find((d) => d.parent_grid_row === fila);
-  // Primera columna libre dentro de la fila (coordenada entera 1-based).
-  const ocupadas = habitaciones
-    .filter((h) => h.parent_grid_row === fila && h.parent_grid_col)
-    .map((h) => h.parent_grid_col as number);
-  let col = 1;
-  while (ocupadas.includes(col)) col++;
-  if (u.parent_grid_row === fila && u.parent_grid_col === col) {
-    toast('ℹ️ Esa habitación ya está en esa fila y columna.');
+  const div = divisiones.find((d) => d.id === divisionId);
+  if (!u || !div) return;
+  const filaEntera = Math.floor(Number(r));
+  const colEntera = Math.floor(Number(c));
+  if (!filaEntera || !colEntera) {
+    toast('❌ Coordenadas de matriz inválidas.');
     return;
   }
   const ok = await guardarUbicacion(id, {
-    parent_grid_row: fila,
-    parent_grid_col: col,
-    piso: div?.piso || (fila === 1 ? PISO_PRIMERO : PISO_BAJA),
+    parent_ubicacion: divisionId,
+    parent_grid_row: filaEntera,
+    parent_grid_col: colEntera,
+    piso: div.piso || (filaEntera === 1 ? PISO_PRIMERO : PISO_BAJA),
   });
   if (ok) {
-    u.parent_grid_row = fila;
-    u.parent_grid_col = col;
-    toast(`📍 «${u.nombre}» movida a la división de la fila ${fila}.`);
+    u.parent_ubicacion = divisionId;
+    u.parent_grid_row = filaEntera;
+    u.parent_grid_col = colEntera;
+    toast(`📍 «${u.nombre}» encastrada en ${div.nombre} (F${filaEntera}·C${colEntera}).`);
     notificarEspacios();
     await cargarDatos();
   } else {
-    toast('❌ No se pudo guardar la nueva posición.');
+    toast('❌ No se pudo guardar el encastre.');
   }
   render();
   enlazar();
   notificarPlanta();
+}
+
+/** Encastra una habitación en la primera celda libre de la división. */
+async function asignarHabitacionADivision(id: string, divisionId: string): Promise<void> {
+  const div = divisiones.find((d) => d.id === divisionId);
+  if (!div) return;
+  const celda = primerCeldaLibre(div);
+  if (!celda) {
+    toast('ℹ️ La sub-grilla de esta división está completa.');
+    return;
+  }
+  await asignarHabitacionACelda(id, divisionId, celda.r, celda.c);
+}
+
+/** Cambia la cantidad de Filas Internas de una división (ajusta la asimétrica). */
+async function cambiarFilasInternas(div: UbicacionPlano, filasNuevas: number): Promise<void> {
+  const f = Math.max(1, Math.min(12, Math.floor(Number(filasNuevas)) || 1));
+  if (f === filasInternasDe(div)) return;
+  const def = columnasInternasDe(div);
+  const cfg = Array.isArray(div.grid_filas_config) ? div.grid_filas_config.slice(0, f) : null;
+  if (cfg && cfg.length < f) {
+    while (cfg.length < f) cfg.push(def);
+  }
+  const ok = await guardarUbicacion(div.id, { grid_filas: f, grid_filas_config: cfg });
+  if (ok) {
+    div.grid_filas = f;
+    div.grid_filas_config = cfg;
+    toast(`✅ «${div.nombre}» ahora tiene ${f} filas internas.`);
+    notificarEspacios();
+    await cargarDatos();
+  } else {
+    toast('❌ No se pudo guardar las filas internas.');
+  }
+  render();
+  enlazar();
+}
+
+/** Cambia las Columnas de una fila interna específica (grilla asimétrica). */
+async function cambiarColumnasFilaInterna(div: UbicacionPlano, fila: number, colsNuevas: number): Promise<void> {
+  const f = Math.max(1, Math.floor(Number(fila)) || 1);
+  const c = Math.max(1, Math.min(12, Math.floor(Number(colsNuevas)) || 1));
+  if (c === columnasDeFilaInterna(div, f)) return;
+  const def = columnasInternasDe(div);
+  const filasInt = filasInternasDe(div);
+  const cfg: number[] = [];
+  for (let r = 1; r <= filasInt; r++) {
+    cfg.push(r === f ? c : columnasDeFilaInterna(div, r));
+  }
+  const configFinal = cfg.every((v) => v === def) ? null : cfg;
+  const ok = await guardarUbicacion(div.id, { grid_filas_config: configFinal });
+  if (ok) {
+    div.grid_filas_config = configFinal;
+    toast(`✅ «${div.nombre}» · Fila ${f} ahora tiene ${c} columnas.`);
+    notificarEspacios();
+    await cargarDatos();
+  } else {
+    toast('❌ No se pudo guardar las columnas de la fila.');
+  }
+  render();
+  enlazar();
 }
 
 /** Renombra una división existente (PUT /api/ubicaciones/{id}/). */

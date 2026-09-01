@@ -75,7 +75,7 @@ import '../styles/mapa-espacial.css';
               </label>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Cada fila es una división nombrada. Seleccioná una fila para filtrar la cascada inferior y arrastrá habitaciones sobre CUALQUIER fila para re-divisionarlas. Al aumentar las Filas se pedirá el nombre de la nueva división.</p>
+          <p class="text-xs text-gray-500 mb-3">Nivel 1 · Cada división tiene su PROPIA sub-grilla (Filas Internas × Columnas por fila, asimétrica). Soltá habitaciones sobre las celdas (Drop Zones) para encastrarlas. Al aumentar las Filas se pedirá el nombre de la nueva división.</p>
           <div id="mapaEstokPanel" class="mt-1">
             <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
           </div>
@@ -89,7 +89,7 @@ import '../styles/mapa-espacial.css';
               <span id="contadorHabitaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala sobre CUALQUIER fila del Mapa Estok para asignarla a esa división. Usá ❌ en una tarjeta para eliminarla de la base de datos.</p>
+          <p class="text-xs text-gray-500 mb-3">Arrastrá una habitación y soltala dentro de CUALQUIER celda de la sub-grilla de una división para encastrarla (coordenadas F·C). Usá ❌ en una tarjeta para eliminarla de la base de datos.</p>
           <div id="nivel2Paleta" class="min-h-[110px]">
             <p class="text-sm text-gray-400 text-center py-6">Cargando habitaciones...</p>
           </div>

@@ -780,3 +780,190 @@
   background: #fee2e2;
 }
 
+
+/* ---------------------------------------------------------------------------
+   Sub-grillas matriciales por división del Mapa Estok (Filas Internas ×
+   Columnas por fila, asimétricas) + celdas Drop Zone + habitaciones anidadas
+   --------------------------------------------------------------------------- */
+
+/* Control "Filas Internas" del encabezado de la división */
+.mapa-filas-internas-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+}
+
+.mapa-filas-internas-etiqueta {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Sub-grilla interna de la división */
+.mapa-subgrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.mapa-fila-interna {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mapa-fila-interna-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mapa-fila-interna-etiqueta {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mapa-cols-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mapa-fila-interna-celdas {
+  display: grid;
+  gap: 4px;
+}
+
+/* Celdas de la sub-grilla: Drop Zones activas */
+.mapa-celda {
+  min-height: 56px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.mapa-celda:hover {
+  border-color: #f97316;
+  background: #ffedd5;
+}
+
+.mapa-celda.mapa-celda-dnd-activo {
+  background: #fdba74 !important;
+  border-color: #ea580c !important;
+  transform: scale(1.04);
+}
+
+.mapa-celda-ocupada {
+  border-style: solid;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.mapa-celda-vacia {
+  font-size: 14px;
+  color: #9ca3af;
+  line-height: 1;
+}
+
+/* Habitación encastrada: ocupa el 100% del cuadrante */
+.mapa-celda-hab {
+  width: 100%;
+  height: 100%;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.mapa-celda-hab-ico {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mapa-celda-hab-nombre {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7c2d12;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mapa-celda-hab-meta {
+  font-style: normal;
+  font-size: 9px;
+  color: #b45309;
+}
+
+/* Habitaciones sueltas (sin encastre) dentro de una división */
+.mapa-fila-legacy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.mapa-fila-legacy-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+}
+
+/* Placeholder de fila sin división persistida */
+.mapa-fila-sin-division {
+  border-style: dashed;
+  background: #f8fafc;
+}
+
+.mapa-fila-nombre-plano {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.mapa-fila-crear {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.mapa-fila-crear:hover {
+  background: #fdba74;
+  color: #7c2d12;
+}
+
+.mapa-fila-crear:active {
+  transform: scale(0.96);
+}
+

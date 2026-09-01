@@ -1,12 +1,14 @@
 ﻿// =============================================================================
-// MAPA ESTOK - filas como divisiones, minimapas jerárquicos y selectores naranjas
+// MAPA ESTOK - divisiones con sub-grillas matriciales y minimapas naranjas
 // -----------------------------------------------------------------------------
 // Implementa el sistema visual del bosquejo:
-//   1. Mapa Estok: cada FILA es una división nombrada persistida como
-//      Ubicacion con parent_grid_row = N y parent_grid_col = null. Al
-//      incrementar Filas se exige el nombre y se POSTea la nueva división.
-//   2. Habitaciones (Nivel 2): se arrastran sobre CUALQUIER fila y quedan
-//      ancladas a esa división con sus coordenadas (PUT /api/ubicaciones/{id}/).
+//   1. Mapa Estok: cada FILA es una división nombrada (Ubicacion con
+//      parent_grid_row = N y parent_grid_col = null) que define su PROPIA
+//      sub-grilla interna configurable (Filas Internas × Columnas por fila,
+//      asimétrica tipo [3,2,2]).
+//   2. Habitaciones (Nivel 2): se encastran por Drag & Drop en las celdas de
+//      la sub-grilla de la división; el PUT /api/ubicaciones/{id}/ persiste
+//      parent_ubicacion (division) + parent_grid_row + parent_grid_col (int).
 //   3. Minimapas: la ficha técnica de contenedor pinta en NARANJA (#f97316)
 //      el cuadrante exacto de su Ubicación.
 //
@@ -47,12 +49,20 @@ export interface UbicacionPlano {
   id: string;
   nombre: string;
   piso?: string;
+  /** División padre del Mapa Estok donde se encastra esta habitación. */
+  parent_ubicacion?: string | null;
+  parent_ubicacion_nombre?: string | null;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
   grid_colspan?: number | null;
   grid_rowspan?: number | null;
+  /** Sub-grilla interna de la división: filas internas / columnas / asimétrica. */
+  grid_filas?: number | null;
+  grid_columnas?: number | null;
+  grid_filas_config?: number[] | null;
   contenedores_count?: number;
   objetos_count?: number;
+  sububicaciones_count?: number;
 }
 
 // =============================================================================
@@ -204,7 +214,7 @@ export function esDivisionUbicacion(u: UbicacionPlano): boolean {
   return Boolean(u.parent_grid_row && !u.parent_grid_col);
 }
 
-/** Crea una división de fila (POST /api/ubicaciones/) con nombre y fila. */
+/** Crea una división de fila (POST /api/ubicaciones/) con nombre, fila y sub-grilla. */
 export async function crearDivisionUbicacion(
   nombre: string,
   fila: number,
@@ -221,6 +231,10 @@ export async function crearDivisionUbicacion(
         parent_grid_col: null,
         grid_colspan: Math.max(1, columnas),
         grid_rowspan: 1,
+        // Sub-grilla matricial inicial de la división: filas × columnas.
+        grid_filas: 3,
+        grid_columnas: Math.max(1, columnas),
+        grid_filas_config: null,
       }),
     });
     if (res.status === 401) {
@@ -233,12 +247,18 @@ export async function crearDivisionUbicacion(
       id: data.id,
       nombre: data.nombre,
       piso: data.piso || PISO_BAJA,
+      parent_ubicacion: data.parent_ubicacion ?? null,
+      parent_ubicacion_nombre: data.parent_ubicacion_nombre ?? null,
       parent_grid_row: data.parent_grid_row ?? fila,
       parent_grid_col: data.parent_grid_col ?? null,
       grid_colspan: entero(data.grid_colspan, 1),
       grid_rowspan: entero(data.grid_rowspan, 1),
+      grid_filas: entero(data.grid_filas, 3),
+      grid_columnas: entero(data.grid_columnas, Math.max(1, columnas)),
+      grid_filas_config: Array.isArray(data.grid_filas_config) ? data.grid_filas_config : null,
       contenedores_count: 0,
       objetos_count: 0,
+      sububicaciones_count: 0,
     };
   } catch {
     return null;
@@ -266,11 +286,12 @@ export async function eliminarUbicacion(id: string): Promise<boolean> {
 // MINIMAPAS (selectores naranjas)
 // =============================================================================
 
-/** Minimapa de la planta: pinta en naranja el cuadrante de una Ubicación. */
+/** Minimapa de la planta/división: pinta en naranja el cuadrante de una Ubicación. */
 export function minimapaPlantaHtml(
   filas: number,
   columnas: number,
   u: UbicacionPlano | null | undefined,
+  columnasPorFila?: number[] | null,
 ): string {
   if (!u) {
     return `<div class="minimapa-planta minimapa-planta-vacia">📍 Sin ubicación</div>`;
@@ -282,6 +303,7 @@ export function minimapaPlantaHtml(
     ${minimapaHtml({
       filas,
       columnas,
+      columnasPorFila: columnasPorFila ?? undefined,
       fila: u.parent_grid_row,
       columna: u.parent_grid_col,
       titulo: `📍 ${u.piso ? (ETIQUETAS_PISO[u.piso] || 'Planta') : 'Planta'}`,
@@ -317,50 +339,143 @@ export function minimapaInternoHtml(
 }
 
 // =============================================================================
-// MAPA ESTOK - FILAS COMO DIVISIONES (contenedores Drag & Drop nombrados)
-// Cada fila del Mapa Estok es una división persistida como Ubicacion con
-// parent_grid_row = N y parent_grid_col = null (esDivisionUbicacion).
+// MAPA ESTOK - DIVISIONES DE FILA CON SUB-GRILLAS MATRICIALES
+// Cada división (Ubicacion con parent_grid_row=N, parent_grid_col=null) define
+// su propia sub-grilla interna (Filas Internas × Columnas por fila, asimétrica)
+// donde se encastran las habitaciones (Nivel 2) vía parent_ubicacion + coords.
 // =============================================================================
 
-/** Renderiza el Mapa Estok como filas-división, cada una un drop target vivo. */
+/** Filas internas de una división (1..12). */
+export function filasInternasDe(div: UbicacionPlano): number {
+  return Math.max(1, Math.min(12, Math.floor(Number(div.grid_filas) || 3)));
+}
+
+/** Columnas por defecto de una división (1..12). */
+export function columnasInternasDe(div: UbicacionPlano): number {
+  return Math.max(1, Math.min(12, Math.floor(Number(div.grid_columnas) || 3)));
+}
+
+/** Columnas de una fila interna específica (asimétrica vía grid_filas_config). */
+export function columnasDeFilaInterna(div: UbicacionPlano, filaInterna: number): number {
+  const def = columnasInternasDe(div);
+  const cfg = Array.isArray(div.grid_filas_config) && div.grid_filas_config.length >= filasInternasDe(div)
+    ? div.grid_filas_config
+    : null;
+  if (cfg) {
+    const c = Math.floor(Number(cfg[filaInterna - 1]));
+    return Number.isFinite(c) && c > 0 ? Math.min(12, c) : def;
+  }
+  return def;
+}
+
+/** Habitación encastrada: ocupa el 100% del cuadrante de la sub-grilla. */
+function habitacionNestedHtml(u: UbicacionPlano): string {
+  return `<div class="mapa-celda-hab" data-ubicacion-id="${u.id}" title="${escapeHtml(u.nombre)}">
+    <span class="mapa-celda-hab-ico">🏠</span>
+    <span class="mapa-celda-hab-nombre">${escapeHtml(u.nombre)}</span>
+    <em class="mapa-celda-hab-meta">F${u.parent_grid_row}·C${u.parent_grid_col}</em>
+  </div>`;
+}
+
+/** Sub-grilla matricial de una división (filas internas × columnas por fila). */
+function divisionSubgridHtml(opts: {
+  division: UbicacionPlano;
+  fila: number;
+  habitaciones: UbicacionPlano[];
+  filaActiva: number | null;
+}): string {
+  const { division, fila, habitaciones, filaActiva } = opts;
+  const id = division.id;
+  const filasInt = filasInternasDe(division);
+  const habs = habitaciones.filter((h) => h.parent_ubicacion === id);
+  const legacy = habitaciones.filter((h) => !h.parent_ubicacion && h.parent_grid_row === fila);
+
+  const filasHtml: string[] = [];
+  for (let r = 1; r <= filasInt; r++) {
+    const cols = columnasDeFilaInterna(division, r);
+    const celdas: string[] = [];
+    for (let c = 1; c <= cols; c++) {
+      const hab = habs.find((h) => h.parent_grid_row === r && h.parent_grid_col === c);
+      celdas.push(`
+        <div class="mapa-celda${hab ? ' mapa-celda-ocupada' : ''}" data-celda-division="${id}" data-celda-row="${r}" data-celda-col="${c}" title="Soltá una habitación aquí">
+          ${hab ? habitacionNestedHtml(hab) : '<span class="mapa-celda-vacia">＋</span>'}
+        </div>`);
+    }
+    filasHtml.push(`
+      <div class="mapa-fila-interna">
+        <div class="mapa-fila-interna-cab">
+          <span class="mapa-fila-interna-etiqueta">Fila ${r}</span>
+          <span class="mapa-cols-control">
+            <button type="button" class="num-btn" data-div-cols="menos" data-division="${id}" data-fila="${r}" title="Quitar columna a la fila ${r}">−</button>
+            <input type="number" class="num-input" min="1" max="12" value="${cols}" readonly data-div-cols-input="${id}" data-fila="${r}" aria-label="Columnas de la fila interna ${r}" />
+            <button type="button" class="num-btn" data-div-cols="mas" data-division="${id}" data-fila="${r}" title="Agregar columna a la fila ${r}">+</button>
+          </span>
+        </div>
+        <div class="mapa-fila-interna-celdas" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
+          ${celdas.join('')}
+        </div>
+      </div>`);
+  }
+
+  return `
+  <div class="mapa-fila${filaActiva === fila ? ' mapa-fila-activa' : ''}" data-fila="${fila}" data-division-id="${id}">
+    <div class="mapa-fila-encabezado" data-fila-select="${fila}" title="Seleccionar la división «${escapeHtml(division.nombre)}»">
+      <span class="mapa-fila-ico">🗂️</span>
+      <input class="mapa-fila-nombre" data-nombre-division="${id}" data-fila="${fila}" value="${escapeHtml(division.nombre)}" aria-label="Nombre de la división (fila ${fila})" />
+      <span class="mapa-filas-internas-control">
+        <span class="mapa-filas-internas-etiqueta">Filas</span>
+        <span class="num-control">
+          <button type="button" class="num-btn" data-div-filas="menos" data-division="${id}" title="Quitar fila interna">−</button>
+          <input type="number" class="num-input" min="1" max="12" value="${filasInt}" readonly data-div-filas-input="${id}" aria-label="Filas internas de la división" />
+          <button type="button" class="num-btn" data-div-filas="mas" data-division="${id}" title="Agregar fila interna">+</button>
+        </span>
+      </span>
+      <span class="mapa-fila-meta">${habs.length} encastrada${habs.length === 1 ? '' : 's'}${legacy.length ? ` · ${legacy.length} suelta${legacy.length === 1 ? '' : 's'}` : ''}</span>
+    </div>
+    <div class="mapa-fila-cuerpo" data-fila-drop="${fila}">
+      <div class="mapa-subgrid">${filasHtml.join('')}</div>
+      ${legacy.length ? `<div class="mapa-fila-legacy"><span class="mapa-fila-legacy-titulo">Sueltas:</span>${legacy.map((h) => habitacionMiniChip(h)).join('')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+/** Renderiza el Mapa Estok como filas-división con sub-grillas matriciales. */
 export function mapaEstokFilasHtml(opts: {
   filas: number;
-  columnas: number;
   divisiones: UbicacionPlano[];
   habitaciones: UbicacionPlano[];
   filaActiva: number | null;
 }): string {
-  const { filas, columnas, divisiones, habitaciones, filaActiva } = opts;
+  const { filas, divisiones, habitaciones, filaActiva } = opts;
 
-  const nombreDeFila = (f: number): { id: string | null; nombre: string } => {
-    const div = divisiones.find((d) => d.parent_grid_row === f);
-    const nombre =
-      div?.nombre ||
-      (f === 1 ? ETIQUETAS_PISO[PISO_PRIMERO] : f === 2 ? ETIQUETAS_PISO[PISO_BAJA] : `División ${f}`);
-    return { id: div?.id ?? null, nombre };
-  };
+  const nombreDeFila = (f: number): string =>
+    (f === 1 ? ETIQUETAS_PISO[PISO_PRIMERO] : f === 2 ? ETIQUETAS_PISO[PISO_BAJA] : `División ${f}`);
 
   const filasHtml: string[] = [];
   for (let f = 1; f <= filas; f++) {
-    const { id, nombre } = nombreDeFila(f);
-    const habs = habitaciones.filter((h) => h.parent_grid_row === f);
-    filasHtml.push(`
-    <div class="mapa-fila${filaActiva === f ? ' mapa-fila-activa' : ''}" data-fila="${f}">
-      <div class="mapa-fila-encabezado" data-fila-select="${f}" title="Seleccionar la división «${escapeHtml(nombre)}»">
-        <span class="mapa-fila-ico">🗂️</span>
-        <input class="mapa-fila-nombre" data-nombre-division="${id ?? ''}" data-fila="${f}" value="${escapeHtml(nombre)}" aria-label="Nombre de la división (fila ${f})" />
-        <span class="mapa-fila-meta">${habs.length} hab. · ${columnas} celdas</span>
-      </div>
-      <div class="mapa-fila-cuerpo" data-fila-drop="${f}" data-fila="${f}">
-        ${habs.length ? habs.map((h) => habitacionMiniChip(h)).join('') : '<span class="mapa-fila-vacio">➕ Soltá habitaciones aquí</span>'}
-      </div>
-    </div>`);
+    const div = divisiones.find((d) => d.parent_grid_row === f);
+    if (div) {
+      filasHtml.push(divisionSubgridHtml({ division: div, fila: f, habitaciones, filaActiva }));
+    } else {
+      // Fila sin división persistida: placeholder con acción de creación en caliente.
+      filasHtml.push(`
+      <div class="mapa-fila mapa-fila-sin-division" data-fila="${f}">
+        <div class="mapa-fila-encabezado">
+          <span class="mapa-fila-ico">🗂️</span>
+          <span class="mapa-fila-nombre-plano">${escapeHtml(nombreDeFila(f))}</span>
+          <button type="button" class="mapa-fila-crear" data-crear-division="${f}" title="Crear esta división en caliente">➕ Crear división</button>
+        </div>
+        <div class="mapa-fila-cuerpo">
+          <span class="mapa-fila-vacio">Esta fila aún no es una división. Creala para configurar su sub-grilla y encastrar habitaciones.</span>
+        </div>
+      </div>`);
+    }
   }
 
   return `<div class="mapa-estok-filas">${filasHtml.join('')}</div>`;
 }
 
-/** Chip compacto de habitación dentro de una fila-división del Mapa Estok. */
+/** Chip compacto de habitación suelta (sin encastre) dentro de una división. */
 function habitacionMiniChip(u: UbicacionPlano): string {
   const col = u.parent_grid_col ? ` · C${u.parent_grid_col}` : '';
   return `<span class="mapa-fila-hab" data-ubicacion-id="${u.id}" title="${escapeHtml(u.nombre)}">🏠 ${escapeHtml(u.nombre)}<em>F${u.parent_grid_row}${col}</em></span>`;

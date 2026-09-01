@@ -71,8 +71,15 @@ export interface UbicacionDnD {
   descripcion: string;
   /** Piso de la casa (PRIMER_PISO | PLANTA_BAJA) + cuadrante en el plano. */
   piso?: string;
+  /** División padre del Mapa Estok donde está encastrada esta habitación. */
+  parent_ubicacion?: string | null;
+  parent_ubicacion_nombre?: string | null;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /** Sub-grilla interna de la división (Filas Internas / Columnas / asimétrica). */
+  grid_filas?: number | null;
+  grid_columnas?: number | null;
+  grid_filas_config?: number[] | null;
   grid_colspan?: number | null;
   grid_rowspan?: number | null;
   objetos_count: number;
@@ -174,6 +181,8 @@ export class AlmacenamientoBoard {
   private filaFiltro: number | null = null;
   /** Nombre de la división seleccionada (para el badge de la cascada). */
   private filaFiltroNombre: string | null = null;
+  /** Divisiones del Mapa Estok por id (para resolver sub-grillas y filtros). */
+  private divisionesPorId = new Map<string, UbicacionDnD>();
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -240,9 +249,15 @@ export class AlmacenamientoBoard {
         this.estokColumnas = Number(estokData?.grid_columnas) || 3;
 
         // Las divisiones de fila (parent_grid_row sin parent_grid_col) NO son
-        // habitaciones: se excluyen de la cascada Nivel 2.
-        this.ubicaciones = ubiData
-          .filter((u: UbicacionDnD) => !(u.parent_grid_row && !u.parent_grid_col))
+        // habitaciones: se excluyen de la cascada Nivel 2 y se indexan por id.
+        this.divisionesPorId.clear();
+        for (const u of ubiData as UbicacionDnD[]) {
+          if (u.parent_grid_row && !u.parent_grid_col) {
+            this.divisionesPorId.set(u.id, { ...u, raices: [] });
+          }
+        }
+        this.ubicaciones = (ubiData as UbicacionDnD[])
+          .filter((u) => !(u.parent_grid_row && !u.parent_grid_col))
           .map((u) => ({ ...u, raices: [] }));
         this.contenedores = contData.map((c) => ({
           ...c,
@@ -333,9 +348,16 @@ export class AlmacenamientoBoard {
       (c) => !c.parent_contenedor || !this.contenedoresPorId.has(c.parent_contenedor),
     );
 
-    // Nivel 2 filtrado en caliente: solo las habitaciones de la división activa.
+    // Nivel 2 filtrado en caliente: solo las habitaciones encastradas en la
+    // división activa (o las sueltas heredadas con fila coincidente).
     const visibles = this.filaFiltro
-      ? this.ubicaciones.filter((u) => (u.parent_grid_row || 1) === this.filaFiltro)
+      ? this.ubicaciones.filter((u) => {
+          if (u.parent_ubicacion) {
+            const d = this.divisionesPorId.get(u.parent_ubicacion);
+            return d ? d.parent_grid_row === this.filaFiltro : false;
+          }
+          return (u.parent_grid_row || 1) === this.filaFiltro;
+        })
       : this.ubicaciones;
     if (contUbi) contUbi.textContent = `${visibles.length}`;
     const badge = document.getElementById('cascadaUbicacionesTitulo');
@@ -378,6 +400,15 @@ export class AlmacenamientoBoard {
 
   private ubicacionHtml(u: UbicacionDnD): string {
     const raicesHtml = u.raices.map((c) => this.contenedorHtml(c, 0)).join('');
+    // Sub-grilla de la división donde está encastrada (para el minimapa).
+    const divPadre = u.parent_ubicacion ? this.divisionesPorId.get(u.parent_ubicacion) : null;
+    const grillaMinimapa = divPadre
+      ? {
+          filas: Math.max(1, Number(divPadre.grid_filas) || 3),
+          columnas: Math.max(1, Number(divPadre.grid_columnas) || 3),
+          colsPorFila: divPadre.grid_filas_config,
+        }
+      : { filas: this.estokFilas, columnas: this.estokColumnas, colsPorFila: null };
     return `
     <article class="dnd-ubicacion bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border-2 border-dashed border-gray-300 transition-base p-5" data-id="${u.id}">
       <div class="flex items-start gap-3 mb-3">
@@ -408,7 +439,7 @@ export class AlmacenamientoBoard {
         </div>
       </div>
       <div class="casillero-nivel2">
-        ${minimapaPlantaHtml(this.estokFilas, this.estokColumnas, u)}
+        ${minimapaPlantaHtml(grillaMinimapa.filas, grillaMinimapa.columnas, u, grillaMinimapa.colsPorFila)}
         <div class="casillero-fila-control">
           <span class="casillero-fila-etiqueta">Filas (alto del cuadrante)</span>
           <div class="num-control">
