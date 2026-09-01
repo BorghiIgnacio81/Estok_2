@@ -326,3 +326,103 @@
   font-weight: 500 !important;
   color: #9ca3af !important;
 }
+
+/* --- Plano de habitaciones: matriz asimétrica real (Nivel 2) -------------- */
+
+.casita-plano {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.casita-plano-fila {
+  display: grid;
+  grid-template-columns: repeat(var(--fila-cols, 3), minmax(0, 1fr));
+  gap: 10px;
+}
+
+.casita-celda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 96px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.casita-celda-vacia {
+  border: 2px dashed #e5e7eb;
+  background: #fafafa;
+}
+
+.casita-celda-coord {
+  font-size: 10px;
+  font-weight: 600;
+  color: #b6b6b6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.casita-celda-mas {
+  font-size: 18px;
+  color: #d1d5db;
+  line-height: 1;
+}
+
+.casita-celda-ocupada {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.casita-celda-ocupada:hover {
+  border-color: #f97316;
+  box-shadow: 0 4px 10px rgba(249, 115, 22, 0.12);
+  transform: translateY(-1px);
+}
+
+.casita-celda-ocupada:active {
+  transform: scale(0.97);
+}
+
+.casita-celda-ocupada:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 1px;
+}
+
+.casita-celda-ico {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.casita-celda-nombre {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  line-height: 1.2;
+}
+
+.casita-celda-meta {
+  font-size: 9px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.casita-sueltas {
+  margin-top: 12px;
+}
+
+.casita-sueltas-titulo {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+

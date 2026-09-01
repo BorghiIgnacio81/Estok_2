@@ -14,6 +14,12 @@
 //                         "Visor de la Habitación Seleccionada"
 //                         (visorHabitacion.ts) vía el evento
 //                         'estok:habitacion-seleccionada'.
+//                         Matriz asimétrica real (grid_filas_config [3,2,2]):
+//                         Fila 1 = 3 casilleros, Fila 2 = 2, Fila 3 = 2, cada
+//                         celda como receptáculo Drop Zone de su habitación.
+//                         Iconografía contextual por PRIMERA PALABRA del nombre
+//                         (Baño 🚽 · Ropero 🗄️ · Suite 🛌 · Habitación 🛏️ ·
+//                         Pasillo/resto 🏠).
 // La configuración numérica de la estructura vive ÚNICAMENTE dentro del wizard
 // "✏️ Editar Estructura" (mapaEstokWizardUI.ts). Aquí NO hay inputs numéricos.
 // Estado inicial forzado: la navegación NACE en el Nivel 1 y la casa se pinta
@@ -28,9 +34,16 @@ import {
   fetchEstokConfig,
   fetchUbicacionesPlano,
   esDivisionUbicacion,
+  filasInternasDe,
+  columnasDeFilaInterna,
 } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
 import { COLOR_NARANJA } from './minimapa';
+import {
+  celdaOcupadaHtml,
+  celdaVaciaHtml,
+  tarjetaHabitacion,
+} from './planoHabitaciones';
 
 // =============================================================================
 // ESTADO DEL LIENZO
@@ -177,38 +190,57 @@ async function cargarDatos(): Promise<void> {
   habitaciones = todas.filter((u) => !esDivisionUbicacion(u));
 }
 
-/** Nivel 2: minimapa ultra-mini de la casita + habitaciones de la planta. */
+/** Nivel 2: minimapa ultra-mini de la casita + plano matricial asimétrico. */
 function renderHabitaciones(): string {
   const fila = filaActiva || 1;
   const nombre = nombreDePlanta(fila);
   const habs = habitacionesDePlanta(fila);
   const total = totalPlantas();
+  const div = divisiones.find((d) => d.parent_grid_row === fila);
 
-  const tarjetas = habs.length
-    ? habs.map((h) => {
-        const coord =
-          h.parent_grid_row && h.parent_grid_col
-            ? `F${h.parent_grid_row}·C${h.parent_grid_col}`
-            : 'Suelta';
-        const meta = [
-          coord,
-          (h.contenedores_count || 0) > 0 ? `${h.contenedores_count} cont` : null,
-          (h.objetos_count || 0) > 0 ? `${h.objetos_count} obj` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return `
-        <button type="button" class="casita-habitacion" data-casita-habitacion="${h.id}" title="Abrir «${escapeHtml(h.nombre)}» en el Visor de la derecha">
-          <span class="casita-hab-ico">🏠</span>
-          <span class="casita-hab-nombre">${escapeHtml(h.nombre)}</span>
-          ${meta ? `<span class="casita-hab-meta">${escapeHtml(meta)}</span>` : ''}
-        </button>`;
-      }).join('')
+  // Matriz asimétrica real configurada en el blueprint de la división
+  // (grid_filas_config [3,2,2] → Fila 1 = 3 casilleros, Fila 2 = 2, Fila 3 = 2).
+  const filasInt = div ? filasInternasDe(div) : 0;
+  const columnasPorFila: number[] = [];
+  for (let r = 1; r <= filasInt; r++) {
+    columnasPorFila.push(div ? columnasDeFilaInterna(div, r) : 3);
+  }
+
+  const filasPlano = div
+    ? columnasPorFila
+        .map((cols, idx) => {
+          const r = idx + 1;
+          let celdas = '';
+          for (let c = 1; c <= cols; c++) {
+            const room = habs.find(
+              (h) =>
+                h.parent_ubicacion === div.id &&
+                h.parent_grid_row === r &&
+                h.parent_grid_col === c,
+            );
+            celdas += room ? celdaOcupadaHtml(room, r, c) : celdaVaciaHtml(r, c);
+          }
+          return `<div class="casita-plano-fila" style="--fila-cols:${cols}">${celdas}</div>`;
+        })
+        .join('')
+    : '';
+
+  const sinEstructura = div
+    ? ''
     : `<div class="casita-hab-vacia">
         <span class="casita-hab-vacia-ico">🛏️</span>
-        <p>No hay habitaciones en esta planta todavía.</p>
-        <p class="casita-hab-vacia-sub">Usá «✏️ Editar Estructura» para cargar las habitaciones de «${escapeHtml(nombre)}».</p>
+        <p>Esta planta aún no tiene una división configurada.</p>
+        <p class="casita-hab-vacia-sub">Usá «✏️ Editar Estructura» para definir su sub-grilla.</p>
       </div>`;
+
+  // Habitaciones sin encastre matricial (modelo legacy con fila coincidente).
+  const sueltas = habs.filter((h) => !div || h.parent_ubicacion !== div.id);
+  const sueltasHtml = sueltas.length
+    ? `<div class="casita-sueltas">
+        <span class="casita-sueltas-titulo">Habitaciones sueltas</span>
+        <div class="casita-habitaciones">${sueltas.map(tarjetaHabitacion).join('')}</div>
+      </div>`
+    : '';
 
   return `
   <div class="casita-lienzo" data-vista="habitaciones">
@@ -224,7 +256,8 @@ function renderHabitaciones(): string {
         <span class="casita-minimapa-hint">Tocá un piso del minimapa para saltar</span>
       </div>
     </div>
-    <div class="casita-habitaciones">${tarjetas}</div>
+    ${div ? `<div class="casita-plano">${filasPlano}</div>` : sinEstructura}
+    ${sueltasHtml}
   </div>`;
 }
 
@@ -281,10 +314,11 @@ function enlazar(): void {
     });
   });
 
-  // Nivel 2: clic en una habitación → alimenta el Visor de la columna derecha.
-  refs.mapa.querySelectorAll<HTMLElement>('[data-casita-habitacion]').forEach((el) => {
+  // Nivel 2: clic en una celda/habitación del plano → alimenta el Visor.
+  refs.mapa.querySelectorAll<HTMLElement>('[data-casita-celda]').forEach((el) => {
     el.addEventListener('click', () => {
-      const id = el.dataset.casitaHabitacion;
+      const id = el.dataset.roomId;
+      if (!id) return;
       const room = habitaciones.find((h) => h.id === id);
       if (!room) return;
       window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }));
