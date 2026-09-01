@@ -20,6 +20,7 @@ from .multimedia import FotoObjetoSerializer, FotoObjetoUploadSerializer
 from .chat import MensajeSerializer, MensajeCreateSerializer
 from .categorias import CategoriaSerializer
 from .mapa_estok import MapaEstokSerializer, CeldaMapaSerializer
+from .mudanza import MudanzaSerializer
 from .super_admin import (
     SuperAdminUserSerializer,
     SuperAdminUserCreateSerializer,

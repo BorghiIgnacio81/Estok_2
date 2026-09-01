@@ -41,6 +41,8 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action',
+            # IDs espaciales para el árbol de la Mudanza Inter-Estok
+            'estok', 'ubicacion', 'contenedor',
         ]
 
     def get_foto_principal(self, obj):

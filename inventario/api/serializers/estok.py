@@ -48,11 +48,14 @@ class EstokCreateSerializer(serializers.ModelSerializer):
     """
     Serializer para crear un Estok.
     Auto-asigna al usuario autenticado como Admin del Estok.
+    Devuelve el `id` del Estok recién creado (read_only) para que el
+    frontend pueda encadenar el Wizard del Mapa sin un ID undefined.
     """
 
     class Meta:
         model = Estok
-        fields = ['nombre', 'descripcion']
+        fields = ['id', 'nombre', 'descripcion']
+        read_only_fields = ['id']
 
     def create(self, validated_data):
         user = self.context['request'].user

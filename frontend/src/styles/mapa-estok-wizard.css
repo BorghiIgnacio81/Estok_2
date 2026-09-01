@@ -5,6 +5,34 @@
    Reutiliza .num-btn/.num-input/.macro-input-label de mapa-espacial.css.
    ============================================================================= */
 
+/* Cartel de error del modal: OPACO y por encima de cualquier backdrop-blur.
+   Vive DENTRO del modal (elemento .wizard-error), así el texto es 100% legible
+   aunque la red falle durante el guardado del mapa. */
+.wizard-error {
+  z-index: 10;
+  margin: 12px 20px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #dc2626;            /* rojo opaco, sin transparencia */
+  color: #ffffff;                 /* texto blanco de alto contraste */
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  border: 1px solid #b91c1c;
+  box-shadow: 0 4px 12px rgba(185, 28, 28, 0.35);
+}
+
+.wizard-error.hidden {
+  display: none;
+}
+
+/* =============================================================================
+   ESTILOS DEL WIZARD "MAPA DE ESTOK" (modelado espacial multi-nivel 1-4)
+   Se importan únicamente en src/pages/estoks/index.astro.
+   Selectores de orientación: COLOR NARANJA #f97316 (bosquejo estricto).
+   Reutiliza .num-btn/.num-input/.macro-input-label de mapa-espacial.css.
+   ============================================================================= */
+
 .wizard-overlay {
   position: fixed;
   inset: 0;

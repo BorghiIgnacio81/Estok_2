@@ -1,0 +1,144 @@
+/* =============================================================================
+   ESTILOS DE LA MUDANZA INTER-ESTOK (src/pages/mudanza.astro)
+   Grilla simétrica de dos columnas con arrastre nativo (HTML5 DnD).
+   ============================================================================= */
+
+.mudanza-panel {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.mudanza-cargando {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.mudanza-vacio {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  background: #ffffff;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+}
+
+/* Nodo genérico del árbol */
+.mudanza-nodo {
+  border-radius: 10px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.mudanza-nodo-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.mudanza-nodo-ico {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.mudanza-ico-img {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+.mudanza-nodo-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mudanza-chip {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.mudanza-drop-hint {
+  font-size: 9px;
+  font-weight: 700;
+  color: #ea580c;
+  background: #fff7ed;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.mudanza-hijos {
+  margin-left: 16px;
+  margin-top: 6px;
+  padding-left: 8px;
+  border-left: 2px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Ítems arrastrables (solo origen) */
+.mudanza-drag-item {
+  cursor: grab;
+}
+
+.mudanza-drag-item:hover .mudanza-nodo-fila {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+
+.mudanza-drag-item:active {
+  cursor: grabbing;
+}
+
+.mudanza-dragging {
+  opacity: 0.45;
+}
+
+/* Drop zones del destino */
+.mudanza-drop-zona > .mudanza-nodo-fila {
+  border-style: dashed;
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.mudanza-drop-caja > .mudanza-nodo-fila {
+  border-style: dashed;
+  border-color: #a855f7;
+  background: #faf5ff;
+}
+
+.mudanza-drop-hover > .mudanza-nodo-fila {
+  border-style: solid;
+  border-color: #f97316;
+  background: #ffedd5;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.18);
+  transform: scale(1.02);
+}

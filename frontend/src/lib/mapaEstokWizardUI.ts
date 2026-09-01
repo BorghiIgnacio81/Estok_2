@@ -235,6 +235,13 @@ export class MapaEstokWizardUI {
   private async guardar(): Promise<void> {
     const estado = this.state;
     if (!estado) return;
+
+    // Guard anti "ID undefined": nunca golpear /api/estoks//mapa/
+    if (!estado.estokId) {
+      this.mostrarErrorEnModal('Falta el ID del Estok para guardar el mapa. Recargá la página y volvé a intentar.');
+      return;
+    }
+
     const btn = this.root.querySelector<HTMLButtonElement>('[data-guardar-mapa]');
     if (btn) {
       btn.disabled = true;
@@ -262,12 +269,24 @@ export class MapaEstokWizardUI {
       (window as any).showSuccess?.('✅ Mapa de Estok guardado correctamente.');
       this.opciones.onGuardado?.();
     } catch (err: any) {
-      (window as any).showError?.(err?.message || 'Error al guardar el mapa del Estok.');
+      // Error visible DENTRO del modal (opaco, por encima del backdrop-blur)
+      // + toast global de respaldo.
+      this.mostrarErrorEnModal(err?.message || 'Error al guardar el mapa del Estok.');
       if (btn) {
         btn.disabled = false;
         btn.textContent = '💾 Guardar Mapa';
       }
     }
+  }
+
+  /** Pinta el cartel rojo del modal con texto 100% legible (sin difuminado). */
+  private mostrarErrorEnModal(mensaje: string): void {
+    const box = this.root.querySelector<HTMLElement>('#wizardError');
+    if (box) {
+      box.textContent = `⚠️ ${mensaje}`;
+      box.classList.remove('hidden');
+    }
+    (window as any).showError?.(mensaje);
   }
 }
 

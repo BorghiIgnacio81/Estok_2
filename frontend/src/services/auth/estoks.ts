@@ -48,7 +48,27 @@ export async function crearEstok(nombre: string): Promise<EstokInfo> {
     throw { error: errorMsg, status: response.status } as AuthError;
   }
 
-  const estok: EstokInfo = await response.json();
+  const data = await response.json();
+
+  // =========================================================================
+  // MAPEO EXACTO DEL ID DEL BACKEND (bug del "ID undefined"):
+  // El serializer de creación puede devolver la clave según su versión
+  // (`id`, `estok_id` o `uuid`). Se normaliza a `EstokInfo.id` para que el
+  // Wizard del Mapa golpee SIEMPRE a /api/estoks/{id}/mapa/ con un UUID real.
+  // =========================================================================
+  const estok: EstokInfo = {
+    id: data.id || data.estok_id || data.uuid || '',
+    nombre: data.nombre || nombre,
+    role: data.role || null,
+    role_id: data.role_id || null,
+  };
+
+  if (!estok.id) {
+    throw {
+      error: 'El servidor no devolvió el ID del Estok recién creado. Reintentá la operación.',
+      status: 502,
+    } as AuthError;
+  }
 
   // Actualizar el usuario cacheado para que incluya el nuevo Estok
   const cachedUser = getCachedUser();

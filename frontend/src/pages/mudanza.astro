@@ -1,0 +1,129 @@
+---
+// =============================================================================
+// PÁGINA DE MUDANZA INTER-ESTOK
+// Grilla simétrica de dos columnas (grid grid-cols-1 lg:grid-cols-2 gap-8):
+//   - Columna IZQUIERDA: Estok Origen → mapa jerárquico arrastrable.
+//   - Columna DERECHA : Estok Destino → plano con habitaciones (drop zones).
+// La lógica vive en src/lib/mudanzaBoard.ts para mantener la página liviana.
+// =============================================================================
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AuthGuard from '../components/AuthGuard.astro';
+import LoadingState from '../components/LoadingState.astro';
+import ErrorState from '../components/ErrorState.astro';
+import '../styles/mudanza.css';
+---
+
+<AuthGuard />
+
+<BaseLayout title="Estok - Mudanza Inter-Estok | Inventario">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: var(--bg-primary)">
+    <!-- Encabezado -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">📦 Mudanza Inter-Estok</h1>
+      <p class="mt-1 text-gray-500">
+        Arrastrá archivadores, cajas y objetos desde el Estok Origen hacia el plano del Estok Destino.
+        El contenido viaja en bloque, en cascada y de forma privada.
+      </p>
+    </div>
+
+    <LoadingState mensaje="Cargando tus Estoks..." />
+    <ErrorState mensaje="Necesitás al menos dos Estoks activos para realizar una mudanza." />
+
+    <!-- ================================================================
+         GRILLA SIMÉTRICA DE DOS COLUMNAS
+         ================================================================ -->
+    <div id="mudanzaMain" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+      <!-- COLUMNA IZQUIERDA: ESTOK ORIGEN -->
+      <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <div class="mb-4">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-3 h-3 rounded-full bg-red-500"></span>
+            <h2 class="text-lg font-semibold text-gray-900">Estok Origen</h2>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">De acá salen los elementos (arrastralos al destino)</p>
+          <label for="mudanzaOrigenSel" class="sr-only">Estok de origen</label>
+          <select id="mudanzaOrigenSel"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-sm"></select>
+        </div>
+        <div id="mudanzaOrigenMapa" class="mudanza-panel">
+          <p class="mudanza-cargando">Cargando mapa de origen…</p>
+        </div>
+      </section>
+
+      <!-- COLUMNA DERECHA: ESTOK DESTINO -->
+      <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <div class="mb-4">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-3 h-3 rounded-full bg-green-500"></span>
+            <h2 class="text-lg font-semibold text-gray-900">Estok Destino</h2>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">Acá viajan los elementos (zonas de suelta)</p>
+          <label for="mudanzaDestinoSel" class="sr-only">Estok de destino</label>
+          <select id="mudanzaDestinoSel"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-sm"></select>
+        </div>
+        <div id="mudanzaDestinoMapa" class="mudanza-panel">
+          <p class="mudanza-cargando">Cargando plano de destino…</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- Ayuda de uso -->
+    <div class="mt-8 bg-white rounded-xl border border-gray-200 px-5 py-4 text-sm text-gray-500">
+      <span class="font-semibold text-gray-700">Cómo funciona:</span>
+      arrastrá un archivador, caja u objeto desde la columna <b>Origen</b> y soltalo sobre una habitación
+      (zona naranja) o caja (zona violeta) de la columna <b>Destino</b>. Al soltar, el backend transfiere
+      el elemento con todo su contenido en cascada, sin recargar la página.
+    </div>
+  </div>
+
+  <script>
+    import { getCachedUser, fetchCurrentUser } from '../services/auth';
+    import { MudanzaBoard } from '../lib/mudanzaBoard';
+
+    const loadingState = document.getElementById('loadingState')!;
+    const errorState = document.getElementById('errorState')!;
+    const errorMessage = document.getElementById('errorMessage')!;
+    const retryBtn = document.getElementById('retryBtn')!;
+    const main = document.getElementById('mudanzaMain')!;
+    const origenSel = document.getElementById('mudanzaOrigenSel') as HTMLSelectElement;
+    const destinoSel = document.getElementById('mudanzaDestinoSel') as HTMLSelectElement;
+    const mapaOrigen = document.getElementById('mudanzaOrigenMapa')!;
+    const mapaDestino = document.getElementById('mudanzaDestinoMapa')!;
+
+    async function iniciar() {
+      try {
+        let user = getCachedUser();
+        if (!user || (user.estoks?.length || 0) < 2) {
+          user = await fetchCurrentUser();
+        }
+        // Requisito estricto: > 1 Estok activo en el arreglo de membresías.
+        if (!user || (user.estoks?.length || 0) < 2) {
+          loadingState.classList.add('hidden');
+          errorMessage.textContent = 'Necesitás al menos dos Estoks activos para realizar una mudanza. Creá o uníte a otro Estok desde "Mis Estoks".';
+          errorState.classList.remove('hidden');
+          return;
+        }
+        loadingState.classList.add('hidden');
+        main.classList.remove('hidden');
+        const board = new MudanzaBoard(origenSel, destinoSel, mapaOrigen, mapaDestino);
+        await board.init(user.estoks);
+      } catch (err: any) {
+        loadingState.classList.add('hidden');
+        errorMessage.textContent = err?.error || err?.message || 'Error al inicializar la mudanza.';
+        errorState.classList.remove('hidden');
+      }
+    }
+
+    retryBtn.addEventListener('click', () => {
+      errorState.classList.add('hidden');
+      loadingState.classList.remove('hidden');
+      void iniciar();
+    });
+
+    void iniciar();
+  </script>
+</BaseLayout>
+

@@ -52,6 +52,8 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
               Instalar App
             </button>
           )}
+          <!-- Botón Mudanza: se inyecta dinámicamente SOLO si user.estoks.length > 1 -->
+          <span id="mudanzaBtnContainer" class="flex-shrink-0"></span>
           <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
           <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
             <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
@@ -485,7 +487,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   // DASHBOARD PRO - Estadísticas en tiempo real + Chart.js + PWA + AI
   // ===========================================================================
 
-  import {getAuthHeaders, API_BASE_URL} from '../services/auth';
+  import {getAuthHeaders, getCachedUser, API_BASE_URL} from '../services/auth';
   import {initGodMode} from '../lib/godMode';
 
   // ===========================================================================
@@ -530,6 +532,23 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   const errorMessage = document.getElementById('errorMessage')!;
   const retryBtn = document.getElementById('retryBtn')!;
   const dashboardContent = document.getElementById('dashboardContent')!;
+
+  // ===========================================================================
+  // BOTÓN "MUDANZA" — VISIBILIDAD RESTRINGIDA
+  // Se renderiza SOLO si el usuario posee MÁS DE UN Estok activo en su arreglo
+  // de membresías (user.estoks.length > 1). Con uno solo, NO se inserta en el DOM.
+  // ===========================================================================
+  const mudanzaBtnContainer = document.getElementById('mudanzaBtnContainer');
+  const usuarioCacheado = getCachedUser();
+  if (mudanzaBtnContainer && usuarioCacheado && (usuarioCacheado.estoks?.length || 0) > 1) {
+    mudanzaBtnContainer.innerHTML = `
+      <a href="/mudanza"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-full hover:bg-purple-700 transition-base shadow-sm flex-shrink-0"
+        title="Transferir contenedores y objetos entre tus Estoks">
+        <span aria-hidden="true">📦</span>
+        <span>Mudanza</span>
+      </a>`;
+  }
 
 
   // ===========================================================================

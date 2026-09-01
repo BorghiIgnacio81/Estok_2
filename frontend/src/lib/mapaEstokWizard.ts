@@ -374,6 +374,7 @@ export function renderVistaWizard(state: MapaEstokWizardState): string {
         <button type="button" class="wizard-cerrar" data-cerrar-wizard title="Cerrar sin guardar">✕</button>
       </div>
       <div class="wizard-breadcrumb">${renderBreadcrumb(state)}</div>
+      <div id="wizardError" class="wizard-error hidden" role="alert" aria-live="assertive"></div>
       <div class="wizard-cuerpo">
         <div class="wizard-superior">
           ${renderControlesGrilla(state)}

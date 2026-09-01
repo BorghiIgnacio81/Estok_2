@@ -28,6 +28,8 @@ from .viewsets import (
     AiModelsView,
 )
 
+from .viewsets.mudanza import MudanzaView
+
 
 
 
@@ -69,6 +71,8 @@ urlpatterns = [
     # Catálogo simulado de modelos de IA (evita 404 de /api/ai/models/
     # cuando el servicio local LM Studio no está activo)
     path('ai/models/', AiModelsView.as_view(), name='ai-models'),
+    # Mudanza Inter-Estok (transferencia hermética de contenedores/objetos)
+    path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),
     path('api-auth/', include('rest_framework.urls')),
 ]
 
