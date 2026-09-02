@@ -143,6 +143,11 @@ function refrescarMinimapa(): void {
 function renderVisor(): void {
   const cont = document.getElementById('visorHabitacion');
   if (!cont) return;
+  // Purga absoluta del contenedor en caliente: el navegador destruye los
+  // minimapas residuales viejos ANTES de iterar y re-dibujar los actualizados.
+  // Esto detiene la acumulación en el DOM (minimapas duplicados en paralelo)
+  // al mutar/renombrar una división de primer nivel y re-renderizar el Visor.
+  cont.innerHTML = '';
   if (!roomActual) {
     if (!divisionesIniciales.length) {
       cont.innerHTML = `<div class="visor-placeholder">
