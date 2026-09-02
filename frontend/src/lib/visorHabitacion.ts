@@ -256,7 +256,17 @@ function enlazarVisor(): void {
           return;
         }
         void asignarContenedorACelda(contId, r, c);
-      } else if (objId) void asignarObjetoACelda(objId, r, c);
+      } else if (objId) {
+        // Mismo criterio de casillero libre para los objetos extraíbles.
+        const ocupado =
+          contenedoresRoom.some((x) => x.parent_grid_row === r && x.parent_grid_col === c) ||
+          objetosRoom.some((x) => x.parent_grid_row === r && x.parent_grid_col === c);
+        if (ocupado) {
+          toast('⚠️ Ese casillero ya está ocupado. Elegí un casillero libre.');
+          return;
+        }
+        void asignarObjetoACelda(objId, r, c);
+      }
     });
     // Inspección guiada: el minimapa rectangular ilumina en naranja el casillero
     // exacto bajo el cursor/clic para que el operador no se pierda en la grilla.
@@ -282,6 +292,27 @@ function enlazarVisor(): void {
       dragTipoVisor = 'contenedor';
       if (de.dataTransfer) {
         de.dataTransfer.setData('application/x-estok-contenedor', id);
+        de.dataTransfer.setData('text/plain', id);
+        de.dataTransfer.effectAllowed = 'move';
+      }
+      el.classList.add('opacity-50');
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('opacity-50');
+      dragTipoVisor = null;
+    });
+  });
+
+  // Objetos extraíbles: cada bolita de una celda se arrastra a otro casillero
+  // o se suelta sobre la bandeja inferior para extraerla.
+  cont.querySelectorAll<HTMLElement>('[data-objeto-dnd]').forEach((el) => {
+    el.addEventListener('dragstart', (e) => {
+      const de = e as DragEvent;
+      const id = el.dataset.objetoDnd;
+      if (!id) { de.preventDefault(); return; }
+      dragTipoVisor = 'objeto';
+      if (de.dataTransfer) {
+        de.dataTransfer.setData('application/x-estok-objeto', id);
         de.dataTransfer.setData('text/plain', id);
         de.dataTransfer.effectAllowed = 'move';
       }

@@ -1,0 +1,382 @@
+/* =============================================================================
+   ALMACENAMIENTO - ESTILOS DE ESCENAS, BANDEJA Y MUEBLES
+   -----------------------------------------------------------------------------
+   Hoja dedicada a la pantalla de almacenamiento (almacenamiento.astro) para
+   mantener la página por debajo de las 400 líneas de UI. Los estilos inyectados
+   por innerHTML (visores, bandeja, muebles) necesitan selectores GLOBALES.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Feedback visual del Drag & Drop (borde intermitente + fondo azulado)
+   --------------------------------------------------------------------------- */
+@keyframes dndPulso {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+  50% { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.35); }
+}
+
+.dnd-ubicacion.dnd-drop-activo,
+.dnd-contenedor.dnd-drop-activo {
+  border-color: #3b82f6 !important;
+  animation: dndPulso 0.9s ease-in-out infinite;
+}
+
+.dnd-ubicacion.dnd-drop-activo {
+  background-color: rgba(219, 234, 254, 0.55) !important;
+}
+
+@keyframes dndFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dnd-toast {
+  animation: dndFadeIn 0.2s ease-out;
+}
+
+/* ---------------------------------------------------------------------------
+   Visor de Habitación - estado inicial: minimapas rectangulares de las plantas
+   ("Planta Alta" y "Planta Baja") en paralelo + guía de casillero.
+   --------------------------------------------------------------------------- */
+.visor-default {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.visor-default-encabezado {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.visor-default-sub {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.visor-default-minimapas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.visor-minimapa-planta {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.visor-minimapa-planta svg {
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------------------------
+   MÁQUINA DE TRES ESCENAS - botón Volver elegante
+   --------------------------------------------------------------------------- */
+.escena-panel {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.volver-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 999px;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.volver-btn:hover {
+  background: #fef3c7;
+}
+.volver-btn:active {
+  transform: scale(0.96);
+}
+.volver-btn-ico {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+   BANDEJA INFERIOR DE ELEMENTOS POR UBICAR (permanente)
+   --------------------------------------------------------------------------- */
+.bandeja-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.bandeja-fixed > .max-w-7xl {
+  pointer-events: auto;
+}
+.bandeja-inner {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.08);
+  padding: 12px 16px;
+}
+.bandeja-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b45309;
+}
+.bandeja-contador {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #ea580c;
+}
+.bandeja-hint {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.bandeja-contenido {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  min-height: 64px;
+}
+.bandeja-vacio {
+  font-size: 12px;
+  color: #9ca3af;
+  font-style: italic;
+}
+.bandeja-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 5px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  cursor: grab;
+  transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+}
+.bandeja-chip:hover {
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+  transform: translateY(-1px);
+}
+.bandeja-chip:active {
+  cursor: grabbing;
+}
+.bandeja-chip-arrastrando {
+  opacity: 0.45;
+}
+.bandeja-chip-img {
+  height: 22px;
+  width: auto;
+  pointer-events: none;
+}
+.bandeja-chip-img-objeto {
+  height: 20px;
+  width: 20px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.bandeja-chip-nombre {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bandeja-drop-activo {
+  outline: 2px dashed #f97316;
+  outline-offset: -2px;
+  background: #fff7ed;
+  border-radius: 14px 14px 0 0;
+}
+
+/* ---------------------------------------------------------------------------
+   VISOR CONTENEDOR GRANDE (muebles / archivadores)
+   --------------------------------------------------------------------------- */
+.cg-cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.cg-titulo {
+  font-size: 13px;
+  font-weight: 800;
+  color: #7c2d12;
+}
+.cg-sub {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.cg-muebles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cg-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 28px 12px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+}
+.cg-vacio-ico {
+  font-size: 30px;
+  line-height: 1;
+}
+.cg-vacio-texto {
+  font-size: 12px;
+  color: #9ca3af;
+  max-width: 280px;
+}
+
+.mueble-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.mueble-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.mueble-ficha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mueble-ico {
+  height: 30px;
+  width: auto;
+}
+.mueble-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mueble-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mueble-meta {
+  font-size: 11px;
+  color: #9ca3af;
+}
+.mueble-inmueble {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.mueble-minimapa {
+  flex-shrink: 0;
+}
+.mueble-grilla {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mueble-fila {
+  display: grid;
+  gap: 4px;
+}
+.mueble-celda {
+  min-height: 62px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.mueble-celda:hover {
+  border-color: #f97316;
+  background: #ffedd5;
+}
+.mueble-celda-dnd-activo {
+  background: #fdba74 !important;
+  border-color: #ea580c !important;
+  transform: scale(1.03);
+}
+.mueble-celda-vacia {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1;
+}
+.mueble-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 84px;
+  text-align: center;
+  cursor: grab;
+  position: relative;
+}
+.mueble-item:active {
+  cursor: grabbing;
+}
+.mueble-item-img {
+  height: 26px;
+  width: auto;
+  pointer-events: none;
+}
+.mueble-item-img-objeto {
+  height: 24px;
+  width: 24px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.mueble-item-nombre {
+  font-size: 9px;
+  font-weight: 600;
+  color: #6b7280;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mueble-item-fijo {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 10px;
+  line-height: 1;
+}
+

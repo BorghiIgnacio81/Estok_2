@@ -61,7 +61,7 @@ export function celdaVisorContenidoHtml(
 ): string {
   const contsCelda = conts.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
   const objsCelda = objs.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  if (!contsCelda.length && !objsCelda.length) return '<span class="visor-celda-vacia">＋</span>';
+  if (!contsCelda.length && !objsCelda.length) return '<span class="visor-celda-vacia">▫</span>';
 
   const contsHtml = contsCelda
     .map((x) => {
@@ -81,7 +81,7 @@ export function celdaVisorContenidoHtml(
   const objsHtml = objsCelda
     .map(
       (x) =>
-        `<img src="${IMG_OBJETO}" alt="${escapeHtml(x.nombre)}" class="h-12 w-12 rounded-full draggable" draggable="false" title="${escapeHtml(x.nombre)}" />`,
+        `<img src="${IMG_OBJETO}" alt="${escapeHtml(x.nombre)}" class="h-12 w-12 rounded-full draggable" draggable="true" data-objeto-dnd="${x.id}" title="${escapeHtml(x.nombre)} — arrastrá para reacomodar o extraer" />`,
     )
     .join('');
   return `${contsHtml}${objsHtml}`;

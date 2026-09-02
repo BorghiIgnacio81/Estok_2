@@ -1,12 +1,13 @@
 ---
 // =============================================================================
-// PÁGINA DE ALMACENAMIENTO - PANTALLA DIVIDIDA ÚNICA (Nivel 1 → Nivel 2)
-// El lienzo queda acotado a la fila principal de split (grid lg:grid-cols-2):
-//  - Izquierda: Mapa Estok navegable (casa con techo, Nivel 1 → habitaciones).
-//  - Derecha  : Visor de Habitación con minimapas rectangulares de las plantas
-//               en estado inicial y lienzo matricial DnD al seleccionar una.
-// La lógica vive en src/lib/mapaCasitaNavegable.ts, src/lib/visorHabitacion.ts
-// y src/lib/mapaEstokWizardUI.ts para mantener la página liviana.
+// PÁGINA DE ALMACENAMIENTO - FLUJO EN CASCADA SIMÉTRICO DE TRES ESCENAS
+//  ESCENA 1: Izq = Mapa Estok (casa) · Der = Mapa general de la Planta
+//  ESCENA 2: Izq = Plano de habitaciones · Der = Visor de Habitación
+//  ESCENA 3: Izq = Visor de Habitación · Der = Visor Contenedor Grande
+// Bandeja inferior permanente: contenedores pequeños y objetos por ubicar,
+// con origen de arrastre hacia casilleros y Drop Zone de extracción viva.
+// Lógica en src/lib/mapaCasitaNavegable.ts, src/lib/visorHabitacion.ts,
+// src/lib/visorContenedorGrande.ts y src/lib/bandejaSinUbicar.ts.
 // =============================================================================
 
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -16,12 +17,13 @@ import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-estok-wizard.css';
 import '../styles/mapa-casita.css';
+import '../styles/almacenamiento-escenas.css';
 ---
 
 <AuthGuard />
 
 <BaseLayout title="Estok - Almacenamiento | Inventario">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36">
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
@@ -49,19 +51,20 @@ import '../styles/mapa-casita.css';
     <ErrorState mensaje="Error al cargar los espacios de almacenamiento." />
 
     <!-- =========================================================================
-         SECCIÓN ÚNICA - PANTALLA DIVIDIDA (NIVELES 1 y 2)
-         Izquierda: Mapa Estok (Nivel 1) navegable tipo casa + plano de Nivel 2.
-         Derecha  : Visor de la Habitación con minimapas rectangulares de plantas
-                    (estado inicial) y lienzo matricial DnD (habitación activa).
+         TRES ESCENAS EN CASCADA (izquierda → derecha)
+         ESCENA 1: Izq = Mapa Estok (casa)         · Der = Mapa general de la Planta
+         ESCENA 2: Izq = Plano de habitaciones     · Der = Visor de Habitación
+         ESCENA 3: Izq = Visor de Habitación       · Der = Visor Contenedor Grande
+         La máquina de escenas vive en el <script> (eventos estok:*).
          ========================================================================= -->
-    <section class="mb-10" id="seccionMapaEstok">
+    <section class="mb-10" id="seccionCascada">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-        <!-- LADO IZQUIERDO: Mapa Estok (Nivel 1) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <!-- PANEL IZQUIERDO (ESCENAS 1-2: Mapa Estok / ESCENA 3: Visor de Habitación) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
           <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
+              <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
               <button type="button" id="editarEstructuraBtn"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-full hover:bg-orange-700 transition-base shadow-sm"
@@ -70,26 +73,54 @@ import '../styles/mapa-casita.css';
               </button>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Navegación táctil por niveles en cascada: tocá una planta de la casa para desplegar el plano de sus habitaciones. La configuración numérica de la estructura quedó encapsulada dentro de «✏️ Editar Estructura».</p>
-          <div id="mapaEstokPanel" class="mt-1">
-            <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
+          <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Navegación táctil por niveles en cascada: tocá una planta para desplegar el plano de sus habitaciones, y una habitación para inspeccionarla.</p>
+          <div id="contenidoPanelIzquierdo" class="mt-1">
+            <div id="mapaEstokPanel">
+              <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
+            </div>
+            <!-- En ESCENA 3 el #visorHabitacion se reubica aquí desde el panel derecho -->
           </div>
         </div>
 
-        <!-- LADO DERECHO: Visor de la Habitación Seleccionada (Nivel 2) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+        <!-- PANEL DERECHO (ESCENAS 1-2: Visor de Habitación / ESCENA 3: Visor Contenedor Grande) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
           <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div class="flex items-center gap-2">
-              <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Visor de Habitación <span class="text-sm font-normal text-gray-400">(Nivel 2)</span></h2>
+              <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
             </div>
+            <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
+              <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
+              <span>Volver</span>
+            </button>
           </div>
-          <p class="text-xs text-gray-500 mb-3">Hacé clic sobre una habitación encastrada en el Mapa Estok para inspeccionarla. Su lienzo matricial recibe contenedores y objetos por Drag &amp; Drop.</p>
-          <div id="visorHabitacion" class="min-h-[180px]">
-            <div class="visor-placeholder">
-              <div class="visor-placeholder-ico">🏠</div>
-              <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
+          <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual. Los casilleros reciben elementos por Drag &amp; Drop exclusivamente (sin botones +).</p>
+          <div id="contenidoPanelDerecho" class="mt-1">
+            <div id="visorHabitacion" class="min-h-[180px]">
+              <div class="visor-placeholder">
+                <div class="visor-placeholder-ico">🏠</div>
+                <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
+              </div>
             </div>
+            <div id="visorContenedorGrande" class="hidden mt-1"></div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         BANDEJA INFERIOR DE ELEMENTOS POR UBICAR (permanente, fixed bottom)
+         Lista Contenedores Pequeños y Objetos sin casillero asignado. Es origen
+         de arrastre hacia los casilleros Y Drop Zone de extracción viva.
+         ========================================================================= -->
+    <section id="bandejaSinUbicar" class="bandeja-fixed" aria-label="Bandeja de elementos por ubicar">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="bandeja-inner">
+          <div class="flex items-center gap-3 flex-wrap mb-2">
+            <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
+            <span id="contadorBandeja" class="bandeja-contador">0</span>
+            <span class="bandeja-hint">Arrastralos hacia un casillero del Visor o de un mueble, o soltá un elemento de un casillero acá para extraerlo.</span>
+          </div>
+          <div id="bandejaContenido" class="bandeja-contenido"></div>
         </div>
       </div>
     </section>
@@ -200,75 +231,12 @@ import '../styles/mapa-casita.css';
   <div id="mapaEstokWizardRoot"></div>
 </BaseLayout>
 
-<style is:global>
-  /* =========================================================================
-     Feedback visual del Drag & Drop (borde intermitente + fondo azulado)
-     ========================================================================= */
-  @keyframes dndPulso {
-    0%, 100% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
-    50% { box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.35); }
-  }
-
-  .dnd-ubicacion.dnd-drop-activo,
-  .dnd-contenedor.dnd-drop-activo {
-    border-color: #3b82f6 !important;
-    animation: dndPulso 0.9s ease-in-out infinite;
-  }
-
-  .dnd-ubicacion.dnd-drop-activo {
-    background-color: rgba(219, 234, 254, 0.55) !important;
-  }
-
-  @keyframes dndFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .dnd-toast {
-    animation: dndFadeIn 0.2s ease-out;
-  }
-
-  /* =========================================================================
-     Visor de Habitación - estado inicial: minimapas rectangulares de las
-     plantas ("Planta Alta" y "Planta Baja") en paralelo + guía de casillero.
-     ========================================================================= */
-  .visor-default {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .visor-default-encabezado {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .visor-default-sub {
-    font-size: 12px;
-    color: #6b7280;
-  }
-
-  .visor-default-minimapas {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-  }
-
-  .visor-minimapa-planta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .visor-minimapa-planta svg {
-    margin: 0 auto;
-  }
-</style>
-
 <script>
   import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
   import { initMapaCasita } from '../lib/mapaCasitaNavegable';
   import { initVisor } from '../lib/visorHabitacion';
+  import { initVisorContenedorGrande } from '../lib/visorContenedorGrande';
+  import { initBandeja } from '../lib/bandejaSinUbicar';
   import { MapaEstokWizardUI } from '../lib/mapaEstokWizardUI';
   import { getEstokActivoId, getCachedUser } from '../services/auth';
 
@@ -325,13 +293,89 @@ import '../styles/mapa-casita.css';
       }
     });
 
-    // La cascada inferior (Habitaciones/Contenedores) fue eliminada: la fila
-    // activa del Mapa Estok ya no filtra una sección inferior. El Visor de la
-    // derecha gestiona el detalle de la habitación seleccionada por su cuenta.
-    // (evento 'estok:habitacion-seleccionada' → initVisor).
+    // =========================================================================
+    // MÁQUINA DE TRES ESCENAS EN CASCADA (izquierda → derecha)
+    //   ESCENA 1: Mapa Estok (casa) · Mapa general de la Planta
+    //   ESCENA 2: Plano de habitaciones · Visor de Habitación
+    //   ESCENA 3: Visor de Habitación · Visor Contenedor Grande (+ Volver)
+    // =========================================================================
+    type Escena = 1 | 2 | 3;
+    let plantaActiva = false;
+    let habitacionActiva = false;
 
-    // Lienzo navegable "Mapa Estok" (Nivel 1 casa → Nivel 2 habitaciones) +
-    // Visor de la habitación seleccionada en la columna derecha.
+    const slotIzq = () => document.getElementById('contenidoPanelIzquierdo') as HTMLElement | null;
+    const slotDer = () => document.getElementById('contenidoPanelDerecho') as HTMLElement | null;
+    const visorEl = () => document.getElementById('visorHabitacion') as HTMLElement | null;
+    const mapaEl = () => document.getElementById('mapaEstokPanel') as HTMLElement | null;
+    const cgEl = () => document.getElementById('visorContenedorGrande') as HTMLElement | null;
+    const btnVolver = () => document.getElementById('btnVolverEscena') as HTMLElement | null;
+
+    function irAEscena(escena: Escena): void {
+      const visor = visorEl();
+      const mapa = mapaEl();
+      const cg = cgEl();
+      const badge = document.getElementById('mapaJerarquicoBadge');
+      const btnEditar = document.getElementById('editarEstructuraBtn');
+      const tituloIzq = document.getElementById('tituloPanelIzquierdo');
+      const tituloDer = document.getElementById('tituloPanelDerecho');
+      const descIzq = document.getElementById('descPanelIzquierdo');
+      const descDer = document.getElementById('descPanelDerecho');
+
+      if (escena === 3) {
+        // El "Visor de Habitación" se DESPLAZA al panel izquierdo.
+        if (visor && slotIzq()) slotIzq()!.appendChild(visor);
+        mapa?.classList.add('hidden');
+        cg?.classList.remove('hidden');
+        if (tituloIzq) tituloIzq.textContent = '🧭 Visor de Habitación';
+        if (tituloDer) tituloDer.textContent = '📦 Visor Contenedor Grande';
+        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitación: recibí muebles, cajas y objetos por arrastre.';
+        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Soltá contenedores pequeños y objetos desde la bandeja en sus casilleros.';
+        badge?.classList.add('hidden');
+        btnEditar?.classList.add('hidden');
+        btnVolver()?.classList.remove('hidden');
+      } else {
+        // El "Visor de Habitación" vuelve al panel derecho.
+        if (visor && slotDer()) slotDer()!.appendChild(visor);
+        mapa?.classList.remove('hidden');
+        cg?.classList.add('hidden');
+        if (tituloIzq) tituloIzq.textContent = '🏠 Mapa Estok';
+        if (tituloDer) tituloDer.textContent = escena === 1 ? '🗺️ Mapa general de la Planta' : '🧭 Visor de Habitación';
+        if (descIzq) descIzq.textContent = 'Navegación táctil por niveles en cascada: tocá una planta para desplegar el plano de sus habitaciones, y una habitación para inspeccionarla.';
+        if (descDer) descDer.textContent = escena === 1
+          ? 'Vista general de las plantas del Estok activo. Seleccioná una planta en el Mapa Estok para descender al plano de habitaciones.'
+          : 'Seleccioná una habitación en el plano para abrir su Visor. Los casilleros reciben elementos por Drag & Drop exclusivamente.';
+        badge?.classList.remove('hidden');
+        btnEditar?.classList.remove('hidden');
+        if (escena === 1) btnVolver()?.classList.add('hidden');
+      }
+    }
+
+    function recalcularEscena(): void {
+      irAEscena(habitacionActiva ? 3 : plantaActiva ? 2 : 1);
+    }
+
+    window.addEventListener('estok:planta-seleccionada', (e) => {
+      const detalle = (e as CustomEvent<{ fila: number | null }>).detail;
+      plantaActiva = Boolean(detalle?.fila);
+      recalcularEscena();
+    });
+    window.addEventListener('estok:habitacion-seleccionada', (e) => {
+      const room = (e as CustomEvent<{ room: { id: string } | null }>).detail?.room ?? null;
+      habitacionActiva = Boolean(room);
+      recalcularEscena();
+    });
+
+    // Botón "⬅ Volver" (ESCENA 3 → 2): deselecciona la habitación y la
+    // máquina reubica el Visor en el panel derecho.
+    btnVolver()?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room: null } }));
+    });
+
+    // =========================================================================
+    // ARRANQUE DE MÓDULOS
+    // =========================================================================
+    initBandeja({ contenedor: document.getElementById('bandejaContenido') });
+    initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });
     initMapaCasita({
       mapa: document.getElementById('mapaEstokPanel'),
       badge: document.getElementById('mapaJerarquicoBadge'),
