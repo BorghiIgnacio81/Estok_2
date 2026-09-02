@@ -361,6 +361,19 @@ export class MapaEstokWizardUI {
     const nombreFinal = celda.nombre || nombreDefault(nivel, ctx.parentRow, ctx.parentCol);
     let id = celda.id ?? null;
 
+    // -------------------------------------------------------------------------
+    // BLINDAJE ANTI-FANTASMA (guardado limpio por PK del UUID original):
+    // Si la celda NO corresponde a un registro persistido (sin id UUID) y el
+    // usuario NO la nombró, es un hueco vacío de la grilla, no una división.
+    // Omitir el POST evita insertar involuntariamente filas duplicadas en
+    // PostgreSQL al renombrar/mutar una planta existente desde el modal.
+    // Los nodos EXISTENTES se actualizan siempre por su PK (PUT /{id}/),
+    // nunca con get_or_create por nombre/coordenadas parciales.
+    // -------------------------------------------------------------------------
+    if (!id && !(celda.nombre || '').trim() && celda.hijos.length === 0) {
+      return null;
+    }
+
     if (id) {
       // Nodo existente → PUT (UbicacionViewSet y ContenedorViewSet son parciales).
       const body: Record<string, unknown> = {

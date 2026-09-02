@@ -49,11 +49,24 @@ class UbicacionViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
+        """
+        Listado estricto multi-tenant para la columna derecha (minimapas de
+        las plantas / Visor de Habitación): filtra SIEMPRE por el UUID único
+        del Estok activo (X-Estok-Id / estok_id).
+
+        - Sin tenant explícito NO se lista nada (qs.none()): evita exponer
+          registros huérfanos (estok nulo) o filas de otros Estoks que se
+          renderizarían como tarjetas fantasma duplicadas en el frontend.
+        - .distinct(): red de seguridad relacional para no repetir filas
+          lógicas residuales al paginar el listado.
+        """
         qs = super().get_queryset().select_related('estok')
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(estok_id=estok_id)
-        return qs
+        else:
+            qs = qs.none()
+        return qs.distinct()
 
     def update(self, request, *args, **kwargs):
         """
