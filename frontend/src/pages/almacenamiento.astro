@@ -1,9 +1,12 @@
 ---
 // =============================================================================
-// PÁGINA DE ALMACENAMIENTO - FLUJO EN CASCADA POR NIVELES
-// Nivel 1 (Mapa Estok) → Nivel 2 (Habitaciones) → Nivel 3 (Contenedores).
-// La lógica vive en src/lib/almacenamientoBoard.ts y src/lib/mapaCasitaNavegable.ts
-// para mantener la página liviana.
+// PÁGINA DE ALMACENAMIENTO - PANTALLA DIVIDIDA ÚNICA (Nivel 1 → Nivel 2)
+// El lienzo queda acotado a la fila principal de split (grid lg:grid-cols-2):
+//  - Izquierda: Mapa Estok navegable (casa con techo, Nivel 1 → habitaciones).
+//  - Derecha  : Visor de Habitación con minimapas rectangulares de las plantas
+//               en estado inicial y lienzo matricial DnD al seleccionar una.
+// La lógica vive en src/lib/mapaCasitaNavegable.ts, src/lib/visorHabitacion.ts
+// y src/lib/mapaEstokWizardUI.ts para mantener la página liviana.
 // =============================================================================
 
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -46,14 +49,13 @@ import '../styles/mapa-casita.css';
     <ErrorState mensaje="Error al cargar los espacios de almacenamiento." />
 
     <!-- =========================================================================
-         SECCIÓN SUPERIOR - FLUJO EN CASCADA (NIVELES 1 y 2)
-         Izquierda: Mapa Estok (Nivel 1) navegable tipo casa + plano de Nivel 2
-                    con matriz asimétrica real ([3,2,2]) e iconografía contextual
-                    por nombre (Baño 🚽 · Ropero 🗄️ · Suite 🛌 · Habitación 🛏️).
-         Derecha  : Cascada de Habitaciones (Nivel 2) y Contenedores (Nivel 3).
+         SECCIÓN ÚNICA - PANTALLA DIVIDIDA (NIVELES 1 y 2)
+         Izquierda: Mapa Estok (Nivel 1) navegable tipo casa + plano de Nivel 2.
+         Derecha  : Visor de la Habitación con minimapas rectangulares de plantas
+                    (estado inicial) y lienzo matricial DnD (habitación activa).
          ========================================================================= -->
     <section class="mb-10" id="seccionMapaEstok">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
         <!-- LADO IZQUIERDO: Mapa Estok (Nivel 1) -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
@@ -85,198 +87,12 @@ import '../styles/mapa-casita.css';
           <div id="visorHabitacion" class="min-h-[180px]">
             <div class="visor-placeholder">
               <div class="visor-placeholder-ico">🏠</div>
-              <p class="visor-placeholder-texto">Seleccioná una habitación del Mapa Estok...</p>
+              <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
             </div>
           </div>
         </div>
       </div>
     </section>
-
-    <!-- =========================================================================
-         SECCIÓN INFERIOR - CASCADA EN CALIENTE
-         Izquierda: Habitaciones de la planta seleccionada (Nivel 2 filtrado),
-                    cada una con su grilla interna y controles numéricos.
-         Derecha  : Contenedores Mayores / Muebles (Nivel 3) con DnD directo.
-         ========================================================================= -->
-    <section class="mb-10" id="seccionCascada">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        <!-- LADO IZQUIERDO INFERIOR: Habitaciones del piso seleccionado -->
-        <section>
-          <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-            <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-semibold text-gray-900">📍 Habitaciones</h2>
-              <span id="cascadaUbicacionesTitulo" class="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-medium">División seleccionada</span>
-              <span id="contadorUbicaciones" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium">0</span>
-            </div>
-            <img id="nuevaUbicacionBtn" src="/nueva ubicacion.png" alt="Nueva Ubicación" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-          </div>
-          <p class="text-xs text-gray-500 mb-4">Solo se muestran las habitaciones de la división seleccionada en el Mapa Estok. Cada tarjeta expone su grilla interna (minimapa) y su control numérico de Filas/Columnas. Soltá contenedores dentro de una tarjeta para asignarlos.</p>
-          <div id="columnaUbicaciones" class="space-y-5"></div>
-        </section>
-
-        <!-- LADO DERECHO INFERIOR: Contenedores Mayores (Nivel 3) -->
-        <section>
-          <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
-            <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-semibold text-gray-900">🗄️ Contenedores Mayores</h2>
-              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Nivel 3 · Muebles</span>
-              <span id="contadorContenedores" class="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">0</span>
-            </div>
-            <img id="nuevoContenedorBtn" src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" class="h-28 md:h-36 lg:h-40 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-          </div>
-          <p class="text-xs text-gray-500 mb-4">Arrastrá un mueble (✋) hacia una habitación o dentro de otro contenedor para crear sub-niveles. Los objetos individuales (bolita) se sueltan sobre un casillero para fijar su coordenada. Todo se guarda automáticamente.</p>
-          <div id="columnaContenedores" class="space-y-3"></div>
-        </section>
-      </div>
-    </section>
-
-    <!-- Modal: Nueva Ubicación -->
-    <div id="modalUbicacion" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900">Nueva Ubicación</h3>
-          <button type="button" data-cerrar-modal="ubicacion" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <form id="ubiForm" class="space-y-4">
-          <div>
-            <label for="ubiNombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input id="ubiNombre" name="nombre" type="text" required placeholder="Ej: Garaje, Sótano, Oficina"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-          </div>
-          <div>
-            <label for="ubiDescripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea id="ubiDescripcion" name="descripcion" rows={2} placeholder="Descripción opcional de la ubicación"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label for="ubiLargo" class="block text-xs font-medium text-gray-700 mb-1">Largo (cm)</label>
-              <input id="ubiLargo" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-            <div>
-              <label for="ubiAncho" class="block text-xs font-medium text-gray-700 mb-1">Ancho (cm)</label>
-              <input id="ubiAncho" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-            <div>
-              <label for="ubiAlto" class="block text-xs font-medium text-gray-700 mb-1">Alto (cm)</label>
-              <input id="ubiAlto" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Foto</label>
-            <label class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span id="ubiFotoLabel">Seleccionar foto</span>
-              <input id="ubiFotoInput" type="file" accept="image/*" class="hidden" />
-            </label>
-          </div>
-          <div class="flex gap-3 pt-2">
-            <button type="submit" id="ubiSaveBtn"
-              class="flex-1 px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50">
-              <span id="ubiSaveText">Guardar</span>
-              <span id="ubiSaveSpinner" class="hidden">
-                <svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              </span>
-            </button>
-            <button type="button" data-cerrar-modal="ubicacion" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
-              Cancelar
-            </button>
-          </div>
-        </form>
-        <p id="ubiFormError" data-form-error class="hidden mt-3 text-sm text-red-600"></p>
-      </div>
-    </div>
-
-    <!-- Modal: Nuevo Contenedor -->
-    <div id="modalContenedor" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-semibold text-gray-900">Nuevo Contenedor</h3>
-          <button type="button" data-cerrar-modal="contenedor" class="text-gray-400 hover:text-gray-600">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <form id="conForm" class="space-y-4">
-          <div>
-            <label for="conNombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre <span class="text-red-500">*</span></label>
-            <input id="conNombre" name="nombre" type="text" required placeholder="Ej: Caja 4, Estante A, Cajón 3"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-          </div>
-          <div>
-            <label for="conDescripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea id="conDescripcion" name="descripcion" rows={2} placeholder="Descripción opcional"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
-          </div>
-          <div>
-            <label for="conUbicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación <span class="text-red-500">*</span></label>
-            <select id="conUbicacion" name="ubicacion" required
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
-              <option value="">Seleccionar ubicación...</option>
-            </select>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label for="conLargo" class="block text-xs font-medium text-gray-700 mb-1">Largo (cm)</label>
-              <input id="conLargo" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-            <div>
-              <label for="conAncho" class="block text-xs font-medium text-gray-700 mb-1">Ancho (cm)</label>
-              <input id="conAncho" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-            <div>
-              <label for="conAlto" class="block text-xs font-medium text-gray-700 mb-1">Alto (cm)</label>
-              <input id="conAlto" type="number" step="0.01" placeholder="0"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
-            </div>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Foto</label>
-            <label class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span id="conFotoLabel">Seleccionar foto</span>
-              <input id="conFotoInput" type="file" accept="image/*" class="hidden" />
-            </label>
-          </div>
-          <div class="flex gap-3 pt-2">
-            <button type="submit" id="conSaveBtn"
-              class="flex-1 px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50">
-              <span id="conSaveText">Guardar</span>
-              <span id="conSaveSpinner" class="hidden">
-                <svg class="animate-spin h-5 w-5 mx-auto" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              </span>
-            </button>
-            <button type="button" data-cerrar-modal="contenedor" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base">
-              Cancelar
-            </button>
-          </div>
-        </form>
-        <p id="conFormError" data-form-error class="hidden mt-3 text-sm text-red-600"></p>
-      </div>
-    </div>
   </div>
 
     <!-- Modal: Editar entidad (Ubicación / Contenedor) -->
@@ -411,6 +227,42 @@ import '../styles/mapa-casita.css';
   .dnd-toast {
     animation: dndFadeIn 0.2s ease-out;
   }
+
+  /* =========================================================================
+     Visor de Habitación - estado inicial: minimapas rectangulares de las
+     plantas ("Planta Alta" y "Planta Baja") en paralelo + guía de casillero.
+     ========================================================================= */
+  .visor-default {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .visor-default-encabezado {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .visor-default-sub {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .visor-default-minimapas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .visor-minimapa-planta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .visor-minimapa-planta svg {
+    margin: 0 auto;
+  }
 </style>
 
 <script>
@@ -473,12 +325,10 @@ import '../styles/mapa-casita.css';
       }
     });
 
-    // Filtrado en caliente: cuando se selecciona una división (fila) en el Mapa
-    // Estok (izquierda), la cascada inferior muta SIN recargar la página.
-    window.addEventListener('estok:planta-seleccionada', (e) => {
-      const detalle = (e as CustomEvent<{ fila: number | null; nombre: string | null }>).detail;
-      tablero.setFilaActiva(detalle?.fila ?? null, detalle?.nombre ?? null);
-    });
+    // La cascada inferior (Habitaciones/Contenedores) fue eliminada: la fila
+    // activa del Mapa Estok ya no filtra una sección inferior. El Visor de la
+    // derecha gestiona el detalle de la habitación seleccionada por su cuenta.
+    // (evento 'estok:habitacion-seleccionada' → initVisor).
 
     // Lienzo navegable "Mapa Estok" (Nivel 1 casa → Nivel 2 habitaciones) +
     // Visor de la habitación seleccionada en la columna derecha.

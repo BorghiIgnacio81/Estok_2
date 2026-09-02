@@ -8,8 +8,9 @@
 // Consumido únicamente por src/lib/visorHabitacion.ts.
 // =============================================================================
 
-import { escapeHtml } from './mapaJerarquico';
-import { minimapaCasitaSvg } from './minimapa';
+import { escapeHtml, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
+import type { UbicacionPlano } from './mapaJerarquico';
+import { minimapaRectangularSvg } from './minimapa';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
@@ -130,16 +131,46 @@ export function medidasDe(room: {
   return `${valores.map((v) => String(Number(v))).join(' × ')} cm`;
 }
 
-/** Minimapa de planta con la MISMA silueta de casa que el "Mapa Estok". */
-export function minimapaPlantaHtml(
-  division: { filas: number; nombre: string } | null,
-  fila: number | null | undefined,
-  columna: number | null | undefined,
+/** Grilla asimétrica (filas × columnas por fila) de una Ubicación, en vivo. */
+function columnasPorFilaDe(room: UbicacionPlano): number[] {
+  const filas = filasInternasDe(room);
+  return Array.from({ length: filas }, (_, i) => columnasDeFilaInterna(room, i + 1));
+}
+
+/** Minimapa rectangular de la habitación seleccionada (Nivel 2).
+ *  REGLA GRÁFICA ESTRICTA: RECTÁNGULO PURO sin techo. Replica en vivo la grilla
+ *  exacta de la habitación (filas × columnas por fila, asimétrica) e ilumina en
+ *  NARANJA (#f97316) el casillero que el usuario está inspeccionando. El techo
+ *  puntiagudo queda EXCLUSIVO de la casa de Nivel 1 (mapaCasitaNavegable). */
+export function minimapaHabitacionHtml(
+  room: UbicacionPlano | null,
+  filaActiva: number | null | undefined,
+  columnaActiva: number | null | undefined,
 ): string {
-  if (!division || !fila) return '';
-  return `<div class="visor-minimapa-planta" title="Planta: ${escapeHtml(division.nombre)} · Cuadrante F${fila}·C${columna || '—'}">
-    <span class="visor-minimapa-titulo">📍 Planta · ${escapeHtml(division.nombre)}</span>
-    ${minimapaCasitaSvg({ filas: division.filas, filaActiva: fila })}
-    <span class="visor-minimapa-detalle">Cuadrante F${fila}·C${columna || '—'}</span>
+  if (!room) return '';
+  const filas = filasInternasDe(room);
+  const inspeccionando = filaActiva != null && columnaActiva != null;
+  return `<div class="visor-minimapa-planta" title="Grilla de «${escapeHtml(room.nombre)}»: ${filas} filas · el casillero naranja es el que estás inspeccionando">
+    <span class="visor-minimapa-titulo">🧭 Grilla de la habitación</span>
+    ${minimapaRectangularSvg({ filas, columnasPorFila: columnasPorFilaDe(room), filaActiva: filaActiva ?? null, columnaActiva: columnaActiva ?? null })}
+    <span class="visor-minimapa-detalle">${inspeccionando ? `Casillero F${filaActiva}·C${columnaActiva}` : 'Pasá el mouse sobre un casillero para guiarte'}</span>
+  </div>`;
+}
+
+/** Minimapa rectangular de una planta/división (estado inicial del Visor).
+ *  Ambos minimapas ("Planta Alta" y "Planta Baja") se renderizan en paralelo
+ *  apenas carga la página para dar feedback analítico inmediato al operador. */
+export function minimapaDivisionHtml(
+  division: UbicacionPlano | null,
+  filaActiva: number | null | undefined,
+  columnaActiva: number | null | undefined,
+): string {
+  if (!division) return '';
+  const filas = filasInternasDe(division);
+  const columnasPorFila = columnasPorFilaDe(division);
+  return `<div class="visor-minimapa-planta" title="Planta «${escapeHtml(division.nombre)}»: grilla ${filas} filas · columnas por fila [${columnasPorFila.join(', ')}]">
+    <span class="visor-minimapa-titulo">📍 ${escapeHtml(division.nombre)}</span>
+    ${minimapaRectangularSvg({ filas, columnasPorFila, filaActiva: filaActiva ?? null, columnaActiva: columnaActiva ?? null })}
+    <span class="visor-minimapa-detalle">${filas} fila${filas === 1 ? '' : 's'} · [${columnasPorFila.join(', ')}] col/fila</span>
   </div>`;
 }

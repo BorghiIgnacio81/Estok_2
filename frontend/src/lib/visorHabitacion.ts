@@ -24,6 +24,7 @@ import {
   columnasInternasDe,
   columnasDeFilaInterna,
   guardarUbicacion,
+  esDivisionUbicacion,
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import {
@@ -32,7 +33,8 @@ import {
   cuerpoConParedesHtml,
   paletaPuertaHtml,
   medidasDe,
-  minimapaPlantaHtml,
+  minimapaHabitacionHtml,
+  minimapaDivisionHtml,
 } from './visorHabitacionHtml';
 
 interface ContenedorVisor {
@@ -60,12 +62,10 @@ let objetosRoom: ObjetoVisor[] = [];
 /** Tipo de elemento arrastrándose sobre el Visor (para las Drop Zones de pared). */
 let dragTipoVisor: 'contenedor' | 'objeto' | 'puerta' | null = null;
 
-/** Grilla de la planta (división) para el minimapa de orientación del Visor. */
-interface GrillaDivisionVisor {
-  filas: number;
-  nombre: string;
-}
-let divisionGrid: GrillaDivisionVisor | null = null;
+/** Divisiones (plantas) del Estok activo para el estado inicial del Visor. */
+let divisionesIniciales: UbicacionPlano[] = [];
+/** Casillero exacto de la grilla que el usuario está inspeccionando (guía naranja). */
+let celdaInspeccionada: { fila: number; col: number } | null = null;
 
 // =============================================================================
 // HELPERS
@@ -96,7 +96,6 @@ async function cargarContenido(): Promise<void> {
   if (!roomActual) {
     contenedoresRoom = [];
     objetosRoom = [];
-    divisionGrid = null;
     return;
   }
   const [contData, objData] = await Promise.all([
@@ -105,24 +104,35 @@ async function cargarContenido(): Promise<void> {
   ]);
   contenedoresRoom = (contData as unknown as ContenedorVisor[]).filter((c) => !c.parent_contenedor);
   objetosRoom = (objData as unknown as ObjetoVisor[]).filter((o) => !o.contenedor);
+}
 
-  // Grilla de la planta (división) donde está encastrada la habitación, para
-  // pintar el minimapa naranja del cuadrante auditado en la cabecera del Visor.
-  divisionGrid = null;
-  if (roomActual.parent_ubicacion) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/ubicaciones/${roomActual.parent_ubicacion}/`, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const d = (await res.json()) as Record<string, unknown>;
-        divisionGrid = {
-          filas: Math.max(1, Number(d.grid_filas) || 3),
-          nombre: String(d.nombre || 'Planta'),
-        };
-      }
-    } catch {
-      divisionGrid = null;
-    }
+// =============================================================================
+// ESTADO INICIAL DEL VISOR - minimapas de las plantas en paralelo
+// =============================================================================
+
+/** Carga las divisiones (plantas) del Estok activo para el estado inicial del
+ *  Visor: sus minimapas rectangulares se pintan en paralelo apenas carga. */
+async function cargarDivisionesIniciales(): Promise<void> {
+  try {
+    const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`);
+    divisionesIniciales = (data as unknown as UbicacionPlano[])
+      .filter(esDivisionUbicacion)
+      .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
+  } catch {
+    divisionesIniciales = [];
   }
+  if (!roomActual) renderVisor();
+}
+
+/** Actualiza en caliente SOLO el minimapa del Visor con el casillero inspeccionado. */
+function refrescarMinimapa(): void {
+  const slot = document.getElementById('visorMinimapaSlot');
+  if (!slot || !roomActual) return;
+  slot.innerHTML = minimapaHabitacionHtml(
+    roomActual,
+    celdaInspeccionada?.fila ?? null,
+    celdaInspeccionada?.col ?? null,
+  );
 }
 
 // =============================================================================
@@ -134,10 +144,22 @@ function renderVisor(): void {
   const cont = document.getElementById('visorHabitacion');
   if (!cont) return;
   if (!roomActual) {
-    cont.innerHTML = `<div class="visor-placeholder">
-      <div class="visor-placeholder-ico">🏠</div>
-      <p class="visor-placeholder-texto">Hacé clic sobre una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</p>
-    </div>`;
+    if (!divisionesIniciales.length) {
+      cont.innerHTML = `<div class="visor-placeholder">
+        <div class="visor-placeholder-ico">🏠</div>
+        <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
+      </div>`;
+    } else {
+      cont.innerHTML = `<div class="visor-default">
+        <div class="visor-default-encabezado">
+          <span class="visor-titulo">🗺️ Minimapas de las plantas</span>
+          <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
+        </div>
+        <div class="visor-default-minimapas">
+          ${divisionesIniciales.map((d) => minimapaDivisionHtml(d, null, null)).join('')}
+        </div>
+      </div>`;
+    }
     return;
   }
 
@@ -182,7 +204,7 @@ function renderVisor(): void {
         ${med ? `<p class="visor-medidas">📐 ${escapeHtml(med)}</p>` : ''}
       </div>
     </div>
-    ${minimapaPlantaHtml(divisionGrid, room.parent_grid_row, room.parent_grid_col)}
+    <div id="visorMinimapaSlot">${minimapaHabitacionHtml(room, celdaInspeccionada?.fila ?? null, celdaInspeccionada?.col ?? null)}</div>
     <div class="visor-encabezado">
       <span class="visor-titulo">Lienzo matricial de la habitación</span>
       <span class="mapa-filas-internas-control">
@@ -235,6 +257,16 @@ function enlazarVisor(): void {
         }
         void asignarContenedorACelda(contId, r, c);
       } else if (objId) void asignarObjetoACelda(objId, r, c);
+    });
+    // Inspección guiada: el minimapa rectangular ilumina en naranja el casillero
+    // exacto bajo el cursor/clic para que el operador no se pierda en la grilla.
+    celda.addEventListener('mouseenter', () => {
+      celdaInspeccionada = { fila: r, col: c };
+      refrescarMinimapa();
+    });
+    celda.addEventListener('click', () => {
+      celdaInspeccionada = { fila: r, col: c };
+      refrescarMinimapa();
     });
   });
 
@@ -360,6 +392,7 @@ async function cambiarFilasVisor(nuevas: number): Promise<void> {
   } else {
     toast('❌ No se pudo guardar las filas del lienzo.');
   }
+  celdaInspeccionada = null;
   renderVisor();
   enlazarVisor();
 }
@@ -386,6 +419,7 @@ async function cambiarColumnasVisor(fila: number, cols: number): Promise<void> {
   } else {
     toast('❌ No se pudo guardar las columnas del lienzo.');
   }
+  celdaInspeccionada = null;
   renderVisor();
   enlazarVisor();
 }
@@ -486,6 +520,7 @@ export function initVisor(): void {
   window.addEventListener('estok:habitacion-seleccionada', (e) => {
     const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
     roomActual = room;
+    celdaInspeccionada = null;
     if (!roomActual) {
       renderVisor();
       return;
@@ -502,8 +537,13 @@ export function initVisor(): void {
         renderVisor();
         enlazarVisor();
       });
+    } else {
+      // Sin habitación seleccionada: re-pintar los minimapas iniciales de plantas.
+      void cargarDivisionesIniciales();
     }
   });
+  // Estado inicial: minimapas rectangulares de "Planta Alta" y "Planta Baja" en paralelo.
+  void cargarDivisionesIniciales();
   renderVisor();
 }
 

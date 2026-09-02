@@ -244,3 +244,64 @@ export function minimapaCasitaSvg(opts: { filas: number; filaActiva: number }): 
   return `<svg class="casita-minimapa-svg" width="${ancho}" height="${h + 2}" viewBox="0 0 ${ancho} ${h + 2}" role="img" aria-label="Minimapa de la casita (sector activo en naranja)">${techo}${celdas}</svg>`;
 }
 
+// =============================================================================
+// MINIMAPA RECTANGULAR PURO (Nivel 2 - Visor de Habitación)
+// -----------------------------------------------------------------------------
+// REGLA GRÁFICA ESTRICTA: RECTÁNGULO PURO, sin triángulo de techo (el techo es
+// EXCLUSIVO de la casa de Nivel 1, minimapaCasitaSvg). Se subdivide internamente
+// en la cantidad EXACTA de filas y columnas de la grilla de diseño de la
+// habitación (reflejando su asimetría en vivo, ej: [3,2,2]) e ilumina en
+// COLOR NARANJA (#f97316) el casillero que el usuario está inspeccionando.
+// =============================================================================
+
+export interface MinimapaRectangularOpts {
+  /** Cantidad de filas internas de la grilla (1..12). */
+  filas: number;
+  /** Columnas por fila (grilla asimétrica real, ej: [3,2,2]). */
+  columnasPorFila: number[];
+  /** Fila activa (1-based) del casillero inspeccionado. null => sin resalte. */
+  filaActiva?: number | null;
+  /** Columna activa (1-based) del casillero inspeccionado. null => sin resalte. */
+  columnaActiva?: number | null;
+}
+
+export function minimapaRectangularSvg(opts: MinimapaRectangularOpts): string {
+  const filas = Math.max(1, Math.min(12, Math.floor(Number(opts.filas)) || 1));
+  const columnasPorFila = Array.from({ length: filas }, (_, i) => {
+    const c = Math.floor(Number(opts.columnasPorFila?.[i]));
+    return Number.isFinite(c) && c > 0 ? Math.min(12, c) : 1;
+  });
+  const maxCols = Math.max(...columnasPorFila);
+  const filaActiva = opts.filaActiva ?? null;
+  const columnaActiva = opts.columnaActiva ?? null;
+
+  const cell = 11;
+  const gap = 1.5;
+  const pad = 2;
+
+  const ancho = pad * 2 + maxCols * cell + (maxCols - 1) * gap;
+  const alto = pad * 2 + filas * cell + (filas - 1) * gap;
+
+  // Cada fila centra su cantidad de casilleros dentro del marco rectangular
+  // para reflejar la asimetría real de la grilla en vivo.
+  const celdas: string[] = [];
+  for (let r = 1; r <= filas; r++) {
+    const cols = columnasPorFila[r - 1];
+    const filaW = cols * cell + (cols - 1) * gap;
+    const offsetX = (ancho - pad * 2 - filaW) / 2;
+    const y = pad + (r - 1) * (cell + gap);
+    for (let c = 1; c <= cols; c++) {
+      const x = pad + offsetX + (c - 1) * (cell + gap);
+      const activa = filaActiva === r && columnaActiva === c;
+      celdas.push(
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${cell}" height="${cell}" rx="1.5" fill="${activa ? COLOR_NARANJA : '#fef3c7'}" stroke="${activa ? '#c2410c' : '#d1d5db'}" stroke-width="0.6" />`,
+      );
+    }
+  }
+
+  // Marco del RECTÁNGULO PURO (bounding box de la grilla, sin techo).
+  const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.7" stroke-dasharray="2 1.6" />`;
+
+  return `<svg class="minimapa-rect-svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa rectangular de la grilla (casillero inspeccionado en naranja)">${marco}${celdas.join('')}</svg>`;
+}
+
