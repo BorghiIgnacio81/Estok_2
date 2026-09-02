@@ -39,6 +39,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Blindaje de codificación UTF-8: evita textos corruptos (“Habitación”) en Django/Gunicorn
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
 # Instalar Node.js y Nginx
 # DEBIAN_FRONTEND=noninteractive evita bloqueos interactivos de debconf /
 # Term::ReadLine durante la instalacion de Node.js en entornos headless (Coolify).

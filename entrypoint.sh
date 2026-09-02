@@ -3,6 +3,11 @@
 
 set -e
 
+# Blindaje de codificación UTF-8 (interprete Python y entorno completo)
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export PYTHONIOENCODING=utf-8
+
 echo "=== Starting Estok ==="
 
 # Puerto principal (debe coincidir con EXPOSE en Dockerfile y listen en nginx)

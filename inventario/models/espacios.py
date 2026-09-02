@@ -107,6 +107,22 @@ class Ubicacion(models.Model):
         verbose_name="Posición de la puerta",
         help_text="Pared de la habitación donde se colocó la puerta arrastrable (valores: TOP, BOTTOM, LEFT, RIGHT)."
     )
+    ui_width = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="100%",
+        verbose_name="Ancho visual (UI)",
+        help_text="Medida de ancho relativo de la tarjeta en el lienzo interactivo (ej: '100%' o '210px'). Se persiste en caliente vía PUT desde el resizing del Mapa Estok."
+    )
+    ui_height = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="auto",
+        verbose_name="Alto visual (UI)",
+        help_text="Medida de alto relativo de la tarjeta en el lienzo interactivo (ej: 'auto' o '160px'). Se persiste en caliente vía PUT desde el resizing del Mapa Estok."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -210,6 +226,22 @@ class Contenedor(models.Model):
         default=False,
         verbose_name="Mueble inmueble",
         help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
+    )
+    ui_width = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="100%",
+        verbose_name="Ancho visual (UI)",
+        help_text="Medida de ancho relativo de la tarjeta en el lienzo interactivo (ej: '100%' o '210px'). Se persiste en caliente vía PUT desde el resizing recursivo (Visor de Habitación / Contenedor Grande)."
+    )
+    ui_height = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="auto",
+        verbose_name="Alto visual (UI)",
+        help_text="Medida de alto relativo de la tarjeta en el lienzo interactivo (ej: 'auto' o '160px'). Se persiste en caliente vía PUT desde el resizing recursivo (Visor de Habitación / Contenedor Grande)."
     )
     qr_code_image = models.ImageField(
         upload_to='qrcodes/',
