@@ -26,6 +26,7 @@ import {
 import type { MapaEstokWizardState, CeldaWizard } from './mapaEstokWizard';
 import { estructuraDesdeDatos } from './mapaEstokEstructura';
 import type { DatosEstructuraEstok, UbiDTO, ContDTO } from './mapaEstokEstructura';
+import { eliminarCeldaPersistida } from './mapaEstokEliminar';
 
 // =============================================================================
 // TIPOS
@@ -172,6 +173,9 @@ export class MapaEstokWizardUI {
     root.querySelectorAll<HTMLButtonElement>('[data-entrar]').forEach((b) =>
       b.addEventListener('click', () => this.entrar(Number(b.dataset.entrar) || 0)),
     );
+    root.querySelectorAll<HTMLButtonElement>('[data-eliminar-celda]').forEach((b) =>
+      b.addEventListener('click', () => void this.eliminarCelda(Number(b.dataset.eliminarCelda) || 0)),
+    );
     root.querySelectorAll<HTMLInputElement>('[data-nombre-celda]').forEach((inp) =>
       inp.addEventListener('input', () => this.renombrar(Number(inp.dataset.nombreCelda) || 0, inp.value)),
     );
@@ -229,6 +233,24 @@ export class MapaEstokWizardUI {
     const destino = Math.max(0, Math.min(estado.ruta.length, nivel));
     estado.ruta = estado.ruta.slice(0, destino);
     this.render();
+  }
+
+  /**
+   * Borrado FÍSICO en caliente de una celda persistida de la jerarquía.
+   * La lógica (confirm + DELETE + limpieza del cuadrante) vive en
+   * ./mapaEstokEliminar para mantener este controlador bajo el límite de
+   * modularidad del repo (<400-500 líneas).
+   */
+  private async eliminarCelda(indice: number): Promise<void> {
+    const estado = this.state;
+    if (!estado) return;
+    await eliminarCeldaPersistida({
+      celdas: this.celdasActuales(estado),
+      indice,
+      nivel: nivelActual(estado),
+      mostrarError: (mensaje) => this.mostrarErrorEnModal(mensaje),
+      render: () => this.render(),
+    });
   }
 
   private cambiarFilas(nuevas: number): void {

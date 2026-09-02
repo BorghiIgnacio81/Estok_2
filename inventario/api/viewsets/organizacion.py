@@ -102,6 +102,74 @@ class UbicacionViewSet(viewsets.ModelViewSet):
         else:
             serializer.save()
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Borrado FÍSICO en caliente con protección hermética de huérfanos
+        (regla de negocio de Almacenamiento):
+
+          1. Antes de borrar la fila se liberan TODOS los objetos vinculados a
+             la estructura (directos o en cascada dentro de sus contenedores):
+             contenedor=None y parent_grid_row/col=None. Así los objetos
+             sobreviven al DELETE y caen directo a la bandeja inferior de
+             «por ubicar» (el inventario jamás se pierde).
+          2. Las sub-ubicaciones (habitaciones encastradas de una división /
+             planta) se eliminan físicamente junto con la raíz: los
+             Contenedores se borran en cascada por FK (ubicacion) y los
+             Objetos ya fueron resguardados en el paso 1.
+        """
+        instance = self.get_object()
+
+        # 1) Sub-árbol completo de Ubicaciones que cuelgan del nodo borrado.
+        ids_ubicaciones = [str(instance.id)] + [
+            str(hijo) for hijo in self._ids_ubicaciones_descendientes(instance.id)
+        ]
+
+        # 2) Contenedores (de cualquier nivel) alojados en esa estructura.
+        ids_contenedores = list(
+            Contenedor.objects.filter(ubicacion_id__in=ids_ubicaciones)
+            .values_list('id', flat=True)
+        )
+
+        if ids_contenedores:
+            # Objetos guardados dentro de esos contenedores → liberar el vínculo
+            # y las coordenadas de casillero (viajan a la bandeja disponibles).
+            Objeto.objects.filter(contenedor_id__in=ids_contenedores).update(
+                contenedor=None,
+                parent_grid_row=None,
+                parent_grid_col=None,
+            )
+
+        # Objetos sueltos en celdas de la estructura (sin contenedor) → se
+        # limpian las coordenadas de cuadrante para que no queden huérfanos
+        # con un posicionamiento fantasma dentro de una grilla inexistente.
+        Objeto.objects.filter(
+            ubicacion_id__in=ids_ubicaciones,
+            contenedor__isnull=True,
+        ).update(
+            parent_grid_row=None,
+            parent_grid_col=None,
+        )
+
+        # 3) Eliminación física de la fila + toda su descendencia de Ubicaciones.
+        Ubicacion.objects.filter(id__in=ids_ubicaciones).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @staticmethod
+    def _ids_ubicaciones_descendientes(ubicacion_id):
+        """UUIDs de TODAS las sub-ubicaciones (BFS por parent_ubicacion)."""
+        encontrados = []
+        cola = [ubicacion_id]
+        while cola:
+            padre = cola.pop()
+            hijos = list(
+                Ubicacion.objects.filter(parent_ubicacion_id=padre)
+                .values_list('id', flat=True)
+            )
+            for hijo in hijos:
+                encontrados.append(hijo)
+                cola.append(hijo)
+        return encontrados
+
 
 class ContenedorViewSet(viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()
@@ -146,6 +214,61 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Borrado FÍSICO en caliente con protección de huérfanos:
+
+          - Los Objetos alojados DIRECTAMENTE en este contenedor se liberan:
+            contenedor=None y parent_grid_row/col=None → viajan a la bandeja
+            inferior de «por ubicar» (hermético: el inventario jamás se pierde).
+          - Los sub-contenedores DIRECTOS se desacoplan del padre eliminado:
+            parent_contenedor, parent_grid_row y parent_grid_col quedan en None
+            (pasan a nivel raíz, disponibles y sin coordenadas fantasma).
+          - Un mueble inmueble fijo (es_inmueble=True) no puede eliminarse.
+        """
+        instance = self.get_object()
+
+        # Aislamiento multi-tenant explícito (misma regla que perform_update):
+        # la operación debe pertenecer al Estok activo del header X-Estok-Id.
+        estok_id = (
+            self.request.headers.get('X-Estok-Id')
+            or self.request.query_params.get('estok_id')
+        )
+        if not estok_id:
+            raise ValidationError(
+                "Falta el header X-Estok-Id. La operación pertenece a un Estok activo."
+            )
+        try:
+            estok_id_uuid = UUID(str(estok_id))
+        except (TypeError, ValueError):
+            raise ValidationError("El Estok activo especificado no es un UUID válido.")
+        if instance.ubicacion_id is None or instance.ubicacion.estok_id != estok_id_uuid:
+            raise PermissionDenied("El contenedor no pertenece al Estok activo.")
+
+        if instance.es_inmueble:
+            raise PermissionDenied(
+                "El mueble es inmueble fijo (es_inmueble) y no puede eliminarse."
+            )
+
+        # 1) Objetos guardados directamente en este contenedor → liberar.
+        Objeto.objects.filter(contenedor_id=instance.id).update(
+            contenedor=None,
+            parent_grid_row=None,
+            parent_grid_col=None,
+        )
+
+        # 2) Sub-contenedores directos → a nivel raíz, sin coordenadas huérfanas
+        #    (su contenido interno queda intacto y disponible en el Estok).
+        Contenedor.objects.filter(parent_contenedor_id=instance.id).update(
+            parent_contenedor=None,
+            parent_grid_row=None,
+            parent_grid_col=None,
+        )
+
+        # 3) Eliminación física de la fila en PostgreSQL.
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_create(self, serializer):
         """

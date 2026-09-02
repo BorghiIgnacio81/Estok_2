@@ -46,6 +46,8 @@ export interface ContDTO {
   grid_filas?: number | null;
   grid_columnas?: number | null;
   grid_filas_config?: number[] | null;
+  /** Mueble inmueble fijo: no puede eliminarse en caliente. */
+  es_inmueble?: boolean;
 }
 
 export interface DatosEstructuraEstok {
@@ -111,6 +113,7 @@ function celdaBase(
     return {
       id: item.id,
       nombre: item.nombre,
+      es_inmueble: 'es_inmueble' in item ? Boolean((item as ContDTO).es_inmueble) : undefined,
       grid_filas: filas,
       grid_columnas: clampGrilla(Number(item.grid_columnas) || 2),
       grid_filas_config: configNormalizada(item.grid_filas_config, filas),

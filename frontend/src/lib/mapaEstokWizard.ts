@@ -45,6 +45,9 @@ export interface CeldaWizard {
    *  una estructura existente; undefined = celda nueva creada en el wizard. */
   id?: string;
   nombre: string;
+  /** Solo aplica a Contenedores de Nivel 3/4: mueble inmueble fijo
+   *  (es_inmueble=True). No puede arrastrarse ni eliminarse en caliente. */
+  es_inmueble?: boolean;
   grid_filas: number;
   grid_columnas: number;
   grid_filas_config: number[] | null;
@@ -344,9 +347,17 @@ export function renderGrilla(state: MapaEstokWizardState): string {
     const celdasHtml: string[] = [];
     for (let c = 1; c <= cols; c++) {
       const celda = nodo.celdas[indice];
+      const celdaInmueble = Boolean(celda?.es_inmueble);
+      // Tacho de borrado físico en la esquina: solo nodos persistidos
+      // (id presente → ya existen en PostgreSQL) y que no sean inmuebles fijos.
+      const nombreCelda = celda?.nombre?.trim() || nombreDefault(nivel, f, c);
+      const botonEliminar = celda?.id && !celdaInmueble
+        ? `<button type="button" class="wizard-celda-eliminar text-red-400 hover:text-red-600 transition-colors cursor-pointer" data-eliminar-celda="${indice}" title="Eliminar físicamente «${escapeHtml(nombreCelda)}». Todo su contenido quedará en la bandeja de «por ubicar» y se perderá su estructura.">🗑️</button>`
+        : '';
       celdasHtml.push(`
         <div class="wizard-celda" data-celda="${indice}">
           <span class="wizard-celda-coords">F${f}·C${c}</span>
+          ${botonEliminar}
           <input class="wizard-celda-nombre" data-nombre-celda="${indice}" value="${escapeHtml(celda?.nombre ?? '')}" maxlength="200" placeholder="${escapeHtml(nombreDefault(nivel, f, c))}" />
           <button type="button" class="wizard-entrar-btn" data-entrar="${indice}" ${nivel >= NIVEL_MAXIMO ? 'disabled title="Nivel máximo alcanzado"' : 'title="Entrar y subdividir"'}">🔍 Entrar</button>
         </div>`);
