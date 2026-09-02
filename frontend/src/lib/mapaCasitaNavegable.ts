@@ -1,29 +1,30 @@
-// =============================================================================
-// LIENZO NAVEGABLE "MAPA ESTOK" - CASA CON TECHO PUNTIAGUDO (Nivel 1 → Nivel 2)
+﻿// =============================================================================
+// LIENZO NAVEGABLE "MAPA ESTOK" - CASA CON TECHO PUNTIAGUDO (Nivel 1 â†’ Nivel 2)
 // -----------------------------------------------------------------------------
-// Reemplaza el mapa matricial con inputs numéricos por un lienzo puramente
-// gráfico y táctil por niveles en cascada:
+// Reemplaza el mapa matricial con inputs numÃ©ricos por un lienzo puramente
+// grÃ¡fico, tÃ¡ctil y EDITABLE IN-PLACE por niveles en cascada:
 //   Nivel 1 (La Casa)  : silueta de casa con techo puntiagudo (trazado SVG).
-//                         Cada planta es una macro-división persistida en
+//                         Cada planta es una macro-divisiÃ³n persistida en
 //                         PostgreSQL ("Primer Piso" arriba, "Planta Baja"
 //                         abajo). Al hacer clic se registra el estado activo
 //                         y se conmuta el mapa de forma reactiva.
-//   Nivel 2 (Habitaciones): minimapa de la casita en ULTRA-MINI (4× más chico)
+//   Nivel 2 (Habitaciones): minimapa de la casita en ULTRA-MINI (4Ã— mÃ¡s chico)
 //                         con la planta seleccionada en NARANJA (#f97316) +
-//                         botón "⬅ Volver". Cada habitación alimenta al
-//                         "Visor de la Habitación Seleccionada"
-//                         (visorHabitacion.ts) vía el evento
+//                         botÃ³n "â¬… Volver". Cada habitaciÃ³n alimenta al
+//                         "Visor de la HabitaciÃ³n Seleccionada"
+//                         (visorHabitacion.ts) vÃ­a el evento
 //                         'estok:habitacion-seleccionada'.
-//                         Matriz asimétrica real (grid_filas_config [3,2,2]):
+//                         Matriz asimÃ©trica real (grid_filas_config [3,2,2]):
 //                         Fila 1 = 3 casilleros, Fila 2 = 2, Fila 3 = 2, cada
-//                         celda como receptáculo Drop Zone de su habitación.
-//                         Iconografía contextual por PRIMERA PALABRA del nombre
-//                         (Baño 🚽 · Ropero 🗄️ · Suite 🛌 · Habitación 🛏️ ·
-//                         Pasillo/resto 🏠).
-// La configuración numérica de la estructura vive ÚNICAMENTE dentro del wizard
-// "✏️ Editar Estructura" (mapaEstokWizardUI.ts). Aquí NO hay inputs numéricos.
-// Estado inicial forzado: la navegación NACE en el Nivel 1 y la casa se pinta
-// de forma SÍNCRONA al iniciar (el lienzo nunca queda vacío esperando datos).
+//                         celda como receptÃ¡culo Drop Zone de su habitaciÃ³n.
+//                         EDICIÃ“N EN VIVO (sin modal "Editar Estructura"):
+//                         clic en el nombre â†’ rename in-place; arrastrar la
+//                         carta â†’ reacomodo entre cuadrantes; tirar del
+//                         tirador de esquina â†’ resizing elÃ¡stico persistente.
+//                         El motor genÃ©rico vive en lienzoInteractivo.ts y se
+//                         reutiliza de forma idÃ©ntica en los Niveles 3 y 4.
+// Estado inicial forzado: la navegaciÃ³n NACE en el Nivel 1 y la casa se pinta
+// de forma SÃNCRONA al iniciar (el lienzo nunca queda vacÃ­o esperando datos).
 // =============================================================================
 
 import {
@@ -44,6 +45,8 @@ import {
   celdaVaciaHtml,
   tarjetaHabitacion,
 } from './planoHabitaciones';
+import { conectarEdicionPlanoEnVivo } from './mapaCasitaEdicion';
+import { tokenCssVisual } from './lienzoInteractivo';
 
 // =============================================================================
 // ESTADO DEL LIENZO
@@ -60,7 +63,7 @@ let divisiones: UbicacionPlano[] = [];
 let habitaciones: UbicacionPlano[] = [];
 /** Planta activa (parent_grid_row). null = vista general sin filtro. */
 let filaActiva: number | null = null;
-/** Nivel de navegación: 1 = casa general, 2 = habitaciones de una planta.
+/** Nivel de navegaciÃ³n: 1 = casa general, 2 = habitaciones de una planta.
  *  NACE estrictamente en el Nivel 1 para que la casa se dibuje apenas carga. */
 let nivelActual: 1 | 2 = 1;
 
@@ -81,10 +84,10 @@ function nombreDePlanta(fila: number): string {
   if (div) return div.nombre;
   if (fila === 1) return ETIQUETAS_PISO[PISO_PRIMERO];
   if (fila === 2) return ETIQUETAS_PISO[PISO_BAJA];
-  return `División ${fila}`;
+  return `DivisiÃ³n ${fila}`;
 }
 
-/** Habitaciones de una planta: encastradas en su división + sueltas legacy. */
+/** Habitaciones de una planta: encastradas en su divisiÃ³n + sueltas legacy. */
 function habitacionesDePlanta(fila: number): UbicacionPlano[] {
   const div = divisiones.find((d) => d.parent_grid_row === fila);
   const divisionId = div?.id ?? '__sin_division__';
@@ -128,12 +131,12 @@ function renderCasa(): string {
       ? `${habs.length} hab${habs.length === 1 ? '' : 's'}`
       : 'Sin estructura';
     pisos.push(`
-      <button type="button" class="casita-piso${filaActiva === f ? ' casita-piso-activo' : ''}" data-casita-piso="${f}" title="Ver las habitaciones de «${escapeHtml(nombre)}»">
+      <button type="button" class="casita-piso${filaActiva === f ? ' casita-piso-activo' : ''}" data-casita-piso="${f}" title="Ver las habitaciones de Â«${escapeHtml(nombre)}Â»">
         <span class="casita-piso-izq">
-          <span class="casita-piso-ico">${f === 1 ? '🛏️' : '🛋️'}</span>
+          <span class="casita-piso-ico">${f === 1 ? 'ðŸ›ï¸' : 'ðŸ›‹ï¸'}</span>
           <span class="casita-piso-titulo">${escapeHtml(nombre)}</span>
         </span>
-        <span class="casita-piso-meta">${escapeHtml(meta)}<span class="casita-piso-flecha">›</span></span>
+        <span class="casita-piso-meta">${escapeHtml(meta)}<span class="casita-piso-flecha">â€º</span></span>
       </button>`);
   }
   return `
@@ -158,7 +161,7 @@ function renderCasa(): string {
       </svg>
       <div class="casita-cuerpo">${pisos.join('')}</div>
     </div>
-    <p class="casita-leyenda">Tocá una planta de la casa para navegar a sus habitaciones.</p>
+    <p class="casita-leyenda">TocÃ¡ una planta de la casa para navegar a sus habitaciones.</p>
   </div>`;
 }
 
@@ -168,7 +171,7 @@ async function cargarDatos(): Promise<void> {
   habitaciones = todas.filter((u) => !esDivisionUbicacion(u));
 }
 
-/** Nivel 2: minimapa ultra-mini de la casita + plano matricial asimétrico. */
+/** Nivel 2: minimapa ultra-mini de la casita + plano matricial asimÃ©trico. */
 function renderHabitaciones(): string {
   const fila = filaActiva || 1;
   const nombre = nombreDePlanta(fila);
@@ -176,18 +179,32 @@ function renderHabitaciones(): string {
   const total = totalPlantas();
   const div = divisiones.find((d) => d.parent_grid_row === fila);
 
-  // Matriz asimétrica real configurada en el blueprint de la división
-  // (grid_filas_config [3,2,2] → Fila 1 = 3 casilleros, Fila 2 = 2, Fila 3 = 2).
+  // Matriz asimÃ©trica real configurada en el blueprint de la divisiÃ³n
+  // (grid_filas_config [3,2,2] â†’ Fila 1 = 3 casilleros, Fila 2 = 2, Fila 3 = 2).
   const filasInt = div ? filasInternasDe(div) : 0;
   const columnasPorFila: number[] = [];
   for (let r = 1; r <= filasInt; r++) {
     columnasPorFila.push(div ? columnasDeFilaInterna(div, r) : 3);
   }
 
+  // Resizing elÃ¡stico: el ancho guardado (ui_width en px) se convierte en un
+  // track FIJO de esa columna; las columnas restantes absorben el espacio
+  // sobrante con minmax(0,1fr). El alto (ui_height en px) crece la fila.
+  const tokenDeCelda = (room: UbicacionPlano | undefined): string => {
+    if (!room) return 'minmax(0,1fr)';
+    return tokenCssVisual(room.ui_width) || 'minmax(0,1fr)';
+  };
+  const altoDeCelda = (room: UbicacionPlano | undefined): number => {
+    const v = (room?.ui_height || '').trim();
+    if (/^\d{1,4}px$/.test(v)) return Math.min(460, Math.max(72, parseFloat(v)));
+    return 0;
+  };
+
   const filasPlano = div
     ? columnasPorFila
         .map((cols, idx) => {
           const r = idx + 1;
+          const celdasEnFila: UbicacionPlano[] = [];
           let celdas = '';
           for (let c = 1; c <= cols; c++) {
             const room = habs.find(
@@ -196,19 +213,27 @@ function renderHabitaciones(): string {
                 h.parent_grid_row === r &&
                 h.parent_grid_col === c,
             );
+            celdasEnFila.push(room as UbicacionPlano);
             celdas += room ? celdaOcupadaHtml(room, r, c) : celdaVaciaHtml(r, c);
           }
-          return `<div class="casita-plano-fila" style="--fila-cols:${cols}">${celdas}</div>`;
+          const tracks = celdasEnFila.map((room) => tokenDeCelda(room)).join(' ');
+          const altoMax = Math.max(...celdasEnFila.map((room) => altoDeCelda(room)), 0);
+          const altoFila = altoMax ? `min-height:${altoMax}px;` : '';
+          return `<div class="casita-plano-fila" data-plano-fila="${r}" style="--fila-cols:${cols};grid-template-columns:${tracks};${altoFila}">${celdas}</div>`;
         })
         .join('')
+    : '';
+
+  const edicionTip = div
+    ? `<p class="casita-edicion-tip">âœï¸ EdiciÃ³n en vivo: <strong>clic en el nombre</strong> para renombrar Â· <strong>arrastrÃ¡ la tarjeta</strong> para reacomodarla entre cuadrantes Â· <strong>tirÃ¡ de la esquina</strong> para estirarla.</p>`
     : '';
 
   const sinEstructura = div
     ? ''
     : `<div class="casita-hab-vacia">
-        <span class="casita-hab-vacia-ico">🛏️</span>
-        <p>Esta planta aún no tiene una división configurada.</p>
-        <p class="casita-hab-vacia-sub">Usá «✏️ Editar Estructura» para definir su sub-grilla.</p>
+        <span class="casita-hab-vacia-ico">ðŸ›ï¸</span>
+        <p>Esta planta aÃºn no tiene una divisiÃ³n configurada.</p>
+        <p class="casita-hab-vacia-sub">DefinÃ­ la sub-grilla de la planta desde el modelador del Mapa Estok al crear o editar tu Estok.</p>
       </div>`;
 
   // Habitaciones sin encastre matricial (modelo legacy con fila coincidente).
@@ -223,18 +248,18 @@ function renderHabitaciones(): string {
   return `
   <div class="casita-lienzo" data-vista="habitaciones">
     <div class="casita-nivel2-cab">
-      <button type="button" class="casita-volver" data-casita-volver title="Volver a la vista general de la casa">⬅ Volver</button>
-      <span class="casita-nivel2-titulo">🏠 ${escapeHtml(nombre)}</span>
+      <button type="button" class="casita-volver" data-casita-volver title="Volver a la vista general de la casa">â¬… Volver</button>
+      <span class="casita-nivel2-titulo">ðŸ  ${escapeHtml(nombre)}</span>
     </div>
-    <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa está en naranja">
+    <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa estÃ¡ en naranja">
       <div class="casita-minimapa-casilla">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</div>
       <div class="casita-minimapa-info">
-        <span class="casita-minimapa-leyenda">Estás en</span>
+        <span class="casita-minimapa-leyenda">EstÃ¡s en</span>
         <strong>${escapeHtml(nombre)}</strong>
-        <span class="casita-minimapa-hint">Tocá un piso del minimapa para saltar</span>
+        <span class="casita-minimapa-hint">TocÃ¡ un piso del minimapa para saltar</span>
       </div>
     </div>
-    ${div ? `<div class="casita-plano">${filasPlano}</div>` : sinEstructura}
+    ${div ? `<div class="casita-plano">${edicionTip}${filasPlano}</div>` : sinEstructura}
     ${sueltasHtml}
   </div>`;
 }
@@ -245,19 +270,19 @@ function render(): void {
   if (refs.badge) {
     refs.badge.textContent =
       nivelActual === 1
-        ? `Nivel 1 · ${estok?.nombre || 'Casa de Estok'}`
-        : `Nivel 2 · ${nombreDePlanta(filaActiva || 1)}`;
+        ? `Nivel 1 Â· ${estok?.nombre || 'Casa de Estok'}`
+        : `Nivel 2 Â· ${nombreDePlanta(filaActiva || 1)}`;
   }
 }
 
 // =============================================================================
-// INTERACCIÓN (registro de estado activo + conmutación reactiva)
+// INTERACCIÃ“N (registro de estado activo + conmutaciÃ³n reactiva)
 // =============================================================================
 
 function enlazar(): void {
   if (!refs.mapa) return;
 
-  // Nivel 1: clic en una planta → registra estado activo + conmuta al Nivel 2.
+  // Nivel 1: clic en una planta â†’ registra estado activo + conmuta al Nivel 2.
   refs.mapa.querySelectorAll<HTMLElement>('[data-casita-piso]').forEach((el) => {
     el.addEventListener('click', () => {
       const fila = Number(el.dataset.casitaPiso);
@@ -270,7 +295,7 @@ function enlazar(): void {
     });
   });
 
-  // Nivel 2: botón "⬅ Volver" → regresa a la vista general de la casa.
+  // Nivel 2: botÃ³n "â¬… Volver" â†’ regresa a la vista general de la casa.
   refs.mapa.querySelectorAll<HTMLElement>('[data-casita-volver]').forEach((el) => {
     el.addEventListener('click', () => {
       nivelActual = 1;
@@ -292,7 +317,7 @@ function enlazar(): void {
     });
   });
 
-  // Nivel 2: clic en una celda/habitación del plano → alimenta el Visor.
+  // Nivel 2: clic en una celda/habitaciÃ³n del plano â†’ alimenta el Visor.
   refs.mapa.querySelectorAll<HTMLElement>('[data-casita-celda]').forEach((el) => {
     el.addEventListener('click', () => {
       const id = el.dataset.roomId;
@@ -301,6 +326,19 @@ function enlazar(): void {
       if (!room) return;
       window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }));
     });
+  });
+
+  // =========================================================================
+  // MOTOR RECURSIVO DE EDICION IN-PLACE (mapaCasitaEdicion.ts)
+  // Renombrar al clic · reacomodar por arrastre · estirar con la esquina.
+  // La persistencia PUT vive en el modulo dedicado (misma firma Niveles 3 y 4).
+  // =========================================================================
+  conectarEdicionPlanoEnVivo({
+    scope: refs.mapa,
+    filaActiva: () => filaActiva,
+    division: () => (filaActiva ? divisiones.find((d) => d.parent_grid_row === filaActiva) ?? null : null),
+    habitaciones: () => habitaciones,
+    notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
   });
 }
 
@@ -315,27 +353,27 @@ export function initMapaCasita(opts: {
   refs = { mapa: opts.mapa ?? null, badge: opts.badge ?? null };
   if (!refs.mapa) return;
 
-  // Estado inicial estricto: la navegación NACE en el Nivel 1 (casa general).
-  // La silueta con techo puntiagudo se dibuja de forma INSTANTÁNEA y luego,
+  // Estado inicial estricto: la navegaciÃ³n NACE en el Nivel 1 (casa general).
+  // La silueta con techo puntiagudo se dibuja de forma INSTANTÃNEA y luego,
   // al llegar los datos del Estok activo, se re-renderiza con las divisiones
-  // raíz reales (Planta Alta arriba, Planta Baja abajo).
+  // raÃ­z reales (Planta Alta arriba, Planta Baja abajo).
   filaActiva = null;
   nivelActual = 1;
   pintarCasaInicial();
 
-  // Carga asíncrona de las macro-divisiones del Estok activo. Si el fetch
-  // falla de forma transitoria (p. ej. sesión aún restaurándose), se reintenta
-  // SIN que el lienzo quede vacío: la casa ya quedó pintada por defecto.
+  // Carga asÃ­ncrona de las macro-divisiones del Estok activo. Si el fetch
+  // falla de forma transitoria (p. ej. sesiÃ³n aÃºn restaurÃ¡ndose), se reintenta
+  // SIN que el lienzo quede vacÃ­o: la casa ya quedÃ³ pintada por defecto.
   void cargarConReintentos();
 
-  // Refresco en vivo ante mutaciones externas (wizard "Editar Estructura",
+  // Refresco en vivo ante mutaciones externas (ediciÃ³n in-place del lienzo,
   // movimientos/eliminaciones): se recarga SIN re-enlazar controles fijos.
   window.addEventListener('estok:espacios-cambiados', () => {
     void cargarYRefrescar();
   });
 }
 
-/** Pinta el Nivel 1 (casa) de forma síncrona e inmediata con los datos actuales. */
+/** Pinta el Nivel 1 (casa) de forma sÃ­ncrona e inmediata con los datos actuales. */
 function pintarCasaInicial(): void {
   render();
   enlazar();
@@ -353,13 +391,13 @@ async function cargarYRefrescar(): Promise<boolean> {
   return true;
 }
 
-/** Reintentos acotados ante fallos transitorios de la inicialización. */
+/** Reintentos acotados ante fallos transitorios de la inicializaciÃ³n. */
 async function cargarConReintentos(intentosMax = 6, esperaMs = 700): Promise<void> {
   for (let intento = 1; intento <= intentosMax; intento++) {
     if (await cargarYRefrescar()) return;
     await new Promise((resolve) => setTimeout(resolve, esperaMs));
   }
-  if (refs.badge) refs.badge.textContent = 'Nivel 1 · Sin datos';
+  if (refs.badge) refs.badge.textContent = 'Nivel 1 Â· Sin datos';
 }
 
 

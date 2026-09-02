@@ -66,6 +66,9 @@ export interface UbicacionPlano {
   ancho?: string | number | null;
   alto?: string | number | null;
   foto?: string | null;
+  /** Medidas visuales de la tarjeta en el lienzo interactivo (resizing en vivo). */
+  ui_width?: string | null;
+  ui_height?: string | null;
   contenedores_count?: number;
   objetos_count?: number;
   sububicaciones_count?: number;

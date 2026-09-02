@@ -28,6 +28,10 @@ import {
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import {
+  conectarRenombradoEnVivo,
+  conectarResizeElastico,
+} from './lienzoInteractivo';
+import {
   ETIQUETAS_PARED,
   celdaVisorContenidoHtml,
   cuerpoConParedesHtml,
@@ -46,6 +50,9 @@ interface ContenedorVisor {
   parent_grid_col?: number | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina. */
   es_inmueble?: boolean;
+  /** Medidas visuales del mueble (resizing recursivo, PUT ui_width/ui_height). */
+  ui_width?: string | null;
+  ui_height?: string | null;
 }
 
 interface ObjetoVisor {
@@ -401,6 +408,63 @@ function enlazarVisor(): void {
       void cambiarColumnasVisor(fila, Number(input.value));
     });
   });
+
+  // =========================================================================
+  // MOTOR RECURSIVO DE EDICIÓN IN-PLACE (lienzoInteractivo.ts) — Nivel 3
+  // Muebles grandes del Visor de Habitación: renombrar al clic y estirar con
+  // el tirador de esquina. El reacomodo ya lo resuelve el DnD nativo de arriba.
+  // =========================================================================
+  conectarRenombradoEnVivo(cont, renombrarMuebleEnVivo);
+  conectarResizeElastico(cont, { onConfirmar: redimensionarMuebleEnVivo });
+}
+
+// =============================================================================
+// EDICIÓN IN-PLACE DE MUEBLES GRANDES (PUT /api/contenedores/{id}/)
+// =============================================================================
+
+async function persistirContenedorVisor(id: string, data: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) return true;
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo actualizar el mueble.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al actualizar el mueble.');
+    return false;
+  }
+}
+
+async function renombrarMuebleEnVivo(id: string, nombre: string): Promise<boolean> {
+  const item = contenedoresRoom.find((x) => x.id === id);
+  if (!item) return false;
+  if (nombre === item.nombre) return true;
+  const ok = await persistirContenedorVisor(id, { nombre });
+  if (!ok) return false;
+  item.nombre = nombre;
+  toast(`✅ Mueble renombrado a «${nombre}».`);
+  notificarEspacios();
+  return true;
+}
+
+async function redimensionarMuebleEnVivo(id: string, dim: { ui_width: string; ui_height: string }): Promise<boolean> {
+  const item = contenedoresRoom.find((x) => x.id === id);
+  if (!item) return false;
+  const ok = await persistirContenedorVisor(id, { ui_width: dim.ui_width, ui_height: dim.ui_height });
+  if (!ok) return false;
+  item.ui_width = dim.ui_width;
+  item.ui_height = dim.ui_height;
+  toast('✅ Tamaño del mueble actualizado.');
+  notificarEspacios();
+  return true;
 }
 
 

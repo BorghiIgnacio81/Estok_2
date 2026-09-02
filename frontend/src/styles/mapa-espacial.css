@@ -1287,3 +1287,68 @@
   color: #c2410c;
 }
 
+/* ===========================================================================
+   RESIZING ELÁSTICO RECURSIVO (lienzoInteractivo.ts) — Niveles 3 y 4
+   Tiradores de esquina para estirar muebles grandes (Visor de Habitación) y
+   estanterías internas (Visor de Contenedor Grande). Mismo lenguaje visual
+   naranja #f97316 del resto del lienzo espacial.
+   =========================================================================== */
+
+.visor-celda-cont.inplace-redimensionando,
+.mueble-item.inplace-redimensionando {
+  box-shadow: 0 0 0 2px #f97316;
+  z-index: 3;
+}
+
+/* Al estirar se inyecta width/height inline: libera el límite del mueble. */
+.mueble-item[style*="width"],
+.mueble-item[style*="height"] {
+  max-width: none;
+}
+
+.visor-celda-resize,
+.mueble-item-resize {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+  touch-action: none;
+}
+
+.visor-celda-cont:hover .visor-celda-resize,
+.visor-celda-resize:active,
+.mueble-item:hover .mueble-item-resize,
+.mueble-item-resize:active {
+  opacity: 1;
+}
+
+.visor-celda-resize::after,
+.mueble-item-resize::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid #f97316;
+  border-bottom: 2px solid #f97316;
+  border-bottom-right-radius: 2px;
+}
+
+.mueble-item-nombre {
+  max-width: 100%;
+}
+
+.mueble-item-nombre.casita-renombrable {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
+

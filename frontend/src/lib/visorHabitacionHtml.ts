@@ -27,6 +27,9 @@ export interface ItemCeldaVisor {
   parent_grid_col?: number | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina. */
   es_inmueble?: boolean;
+  /** Medidas visuales (resizing elástico recursivo, PUT ui_width/ui_height). */
+  ui_width?: string | null;
+  ui_height?: string | null;
 }
 
 export interface ObjetoCeldaVisor {
@@ -70,11 +73,17 @@ export function celdaVisorContenidoHtml(
       const visual = ico
         ? `<span class="visor-celda-emoji">${ico}</span>`
         : `<img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />`;
-      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" draggable="${x.es_inmueble ? 'false' : 'true'}" title="${escapeHtml(x.nombre)}${x.es_inmueble ? ' · 📌 Mueble inmueble fijo (no mudable)' : ' · Arrastrá para reacomodar en otro casillero'}">
+      const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
+      const uiH = x.ui_height && x.ui_height !== 'auto' ? x.ui_height : null;
+      const estilosUI = uiW || uiH
+        ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
+        : '';
+      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" data-inplace-card data-id="${x.id}" ${estilosUI} draggable="${x.es_inmueble ? 'false' : 'true'}" title="${escapeHtml(x.nombre)}${x.es_inmueble ? ' · 📌 Mueble inmueble fijo (no mudable)' : ' · Arrastrá para reacomodar en otro casillero'}. Clic en el nombre para renombrar · tirá de la esquina para estirar">
         ${x.es_inmueble ? '<span class="visor-celda-fijo" title="Mueble inmueble fijo">📌</span>' : ''}
         <button type="button" class="visor-celda-editar" data-editar-contenedor-visor="${x.id}" title="Editar «${escapeHtml(x.nombre)}»">✏️</button>
         ${visual}
-        <span class="visor-celda-nombre">${escapeHtml(x.nombre)}</span>
+        <span class="visor-celda-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar este mueble en caliente">${escapeHtml(x.nombre)}</span>
+        <span class="visor-celda-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual de este mueble (se guarda automáticamente)"></span>
       </div>`;
     })
     .join('');

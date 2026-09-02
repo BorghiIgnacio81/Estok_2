@@ -542,11 +542,9 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   const usuarioCacheado = getCachedUser();
   if (mudanzaBtnContainer && usuarioCacheado && (usuarioCacheado.estoks?.length || 0) > 1) {
     mudanzaBtnContainer.innerHTML = `
-      <a href="/mudanza"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-full hover:bg-purple-700 transition-base shadow-sm flex-shrink-0"
+      <a href="/mudanza" class="inline-block flex-shrink-0" aria-label="Mudanza Inter-Estok"
         title="Transferir contenedores y objetos entre tus Estoks">
-        <span aria-hidden="true">📦</span>
-        <span>Mudanza</span>
+        <img src="/mudanza.png" alt="Mudanza" class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
       </a>`;
   }
 

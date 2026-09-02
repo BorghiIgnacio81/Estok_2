@@ -1,12 +1,12 @@
----
+﻿---
 // =============================================================================
-// PÁGINA DE ALMACENAMIENTO - FLUJO EN CASCADA SIMÉTRICO DE TRES ESCENAS
-//  ESCENA 1: Izq = Mapa Estok (casa) · Der = Mapa general de la Planta
-//  ESCENA 2: Izq = Plano de habitaciones · Der = Visor de Habitación
-//  ESCENA 3: Izq = Visor de Habitación · Der = Visor Contenedor Grande
-// Bandeja inferior permanente: contenedores pequeños y objetos por ubicar,
-// con origen de arrastre hacia casilleros y Drop Zone de extracción viva.
-// Lógica en src/lib/mapaCasitaNavegable.ts, src/lib/visorHabitacion.ts,
+// PÃGINA DE ALMACENAMIENTO - FLUJO EN CASCADA SIMÃ‰TRICO DE TRES ESCENAS
+//  ESCENA 1: Izq = Mapa Estok (casa) Â· Der = Mapa general de la Planta
+//  ESCENA 2: Izq = Plano de habitaciones Â· Der = Visor de HabitaciÃ³n
+//  ESCENA 3: Izq = Visor de HabitaciÃ³n Â· Der = Visor Contenedor Grande
+// Bandeja inferior permanente: contenedores pequeÃ±os y objetos por ubicar,
+// con origen de arrastre hacia casilleros y Drop Zone de extracciÃ³n viva.
+// LÃ³gica en src/lib/mapaCasitaNavegable.ts, src/lib/visorHabitacion.ts,
 // src/lib/visorContenedorGrande.ts y src/lib/bandejaSinUbicar.ts.
 // =============================================================================
 
@@ -15,7 +15,6 @@ import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
-import '../styles/mapa-estok-wizard.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
 ---
@@ -27,19 +26,19 @@ import '../styles/almacenamiento-escenas.css';
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
-      <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok → Habitaciones → Contenedores Mayores</p>
+      <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok â†’ Habitaciones â†’ Contenedores Mayores</p>
     </div>
 
-    <!-- Leyenda de iconografía local del Lienzo de Mapeo Espacial -->
+    <!-- Leyenda de iconografÃ­a local del Lienzo de Mapeo Espacial -->
     <div class="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5">
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Iconografía del lienzo</span>
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">IconografÃ­a del lienzo</span>
       <span class="flex items-center gap-2 text-xs text-gray-600">
         <img src="/archivador-login.png" class="h-16 w-auto draggable" alt="Contenedor grande" />
         Contenedor grande (contiene contenedores)
       </span>
       <span class="flex items-center gap-2 text-xs text-gray-600">
-        <img src="/Nuevo Contenedor.png" class="h-16 w-auto draggable" alt="Contenedor pequeño" />
-        Contenedor pequeño (solo objetos)
+        <img src="/Nuevo Contenedor.png" class="h-16 w-auto draggable" alt="Contenedor pequeÃ±o" />
+        Contenedor pequeÃ±o (solo objetos)
       </span>
       <span class="flex items-center gap-2 text-xs text-gray-600">
         <img src="/fluffy_plush_ball.jpg" class="h-12 w-12 rounded-full draggable" alt="Objeto individual" />
@@ -51,42 +50,37 @@ import '../styles/almacenamiento-escenas.css';
     <ErrorState mensaje="Error al cargar los espacios de almacenamiento." />
 
     <!-- =========================================================================
-         TRES ESCENAS EN CASCADA (izquierda → derecha)
-         ESCENA 1: Izq = Mapa Estok (casa)         · Der = Mapa general de la Planta
-         ESCENA 2: Izq = Plano de habitaciones     · Der = Visor de Habitación
-         ESCENA 3: Izq = Visor de Habitación       · Der = Visor Contenedor Grande
-         La máquina de escenas vive en el <script> (eventos estok:*).
+         TRES ESCENAS EN CASCADA (izquierda â†’ derecha)
+         ESCENA 1: Izq = Mapa Estok (casa)         Â· Der = Mapa general de la Planta
+         ESCENA 2: Izq = Plano de habitaciones     Â· Der = Visor de HabitaciÃ³n
+         ESCENA 3: Izq = Visor de HabitaciÃ³n       Â· Der = Visor Contenedor Grande
+         La mÃ¡quina de escenas vive en el <script> (eventos estok:*).
          ========================================================================= -->
     <section class="mb-10" id="seccionCascada">
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-        <!-- PANEL IZQUIERDO (ESCENAS 1-2: Mapa Estok / ESCENA 3: Visor de Habitación) -->
+        <!-- PANEL IZQUIERDO (ESCENAS 1-2: Mapa Estok / ESCENA 3: Visor de HabitaciÃ³n) -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
           <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
+              <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">ðŸ  Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
-              <button type="button" id="editarEstructuraBtn"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-full hover:bg-orange-700 transition-base shadow-sm"
-                title="Abrir el modelador jerárquico del Mapa de Estok (plantas, habitaciones, muebles y estanterías)">
-                ✏️ Editar Estructura
-              </button>
             </div>
           </div>
-          <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Navegación táctil por niveles en cascada: tocá una planta para desplegar el plano de sus habitaciones, y una habitación para inspeccionarla.</p>
+          <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">EdiciÃ³n en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrÃ¡ las tarjetas para reacomodarlas entre cuadrantes y tirÃ¡ de su esquina para estirarlas. TocÃ¡ una planta para desplegar el plano de sus habitaciones.</p>
           <div id="contenidoPanelIzquierdo" class="mt-1">
             <div id="mapaEstokPanel">
               <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
             </div>
-            <!-- En ESCENA 3 el #visorHabitacion se reubica aquí desde el panel derecho -->
+            <!-- En ESCENA 3 el #visorHabitacion se reubica aquÃ­ desde el panel derecho -->
           </div>
         </div>
 
-        <!-- PANEL DERECHO (ESCENAS 1-2: Visor de Habitación / ESCENA 3: Visor Contenedor Grande) -->
+        <!-- PANEL DERECHO (ESCENAS 1-2: Visor de HabitaciÃ³n / ESCENA 3: Visor Contenedor Grande) -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
           <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div class="flex items-center gap-2">
-              <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
+              <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">ðŸ—ºï¸ Mapa general de la Planta</h2>
             </div>
             <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
               <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
@@ -97,7 +91,7 @@ import '../styles/almacenamiento-escenas.css';
           <div id="contenidoPanelDerecho" class="mt-1">
             <div id="visorHabitacion" class="min-h-[180px]">
               <div class="visor-placeholder">
-                <div class="visor-placeholder-ico">🏠</div>
+                <div class="visor-placeholder-ico">ðŸ </div>
                 <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
               </div>
             </div>
@@ -109,16 +103,16 @@ import '../styles/almacenamiento-escenas.css';
 
     <!-- =========================================================================
          BANDEJA INFERIOR DE ELEMENTOS POR UBICAR (permanente, fixed bottom)
-         Lista Contenedores Pequeños y Objetos sin casillero asignado. Es origen
-         de arrastre hacia los casilleros Y Drop Zone de extracción viva.
+         Lista Contenedores PequeÃ±os y Objetos sin casillero asignado. Es origen
+         de arrastre hacia los casilleros Y Drop Zone de extracciÃ³n viva.
          ========================================================================= -->
     <section id="bandejaSinUbicar" class="bandeja-fixed" aria-label="Bandeja de elementos por ubicar">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="bandeja-inner">
           <div class="flex items-center gap-3 flex-wrap mb-2">
-            <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
+            <span class="bandeja-titulo">ðŸ§º Elementos por ubicar</span>
             <span id="contadorBandeja" class="bandeja-contador">0</span>
-            <span class="bandeja-hint">Arrastralos hacia un casillero del Visor o de un mueble, o soltá un elemento de un casillero acá para extraerlo.</span>
+            <span class="bandeja-hint">Arrastralos hacia un casillero del Visor o de un mueble, o soltÃ¡ un elemento de un casillero acÃ¡ para extraerlo.</span>
           </div>
           <div id="bandejaContenido" class="bandeja-contenido"></div>
         </div>
@@ -126,7 +120,7 @@ import '../styles/almacenamiento-escenas.css';
     </section>
   </div>
 
-    <!-- Modal: Editar entidad (Ubicación / Contenedor) -->
+    <!-- Modal: Editar entidad (UbicaciÃ³n / Contenedor) -->
     <div id="modalEditar" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
         <div class="flex justify-between items-center mb-4">
@@ -146,8 +140,8 @@ import '../styles/almacenamiento-escenas.css';
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
           </div>
           <div>
-            <label for="editarDescripcion" class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea id="editarDescripcion" name="descripcion" rows={2} placeholder="Descripción opcional"
+            <label for="editarDescripcion" class="block text-sm font-medium text-gray-700 mb-1">DescripciÃ³n</label>
+            <textarea id="editarDescripcion" name="descripcion" rows={2} placeholder="DescripciÃ³n opcional"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"></textarea>
           </div>
           <div class="grid grid-cols-3 gap-2">
@@ -182,15 +176,15 @@ import '../styles/almacenamiento-escenas.css';
                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
               </div>
             </div>
-            <p class="text-xs text-gray-400 mt-1">Ej: 2×3 en un armario empotrado. Las Columnas por fila (grilla asimétrica) se configuran en la tarjeta del contenedor con los selectores − / +.</p>
+            <p class="text-xs text-gray-400 mt-1">Ej: 2Ã—3 en un armario empotrado. Las Columnas por fila (grilla asimÃ©trica) se configuran en la tarjeta del contenedor con los selectores âˆ’ / +.</p>
           </div>
           <div id="editarInmuebleRow" class="hidden">
             <label class="flex items-center gap-2 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">
               <input id="editarInmueble" name="es_inmueble" type="checkbox"
                 class="w-4 h-4 text-orange-600 focus:ring-orange-500 rounded" />
-              <span class="text-sm font-medium text-gray-700">📌 Fijar como mueble inmueble <span class="text-orange-600 font-semibold">(No mudable)</span></span>
+              <span class="text-sm font-medium text-gray-700">ðŸ“Œ Fijar como mueble inmueble <span class="text-orange-600 font-semibold">(No mudable)</span></span>
             </label>
-            <p class="text-xs text-gray-400 mt-1">El mueble quedará fijo y adherido permanentemente a la habitación que lo contiene: no podrá arrastrarse ni eliminarse desde la pantalla de almacenamiento.</p>
+            <p class="text-xs text-gray-400 mt-1">El mueble quedarÃ¡ fijo y adherido permanentemente a la habitaciÃ³n que lo contiene: no podrÃ¡ arrastrarse ni eliminarse desde la pantalla de almacenamiento.</p>
           </div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Foto</label>
             <div class="flex items-center gap-3">
@@ -227,8 +221,6 @@ import '../styles/almacenamiento-escenas.css';
       </div>
     </div>
 
-  <!-- Contenedor raíz del Wizard "✏️ Editar Estructura" (Mapa de Estok) -->
-  <div id="mapaEstokWizardRoot"></div>
 </BaseLayout>
 
 <script>
@@ -237,15 +229,13 @@ import '../styles/almacenamiento-escenas.css';
   import { initVisor } from '../lib/visorHabitacion';
   import { initVisorContenedorGrande } from '../lib/visorContenedorGrande';
   import { initBandeja } from '../lib/bandejaSinUbicar';
-  import { MapaEstokWizardUI } from '../lib/mapaEstokWizardUI';
-  import { getEstokActivoId, getCachedUser } from '../services/auth';
 
   // ===========================================================================
-  // ARRANQUE CON GARANTÍA DE DOM LISTO
+  // ARRANQUE CON GARANTÃA DE DOM LISTO
   // El render del lienzo "Mapa Estok" se enlaza dentro de DOMContentLoaded para
-  // que la silueta con techo puntiagudo dibuje de forma instantánea el Nivel 1
-  // (divisiones raíz del Estok activo) apenas carga la página. Si el script ya
-  // corre con el DOM listo (módulo deferred), se ejecuta de inmediato.
+  // que la silueta con techo puntiagudo dibuje de forma instantÃ¡nea el Nivel 1
+  // (divisiones raÃ­z del Estok activo) apenas carga la pÃ¡gina. Si el script ya
+  // corre con el DOM listo (mÃ³dulo deferred), se ejecuta de inmediato.
   // ===========================================================================
   function alCargarDom(accion: () => void): void {
     if (document.readyState === 'loading') {
@@ -259,45 +249,12 @@ import '../styles/almacenamiento-escenas.css';
     const tablero = new AlmacenamientoBoard();
     void tablero.init();
 
-    // =========================================================================
-    // WIZARD "✏️ EDICION DE ESTRUCTURA" — REUTILIZA EL MODAL DE ALTA DE ESTOK
-    // Abre el modelador jerárquico precargado con la estructura ACTUAL y, al
-    // "Guardar Mapa", hace PUTs granulares (JWT + X-Estok-Id) y refresca en vivo
-    // el lienzo del Drag & Drop (evento estok:espacios-cambiados).
-    // =========================================================================
-    const editarEstructuraBtn = document.getElementById('editarEstructuraBtn');
-    const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
-
-    editarEstructuraBtn?.addEventListener('click', async () => {
-      const estokId = getEstokActivoId();
-      if (!estokId) {
-        (window as any).showError?.('No hay un Estok activo para editar.');
-        return;
-      }
-      const estokNombre = getCachedUser()?.estoks?.find((e) => e.id === estokId)?.nombre || 'Estok';
-      const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
-      try {
-        await wizard.abrirEdicion(
-          { id: estokId, nombre: estokNombre },
-          {
-            onGuardado: () => {
-              (window as any).showSuccess?.('✅ Estructura del Mapa Estok actualizada.');
-            },
-            onCerrar: () => {
-              // Sin acción: el usuario cerró el modal sin guardar.
-            },
-          },
-        );
-      } catch (err: any) {
-        (window as any).showError?.(err?.message || 'No se pudo abrir el editor de estructura.');
-      }
-    });
 
     // =========================================================================
-    // MÁQUINA DE TRES ESCENAS EN CASCADA (izquierda → derecha)
-    //   ESCENA 1: Mapa Estok (casa) · Mapa general de la Planta
-    //   ESCENA 2: Plano de habitaciones · Visor de Habitación
-    //   ESCENA 3: Visor de Habitación · Visor Contenedor Grande (+ Volver)
+    // MÃQUINA DE TRES ESCENAS EN CASCADA (izquierda â†’ derecha)
+    //   ESCENA 1: Mapa Estok (casa) Â· Mapa general de la Planta
+    //   ESCENA 2: Plano de habitaciones Â· Visor de HabitaciÃ³n
+    //   ESCENA 3: Visor de HabitaciÃ³n Â· Visor Contenedor Grande (+ Volver)
     // =========================================================================
     type Escena = 1 | 2 | 3;
     let plantaActiva = false;
@@ -315,37 +272,34 @@ import '../styles/almacenamiento-escenas.css';
       const mapa = mapaEl();
       const cg = cgEl();
       const badge = document.getElementById('mapaJerarquicoBadge');
-      const btnEditar = document.getElementById('editarEstructuraBtn');
       const tituloIzq = document.getElementById('tituloPanelIzquierdo');
       const tituloDer = document.getElementById('tituloPanelDerecho');
       const descIzq = document.getElementById('descPanelIzquierdo');
       const descDer = document.getElementById('descPanelDerecho');
 
       if (escena === 3) {
-        // El "Visor de Habitación" se DESPLAZA al panel izquierdo.
+        // El "Visor de HabitaciÃ³n" se DESPLAZA al panel izquierdo.
         if (visor && slotIzq()) slotIzq()!.appendChild(visor);
         mapa?.classList.add('hidden');
         cg?.classList.remove('hidden');
-        if (tituloIzq) tituloIzq.textContent = '🧭 Visor de Habitación';
-        if (tituloDer) tituloDer.textContent = '📦 Visor Contenedor Grande';
-        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitación: recibí muebles, cajas y objetos por arrastre.';
-        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Soltá contenedores pequeños y objetos desde la bandeja en sus casilleros.';
+        if (tituloIzq) tituloIzq.textContent = 'ðŸ§­ Visor de HabitaciÃ³n';
+        if (tituloDer) tituloDer.textContent = 'ðŸ“¦ Visor Contenedor Grande';
+        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitaciÃ³n: recibÃ­ muebles, cajas y objetos por arrastre.';
+        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitaciÃ³n. SoltÃ¡ contenedores pequeÃ±os y objetos desde la bandeja en sus casilleros.';
         badge?.classList.add('hidden');
-        btnEditar?.classList.add('hidden');
         btnVolver()?.classList.remove('hidden');
       } else {
-        // El "Visor de Habitación" vuelve al panel derecho.
+        // El "Visor de HabitaciÃ³n" vuelve al panel derecho.
         if (visor && slotDer()) slotDer()!.appendChild(visor);
         mapa?.classList.remove('hidden');
         cg?.classList.add('hidden');
-        if (tituloIzq) tituloIzq.textContent = '🏠 Mapa Estok';
-        if (tituloDer) tituloDer.textContent = escena === 1 ? '🗺️ Mapa general de la Planta' : '🧭 Visor de Habitación';
-        if (descIzq) descIzq.textContent = 'Navegación táctil por niveles en cascada: tocá una planta para desplegar el plano de sus habitaciones, y una habitación para inspeccionarla.';
+        if (tituloIzq) tituloIzq.textContent = 'ðŸ  Mapa Estok';
+        if (tituloDer) tituloDer.textContent = escena === 1 ? 'ðŸ—ºï¸ Mapa general de la Planta' : 'ðŸ§­ Visor de HabitaciÃ³n';
+        if (descIzq) descIzq.textContent = 'NavegaciÃ³n tÃ¡ctil por niveles en cascada: tocÃ¡ una planta para desplegar el plano de sus habitaciones, y una habitaciÃ³n para inspeccionarla.';
         if (descDer) descDer.textContent = escena === 1
-          ? 'Vista general de las plantas del Estok activo. Seleccioná una planta en el Mapa Estok para descender al plano de habitaciones.'
-          : 'Seleccioná una habitación en el plano para abrir su Visor. Los casilleros reciben elementos por Drag & Drop exclusivamente.';
+          ? 'Vista general de las plantas del Estok activo. SeleccionÃ¡ una planta en el Mapa Estok para descender al plano de habitaciones.'
+          : 'SeleccionÃ¡ una habitaciÃ³n en el plano para abrir su Visor. Los casilleros reciben elementos por Drag & Drop exclusivamente.';
         badge?.classList.remove('hidden');
-        btnEditar?.classList.remove('hidden');
         if (escena === 1) btnVolver()?.classList.add('hidden');
       }
     }
@@ -365,14 +319,14 @@ import '../styles/almacenamiento-escenas.css';
       recalcularEscena();
     });
 
-    // Botón "⬅ Volver" (ESCENA 3 → 2): deselecciona la habitación y la
-    // máquina reubica el Visor en el panel derecho.
+    // BotÃ³n "â¬… Volver" (ESCENA 3 â†’ 2): deselecciona la habitaciÃ³n y la
+    // mÃ¡quina reubica el Visor en el panel derecho.
     btnVolver()?.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room: null } }));
     });
 
     // =========================================================================
-    // ARRANQUE DE MÓDULOS
+    // ARRANQUE DE MÃ“DULOS
     // =========================================================================
     initBandeja({ contenedor: document.getElementById('bandejaContenido') });
     initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });

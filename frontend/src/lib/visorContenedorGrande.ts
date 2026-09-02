@@ -14,6 +14,10 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { escapeHtml, toast, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+import {
+  conectarRenombradoEnVivo,
+  conectarResizeElastico,
+} from './lienzoInteractivo';
 import { minimapaRectangularSvg } from './minimapa';
 
 const IMG_MUEBLE = '/archivador-login.png';
@@ -37,6 +41,9 @@ interface SubContVisor {
   parent_grid_col?: number | null;
   es_inmueble?: boolean;
   subcontenedores_count?: number;
+  /** Medidas visuales de la estantería/caja (resizing recursivo, PUT ui_*). */
+  ui_width?: string | null;
+  ui_height?: string | null;
 }
 interface SubObjVisor {
   id: string;
@@ -121,6 +128,8 @@ async function cargar(): Promise<void> {
       parent_grid_col: c.parent_grid_col != null ? Number(c.parent_grid_col) : null,
       es_inmueble: Boolean(c.es_inmueble),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
+      ui_width: c.ui_width != null ? String(c.ui_width) : null,
+      ui_height: c.ui_height != null ? String(c.ui_height) : null,
     }));
 
   subObjetos = (objData as Record<string, unknown>[])
@@ -206,13 +215,19 @@ function celdaMuebleContenidoHtml(conts: SubContVisor[], objs: SubObjVisor[]): s
   if (!conts.length && !objs.length) return '<span class="mueble-celda-vacia">▫</span>';
 
   const contsHtml = conts
-    .map(
-      (x) => `<span class="mueble-item" data-mueble-sub-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja">
+    .map((x) => {
+      const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
+      const uiH = x.ui_height && x.ui_height !== 'auto' ? x.ui_height : null;
+      const estilosUI = uiW || uiH
+        ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
+        : '';
+      return `<span class="mueble-item" data-inplace-card data-id="${x.id}" ${estilosUI} data-mueble-sub-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja. Clic en el nombre para renombrar · tirá de la esquina para estirar">
         <img src="${IMG_MUEBLE}" alt="" class="mueble-item-img" draggable="false" />
-        <span class="mueble-item-nombre">${escapeHtml(x.nombre)}</span>
+        <span class="mueble-item-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar esta estantería en caliente">${escapeHtml(x.nombre)}</span>
         ${x.es_inmueble ? '<span class="mueble-item-fijo">📌</span>' : ''}
-      </span>`,
-    )
+        <span class="mueble-item-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual (se guarda automáticamente)"></span>
+      </span>`;
+    })
     .join('');
 
   const objsHtml = objs
@@ -307,6 +322,14 @@ function enlazar(): void {
     });
     el.addEventListener('dragend', () => el.classList.remove('opacity-50'));
   });
+
+  // =========================================================================
+  // MOTOR RECURSIVO DE EDICIÓN IN-PLACE (lienzoInteractivo.ts) — Nivel 4
+  // Estanterías internas de la Ficha del Mueble Inmueble: renombrar al clic y
+  // estirar con el tirador de esquina (PUT /api/contenedores/{id}/ ui_*).
+  // =========================================================================
+  conectarRenombradoEnVivo(rootEl, renombrarEstanteriaEnVivo);
+  conectarResizeElastico(rootEl, { onConfirmar: redimensionarEstanteriaEnVivo });
 }
 
 // =============================================================================
@@ -378,6 +401,55 @@ async function asignarObjetoAMueble(id: string, muebleId: string, r: number, c: 
   } catch {
     toast('❌ Error de conexión al acomodar el objeto.');
   }
+}
+
+// =============================================================================
+// EDICIÓN IN-PLACE DE ESTANTERÍAS INTERNAS (PUT /api/contenedores/{id}/)
+// =============================================================================
+
+async function persistirSubContenedor(id: string, data: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) return true;
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo actualizar la estantería.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al actualizar la estantería.');
+    return false;
+  }
+}
+
+async function renombrarEstanteriaEnVivo(id: string, nombre: string): Promise<boolean> {
+  const item = subContenedores.find((x) => x.id === id);
+  if (!item) return false;
+  if (nombre === item.nombre) return true;
+  const ok = await persistirSubContenedor(id, { nombre });
+  if (!ok) return false;
+  item.nombre = nombre;
+  toast(`✅ Estantería renombrada a «${nombre}».`);
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  return true;
+}
+
+async function redimensionarEstanteriaEnVivo(id: string, dim: { ui_width: string; ui_height: string }): Promise<boolean> {
+  const item = subContenedores.find((x) => x.id === id);
+  if (!item) return false;
+  const ok = await persistirSubContenedor(id, { ui_width: dim.ui_width, ui_height: dim.ui_height });
+  if (!ok) return false;
+  item.ui_width = dim.ui_width;
+  item.ui_height = dim.ui_height;
+  toast('✅ Tamaño de la estantería actualizado.');
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  return true;
 }
 
 // =============================================================================
