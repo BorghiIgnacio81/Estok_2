@@ -15,7 +15,7 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { toast, columnasDeFilaInterna } from './mapaJerarquico';
+import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarRenombradoEnVivo, conectarResizeElastico } from './lienzoInteractivo';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
@@ -23,8 +23,9 @@ import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
   agregarDivisionEnFila,
-  eliminarSubdivisionApi,
+  eliminarDivisionDeFilaEnGrid,
 } from './visorContenedorGrandeAcciones';
+import type { ItemADesplazar } from './visorContenedorGrandeAcciones';
 
 let roomActual: UbicacionPlano | null = null;
 let muebles: MuebleVisor[] = [];
@@ -495,7 +496,21 @@ function activarMueble(id: string | null): void {
   window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: muebleActivoId } }));
 }
 
-/** «−» de una sub-división: confirm del cartel unificado + DELETE asincrónico. */
+/** Reduce en el estado local la geometría de una fila (espejo del PUT servido). */
+function colapsarFilaLocalmente(mueble: MuebleVisor, fila: number, columnasNuevas: number): void {
+  const div = mueble as unknown as UbicacionPlano;
+  const filas = filasInternasDe(div);
+  const config: number[] = [];
+  for (let i = 0; i < filas; i++) {
+    config.push(i === fila - 1 ? columnasNuevas : columnasDeFilaInterna(div, i + 1));
+  }
+  const uniforme = config.every((v) => v === config[0]);
+  mueble.grid_filas = filas;
+  mueble.grid_columnas = uniforme ? columnasNuevas : Number(mueble.grid_columnas) || 3;
+  mueble.grid_filas_config = uniforme ? null : config;
+}
+
+/** «−» de una sub-división: confirm unificado + DELETE y contracción REAL de la columna. */
 async function eliminarDivisionDeMueble(subId: string): Promise<void> {
   const sub = subContenedores.find((s) => s.id === subId);
   if (!sub) return;
@@ -503,9 +518,72 @@ async function eliminarDivisionDeMueble(subId: string): Promise<void> {
     toast('📌 Esta sub-división es un mueble inmueble fijo y no puede eliminarse.');
     return;
   }
+  const fila = sub.parent_grid_row;
+  const col = sub.parent_grid_col;
+  const muebleId = sub.parent_contenedor;
+  if (!fila || !col || !muebleId) return;
+  const mueble = muebles.find((m) => m.id === muebleId);
+  if (!mueble) return;
   if (!window.confirm(ADVERTENCIA_ELIMINAR_DIVISION)) return;
-  const ok = await eliminarSubdivisionApi(sub.id, sub.nombre);
-  if (ok) window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+
+  // Siblings (sub-divisiones u objetos directos) a la DERECHA de la columna
+  // borrada: se desplazan una columna a la izquierda para que el layout se
+  // re-acomode sin recuadros vacíos fantasma (la columna desaparece de verdad).
+  const aDesplazar: ItemADesplazar[] = [
+    ...subContenedores
+      .filter(
+        (s) =>
+          s.id !== subId &&
+          s.parent_contenedor === muebleId &&
+          s.parent_grid_row === fila &&
+          (s.parent_grid_col ?? 0) > col,
+      )
+      .map((s) => ({ tipo: 'contenedor' as const, id: s.id, col: s.parent_grid_col as number })),
+    ...subObjetos
+      .filter(
+        (o) =>
+          o.contenedor === muebleId &&
+          o.parent_grid_row === fila &&
+          (o.parent_grid_col ?? 0) > col,
+      )
+      .map((o) => ({ tipo: 'objeto' as const, id: o.id, col: o.parent_grid_col as number })),
+  ];
+
+  const columnasAnterior = columnasDeFilaInterna(mueble as unknown as UbicacionPlano, fila);
+  const ok = await eliminarDivisionDeFilaEnGrid({
+    subId: sub.id,
+    nombre: sub.nombre,
+    mueble,
+    fila,
+    col,
+    columnasAnterior,
+    aDesplazar,
+  });
+  if (!ok) return;
+
+  // Remoción física EN CALIENTE del recuadro: se purga la sub-división del
+  // estado, sus hermanos se corren una columna a la izquierda y la fila pierde
+  // una columna real. render() redibuja el loop sin el rectángulo vacío y
+  // re-acomoda el ancho del mueble de forma transparente (sin recargar).
+  subContenedores = subContenedores.filter((s) => s.id !== sub.id);
+  for (const s of subContenedores) {
+    if (
+      s.parent_contenedor === muebleId &&
+      s.parent_grid_row === fila &&
+      (s.parent_grid_col ?? 0) > col
+    ) {
+      s.parent_grid_col = (s.parent_grid_col ?? 0) - 1;
+    }
+  }
+  for (const o of subObjetos) {
+    if (o.contenedor === muebleId && o.parent_grid_row === fila && (o.parent_grid_col ?? 0) > col) {
+      o.parent_grid_col = (o.parent_grid_col ?? 0) - 1;
+    }
+  }
+  const columnasNuevas = Math.max(1, columnasAnterior - 1);
+  colapsarFilaLocalmente(mueble, fila, columnasNuevas);
+  render();
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
 }
 
 /** «+» del extremo derecho de una fila: suma una división/columna vacía. */

@@ -3,9 +3,12 @@
 // -----------------------------------------------------------------------------
 // Persistencia multi-tenant estricta (JWT + X-Estok-Id) de los controles
 // directos de la ESCENA 3:
-//   - eliminarSubdivisionApi: DELETE /api/contenedores/{id}/ tras el cartel de
-//     advertencia unificado (frena el flujo con confirm) — el backend libera
-//     los objetos a la bandeja de «por ubicar» y desacopla los sub-contenedores.
+//   - eliminarDivisionDeFilaEnGrid: DELETE /api/contenedores/{id}/ tras el
+//     cartel de advertencia unificado — el backend libera los objetos a la
+//     bandeja de «por ubicar»; luego la fila se CONTRAE: los hermanos a la
+//     derecha se desplazan una columna y el contador real de columnas de esa
+//     fila baja (columnas -= 1) vía PUT de grid_filas_config. Así la columna
+//     desaparece físicamente de la grilla y de PostgreSQL (sin rectángulo vacío).
 //   - agregarDivisionEnFila: suma una división/columna vacía a una fila exacta
 //     del mueble. Ensancha la geometría (PUT grid_filas_config) si la fila está
 //     llena y registra el nuevo casillero con POST /api/contenedores/ (coordenada
@@ -40,8 +43,29 @@ export interface OpcionesAgregarDivision {
   requiereEnsanche: boolean;
 }
 
-/** Elimina físicamente una sub-división (estante/cajón) con DELETE asincrónico. */
-export async function eliminarSubdivisionApi(id: string, nombre: string): Promise<boolean> {
+/** Hermano (sub-división u objeto directo) que debe re-posicionarse tras un −. */
+export interface ItemADesplazar {
+  tipo: 'contenedor' | 'objeto';
+  id: string;
+  col: number;
+}
+
+export interface OpcionesQuitarDivision {
+  /** Sub-división (estante/cajón) que se elimina físicamente. */
+  subId: string;
+  nombre: string;
+  mueble: MuebleGrillaFuente;
+  fila: number;
+  /** Columna que ocupaba la sub-división borrada (1-based). */
+  col: number;
+  /** Columnas que tenía la fila ANTES del borrado (para calcular columnas -= 1). */
+  columnasAnterior: number;
+  /** Siblings con columna mayor a la borrada: se desplazan una columna a la izquierda. */
+  aDesplazar: ItemADesplazar[];
+}
+
+/** DELETE físico del estante/cajón (el backend libera objetos a la bandeja). */
+async function borrarContenedorApi(id: string, nombre: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
       method: 'DELETE',
@@ -64,8 +88,63 @@ export async function eliminarSubdivisionApi(id: string, nombre: string): Promis
   }
 }
 
+/** Re-posiciona un hermano de la fila una columna a la izquierda (PUT asincrónico). */
+async function desplazarHermanoALaIzquierda(item: ItemADesplazar): Promise<boolean> {
+  const recurso = item.tipo === 'contenedor' ? 'contenedores' : 'objetos';
+  try {
+    const res = await fetch(`${API_BASE_URL}/${recurso}/${item.id}/`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_grid_col: item.col - 1 }),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Borra la sub-división y CONTRAE la fila para que su columna desaparezca
+ * físicamente de la grilla y de PostgreSQL:
+ *   1. DELETE /api/contenedores/{id}/ (objetos → bandeja de «por ubicar»).
+ *   2. Desplaza a la izquierda (col - 1) las divisiones/objetos que estaban a la
+ *      derecha de la columna borrada (evita huecos fantasma en el DOM).
+ *   3. Reduce el contador real de columnas de la fila (columnas -= 1) con un PUT
+ *      de grid_filas_config, hermético al Estok activo vía headers.
+ */
+export async function eliminarDivisionDeFilaEnGrid(opts: OpcionesQuitarDivision): Promise<boolean> {
+  const { subId, nombre, mueble, fila, col, columnasAnterior, aDesplazar } = opts;
+
+  const borrado = await borrarContenedorApi(subId, nombre);
+  if (!borrado) return false;
+
+  // Paso 2: desplazamientos en orden descendente para no pisar coordenadas.
+  const desplazables = [...aDesplazar].sort((a, b) => b.col - a.col);
+  const fallos: string[] = [];
+  for (const item of desplazables) {
+    const ok = await desplazarHermanoALaIzquierda(item);
+    if (!ok) fallos.push(`${item.tipo} ${item.id}`);
+  }
+  if (fallos.length) {
+    toast(`⚠️ No se pudo reacomodar ${fallos.length} elemento(s) de la fila.`);
+  }
+
+  // Paso 3: la fila pierde una columna real (mínimo 1 para conservar la línea).
+  const columnasNuevas = Math.max(1, columnasAnterior - 1);
+  const okGeometria = await fijarColumnasFila(mueble, fila, columnasNuevas);
+  if (okGeometria && columnasNuevas !== columnasAnterior) {
+    toast(`✅ Fila ${fila} de «${mueble.nombre}» ahora tiene ${columnasNuevas} casillero${columnasNuevas === 1 ? '' : 's'}.`);
+  }
+  return true;
+}
+
 /** Ensancha la fila `fila` del mueble a `colNueva` columnas (PUT geométrica). */
-async function ensancharFila(mueble: MuebleGrillaFuente, fila: number, colNueva: number): Promise<boolean> {
+/** Fija la cantidad de columnas de una fila específica del mueble (PUT geométrica). */
+async function fijarColumnasFila(mueble: MuebleGrillaFuente, fila: number, colNueva: number): Promise<boolean> {
   const div = mueble as unknown as UbicacionPlano;
   const filas = filasInternasDe(div);
   const fallbackColumnas = Number(mueble.grid_columnas) || 3;
@@ -92,10 +171,10 @@ async function ensancharFila(mueble: MuebleGrillaFuente, fila: number, colNueva:
     }
     if (res.ok) return true;
     const err = await res.json().catch(() => ({}));
-    toast('❌ ' + (err?.detail || err?.error || 'No se pudo ensanchar la fila del mueble.'));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo actualizar la geometría de la fila del mueble.'));
     return false;
   } catch {
-    toast('❌ Error de conexión al ensanchar la fila del mueble.');
+    toast('❌ Error de conexión al actualizar la geometría de la fila del mueble.');
     return false;
   }
 }
@@ -152,14 +231,14 @@ export async function agregarDivisionEnFila(opts: OpcionesAgregarDivision): Prom
   const colAnterior = columnasDeFilaInterna(mueble as unknown as UbicacionPlano, fila);
   let ensanchado = false;
   if (requiereEnsanche) {
-    ensanchado = await ensancharFila(mueble, fila, colNueva);
+    ensanchado = await fijarColumnasFila(mueble, fila, colNueva);
     if (!ensanchado) return false;
   }
 
   const creado = await registrarDivision(mueble, roomId, fila, colNueva);
   if (!creado && ensanchado) {
     // Rollback best-effort de la geometría para no dejar columnas fantasma.
-    await ensancharFila(mueble, fila, colAnterior);
+    await fijarColumnasFila(mueble, fila, colAnterior);
   }
   return creado;
 }
