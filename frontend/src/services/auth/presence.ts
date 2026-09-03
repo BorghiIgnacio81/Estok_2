@@ -5,12 +5,7 @@
 
 import type { OnlineUser } from '../../types';
 import { getToken } from './tokens';
-
-// =============================================================================
-// URL BASE DE LA API
-// =============================================================================
-
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || '/api';
+import { API_BASE_URL } from './apiBase';
 
 // =============================================================================
 // HEARTBEAT

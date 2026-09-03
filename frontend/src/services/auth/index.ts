@@ -56,9 +56,13 @@ export {
 
 // =============================================================================
 // URL BASE DE LA API - ÚNICA FUENTE DE VERDAD
+// (Definida y normalizada en ./apiBase con protección anti Mixed Content:
+//  un prefijo http:// absoluto se reduce a ruta relativa del mismo origen o
+//  se fuerza https:// cuando la página se sirve por HTTPS).
 // =============================================================================
 
-export const API_BASE_URL = import.meta.env.PUBLIC_API_URL || '/api';
+import { API_BASE_URL, normalizarUrlApi } from './apiBase';
+export { API_BASE_URL, normalizarUrlApi };
 
 // =============================================================================
 // VERSIÓN DE LA APP

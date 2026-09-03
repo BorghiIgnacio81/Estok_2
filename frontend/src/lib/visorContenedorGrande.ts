@@ -14,7 +14,7 @@
 // estricta (JWT + X-Estok-Id) con PUTs/POSTs asincrónicos de coordenadas enteras.
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarRenombradoEnVivo, conectarResizeElastico } from './lienzoInteractivo';
@@ -53,7 +53,7 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
     if (!res.ok) return todos;
     const data = await res.json();
     todos.push(...(data.results || data));
-    nextUrl = data.next;
+    nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
 }

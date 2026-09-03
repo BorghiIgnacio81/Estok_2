@@ -28,7 +28,7 @@
 // La construcción del marcado jerárquico vive en src/lib/bandejaCargaFinaHtml.ts.
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import type { UbicacionPlano } from './mapaJerarquico';
 import {
   contenedoresFuenteDeContenidoDe,
@@ -63,7 +63,7 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
     if (!res.ok) return todos;
     const data = await res.json();
     todos.push(...(data.results || data));
-    nextUrl = data.next;
+    nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
 }

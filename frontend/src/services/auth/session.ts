@@ -5,12 +5,7 @@
 
 import type { AuthUser, AuthError, LoginCredentials, TokenResponse } from './types';
 import { getToken, setTokens, clearTokens } from './tokens';
-
-// =============================================================================
-// URL BASE DE LA API
-// =============================================================================
-
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || '/api';
+import { API_BASE_URL } from './apiBase';
 
 // =============================================================================
 // CONSTANTES DE CACHÉ

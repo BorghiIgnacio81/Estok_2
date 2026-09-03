@@ -16,7 +16,7 @@
 // getAuthHeaders() (header X-Estok-Id) y endpoints validados por el backend.
 // =============================================================================
 
-import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { minimapaHtml, COLOR_NARANJA } from './minimapa';
 
 // =============================================================================
@@ -149,7 +149,7 @@ async function fetchTodos(url: string): Promise<any[]> {
     if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
     const data = await res.json();
     todos.push(...(data.results || data));
-    nextUrl = data.next;
+    nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
 }

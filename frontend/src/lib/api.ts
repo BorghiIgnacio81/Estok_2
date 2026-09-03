@@ -3,7 +3,7 @@
 // Centraliza fetch con autenticación, manejo de errores y tipado
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 
 // =============================================================================
 // TIPOS
@@ -142,7 +142,7 @@ export async function fetchAllPages<T>(path: string, params?: Record<string, str
     if (!response.ok) throw await handleError(response);
     const data: PaginatedResponse<T> = await response.json();
     items.push(...data.results);
-    url = data.next;
+    url = normalizarUrlApi(data.next);
   }
 
   return items;

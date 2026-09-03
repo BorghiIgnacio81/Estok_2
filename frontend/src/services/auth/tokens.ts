@@ -4,6 +4,7 @@
 // =============================================================================
 
 import type { AuthError } from './types';
+import { API_BASE_URL } from './apiBase';
 
 // =============================================================================
 // CONSTANTES
@@ -69,7 +70,7 @@ export async function refreshToken(): Promise<string> {
     throw { error: 'No hay refresh token disponible' } as AuthError;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/token/refresh/`, {
+  const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -115,10 +116,4 @@ export async function getValidToken(): Promise<string | null> {
   }
 }
 
-// =============================================================================
-// HELPERS INTERNOS
-// =============================================================================
 
-function getApiBaseUrl(): string {
-  return import.meta.env.PUBLIC_API_URL || '/api';
-}

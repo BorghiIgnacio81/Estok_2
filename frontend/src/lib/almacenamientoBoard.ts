@@ -21,7 +21,7 @@
 // payloads parciales (el backend soporta update() con partial=True).
 // =============================================================================
 
-import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { minimapaPlantaHtml, minimapaInternoHtml } from './mapaJerarquico';
 
 // =============================================================================
@@ -233,7 +233,7 @@ export class AlmacenamientoBoard {
       if (!res.ok) throw new Error(`Error del servidor (${res.status})`);
       const data = await res.json();
       todos.push(...(data.results || data));
-      nextUrl = data.next;
+      nextUrl = normalizarUrlApi(data.next);
     }
     return todos;
   }

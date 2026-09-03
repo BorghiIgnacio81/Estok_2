@@ -16,7 +16,7 @@
 //   - Objeto en una celda       → PUT /api/objetos/{id}/
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import {
   escapeHtml,
   toast,
@@ -96,7 +96,7 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
     if (!res.ok) return todos;
     const data = await res.json();
     todos.push(...(data.results || data));
-    nextUrl = data.next;
+    nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
 }

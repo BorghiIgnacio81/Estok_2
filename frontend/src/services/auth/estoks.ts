@@ -6,12 +6,7 @@
 import type { AuthError, EstokInfo, Role } from './types';
 import { getToken } from './tokens';
 import { getEstokActivoId, getCachedUser, cacheUser } from './session';
-
-// =============================================================================
-// URL BASE DE LA API
-// =============================================================================
-
-const API_BASE_URL = import.meta.env.PUBLIC_API_URL || '/api';
+import { API_BASE_URL } from './apiBase';
 
 // =============================================================================
 // CREAR ESTOK
