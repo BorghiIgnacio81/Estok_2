@@ -87,8 +87,14 @@ async function cargar(): Promise<void> {
       }));
 
     // Objetos sin ubicación O sin casillero asignado todavía.
+    // REGLA HERMÉTICA DE LA DUALIDAD: un objeto ya asignado a un Contenedor
+    // (p.ej. el registro espejo en Objeto de un mueble mudable creado con
+    // dualidad Contenedor+Objeto) NO es "por ubicar": ya tiene hogar espacial,
+    // aunque no esté sobre un casillero de grilla. Se excluye para no mostrar
+    // chips fantasma del mueble en la bandeja.
     const objetos: ItemBandeja[] = (objData as Record<string, unknown>[])
       .filter((o) => !o.deleted_at)
+      .filter((o) => !o.contenedor)
       .filter((o) => o.ubicacion == null || sinCasillero(o))
       .map((o) => ({
         id: String(o.id),

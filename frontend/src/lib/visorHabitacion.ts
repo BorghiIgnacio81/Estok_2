@@ -292,6 +292,30 @@ function enlazarVisor(): void {
     });
   });
 
+  // Creación dual en celdas vacías: el botón sutil "➕ Crear mueble aquí" hereda
+  // las coordenadas exactas (Fila·Columna) de la celda y abre el modal técnico
+  // de creación (AlmacenamientoBoard lo escucha y controla el modalEditar).
+  cont.querySelectorAll<HTMLElement>('[data-crear-mueble-celda]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!roomActual) return;
+      const fila = Number(btn.dataset.crearFila);
+      const col = Number(btn.dataset.crearCol);
+      if (!fila || !col) return;
+      window.dispatchEvent(
+        new CustomEvent('estok:crear-mueble-en-celda', {
+          detail: {
+            ubicacionId: roomActual.id,
+            fila,
+            col,
+            habitacionNombre: roomActual.nombre,
+          },
+        }),
+      );
+    });
+  });
+
   // Reacomodo por Drag & Drop dentro del Visor: muebles arrastrables
   // (excepto los inmuebles fijos) hacia otro casillero libre.
   cont.querySelectorAll<HTMLElement>('[data-contenedor-id]').forEach((el) => {

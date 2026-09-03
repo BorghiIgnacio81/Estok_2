@@ -187,6 +187,8 @@ export class AlmacenamientoBoard {
   private filaFiltroNombre: string | null = null;
   /** Divisiones del Mapa Estok por id (para resolver sub-grillas y filtros). */
   private divisionesPorId = new Map<string, UbicacionDnD>();
+  /** Contexto de creación técnica pedida desde una celda vacía del Visor. */
+  private celdaCreacionPendiente: { ubicacionId: string; fila: number; col: number; habitacionNombre?: string } | null = null;
 
   // ---------------------------------------------------------------------------
   // INICIO
@@ -204,6 +206,13 @@ export class AlmacenamientoBoard {
       if (!id) return;
       const c = this.contenedoresPorId.get(id);
       if (c) this.abrirModalEditar('contenedor', c);
+    });
+    // Creación dual en celdas vacías del Visor de Habitación: abre el modal
+    // técnico en modo CREACIÓN heredando las coordenadas exactas de la celda.
+    window.addEventListener('estok:crear-mueble-en-celda', (e) => {
+      const detalle = (e as CustomEvent<{ ubicacionId: string; fila: number; col: number; habitacionNombre?: string }>).detail;
+      if (!detalle?.ubicacionId || !detalle?.fila || !detalle?.col) return;
+      this.abrirModalCrearMuebleEnCelda(detalle);
     });
     await this.cargar();
   }
@@ -1271,7 +1280,115 @@ export class AlmacenamientoBoard {
       }
     }
     this.precargarFoto(entidad.foto ?? null);
+    const saveText = document.getElementById('editarSaveText');
+    if (saveText) saveText.textContent = 'Guardar cambios';
     modal.classList.remove('hidden');
+  }
+
+  /**
+   * Abre el modal técnico en MODO CREACIÓN para materializar un mueble nuevo en
+   * una celda vacía del Visor de Habitación. Hereda las coordenadas exactas
+   * (fila/columna) de esa celda y deja el checkbox "Mueble Inmueble" DESMARCADO
+   * por defecto: el backend aplica la REGLA DE DUALIDAD (Contenedor + Objeto).
+   */
+  private abrirModalCrearMuebleEnCelda(detalle: { ubicacionId: string; fila: number; col: number; habitacionNombre?: string }): void {
+    const modal = document.getElementById('modalEditar');
+    if (!modal) return;
+    this.celdaCreacionPendiente = detalle;
+    const form = document.getElementById('editarForm') as HTMLFormElement | null;
+    form?.reset();
+    this.precargarFoto(null);
+    (document.getElementById('editarTitulo') as HTMLElement).textContent =
+      `➕ Crear mueble en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
+    (document.getElementById('editarTipo') as HTMLInputElement).value = 'contenedor';
+    (document.getElementById('editarId') as HTMLInputElement).value = '';
+    // Grilla interna del mueble (Filas × Columnas) con valores iniciales útiles.
+    const grillaRow = document.getElementById('editarGrillaRow');
+    grillaRow?.classList.remove('hidden');
+    const gridFilas = document.getElementById('editarGridFilas') as HTMLInputElement | null;
+    const gridColumnas = document.getElementById('editarGridColumnas') as HTMLInputElement | null;
+    if (gridFilas) gridFilas.value = '2';
+    if (gridColumnas) gridColumnas.value = '3';
+    // Checkbox "Mueble Inmueble" desmarcado → mueble MUDABLE (dualidad activa).
+    const inmuebleRow = document.getElementById('editarInmuebleRow');
+    inmuebleRow?.classList.remove('hidden');
+    const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
+    if (inmuebleCheck) inmuebleCheck.checked = false;
+    const saveText = document.getElementById('editarSaveText');
+    if (saveText) saveText.textContent = 'Crear mueble';
+    const error = document.getElementById('editarFormError');
+    if (error) error.classList.add('hidden');
+    modal.classList.remove('hidden');
+    (document.getElementById('editarNombre') as HTMLInputElement | null)?.focus();
+  }
+
+  /**
+   * POST /api/contenedores/ (modal en modo creación): persiste el Contenedor en
+   * la celda exacta (ubicacion + parent_grid_row/col) de la que vino el pedido.
+   * Con "Mueble Inmueble" desmarcado el backend inserta además el registro
+   * espejo en Objeto (ítem de stock 100% mudable en el módulo de Mudanzas).
+   */
+  private async enviarFormCrearMuebleEnCelda(form: HTMLFormElement): Promise<void> {
+    const pendiente = this.celdaCreacionPendiente;
+    if (!pendiente) return;
+    const nombre = (document.getElementById('editarNombre') as HTMLInputElement).value.trim();
+    const descripcion = (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value.trim();
+    const alto = (document.getElementById('editarAlto') as HTMLInputElement).value;
+    const ancho = (document.getElementById('editarAncho') as HTMLInputElement).value;
+    const largo = (document.getElementById('editarLargo') as HTMLInputElement).value;
+    const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value;
+    const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
+    const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
+
+    if (!nombre) {
+      this.formError('editarFormError', 'El nombre es obligatorio.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('nombre', nombre);
+    formData.append('descripcion', descripcion);
+    formData.append('ubicacion', pendiente.ubicacionId);
+    formData.append('parent_grid_row', String(pendiente.fila));
+    formData.append('parent_grid_col', String(pendiente.col));
+    if (alto !== '') formData.append('alto', alto);
+    if (ancho !== '') formData.append('ancho', ancho);
+    if (largo !== '') formData.append('largo', largo);
+    if (gridFilas !== '') formData.append('grid_filas', gridFilas);
+    if (gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
+    formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    const foto = (document.getElementById('editarFotoInput') as HTMLInputElement).files?.[0];
+    if (foto) formData.append('foto', foto);
+    const estokId = getEstokActivoId();
+    if (estokId) formData.append('estok', estokId);
+
+    // Sin Content-Type manual: el navegador fija el boundary de multipart/form-data.
+    this.setGuardando('editar', true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/contenedores/`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders() },
+        body: formData,
+      });
+      if (res.status === 401) {
+        window.location.href = '/login';
+        return;
+      }
+      if (res.ok) {
+        this.celdaCreacionPendiente = null;
+        this.cerrarModal('editar');
+        form.reset();
+        this.toast(`✅ Mueble «${nombre}» creado en F${pendiente.fila}·C${pendiente.col}.`);
+        window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        this.formError('editarFormError', this.extraerError(err));
+      }
+    } catch {
+      this.formError('editarFormError', 'Error de conexión al crear el mueble.');
+    } finally {
+      this.setGuardando('editar', false);
+    }
   }
 
   private async enviarFormEditar(e: Event): Promise<void> {
@@ -1279,6 +1396,12 @@ export class AlmacenamientoBoard {
     const form = e.target as HTMLFormElement;
     const tipo = (document.getElementById('editarTipo') as HTMLInputElement).value as 'ubicacion' | 'contenedor';
     const id = (document.getElementById('editarId') as HTMLInputElement).value;
+    // Modo CREACIÓN (botón "➕ Crear mueble aquí" de una celda vacía del Visor):
+    // editarId vacío + contexto de celda pendiente → POST en lugar de PUT.
+    if (tipo === 'contenedor' && id === '' && this.celdaCreacionPendiente) {
+      await this.enviarFormCrearMuebleEnCelda(form);
+      return;
+    }
     const nombre = (document.getElementById('editarNombre') as HTMLInputElement).value.trim();
     const descripcion = (document.getElementById('editarDescripcion') as HTMLTextAreaElement).value.trim();
     const alto = (document.getElementById('editarAlto') as HTMLInputElement).value;

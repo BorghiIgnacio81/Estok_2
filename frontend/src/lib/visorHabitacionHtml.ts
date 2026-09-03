@@ -64,7 +64,12 @@ export function celdaVisorContenidoHtml(
 ): string {
   const contsCelda = conts.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
   const objsCelda = objs.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  if (!contsCelda.length && !objsCelda.length) return '<span class="visor-celda-vacia">▫</span>';
+  // Celda vacía: botón sutil de creación dual que hereda las coordenadas exactas
+  // de fila/columna. Al crearse un mueble aquí, el backend inserta el Contenedor
+  // (almacenamiento) y su registro espejo en Objeto (stock mudable).
+  if (!contsCelda.length && !objsCelda.length) {
+    return `<button type="button" class="visor-celda-vacia-crear" data-crear-mueble-celda data-crear-fila="${r}" data-crear-col="${c}" title="Crear un mueble nuevo en el casillero F${r}·C${c}">➕ Crear mueble aquí</button>`;
+  }
 
   const contsHtml = contsCelda
     .map((x) => {

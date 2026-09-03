@@ -1040,10 +1040,33 @@
   transform: scale(1.04);
 }
 
-.visor-celda-vacia {
-  font-size: 14px;
-  color: #9ca3af;
-  line-height: 1;
+/* Botón sutil de creación dual en celdas vacías (Visor de Habitación) */
+.visor-celda-vacia-crear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s, border-color 0.15s, color 0.15s, background 0.15s;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.visor-celda:hover .visor-celda-vacia-crear,
+.visor-celda-vacia-crear:hover {
+  opacity: 1;
+  border-color: #f97316;
+  color: #c2410c;
+  background: #fff7ed;
 }
 
 .visor-celda-cont {

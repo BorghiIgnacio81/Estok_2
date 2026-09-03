@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 
 from ...models import Ubicacion, Contenedor, Objeto, Membresia
@@ -270,6 +271,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @transaction.atomic
     def perform_create(self, serializer):
         """
         Asigna automaticamente la ubicacion y valida membresia al Estok.
@@ -282,7 +284,8 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             except (Contenedor.DoesNotExist, ValueError, ValidationError):
                 raise ValidationError("El contenedor padre especificado no existe.")
             _validar_membresia(self.request.user, parent.ubicacion.estok_id)
-            serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
+            contenedor = serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
+            self._crear_registro_espejo_mudable(contenedor)
             return
 
         ubicacion_id = (
@@ -295,9 +298,62 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             except (Ubicacion.DoesNotExist, ValueError, ValidationError):
                 raise ValidationError("La ubicacion especificada no existe.")
             _validar_membresia(self.request.user, ubicacion.estok_id)
-            serializer.save(ubicacion_id=ubicacion_id)
+            contenedor = serializer.save(ubicacion_id=ubicacion_id)
         else:
-            serializer.save()
+            contenedor = serializer.save()
+        self._crear_registro_espejo_mudable(contenedor)
+
+    def _crear_registro_espejo_mudable(self, contenedor):
+        """
+        REGLA DE DUALIDAD (Contenedor + Objeto) al crear un mueble mudable.
+
+        Si el operador crea el contenedor con el checkbox de "Mueble Inmueble"
+        DESMARCADO (es_inmueble=False), el backend inserta de forma obligatoria:
+
+          1. El registro principal en Contenedor (espacio de almacenamiento:
+             conserva su grilla interna y su capacidad de contener estantes,
+             cajones y objetos).
+          2. Un registro ESPEJO en Objeto (ítem de stock / activo físico):
+             vinculado por `contenedor` y SIN coordenadas de casillero para no
+             duplicar presencia en los visores espaciales. De este modo el
+             mueble queda 100% mudable en el módulo de Mudanza Inter-Estok.
+
+        El espejo NO se crea para muebles inmuebles fijos (es_inmueble=True),
+        que están adheridos permanentemente a la habitación.
+        """
+        if getattr(contenedor, 'es_inmueble', False):
+            return
+
+        estok_id = self.request.headers.get('X-Estok-Id')
+        if not estok_id and contenedor.ubicacion_id:
+            estok_id = contenedor.ubicacion.estok_id
+
+        # Idempotencia: si el espejo (mismo contenedor y sin coordenadas) ya
+        # existe, no duplicar el ítem de stock (reintentos/retries seguros).
+        espejo_existente = Objeto.objects.filter(
+            contenedor_id=contenedor.id,
+            parent_grid_row__isnull=True,
+            parent_grid_col__isnull=True,
+        ).exclude(deleted_at__isnull=False).exists()
+        if espejo_existente:
+            return
+
+        Objeto.objects.create(
+            nombre=contenedor.nombre,
+            descripcion=contenedor.descripcion or '',
+            estok_id=estok_id,
+            ubicacion=contenedor.ubicacion if contenedor.ubicacion_id else None,
+            contenedor=contenedor,
+            parent_grid_row=None,
+            parent_grid_col=None,
+            estado_conservacion='bueno',
+            estado_carga='completo',
+            campos_pendientes=[],
+            material=contenedor.material or '',
+            largo=contenedor.largo,
+            ancho=contenedor.ancho,
+            alto=contenedor.alto,
+        )
 
     def perform_update(self, serializer):
         """
