@@ -6,9 +6,12 @@
 // (contenedores con sub-contenedores o marcados como mueble inmueble fijo).
 // Cada mueble expone su grilla interna de casilleros como Drop Zones: recibe
 // Contenedores Pequeños y Objetos arrastrados desde la bandeja inferior o
-// reacomodados entre casilleros. Sin botones "+": la asignación es EXCLUSIVA
-// por Drag & Drop. Persistencia multi-tenant estricta (JWT + X-Estok-Id) con
-// PUTs asincrónicos de coordenadas enteras (int).
+// reacomodados entre casilleros. Las sub-divisiones internas (estantes/cajones)
+// se editan 100% in-place (renombrar al clic, arrastrar para reacomodar y
+// estirar con tirador elástico) y una celda VACÍA muestra "➕" para fundar un
+// sub-contenedor en caliente bajo la misma regla relacional del Drop
+// (parent_contenedor del mueble + coordenadas F·C). Persistencia multi-tenant
+// estricta (JWT + X-Estok-Id) con PUTs/POSTs asincrónicos de coordenadas enteras.
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
@@ -187,8 +190,8 @@ function muebleHtml(m: MuebleVisor): string {
       const objs = subObjetos.filter(
         (x) => x.contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
       );
-      celdas.push(`<div class="mueble-celda" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}" title="Casillero F${r}·C${c} — soltá aquí un elemento">
-        ${celdaMuebleContenidoHtml(conts, objs)}
+      celdas.push(`<div class="mueble-celda" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}" title="Casillero F${r}·C${c} — soltá aquí un elemento o usá ➕ para fundar una sub-división">
+        ${celdaMuebleContenidoHtml(conts, objs, m.id, r, c)}
       </div>`);
     }
     filasHtml.push(`<div class="mueble-fila" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">${celdas.join('')}</div>`);
@@ -210,9 +213,12 @@ function muebleHtml(m: MuebleVisor): string {
   </div>`;
 }
 
-/** Contenido de un casillero de mueble (sub-contenedores y objetos extraíbles). */
-function celdaMuebleContenidoHtml(conts: SubContVisor[], objs: SubObjVisor[]): string {
-  if (!conts.length && !objs.length) return '<span class="mueble-celda-vacia">▫</span>';
+/** Contenido de un casillero de mueble (sub-contenedores, objetos extraíbles o
+ *  botón "➕" de fundación en caliente si la celda interna está vacía). */
+function celdaMuebleContenidoHtml(conts: SubContVisor[], objs: SubObjVisor[], muebleId: string, r: number, c: number): string {
+  if (!conts.length && !objs.length) {
+    return `<button type="button" class="mueble-celda-crear" data-mueble-celda-crear data-mueble-id="${muebleId}" data-mueble-row="${r}" data-mueble-col="${c}" title="Fundar una sub-división (estante/cajón) en F${r}·C${c} de este mueble">➕</button>`;
+  }
 
   const contsHtml = conts
     .map((x) => {
@@ -243,7 +249,7 @@ function celdaMuebleContenidoHtml(conts: SubContVisor[], objs: SubObjVisor[]): s
 }
 
 // =============================================================================
-// EVENTOS (DnD exclusivo: sin botones "+")
+// EVENTOS (DnD entre casilleros + fundación "➕" en celdas vacías)
 // =============================================================================
 
 function enlazar(): void {
@@ -280,6 +286,31 @@ function enlazar(): void {
       }
       if (contId) void asignarSubContenedor(contId, muebleId, r, c);
       else if (objId) void asignarObjetoAMueble(objId, muebleId, r, c);
+    });
+  });
+
+  // Fundación en caliente de sub-divisiones: el "➕" de una celda VACÍA crea un
+  // estante/cajón bajo la MISMA regla relacional del Drop (parent_contenedor del
+  // mueble + coordenadas F·C exactas) sin pasar por la bandeja.
+  rootEl.querySelectorAll<HTMLElement>('[data-mueble-celda-crear]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.dataset.creando === '1') return;
+      const muebleId = btn.dataset.muebleId;
+      const r = Number(btn.dataset.muebleRow);
+      const c = Number(btn.dataset.muebleCol);
+      if (!muebleId || !r || !c) return;
+      btn.dataset.creando = '1';
+      btn.textContent = '⏳';
+      btn.disabled = true;
+      void crearSubContenedorEnCelda(muebleId, r, c).then((ok) => {
+        if (!ok) {
+          delete btn.dataset.creando;
+          btn.disabled = false;
+          btn.textContent = '➕';
+        }
+      });
     });
   });
 
@@ -330,6 +361,67 @@ function enlazar(): void {
   // =========================================================================
   conectarRenombradoEnVivo(rootEl, renombrarEstanteriaEnVivo);
   conectarResizeElastico(rootEl, { onConfirmar: redimensionarEstanteriaEnVivo });
+}
+
+// =============================================================================
+// FUNDACIÓN EN CALIENTE DE SUB-DIVISIONES (POST /api/contenedores/)
+// Crea un estante/cajón dentro de una celda VACÍA del mueble bajo la MISMA
+// regla relacional del Drop: parent_contenedor = mueble, ubicacion de la
+// habitación y parent_grid_row/col = celda exacta. El sub-contenedor nace con
+// es_inmueble=False (mudable con su mueble) y luego se renombra/dimensiona
+// in-place con los motores de la recursión.
+// =============================================================================
+
+async function crearSubContenedorEnCelda(muebleId: string, r: number, c: number): Promise<boolean> {
+  if (!roomActual) return false;
+  const filaEntera = Math.floor(Number(r));
+  const colEntera = Math.floor(Number(c));
+  if (!filaEntera || !colEntera) return false;
+
+  const ocupado =
+    subContenedores.some(
+      (x) => x.parent_contenedor === muebleId && x.parent_grid_row === filaEntera && x.parent_grid_col === colEntera,
+    ) ||
+    subObjetos.some(
+      (x) => x.contenedor === muebleId && x.parent_grid_row === filaEntera && x.parent_grid_col === colEntera,
+    );
+  if (ocupado) {
+    toast('⚠️ Ese casillero ya está ocupado. Elegí una celda libre.');
+    return false;
+  }
+
+  const mueble = muebles.find((m) => m.id === muebleId);
+  const nombre = `Estante F${filaEntera}·C${colEntera}`;
+  try {
+    const res = await fetch(`${API_BASE_URL}/contenedores/`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre,
+        descripcion: '',
+        ubicacion: roomActual.id,
+        parent_contenedor: muebleId,
+        parent_grid_row: filaEntera,
+        parent_grid_col: colEntera,
+        es_inmueble: false,
+      }),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) {
+      toast(`✅ «${nombre}» fundado en «${mueble?.nombre || 'el mueble'}». Clic en el nombre para renombrarlo en caliente.`);
+      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      return true;
+    }
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo fundar la sub-división.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al fundar la sub-división.');
+    return false;
+  }
 }
 
 // =============================================================================

@@ -319,9 +319,15 @@ class ContenedorViewSet(viewsets.ModelViewSet):
              mueble queda 100% mudable en el módulo de Mudanza Inter-Estok.
 
         El espejo NO se crea para muebles inmuebles fijos (es_inmueble=True),
-        que están adheridos permanentemente a la habitación.
+        que están adheridos permanentemente a la habitación, NI para
+        sub-divisiones internas (estantes/cajones con parent_contenedor):
+        son parte estructural del mueble, se mudan en cascada con él y no
+        generan ítems de stock propios.
         """
         if getattr(contenedor, 'es_inmueble', False):
+            return
+
+        if contenedor.parent_contenedor_id is not None:
             return
 
         estok_id = self.request.headers.get('X-Estok-Id')
