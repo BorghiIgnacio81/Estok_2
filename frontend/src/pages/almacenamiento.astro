@@ -18,6 +18,7 @@ import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
 import '../styles/almacenamiento-controles.css';
+import '../styles/almacenamiento-carga-fina.css';
 ---
 
 <AuthGuard />
@@ -67,6 +68,7 @@ import '../styles/almacenamiento-controles.css';
               <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
             </div>
+            <button type="button" id="btnVolverEscena4" class="hidden inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-full px-3 py-1.5 transition-colors cursor-pointer" title="Salir de la Organización Interna y volver a la Escena 3">⬅ Volver</button>
           </div>
           <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Edición en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrá las tarjetas para reacomodarlas entre cuadrantes y tirá de su esquina para estirarlas. Tocá una planta para desplegar el plano de sus habitaciones.</p>
           <div id="contenidoPanelIzquierdo" class="mt-1">
@@ -83,10 +85,13 @@ import '../styles/almacenamiento-controles.css';
             <div class="flex items-center gap-2">
               <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
             </div>
-            <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
-              <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
-              <span>Volver</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <button type="button" id="btnOrganizarEscena4" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer" title="Abrir la Organización Interna del mueble: pantalla dividida con la Bandeja de Carga Fina a la derecha">📦 Organizar Contenido</button>
+              <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
+                <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
+                <span>Volver</span>
+              </button>
+            </div>
           </div>
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1">
@@ -97,6 +102,7 @@ import '../styles/almacenamiento-controles.css';
               </div>
             </div>
             <div id="visorContenedorGrande" class="hidden mt-1"></div>
+            <div id="cargaFinaPanel" class="hidden mt-1"></div>
           </div>
         </div>
       </div>
@@ -230,6 +236,7 @@ import '../styles/almacenamiento-controles.css';
   import { initVisor } from '../lib/visorHabitacion';
   import { initVisorContenedorGrande } from '../lib/visorContenedorGrande';
   import { initBandeja } from '../lib/bandejaSinUbicar';
+  import { initBandejaCargaFina } from '../lib/bandejaCargaFina';
 
   // ===========================================================================
   // ARRANQUE CON GARANTÍA DE DOM LISTO
@@ -250,7 +257,6 @@ import '../styles/almacenamiento-controles.css';
     const tablero = new AlmacenamientoBoard();
     void tablero.init();
 
-
     // =========================================================================
     // MÁQUINA DE TRES ESCENAS EN CASCADA (izquierda → derecha)
     //   ESCENA 1: Mapa Estok (casa) · Mapa general de la Planta
@@ -267,6 +273,10 @@ import '../styles/almacenamiento-controles.css';
     const mapaEl = () => document.getElementById('mapaEstokPanel') as HTMLElement | null;
     const cgEl = () => document.getElementById('visorContenedorGrande') as HTMLElement | null;
     const btnVolver = () => document.getElementById('btnVolverEscena') as HTMLElement | null;
+    const btnOrganizar = () => document.getElementById('btnOrganizarEscena4') as HTMLElement | null;
+    const btnVolver4 = () => document.getElementById('btnVolverEscena4') as HTMLElement | null;
+    // ESCENA 4: el Visor CG pasa al panel izquierdo; derecha = Bandeja de Carga Fina.
+    let organizacionActiva = false;
 
     function irAEscena(escena: Escena): void {
       const visor = visorEl();
@@ -289,6 +299,8 @@ import '../styles/almacenamiento-controles.css';
         if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Clic en un mueble del panel izquierdo para conmutar su ficha en caliente; usá + y − para ajustar las sub-divisiones internas de la fila seleccionada.';
         badge?.classList.add('hidden');
         btnVolver()?.classList.remove('hidden');
+        btnOrganizar()?.classList.remove('hidden');
+        btnVolver4()?.classList.add('hidden');
       } else {
         // El "Visor de Habitación" vuelve al panel derecho.
         if (visor && slotDer()) slotDer()!.appendChild(visor);
@@ -301,11 +313,65 @@ import '../styles/almacenamiento-controles.css';
           ? 'Vista general de las plantas del Estok activo. Seleccioná una planta en el Mapa Estok para descender al plano de habitaciones.'
           : 'Seleccioná una habitación en el plano para abrir su Visor. Los casilleros reciben elementos por Drag & Drop exclusivamente.';
         badge?.classList.remove('hidden');
+        btnOrganizar()?.classList.add('hidden');
+        btnVolver4()?.classList.add('hidden');
         if (escena === 1) btnVolver()?.classList.add('hidden');
       }
     }
 
+    // ESCENA 4: pantalla dividida reactiva de Organización Interna de Muebles.
+    function organizarContenidoMueble(activo: boolean): void {
+      const visor = visorEl();
+      const mapa = mapaEl();
+      const cg = cgEl();
+      const carga = document.getElementById('cargaFinaPanel');
+      const tituloIzq = document.getElementById('tituloPanelIzquierdo');
+      const tituloDer = document.getElementById('tituloPanelDerecho');
+      const descIzq = document.getElementById('descPanelIzquierdo');
+      const descDer = document.getElementById('descPanelDerecho');
+
+      if (activo) {
+        if (!habitacionActiva || !cg) return;
+        organizacionActiva = true;
+        // El Visor Contenedor Grande (grilla del mueble con +/−) se desplaza al panel izquierdo.
+        visor?.classList.add('hidden');
+        mapa?.classList.add('hidden');
+        slotIzq()?.appendChild(cg);
+        cg.classList.remove('hidden');
+        carga?.classList.remove('hidden');
+        document.getElementById('mapaJerarquicoBadge')?.classList.add('hidden');
+        btnVolver()?.classList.add('hidden');
+        btnOrganizar()?.classList.add('hidden');
+        btnVolver4()?.classList.remove('hidden');
+        if (tituloIzq) tituloIzq.textContent = '🧰 Organización Interna del Mueble';
+        if (tituloDer) tituloDer.textContent = '🧺 Bandeja de Carga Fina';
+        if (descIzq) descIzq.textContent = 'Grilla del mueble en foco: arrastrá objetos y cajas desde la Bandeja de Carga Fina (derecha) hacia un estante para encastrarlos en su fila·columna F·C. Usá + y − para ajustar las sub-divisiones internas de cada fila.';
+        if (descDer) descDer.textContent = 'Carga fina del mueble activo: elementos sin ubicación (arriba) e inspector «Cambiar Contenedor» (abajo) para tomar objetos ya guardados en otros contenedores y mudarlos físicamente a la grilla de la izquierda.';
+        return;
+      }
+
+      // Regreso a la máquina base (Escena 3 o inferior): restaura los paneles.
+      organizacionActiva = false;
+      visor?.classList.remove('hidden');
+      carga?.classList.add('hidden');
+      btnVolver4()?.classList.add('hidden');
+      btnOrganizar()?.classList.add('hidden');
+      if (cg) {
+        const der = slotDer();
+        if (der) {
+          const ref = visorEl();
+          if (ref && der.contains(ref)) ref.insertAdjacentElement('afterend', cg);
+          else der.appendChild(cg);
+        }
+      }
+      recalcularEscena();
+    }
+
     function recalcularEscena(): void {
+      if (organizacionActiva) {
+        if (!habitacionActiva) organizarContenidoMueble(false);
+        return;
+      }
       irAEscena(habitacionActiva ? 3 : plantaActiva ? 2 : 1);
     }
 
@@ -326,6 +392,9 @@ import '../styles/almacenamiento-controles.css';
       window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room: null } }));
     });
 
+    btnOrganizar()?.addEventListener('click', () => organizarContenidoMueble(true));
+    btnVolver4()?.addEventListener('click', () => organizarContenidoMueble(false));
+
     // =========================================================================
     // ARRANQUE DE MÓDULOS
     // =========================================================================
@@ -336,5 +405,6 @@ import '../styles/almacenamiento-controles.css';
       badge: document.getElementById('mapaJerarquicoBadge'),
     });
     initVisor();
+    initBandejaCargaFina({ contenedor: document.getElementById('cargaFinaPanel') });
   });
 </script>
