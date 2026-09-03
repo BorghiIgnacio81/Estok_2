@@ -14,6 +14,11 @@
 //     llena y registra el nuevo casillero con POST /api/contenedores/ (coordenada
 //     F·C persistida en PostgreSQL). Si el POST falla, revierte el ensanche para
 //     no dejar columnas fantasma (sin deudas técnicas).
+//   - fijarColumnasFila: PUT geométrico directo (grid_filas_config) que también
+//     usa el botón «−» rojo de fila cuando la última columna queda vacía (sin
+//     estante que borrar con DELETE): contrae la grilla una columna exacta.
+//   - liberarObjetoDeCasillero: libera un objeto suelto de la última columna a la
+//     bandeja de «por ubicar» (PUT con contenedor/coordenadas nulas), sin borrarlo.
 // Consumido únicamente por src/lib/visorContenedorGrande.ts.
 // =============================================================================
 
@@ -142,9 +147,36 @@ export async function eliminarDivisionDeFilaEnGrid(opts: OpcionesQuitarDivision)
   return true;
 }
 
-/** Ensancha la fila `fila` del mueble a `colNueva` columnas (PUT geométrica). */
-/** Fija la cantidad de columnas de una fila específica del mueble (PUT geométrica). */
-async function fijarColumnasFila(mueble: MuebleGrillaFuente, fila: number, colNueva: number): Promise<boolean> {
+/** Libera un objeto suelto de un casillero del mueble a la bandeja de «por ubicar»
+ *  (PUT con contenedor/coordenadas nulas) SIN borrarlo. Usado por el botón «−»
+ *  de fila cuando la última columna que se contrae aloja un objeto directo. */
+export async function liberarObjetoDeCasillero(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/objetos/${id}/`, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contenedor: null, parent_grid_row: null, parent_grid_col: null }),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) return true;
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo liberar el objeto de su casillero.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al liberar el objeto de su casillero.');
+    return false;
+  }
+}
+
+/**
+ * Fija la cantidad de columnas de una fila específica del mueble (PUT geométrico
+ * de grid_filas_config). Sirve tanto para ENSANCHAR (botón «+» cuando la fila
+ * está llena) como para CONTRAER (botón «−» sobre la última columna vacía).
+ */
+export async function fijarColumnasFila(mueble: MuebleGrillaFuente, fila: number, colNueva: number): Promise<boolean> {
   const div = mueble as unknown as UbicacionPlano;
   const filas = filasInternasDe(div);
   const fallbackColumnas = Number(mueble.grid_columnas) || 3;

@@ -4,8 +4,10 @@
 // Funciones sin estado que dibujan el contenido del panel derecho de la
 // ESCENA 3 (Visor Contenedor Grande): la ficha y la distribución interna del
 // mueble inspeccionado con conmutador de muebles en caliente, el listado
-// inicial de todos los muebles y los controles directos de adición (+) y
-// eliminación (−) sobre las sub-divisiones internas. Consumido únicamente por
+// inicial de todos los muebles y la botonera agrupada +/− al final de cada fila
+// (el «+» suma una división/columna; el «−» borra la ÚLTIMA división/columna de
+// esa línea). Las celdas internas quedan limpias para el Drag & Drop: no llevan
+// botones de borrado ni lápices secundarios. Consumido únicamente por
 // src/lib/visorContenedorGrande.ts (persistencia y eventos viven allá).
 // =============================================================================
 
@@ -86,13 +88,14 @@ function celdaMuebleContenidoHtml(
   c: number,
   conts: SubContVisor[],
   objs: SubObjVisor[],
-  divisionesEnFila: number,
-  conControles: boolean,
 ): string {
   if (!conts.length && !objs.length) {
     return `<button type="button" class="mueble-celda-crear" data-mueble-celda-crear data-mueble-id="${muebleId}" data-mueble-row="${r}" data-mueble-col="${c}" title="Fundar una sub-división (estante/cajón) en F${r}·C${c} de este mueble">➕</button>`;
   }
 
+  // Grilla LIMPIA para el Drag & Drop: las celdas/estantes NO llevan botones de
+  // borrado ni lápices secundarios. La única botonera de control (+/−) vive
+  // agrupada al extremo derecho de cada fila, por fuera de la zona de soltado.
   const contsHtml = conts
     .map((x) => {
       const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
@@ -100,17 +103,10 @@ function celdaMuebleContenidoHtml(
       const estilosUI = uiW || uiH
         ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
         : '';
-      // Botón compacto rojo «−» SOLO cuando la fila tiene más de una división y
-      // la sub-división no es inmueble fijo (el backend bloquea ese borrado).
-      const quitarVisible = conControles && divisionesEnFila > 1 && !x.es_inmueble;
-      const quitarHtml = quitarVisible
-        ? `<button type="button" class="bg-red-500 hover:bg-red-600 text-white font-bold rounded px-1.5 py-0.5 text-xs inline-flex items-center ml-1 cursor-pointer" data-mueble-celda-quitar data-mueble-id="${muebleId}" data-mueble-sub-id="${x.id}" title="Eliminar la división «${escapeHtml(x.nombre)}» — su contenido quedará sin ubicación en la bandeja de «por ubicar»">−</button>`
-        : '';
       return `<span class="mueble-item" data-inplace-card data-id="${x.id}" ${estilosUI} data-mueble-sub-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja. Clic en el nombre para renombrar · tirá de la esquina para estirar">
         <img src="${IMG_MUEBLE}" alt="" class="mueble-item-img" draggable="false" />
         <span class="mueble-item-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar esta estantería en caliente">${escapeHtml(x.nombre)}</span>
         ${x.es_inmueble ? '<span class="mueble-item-fijo">📌</span>' : ''}
-        ${quitarHtml}
         <span class="mueble-item-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual (se guarda automáticamente)"></span>
       </span>`;
     })
@@ -144,9 +140,6 @@ function muebleGrillaHtml(
   for (let r = 1; r <= filas; r++) {
     const cols = colsPorFila[r - 1] || 1;
     const celdas: string[] = [];
-    const divisionesEnFila = conts.filter(
-      (x) => x.parent_contenedor === m.id && x.parent_grid_row === r,
-    ).length;
 
     for (let c = 1; c <= cols; c++) {
       const contsCelda = conts.filter(
@@ -156,7 +149,7 @@ function muebleGrillaHtml(
         (x) => x.contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
       );
       celdas.push(`<div class="mueble-celda" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}" title="Casillero F${r}·C${c} — soltá aquí un elemento o usá ➕ para fundar una sub-división">
-        ${celdaMuebleContenidoHtml(m.id, r, c, contsCelda, objsCelda, divisionesEnFila, conControles)}
+        ${celdaMuebleContenidoHtml(m.id, r, c, contsCelda, objsCelda)}
       </div>`);
     }
 
@@ -167,16 +160,27 @@ function muebleGrillaHtml(
       continue;
     }
 
-    // Botón flotante verde «+» en el EXTREMO DERECHO de la fila, por FUERA del
-    // contenedor .mueble-fila (la grilla). Clases Tailwind explícitas y z-20 para
+    // Botonera AGRUPADA de control al EXTREMO DERECHO de cada fila, por FUERA de
+    // la grilla (no interfiere con las Drop Zones del Drag & Drop interno):
+    //   · Botón AGREGAR (+): círculo verde → suma una división/columna vacía.
+    //   · Botón RESTAR (−):  círculo rojo → borra la ÚLTIMA división/columna de
+    //                        la fila. Solo visible cuando la fila tiene más de 1
+    //                        columna (una fila de 1 celda no puede contraerse).
+    // Clases Tailwind explícitas (mismo tamaño circular h-8 w-8) y z-20 para
     // garantizar visibilidad y evitar recortes por desbordamiento del padre.
+    const quitarHtml = cols > 1
+      ? `<button type="button" class="flex-shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center text-lg transition-all cursor-pointer relative z-20" data-mueble-fila-quitar data-mueble-id="${m.id}" data-mueble-row="${r}" title="Eliminar la última división/columna de la fila ${r} de «${escapeHtml(m.nombre)}» — su contenido quedará sin ubicación en la bandeja de «por ubicar»">−</button>`
+      : '';
     filasHtml.push(`
       <div class="mueble-fila-linea">
         <div class="mueble-fila-contenido">
           <span class="mueble-fila-tag">Fila ${r} · ${cols} casillero${cols === 1 ? '' : 's'}</span>
           ${grilla}
         </div>
-        <button type="button" class="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center text-lg transition-all ml-4 cursor-pointer relative z-20" data-mueble-fila-agregar data-mueble-id="${m.id}" data-mueble-row="${r}" title="Agregar una división/columna vacía a la fila ${r} de «${escapeHtml(m.nombre)}»">+</button>
+        <div class="flex items-center gap-2 ml-4 flex-shrink-0">
+          <button type="button" class="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center text-lg transition-all cursor-pointer relative z-20" data-mueble-fila-agregar data-mueble-id="${m.id}" data-mueble-row="${r}" title="Agregar una división/columna vacía a la fila ${r} de «${escapeHtml(m.nombre)}»">+</button>
+          ${quitarHtml}
+        </div>
       </div>`);
   }
 

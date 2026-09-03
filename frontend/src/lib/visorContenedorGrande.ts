@@ -24,6 +24,8 @@ import {
   ADVERTENCIA_ELIMINAR_DIVISION,
   agregarDivisionEnFila,
   eliminarDivisionDeFilaEnGrid,
+  fijarColumnasFila,
+  liberarObjetoDeCasillero,
 } from './visorContenedorGrandeAcciones';
 import type { ItemADesplazar } from './visorContenedorGrandeAcciones';
 
@@ -242,15 +244,18 @@ function enlazar(): void {
     });
   });
 
-  // Botón compacto rojo «−» sobre cada sub-división de una fila con más de una
-  // división: frena con el cartel unificado y borra con DELETE asincrónico.
-  rootEl.querySelectorAll<HTMLButtonElement>('[data-mueble-celda-quitar]').forEach((btn) => {
+  // Botón circular rojo «−» del extremo derecho de cada fila (solo visible cuando
+  // la fila tiene más de 1 columna): actúa sobre la ÚLTIMA división/columna de esa
+  // línea. Frena el flujo con la advertencia unificada y, tras confirmar, resta -1
+  // al contador de columnas, remueve el rectángulo del DOM y persiste con PUT.
+  rootEl.querySelectorAll<HTMLButtonElement>('[data-mueble-fila-quitar]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const subId = btn.dataset.muebleSubId;
-      if (!subId) return;
-      void eliminarDivisionDeMueble(subId);
+      const muebleId = btn.dataset.muebleId;
+      const fila = Number(btn.dataset.muebleRow);
+      if (!muebleId || !fila) return;
+      void quitarUltimaColumnaDeFila(muebleId, fila);
     });
   });
 
@@ -510,8 +515,10 @@ function colapsarFilaLocalmente(mueble: MuebleVisor, fila: number, columnasNueva
   mueble.grid_filas_config = uniforme ? null : config;
 }
 
-/** «−» de una sub-división: confirm unificado + DELETE y contracción REAL de la columna. */
-async function eliminarDivisionDeMueble(subId: string): Promise<void> {
+/** Borra la sub-división indicada: DELETE físico + contracción REAL de la columna.
+ *  `yaAdvertido` evita repetir el cartel cuando el flujo proviene del botón «−»
+ *  de fila (que ya mostró la advertencia una única vez). */
+async function eliminarDivisionDeMueble(subId: string, yaAdvertido = false): Promise<void> {
   const sub = subContenedores.find((s) => s.id === subId);
   if (!sub) return;
   if (sub.es_inmueble) {
@@ -524,7 +531,7 @@ async function eliminarDivisionDeMueble(subId: string): Promise<void> {
   if (!fila || !col || !muebleId) return;
   const mueble = muebles.find((m) => m.id === muebleId);
   if (!mueble) return;
-  if (!window.confirm(ADVERTENCIA_ELIMINAR_DIVISION)) return;
+  if (!yaAdvertido && !window.confirm(ADVERTENCIA_ELIMINAR_DIVISION)) return;
 
   // Siblings (sub-divisiones u objetos directos) a la DERECHA de la columna
   // borrada: se desplazan una columna a la izquierda para que el layout se
@@ -581,6 +588,73 @@ async function eliminarDivisionDeMueble(subId: string): Promise<void> {
     }
   }
   const columnasNuevas = Math.max(1, columnasAnterior - 1);
+  colapsarFilaLocalmente(mueble, fila, columnasNuevas);
+  render();
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+}
+
+/**
+ * Botón «−» circular del extremo derecho de una fila del Visor Contenedor Grande:
+ * elimina la ÚLTIMA división/columna de esa línea.
+ *   1. Frena el flujo y despliega la advertencia destructiva unificada.
+ *   2. Tras confirmar, si la última columna aloja una estantería/sub-división la
+ *      borra con DELETE asincrónico (su contenido queda sin ubicación); los
+ *      objetos sueltos de esa columna se liberan a la bandeja de «por ubicar».
+ *   3. Resta -1 al contador de columnas de la fila y persiste el nuevo diseño con
+ *      un PUT asincrónico de grid_filas_config hermético al Estok activo.
+ *   4. render() remueve físicamente el rectángulo del DOM al instante (sin
+ *      espacios vacíos fantasma ni recarga de página).
+ */
+async function quitarUltimaColumnaDeFila(muebleId: string, fila: number): Promise<void> {
+  const mueble = muebles.find((m) => m.id === muebleId);
+  if (!mueble) return;
+  const columnasAnterior = columnasDeFilaInterna(mueble as unknown as UbicacionPlano, fila);
+  if (columnasAnterior <= 1) return;
+
+  const ultimaCol = columnasAnterior;
+  const subEnUltimaCol = subContenedores.find(
+    (s) =>
+      s.parent_contenedor === muebleId &&
+      s.parent_grid_row === fila &&
+      (s.parent_grid_col ?? 0) === ultimaCol,
+  );
+  // Una estantería inmueble fija no puede borrarse (el backend lo bloquea): se
+  // avisa sin pasar por el cartel destructivo.
+  if (subEnUltimaCol?.es_inmueble) {
+    toast('📌 Esta sub-división es un mueble inmueble fijo y no puede eliminarse.');
+    return;
+  }
+
+  // 1) Advertencia antes de cualquier mutación destructiva.
+  if (!window.confirm(ADVERTENCIA_ELIMINAR_DIVISION)) return;
+
+  // 2a) Hay una estantería/sub-división en la última columna: se borra con DELETE
+  //     y la fila se contrae una columna (el flow existente persiste la geometría).
+  if (subEnUltimaCol) {
+    await eliminarDivisionDeMueble(subEnUltimaCol.id, true);
+    return;
+  }
+
+  // 2b) La última columna no tiene estantería: los objetos sueltos que viven en
+  //     ella se liberan a la bandeja de «por ubicar» (NO se borran).
+  const objetosEnUltimaCol = subObjetos.filter(
+    (o) =>
+      o.contenedor === muebleId &&
+      o.parent_grid_row === fila &&
+      (o.parent_grid_col ?? 0) === ultimaCol,
+  );
+  for (const o of objetosEnUltimaCol) {
+    const liberado = await liberarObjetoDeCasillero(o.id);
+    if (!liberado) return;
+    subObjetos = subObjetos.filter((x) => x.id !== o.id);
+  }
+
+  // 3) Contracción geométrica real: la fila pierde una columna (PUT asincrónico).
+  const columnasNuevas = Math.max(1, columnasAnterior - 1);
+  const ok = await fijarColumnasFila(mueble, fila, columnasNuevas);
+  if (!ok) return;
+
+  // 4) Remoción física en caliente del rectángulo vacío (sin recargar la página).
   colapsarFilaLocalmente(mueble, fila, columnasNuevas);
   render();
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
