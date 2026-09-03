@@ -379,7 +379,11 @@ function enlazarVisor(): void {
       if (!dato || (!(Number(dato.subcontenedores_count) > 0) && !dato.es_inmueble)) return;
       muebleActivoId = id;
       aplicarMuebleActivo();
-      window.dispatchEvent(new CustomEvent('estok:mueble-seleccionado', { detail: { id } }));
+      // Evento que dispara la actualización EN CALIENTE del "Visor Contenedor
+      // Grande" (panel derecho): cada tarjeta lleva su UUID único de registro.
+      window.dispatchEvent(
+        new CustomEvent('estok:mueble-seleccionado', { detail: { id, nombre: dato.nombre } }),
+      );
     });
   });
 

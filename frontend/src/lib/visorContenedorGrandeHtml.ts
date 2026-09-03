@@ -258,7 +258,15 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
 
   const activo = muebleActivoId ? muebles.find((m) => m.id === muebleActivoId) ?? null : null;
   if (activo) {
-    return `${cabecera}
+    // Cabecera viva del Visor Contenedor Grande: cuando hay un mueble activo, el
+    // título refleja al instante su distribución interna (selección desde el
+    // Visor de Habitación a la izquierda o desde el conmutador de chips).
+    const activoCabecera = `
+      <div class="cg-cabecera">
+        <span class="cg-titulo">🧱 Distribución interna de «${escapeHtml(activo.nombre)}»</span>
+        <span class="cg-sub">Mueble inspeccionado en caliente. Usá los botones + y − al final de cada fila para ajustar sus estantes/cajones, o soltá objetos/cajas en un casillero para reubicarlos en el acto.</span>
+      </div>`;
+    return `${activoCabecera}
       ${conmutadorMueblesHtml(muebles, activo.id)}
       <div class="mueble-detalle">
         <button type="button" class="cg-atras" data-mueble-atras title="Volver al listado de todos los muebles de «${escapeHtml(room.nombre)}»">← Ver todos los muebles</button>

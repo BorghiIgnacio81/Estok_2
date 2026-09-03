@@ -496,7 +496,9 @@ async function redimensionarEstanteriaEnVivo(id: string, dim: { ui_width: string
 /** Activa el mueble a inspeccionar y sincroniza el resaltado del panel izquierdo. */
 function activarMueble(id: string | null): void {
   if (!roomActual) return;
-  muebleActivoId = id && muebles.some((m) => m.id === id) ? id : null;
+  // Se conserva el id aunque todavía no esté en la lista local (carga asincrónica):
+  // cargar() lo mantendrá y render() abrirá el detalle apenas esté disponible.
+  muebleActivoId = id;
   render();
   window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: muebleActivoId } }));
 }
@@ -724,12 +726,13 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
   });
   // Clic sobre un mueble del "Visor de Habitación" (panel izquierdo de la
   // ESCENA 3): el panel derecho limpia su contenido anterior y abre EN CALIENTE
-  // la ficha y la distribución interna del mueble recién seleccionado.
+  // la ficha y la distribución interna del mueble recién seleccionado. El id se
+  // conserva aunque la lista local todavía esté cargando (race de arranque):
+  // cuando cargar() reciba los muebles, render() abrirá el detalle solicitado.
   window.addEventListener('estok:mueble-seleccionado', (e) => {
     if (!roomActual) return;
     const detalle = (e as CustomEvent<{ id?: string | null }>).detail ?? {};
-    const id = detalle?.id ?? null;
-    muebleActivoId = id && muebles.some((m) => m.id === id) ? id : null;
+    muebleActivoId = detalle?.id ?? null;
     render();
   });
   window.addEventListener('estok:espacios-cambiados', () => {
