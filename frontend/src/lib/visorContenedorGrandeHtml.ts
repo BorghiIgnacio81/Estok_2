@@ -41,6 +41,8 @@ export interface SubContVisor {
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
   es_inmueble?: boolean;
+  /** Marca manual de clausura: el casillero F·C del mueble está físicamente lleno. */
+  espacio_lleno?: boolean;
   subcontenedores_count?: number;
   /** Medidas visuales de la estantería/caja (resizing recursivo, PUT ui_*). */
   ui_width?: string | null;
@@ -148,8 +150,39 @@ function muebleGrillaHtml(
       const objsCelda = objs.filter(
         (x) => x.contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
       );
-      celdas.push(`<div class="mueble-celda" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}" title="Casillero F${r}·C${c} — soltá aquí un elemento o usá ➕ para fundar una sub-división">
-        ${celdaMuebleContenidoHtml(m.id, r, c, contsCelda, objsCelda)}
+      // =====================================================================
+      // CASILLERO MULTI-ELEMENTO (Nivel 3/4): la celda ya NO es de ocupación
+      // estricta — varias cajas/estantes (Contenedor) y objetos pueden cohabitar
+      // el mismo cuadrante F·C y se renderizan juntos (miniaturas flex-wrap).
+      // El checkbox compacto «🔒 Lleno» es la clausura MANUAL del espacio:
+      //   · Se persiste como espacio_lleno en el/los Contenedor(es) ocupante(s).
+      //   · llena = algún Contenedor ocupante de la celda tiene espacio_lleno.
+      //   · Con la celda llena se pinta con opacidad sutil y se bloquean los
+      //     eventos de caída (dragover/ondrop rebotan con aviso en pantalla).
+      //   · El control se deshabilita si la celda no tiene ningún Contenedor
+      //     ancla (una celda solo con objetos sueltos no puede persistir la
+      //     bandera: necesita una caja/división que la lleve).
+      // =====================================================================
+      const llena = contsCelda.some((x) => x.espacio_lleno);
+      const hayAncla = contsCelda.length > 0;
+      const hayContenido = contsCelda.length > 0 || objsCelda.length > 0;
+      const controlLlenoHtml = hayContenido
+        ? `<label class="mueble-celda-lleno-control${llena ? ' esta-llena' : ''}${hayAncla ? '' : ' is-disabled'}" title="${
+            hayAncla
+              ? llena
+                ? 'Espacio marcado como LLENO: no acepta más elementos por arrastre. Desmarcá para liberar su capacidad.'
+                : 'Marcar este espacio como físicamente lleno: dejará de aceptar elementos por arrastre.'
+              : 'Para marcar «Lleno», este casillero debe contener al menos una caja o división (Contenedor).'
+          }">
+            <input type="checkbox" data-mueble-celda-lleno data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}"${llena ? ' checked' : ''}${hayAncla ? '' : ' disabled'} />
+            <span>🔒 Lleno</span>
+          </label>`
+        : '';
+      celdas.push(`<div class="mueble-celda${llena ? ' mueble-celda-llena' : ''}" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}"${llena ? ' data-mueble-celda-llena="1"' : ''} title="Casillero F${r}·C${c} — soltá aquí elementos por arrastre: pueden convivir varias cajas y objetos en la misma celda. Usá ➕ en celdas vacías para fundar una sub-división">
+        <div class="mueble-celda-contenido">
+          ${celdaMuebleContenidoHtml(m.id, r, c, contsCelda, objsCelda)}
+        </div>
+        ${controlLlenoHtml}
       </div>`);
     }
 

@@ -36,6 +36,8 @@ let subObjetos: SubObjVisor[] = [];
 let rootEl: HTMLElement | null = null;
 /** Mueble cuya ficha/distribución interna se inspecciona (ESCENA 3, en caliente). */
 let muebleActivoId: string | null = null;
+/** Throttle del aviso «casillero lleno» (el dragover dispara en ráfaga). */
+let ultimoAvisoCasilleroLleno = 0;
 
 // =============================================================================
 // HELPERS
@@ -56,6 +58,14 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
     nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
+}
+
+/** Aviso en pantalla (throttled) cuando se intenta soltar en un casillero lleno. */
+function avisarCasilleroLleno(): void {
+  const ahora = Date.now();
+  if (ahora - ultimoAvisoCasilleroLleno < 1500) return;
+  ultimoAvisoCasilleroLleno = ahora;
+  toast('🔒 Este casillero está marcado como LLENO. Desmarcá «Lleno» en su esquina para liberar la capacidad.');
 }
 
 // =============================================================================
@@ -100,6 +110,7 @@ async function cargar(): Promise<void> {
       parent_grid_row: c.parent_grid_row != null ? Number(c.parent_grid_row) : null,
       parent_grid_col: c.parent_grid_col != null ? Number(c.parent_grid_col) : null,
       es_inmueble: Boolean(c.es_inmueble),
+      espacio_lleno: Boolean(c.espacio_lleno),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
       ui_width: c.ui_width != null ? String(c.ui_width) : null,
       ui_height: c.ui_height != null ? String(c.ui_height) : null,
@@ -149,15 +160,29 @@ function render(): void {
 function enlazar(): void {
   if (!rootEl) return;
 
-  // Drop Zones de casillero de mueble.
+  // Drop Zones de casillero de mueble. Desde la remoción de la ocupación
+  // estricta, la celda acumula MÚLTIPLES cajas/objetos en el mismo F·C: el drop
+  // ya NO pregunta si hay algo en la celda (no existe «casillero ocupado»).
+  // La ÚNICA excepción es la clausura manual «🔒 Lleno» (data-mueble-celda-llena):
+  // con el espacio lleno los eventos dragover/ondrop quedan deshabilitados y
+  // cualquier intento de arrastre rebota con un aviso claro en pantalla.
   rootEl.querySelectorAll<HTMLElement>('[data-mueble-celda]').forEach((celda) => {
     const muebleId = celda.dataset.muebleId;
     const r = Number(celda.dataset.muebleRow);
     const c = Number(celda.dataset.muebleCol);
     if (!muebleId || !r || !c) return;
     celda.addEventListener('dragover', (e) => {
+      const de = e as DragEvent;
+      // REGLA DE CLAUSURA: celda «LLENA» → NO se previene el default, así el
+      // navegador muestra el cursor de drop no permitido y el evento drop nunca
+      // se dispara. Se avisa en pantalla con throttle para no spamear toasts.
+      if (celda.dataset.muebleCeldaLlena === '1') {
+        if (de.dataTransfer) de.dataTransfer.dropEffect = 'none';
+        avisarCasilleroLleno();
+        return;
+      }
       e.preventDefault();
-      if ((e as DragEvent).dataTransfer) (e as DragEvent).dataTransfer!.dropEffect = 'move';
+      if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
       celda.classList.add('mueble-celda-dnd-activo');
     });
     celda.addEventListener('dragleave', () => celda.classList.remove('mueble-celda-dnd-activo'));
@@ -165,21 +190,32 @@ function enlazar(): void {
       const de = e as DragEvent;
       e.preventDefault();
       celda.classList.remove('mueble-celda-dnd-activo');
-      const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
-      const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-      const ocupado =
-        subContenedores.some(
-          (x) => x.parent_contenedor === muebleId && x.parent_grid_row === r && x.parent_grid_col === c,
-        ) ||
-        subObjetos.some(
-          (x) => x.contenedor === muebleId && x.parent_grid_row === r && x.parent_grid_col === c,
-        );
-      if (ocupado) {
-        toast('⚠️ Ese casillero ya está ocupado. Elegí un casillero libre.');
+      if (celda.dataset.muebleCeldaLlena === '1') {
+        toast('🔒 Este casillero está marcado como LLENO. Desmarcá «Lleno» en su esquina para liberar la capacidad.');
         return;
       }
+      const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
+      const objId = de.dataTransfer?.getData('application/x-estok-objeto');
       if (contId) void asignarSubContenedor(contId, muebleId, r, c);
       else if (objId) void asignarObjetoAMueble(objId, muebleId, r, c);
+    });
+  });
+
+  // Checkbox compacto «🔒 Lleno» de cada casillero/división del mueble: persiste
+  // espacio_lleno vía PUT asíncrono hermético en los Contenedor(es) ocupante(s)
+  // de la celda y re-renderiza la grilla con el estado real de la clausura.
+  rootEl.querySelectorAll<HTMLInputElement>('[data-mueble-celda-lleno]').forEach((chk) => {
+    chk.addEventListener('change', () => {
+      const muebleId = chk.dataset.muebleId;
+      const r = Number(chk.dataset.muebleRow);
+      const c = Number(chk.dataset.muebleCol);
+      if (!muebleId || !r || !c) return;
+      chk.disabled = true;
+      void persistirEspacioLleno(muebleId, r, c, chk.checked).then(() => {
+        // Re-render con la fuente de verdad: si el PUT confirmó, la celda aparece
+        // clausurada/liberada; si falló, la casilla vuelve a su estado anterior.
+        render();
+      });
     });
   });
 
@@ -323,18 +359,6 @@ async function crearSubContenedorEnCelda(muebleId: string, r: number, c: number)
   const colEntera = Math.floor(Number(c));
   if (!filaEntera || !colEntera) return false;
 
-  const ocupado =
-    subContenedores.some(
-      (x) => x.parent_contenedor === muebleId && x.parent_grid_row === filaEntera && x.parent_grid_col === colEntera,
-    ) ||
-    subObjetos.some(
-      (x) => x.contenedor === muebleId && x.parent_grid_row === filaEntera && x.parent_grid_col === colEntera,
-    );
-  if (ocupado) {
-    toast('⚠️ Ese casillero ya está ocupado. Elegí una celda libre.');
-    return false;
-  }
-
   const mueble = muebles.find((m) => m.id === muebleId);
   const nombre = `Estante F${filaEntera}·C${colEntera}`;
   try {
@@ -391,6 +415,10 @@ async function asignarSubContenedor(id: string, muebleId: string, r: number, c: 
         parent_contenedor: muebleId,
         parent_grid_row: filaEntera,
         parent_grid_col: colEntera,
+        // La bandera «espacio_lleno» describe el ESPACIO físico de la celda, no
+        // la caja: al reacomodar una caja en otra celda, la clausura no viaja con
+        // ella (la celda de origen conserva el flag si quedan ocupantes marcados).
+        espacio_lleno: false,
       }),
     });
     if (res.status === 401) {
@@ -437,6 +465,59 @@ async function asignarObjetoAMueble(id: string, muebleId: string, r: number, c: 
     }
   } catch {
     toast('❌ Error de conexión al acomodar el objeto.');
+  }
+}
+
+// =============================================================================
+// CHECKBOX «🔒 LLENO» — CLAUSURA MANUAL DEL CASILLERO (PUT espacio_lleno)
+// =============================================================================
+
+/**
+ * Persiste la clausura manual del casillero F·C del mueble: escribe
+ * espacio_lleno (true/false) vía PUT asíncrono hermético (JWT + X-Estok-Id) en
+ * TODOS los Contenedores (cajas/divisiones/estantes) que cohabitan la celda,
+ * porque la bandera vive en el modelo Contenedor (sub-divisiones/estantes).
+ * - Con espacio_lleno=true la celda se pinta con opacidad sutil (opacity 0.7 +
+ *   borde rojo) y los eventos dragover/ondrop quedan deshabilitados.
+ * - Con false se restablece la capacidad ilimitada multi-elemento.
+ * Si la celda no tiene ningún Contenedor ancla (vacía o solo con objetos
+ * sueltos) no hay fila que persistir y se informa en pantalla.
+ */
+async function persistirEspacioLleno(muebleId: string, r: number, c: number, lleno: boolean): Promise<boolean> {
+  const ocupantes = subContenedores.filter(
+    (x) => x.parent_contenedor === muebleId && x.parent_grid_row === r && x.parent_grid_col === c,
+  );
+  if (!ocupantes.length) {
+    toast('🔒 Para marcar «Lleno», este casillero debe contener al menos una caja o división (Contenedor).');
+    return false;
+  }
+  try {
+    const resultados = await Promise.all(
+      ocupantes.map(async (item) => {
+        const res = await fetch(`${API_BASE_URL}/contenedores/${item.id}/`, {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ espacio_lleno: lleno }),
+        });
+        return { ok: res.ok, status: res.status };
+      }),
+    );
+    if (resultados.some((x) => x.status === 401)) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (resultados.some((x) => !x.ok)) {
+      toast('❌ No se pudo actualizar el estado «Lleno» del casillero.');
+      return false;
+    }
+    // Espejo local de la persistencia: la grilla re-renderiza con la clausura.
+    for (const item of ocupantes) item.espacio_lleno = lleno;
+    if (lleno) toast('🔒 Casillero marcado como LLENO: no acepta más elementos hasta desmarcarlo.');
+    else toast('🔓 Casillero liberado: vuelve a aceptar elementos por arrastre.');
+    return true;
+  } catch {
+    toast('❌ Error de conexión al actualizar el estado del casillero.');
+    return false;
   }
 }
 

@@ -227,6 +227,11 @@ class Contenedor(models.Model):
         verbose_name="Mueble inmueble",
         help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
     )
+    espacio_lleno = models.BooleanField(
+        default=False,
+        verbose_name="Espacio físicamente lleno",
+        help_text="Marca manual del casillero/estante del mueble (multi-elemento): si está activo, el espacio se pinta con opacidad sutil y deja de aceptar elementos por arrastre (dragover/ondrop bloqueados) hasta desmarcarlo. Se persiste vía PUT hermético al Estok activo."
+    )
     ui_width = models.CharField(
         max_length=20,
         null=True,
