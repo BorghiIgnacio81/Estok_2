@@ -107,11 +107,13 @@
   transform: scale(1.03);
 }
 
-/* --- Grilla interna: línea de fila + botón flotante verde «+» --- */
+/* --- Grilla interna: línea de fila (los botones +/− llevan clases Tailwind
+       explícitas en el template, garantizadas por el bundle de utilidades) --- */
 .mueble-fila-linea {
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow: visible;
 }
 .mueble-fila-contenido {
   flex: 1 1 auto;
@@ -119,6 +121,7 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+  overflow: visible;
 }
 .mueble-fila-tag {
   font-size: 10px;
@@ -126,70 +129,6 @@
   color: #b45309;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-.mueble-fila-agregar {
-  flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dcfce7;
-  color: #15803d;
-  border: 1.5px solid #4ade80;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s, box-shadow 0.15s;
-}
-.mueble-fila-agregar:hover {
-  background: #bbf7d0;
-  border-color: #22c55e;
-  color: #166534;
-  transform: scale(1.08);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
-}
-.mueble-fila-agregar:disabled {
-  cursor: wait;
-  opacity: 0.65;
-  transform: none;
-}
-
-/* --- Botón compacto rojo «−» sobre cada sub-división (fila con 2+ divisiones) --- */
-.mueble-item-quitar {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #f87171;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: background 0.15s, border-color 0.15s, transform 0.1s;
-}
-.mueble-item-quitar:hover {
-  background: #fecaca;
-  border-color: #ef4444;
-  color: #991b1b;
-  transform: scale(1.15);
-}
-.mueble-item-quitar:disabled {
-  cursor: wait;
-  opacity: 0.65;
-  transform: none;
 }
 
 /* --- Resaltado del mueble activo en el Visor de Habitación (panel izquierdo) --- */
