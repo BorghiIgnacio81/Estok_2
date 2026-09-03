@@ -15,52 +15,24 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { escapeHtml, toast, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
+import { toast, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+import { conectarRenombradoEnVivo, conectarResizeElastico } from './lienzoInteractivo';
+import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
+import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import {
-  conectarRenombradoEnVivo,
-  conectarResizeElastico,
-} from './lienzoInteractivo';
-import { minimapaRectangularSvg } from './minimapa';
-
-const IMG_MUEBLE = '/archivador-login.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
-
-interface MuebleVisor {
-  id: string;
-  nombre: string;
-  es_inmueble?: boolean;
-  grid_filas?: number | null;
-  grid_columnas?: number | null;
-  grid_filas_config?: number[] | null;
-  subcontenedores_count?: number;
-  objetos_count?: number;
-}
-interface SubContVisor {
-  id: string;
-  nombre: string;
-  parent_contenedor?: string | null;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-  es_inmueble?: boolean;
-  subcontenedores_count?: number;
-  /** Medidas visuales de la estantería/caja (resizing recursivo, PUT ui_*). */
-  ui_width?: string | null;
-  ui_height?: string | null;
-}
-interface SubObjVisor {
-  id: string;
-  nombre: string;
-  contenedor?: string | null;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-}
+  ADVERTENCIA_ELIMINAR_DIVISION,
+  agregarDivisionEnFila,
+  eliminarSubdivisionApi,
+} from './visorContenedorGrandeAcciones';
 
 let roomActual: UbicacionPlano | null = null;
 let muebles: MuebleVisor[] = [];
 let subContenedores: SubContVisor[] = [];
 let subObjetos: SubObjVisor[] = [];
 let rootEl: HTMLElement | null = null;
+/** Mueble cuya ficha/distribución interna se inspecciona (ESCENA 3, en caliente). */
+let muebleActivoId: string | null = null;
 
 // =============================================================================
 // HELPERS
@@ -83,12 +55,6 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
   return todos;
 }
 
-function columnasPorFilaDeMueble(m: MuebleVisor): number[] {
-  const div = m as unknown as UbicacionPlano;
-  const filas = filasInternasDe(div);
-  return Array.from({ length: filas }, (_, i) => columnasDeFilaInterna(div, i + 1));
-}
-
 // =============================================================================
 // CARGA DE LA HABITACIÓN ACTIVA
 // =============================================================================
@@ -99,6 +65,7 @@ async function cargar(): Promise<void> {
     muebles = [];
     subContenedores = [];
     subObjetos = [];
+    muebleActivoId = null;
     render();
     return;
   }
@@ -145,6 +112,11 @@ async function cargar(): Promise<void> {
       parent_grid_col: o.parent_grid_col != null ? Number(o.parent_grid_col) : null,
     }));
 
+  // Si el mueble inspeccionado desapareció (borrado en otra vista), se vuelve
+  // al listado general sin romper la ESCENA 3.
+  if (muebleActivoId && !muebles.some((m) => m.id === muebleActivoId)) {
+    muebleActivoId = null;
+  }
   render();
 }
 
@@ -154,98 +126,17 @@ async function cargar(): Promise<void> {
 
 function render(): void {
   if (!rootEl) return;
-  if (!roomActual) {
-    rootEl.innerHTML = '';
-    return;
-  }
-  if (!muebles.length) {
-    rootEl.innerHTML = `<div class="cg-vacio">
-      <span class="cg-vacio-ico">📦</span>
-      <p class="cg-vacio-texto">Esta habitación no tiene muebles/archivadores todavía. Arrastrá contenedores pequeños y objetos desde la bandeja inferior hacia los casilleros cuando existan.</p>
-    </div>`;
-    return;
-  }
-  rootEl.innerHTML = `
-    <div class="cg-cabecera">
-      <span class="cg-titulo">🧱 Muebles de «${escapeHtml(roomActual.nombre)}»</span>
-      <span class="cg-sub">Arrastrá contenedores pequeños y objetos desde la bandeja hacia sus casilleros. Todo se guarda automáticamente.</span>
-    </div>
-    <div class="cg-muebles">${muebles.map(muebleHtml).join('')}</div>`;
+  // Purga en caliente del panel derecho: cada render (conmutación de mueble,
+  // alta/baja de división, refresh externo) redibuja la ficha del mueble activo
+  // o el listado general sin recargar la página.
+  rootEl.innerHTML = visorContenidoGrandeHtml({
+    room: roomActual,
+    muebles,
+    subContenedores,
+    subObjetos,
+    muebleActivoId,
+  });
   enlazar();
-}
-
-function muebleHtml(m: MuebleVisor): string {
-  const div = m as unknown as UbicacionPlano;
-  const filas = filasInternasDe(div);
-  const columnasPorFila = columnasPorFilaDeMueble(m);
-
-  const filasHtml: string[] = [];
-  for (let r = 1; r <= filas; r++) {
-    const cols = columnasPorFila[r - 1];
-    const celdas: string[] = [];
-    for (let c = 1; c <= cols; c++) {
-      const conts = subContenedores.filter(
-        (x) => x.parent_contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
-      );
-      const objs = subObjetos.filter(
-        (x) => x.contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
-      );
-      celdas.push(`<div class="mueble-celda" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}" title="Casillero F${r}·C${c} — soltá aquí un elemento o usá ➕ para fundar una sub-división">
-        ${celdaMuebleContenidoHtml(conts, objs, m.id, r, c)}
-      </div>`);
-    }
-    filasHtml.push(`<div class="mueble-fila" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">${celdas.join('')}</div>`);
-  }
-
-  return `<div class="mueble-card" data-mueble-card="${m.id}">
-    <div class="mueble-cabecera">
-      <div class="mueble-ficha">
-        <img src="${IMG_MUEBLE}" alt="" class="mueble-ico" draggable="false" />
-        <div class="mueble-info">
-          <strong class="mueble-nombre">${escapeHtml(m.nombre)}</strong>
-          <span class="mueble-meta">${m.subcontenedores_count || 0} sub-contenedores · ${m.objetos_count || 0} objetos</span>
-        </div>
-      </div>
-      ${m.es_inmueble ? '<span class="mueble-inmueble">📌 Mueble fijo</span>' : ''}
-      <div class="mueble-minimapa" title="Minimapa rectangular de la grilla del mueble">${minimapaRectangularSvg({ filas, columnasPorFila, filaActiva: null, columnaActiva: null })}</div>
-    </div>
-    <div class="mueble-grilla">${filasHtml.join('')}</div>
-  </div>`;
-}
-
-/** Contenido de un casillero de mueble (sub-contenedores, objetos extraíbles o
- *  botón "➕" de fundación en caliente si la celda interna está vacía). */
-function celdaMuebleContenidoHtml(conts: SubContVisor[], objs: SubObjVisor[], muebleId: string, r: number, c: number): string {
-  if (!conts.length && !objs.length) {
-    return `<button type="button" class="mueble-celda-crear" data-mueble-celda-crear data-mueble-id="${muebleId}" data-mueble-row="${r}" data-mueble-col="${c}" title="Fundar una sub-división (estante/cajón) en F${r}·C${c} de este mueble">➕</button>`;
-  }
-
-  const contsHtml = conts
-    .map((x) => {
-      const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
-      const uiH = x.ui_height && x.ui_height !== 'auto' ? x.ui_height : null;
-      const estilosUI = uiW || uiH
-        ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
-        : '';
-      return `<span class="mueble-item" data-inplace-card data-id="${x.id}" ${estilosUI} data-mueble-sub-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja. Clic en el nombre para renombrar · tirá de la esquina para estirar">
-        <img src="${IMG_MUEBLE}" alt="" class="mueble-item-img" draggable="false" />
-        <span class="mueble-item-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar esta estantería en caliente">${escapeHtml(x.nombre)}</span>
-        ${x.es_inmueble ? '<span class="mueble-item-fijo">📌</span>' : ''}
-        <span class="mueble-item-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual (se guarda automáticamente)"></span>
-      </span>`;
-    })
-    .join('');
-
-  const objsHtml = objs
-    .map(
-      (x) => `<span class="mueble-item" data-mueble-obj-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja">
-        <img src="${IMG_OBJETO}" alt="" class="mueble-item-img mueble-item-img-objeto" draggable="false" />
-        <span class="mueble-item-nombre">${escapeHtml(x.nombre)}</span>
-      </span>`,
-    )
-    .join('');
-
-  return `${contsHtml}${objsHtml}`;
 }
 
 // =============================================================================
@@ -292,7 +183,7 @@ function enlazar(): void {
   // Fundación en caliente de sub-divisiones: el "➕" de una celda VACÍA crea un
   // estante/cajón bajo la MISMA regla relacional del Drop (parent_contenedor del
   // mueble + coordenadas F·C exactas) sin pasar por la bandeja.
-  rootEl.querySelectorAll<HTMLElement>('[data-mueble-celda-crear]').forEach((btn) => {
+  rootEl.querySelectorAll<HTMLButtonElement>('[data-mueble-celda-crear]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -311,6 +202,54 @@ function enlazar(): void {
           btn.textContent = '➕';
         }
       });
+    });
+  });
+
+  // Conmutación EN CALIENTE del mueble inspeccionado (ESCENA 3): cada tarjeta
+  // del listado ofrece «🔍 Abrir ficha», los chips del detalle conmutan de mueble
+  // al instante (Ropero → Cama Cucheta, etc.) y «← Ver todos los muebles»
+  // regresa al listado general. El clic sobre un mueble del Visor de Habitación
+  // (panel izquierdo) llega por el evento estok:mueble-seleccionado.
+  rootEl.querySelectorAll<HTMLElement>('[data-mueble-abrir], [data-mueble-chip]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.muebleAbrir ?? btn.dataset.muebleChip;
+      if (id) activarMueble(id);
+    });
+  });
+  rootEl.querySelector<HTMLElement>('[data-mueble-atras]')?.addEventListener('click', () => {
+    activarMueble(null);
+  });
+
+  // Botón flotante verde «+» (extremo derecho de cada fila): suma una nueva
+  // división/columna vacía a esa línea específica y la registra con POST.
+  rootEl.querySelectorAll<HTMLButtonElement>('[data-mueble-fila-agregar]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.dataset.creando === '1') return;
+      const muebleId = btn.dataset.muebleId;
+      const fila = Number(btn.dataset.muebleRow);
+      if (!muebleId || !fila) return;
+      btn.dataset.creando = '1';
+      btn.disabled = true;
+      void agregarDivisionAMueble(muebleId, fila).finally(() => {
+        delete btn.dataset.creando;
+        btn.disabled = false;
+      });
+    });
+  });
+
+  // Botón compacto rojo «−» sobre cada sub-división de una fila con más de una
+  // división: frena con el cartel unificado y borra con DELETE asincrónico.
+  rootEl.querySelectorAll<HTMLButtonElement>('[data-mueble-celda-quitar]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const subId = btn.dataset.muebleSubId;
+      if (!subId) return;
+      void eliminarDivisionDeMueble(subId);
     });
   });
 
@@ -545,6 +484,80 @@ async function redimensionarEstanteriaEnVivo(id: string, dim: { ui_width: string
 }
 
 // =============================================================================
+// CONMUTACIÓN EN CALIENTE + CONTROLES +/− DE SUB-DIVISIONES (ESCENA 3)
+// =============================================================================
+
+/** Activa el mueble a inspeccionar y sincroniza el resaltado del panel izquierdo. */
+function activarMueble(id: string | null): void {
+  if (!roomActual) return;
+  muebleActivoId = id && muebles.some((m) => m.id === id) ? id : null;
+  render();
+  window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: muebleActivoId } }));
+}
+
+/** «−» de una sub-división: confirm del cartel unificado + DELETE asincrónico. */
+async function eliminarDivisionDeMueble(subId: string): Promise<void> {
+  const sub = subContenedores.find((s) => s.id === subId);
+  if (!sub) return;
+  if (sub.es_inmueble) {
+    toast('📌 Esta sub-división es un mueble inmueble fijo y no puede eliminarse.');
+    return;
+  }
+  if (!window.confirm(ADVERTENCIA_ELIMINAR_DIVISION)) return;
+  const ok = await eliminarSubdivisionApi(sub.id, sub.nombre);
+  if (ok) window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+}
+
+/** «+» del extremo derecho de una fila: suma una división/columna vacía. */
+async function agregarDivisionAMueble(muebleId: string, fila: number): Promise<boolean> {
+  if (!roomActual) return false;
+  const mueble = muebles.find((m) => m.id === muebleId);
+  if (!mueble) return false;
+
+  const colsDeFila = columnasDeFilaInterna(mueble as unknown as UbicacionPlano, fila);
+  if (colsDeFila >= 12) {
+    toast('⚠️ Esta fila ya alcanzó el máximo de 12 casilleros.');
+    return false;
+  }
+
+  // Casilleros ya ocupados de la fila (sub-contenedores u objetos).
+  const ocupados = new Set<number>();
+  for (const s of subContenedores) {
+    if (s.parent_contenedor === muebleId && s.parent_grid_row === fila && s.parent_grid_col) {
+      ocupados.add(s.parent_grid_col);
+    }
+  }
+  for (const o of subObjetos) {
+    if (o.contenedor === muebleId && o.parent_grid_row === fila && o.parent_grid_col) {
+      ocupados.add(o.parent_grid_col);
+    }
+  }
+
+  // El botón «+» (extremo derecho de la fila) suma una división vacía a esa
+  // línea específica: ocupa el primer casillero libre en orden de lectura; si la
+  // fila está llena, se ensancha la geometría con una columna nueva al final.
+  let colNueva = 0;
+  for (let c = 1; c <= colsDeFila; c++) {
+    if (!ocupados.has(c)) {
+      colNueva = c;
+      break;
+    }
+  }
+  const requiereEnsanche = colNueva === 0;
+  if (requiereEnsanche) colNueva = colsDeFila + 1;
+
+  const ok = await agregarDivisionEnFila({
+    mueble,
+    roomId: roomActual.id,
+    fila,
+    colNueva,
+    requiereEnsanche,
+  });
+  if (ok) window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  return ok;
+}
+
+// =============================================================================
 // ENTRADA
 // =============================================================================
 
@@ -554,7 +567,18 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
   window.addEventListener('estok:habitacion-seleccionada', (e) => {
     const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
     roomActual = room;
+    muebleActivoId = null;
     void cargar();
+  });
+  // Clic sobre un mueble del "Visor de Habitación" (panel izquierdo de la
+  // ESCENA 3): el panel derecho limpia su contenido anterior y abre EN CALIENTE
+  // la ficha y la distribución interna del mueble recién seleccionado.
+  window.addEventListener('estok:mueble-seleccionado', (e) => {
+    if (!roomActual) return;
+    const detalle = (e as CustomEvent<{ id?: string | null }>).detail ?? {};
+    const id = detalle?.id ?? null;
+    muebleActivoId = id && muebles.some((m) => m.id === id) ? id : null;
+    render();
   });
   window.addEventListener('estok:espacios-cambiados', () => {
     if (roomActual) void cargar();

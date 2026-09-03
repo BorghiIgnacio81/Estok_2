@@ -73,6 +73,8 @@ let dragTipoVisor: 'contenedor' | 'objeto' | 'puerta' | null = null;
 let divisionesIniciales: UbicacionPlano[] = [];
 /** Casillero exacto de la grilla que el usuario está inspeccionando (guía naranja). */
 let celdaInspeccionada: { fila: number; col: number } | null = null;
+/** Mueble activo (ESCENA 3): resaltado en el Visor y abierto en el panel derecho. */
+let muebleActivoId: string | null = null;
 
 // =============================================================================
 // HELPERS
@@ -140,6 +142,28 @@ function refrescarMinimapa(): void {
     celdaInspeccionada?.fila ?? null,
     celdaInspeccionada?.col ?? null,
   );
+}
+
+/** Resalta el mueble activo dentro del Visor de Habitación e ilumina su casillero. */
+function aplicarMuebleActivo(): void {
+  const cont = document.getElementById('visorHabitacion');
+  if (!cont) return;
+  cont.querySelectorAll<HTMLElement>('.visor-mueble-activo').forEach((el) => {
+    el.classList.remove('visor-mueble-activo');
+  });
+  if (!muebleActivoId) return;
+  cont.querySelectorAll<HTMLElement>('[data-contenedor-id]').forEach((el) => {
+    if (el.dataset.contenedorId !== muebleActivoId) return;
+    el.classList.add('visor-mueble-activo');
+    const celda = el.closest<HTMLElement>('[data-visor-celda]');
+    if (celda?.dataset.visorRow && celda?.dataset.visorCol) {
+      celdaInspeccionada = {
+        fila: Number(celda.dataset.visorRow),
+        col: Number(celda.dataset.visorCol),
+      };
+      refrescarMinimapa();
+    }
+  });
 }
 
 // =============================================================================
@@ -326,6 +350,7 @@ function enlazarVisor(): void {
       const c = contenedoresRoom.find((x) => x.id === id);
       if (c?.es_inmueble) { de.preventDefault(); return; }
       dragTipoVisor = 'contenedor';
+      el.dataset.arrastreEnCurso = '1';
       if (de.dataTransfer) {
         de.dataTransfer.setData('application/x-estok-contenedor', id);
         de.dataTransfer.setData('text/plain', id);
@@ -336,6 +361,25 @@ function enlazarVisor(): void {
     el.addEventListener('dragend', () => {
       el.classList.remove('opacity-50');
       dragTipoVisor = null;
+      setTimeout(() => delete el.dataset.arrastreEnCurso, 0);
+    });
+    // Conmutación EN CALIENTE del tercer nivel: un clic sobre el mueble limpia y
+    // abre su ficha/distribución interna en el "Visor Contenedor Grande" (derecha).
+    el.addEventListener('click', (e) => {
+      if (el.dataset.arrastreEnCurso === '1') {
+        delete el.dataset.arrastreEnCurso;
+        return;
+      }
+      const objetivo = e.target as HTMLElement | null;
+      if (objetivo?.closest('[data-inplace-renombrar], [data-inplace-resize], [data-editar-contenedor-visor], .visor-celda-editar, .visor-celda-fijo')) return;
+      const id = el.dataset.contenedorId;
+      if (!id) return;
+      const dato = contenedoresRoom.find((x) => x.id === id);
+      // Solo los muebles (con sub-divisiones o inmuebles fijos) abren ficha.
+      if (!dato || (!(Number(dato.subcontenedores_count) > 0) && !dato.es_inmueble)) return;
+      muebleActivoId = id;
+      aplicarMuebleActivo();
+      window.dispatchEvent(new CustomEvent('estok:mueble-seleccionado', { detail: { id } }));
     });
   });
 
@@ -645,6 +689,7 @@ export function initVisor(): void {
     const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
     roomActual = room;
     celdaInspeccionada = null;
+    muebleActivoId = null;
     if (!roomActual) {
       renderVisor();
       return;
@@ -652,7 +697,15 @@ export function initVisor(): void {
     void cargarContenido().then(() => {
       renderVisor();
       enlazarVisor();
+      aplicarMuebleActivo();
     });
+  });
+  // Sincroniza el resaltado del panel izquierdo cuando la selección se dispara
+  // desde el propio panel derecho (chips / «Abrir ficha» del Visor Contenedor Grande).
+  window.addEventListener('estok:mueble-destacado', (e) => {
+    const detalle = (e as CustomEvent<{ id?: string | null }>).detail ?? {};
+    muebleActivoId = detalle?.id ?? null;
+    aplicarMuebleActivo();
   });
   // Refresco en caliente ante cambios externos (movimientos/eliminaciones).
   window.addEventListener('estok:espacios-cambiados', () => {
@@ -660,6 +713,7 @@ export function initVisor(): void {
       void cargarContenido().then(() => {
         renderVisor();
         enlazarVisor();
+        aplicarMuebleActivo();
       });
     } else {
       // Sin habitación seleccionada: re-pintar los minimapas iniciales de plantas.

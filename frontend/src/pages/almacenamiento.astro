@@ -17,6 +17,7 @@ import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
+import '../styles/almacenamiento-controles.css';
 ---
 
 <AuthGuard />
@@ -87,7 +88,7 @@ import '../styles/almacenamiento-escenas.css';
               <span>Volver</span>
             </button>
           </div>
-          <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual. Los casilleros reciben elementos por Drag &amp; Drop exclusivamente (sin botones +).</p>
+          <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1">
             <div id="visorHabitacion" class="min-h-[180px]">
               <div class="visor-placeholder">
@@ -284,8 +285,8 @@ import '../styles/almacenamiento-escenas.css';
         cg?.classList.remove('hidden');
         if (tituloIzq) tituloIzq.textContent = '🧭 Visor de Habitación';
         if (tituloDer) tituloDer.textContent = '📦 Visor Contenedor Grande';
-        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitación: recibí muebles, cajas y objetos por arrastre.';
-        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Soltá contenedores pequeños y objetos desde la bandeja en sus casilleros.';
+        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitación: recibí muebles, cajas y objetos por arrastre. Hacé clic sobre un mueble para inspeccionar su ficha y su distribución interna en el panel derecho.';
+        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Clic en un mueble del panel izquierdo para conmutar su ficha en caliente; usá + y − para ajustar las sub-divisiones internas de la fila seleccionada.';
         badge?.classList.add('hidden');
         btnVolver()?.classList.remove('hidden');
       } else {
