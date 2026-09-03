@@ -60,14 +60,55 @@
   padding: 6px 2px;
 }
 
-/* --- Bloque superior: grilla compacta de objetos y cajas sin ubicar --- */
-.cf-chips {
+/* --- Bloque superior: grupos jerárquicos de cajas y objetos sin ubicar --- */
+.cf-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: #fffdf5;
+  padding: 8px;
+}
+
+.cf-grupo-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cf-grupo-titulo {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #92400e;
+}
+
+.cf-grupo-num {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #ea580c;
+  flex-shrink: 0;
+}
+
+.cf-grupo-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  max-height: 190px;
+  gap: 6px;
+  max-height: 108px;
   overflow-y: auto;
   padding: 2px;
+}
+
+.cf-grupo-vacio {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
 }
 
 /* --- Acordeón "Cambiar Contenedor" --- */
@@ -156,6 +197,30 @@
   flex-shrink: 0;
   pointer-events: none;
 }
+
+/* --- Sub-grupos jerárquicos dentro del acordeón (1 · cajas internas / 2 · objetos sueltos) --- */
+.cf-grupo-interno {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cf-grupo-interno + .cf-grupo-interno {
+  border-top: 1px dashed #fde68a;
+  padding-top: 8px;
+}
+
+.cf-sub-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cf-sub-cab .cf-bloque-badge {
+  padding: 0 7px;
+}
+
 
 .cf-contenedor-nombre {
   font-size: 12px;

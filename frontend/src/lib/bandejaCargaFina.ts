@@ -4,66 +4,38 @@
 // Panel DERECHO de la pantalla dividida reactiva que se abre con
 // «📦 Organizar Contenido» en almacenamiento.astro:
 //
-//   1. BLOQUE SUPERIOR «A primera vista · sin ubicación»: grilla compacta de
-//      Objetos (/fluffy_plush_ball.jpg) y Cajas (/Nuevo Contenedor.png)
-//      huérfanos o sin casillero (misma regla hermética de bandejaSinUbicar).
-//      Todos los chips son draggable=true y emiten los MIME types estándar
-//      (application/x-estok-contenedor / application/x-estok-objeto) que las
-//      Drop Zones del Visor Contenedor Grande interpretan para calcular la
-//      fila·columna del mueble y persistir con PUT multi-tenant.
+//   1. BLOQUE SUPERIOR «A primera vista · sin ubicación» con JERARQUÍA estricta:
+//      GRUPO 1 = Cajas sin ubicación (Contenedores Pequeños /Nuevo Contenedor.png
+//      huérfanos o sin casillero) en la cima, y GRUPO 2 = Objetos individuales
+//      sin ubicación (/fluffy_plush_ball.jpg) inmediatamente debajo (misma regla
+//      hermética de bandejaSinUbicar). Todos los chips son draggable=true y emiten
+//      los MIME types estándar (application/x-estok-contenedor /
+//      application/x-estok-objeto) que las Drop Zones del Visor Contenedor Grande
+//      interpretan para calcular la fila·columna del mueble y persistir con PUT
+//      multi-tenant.
 //
 //   2. BLOQUE INFERIOR «Cambiar Contenedor»: acordeón que lista de forma
-//      asincrónica los contenedores con ubicación que ya contienen objetos
-//      internos; al seleccionar uno despliega sus objetos en chips compactos
-//      para tomarlos y mudarlos físicamente hacia la grilla del mueble. NUNCA
-//      define headers de auth propios: usa getAuthHeaders()/API_BASE_URL desde
-//      src/services/auth (centralizado).
+//      asincrónica los contenedores con ubicación que ya contienen elementos
+//      internos; al seleccionar uno despliega su contenido respetando el MISMO
+//      orden jerárquico (primero sus Cajas internas, segundo sus Objetos sueltos)
+//      en chips compactos para tomarlos y mudarlos hacia la grilla del mueble.
+//      NUNCA define headers de auth propios: usa getAuthHeaders()/API_BASE_URL
+//      desde src/services/auth (centralizado).
 //
 // Persistencia multi-tenant estricta (JWT + X-Estok-Id) delegada a
 // src/lib/visorContenedorGrande.ts (asignarObjetoAMueble / asignarSubContenedor)
 // que se dispara al SOLTAR en un casillero [data-mueble-celda].
+// La construcción del marcado jerárquico vive en src/lib/bandejaCargaFinaHtml.ts.
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { escapeHtml } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+import {
+  contenedoresFuenteDeContenidoDe,
+  renderBandejaCargaFinaHtml,
+} from './bandejaCargaFinaHtml';
+import type { ContenedorCarga, ObjetoCarga } from './bandejaCargaFinaHtml';
 
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
-
-// =============================================================================
-// TIPOS
-// =============================================================================
-
-interface ContenedorCarga {
-  id: string;
-  nombre: string;
-  es_inmueble: boolean;
-  subcontenedores_count: number;
-  parent_contenedor: string | null;
-  parent_grid_row: number | null;
-  parent_grid_col: number | null;
-  ubicacion: string | null;
-  ubicacion_nombre: string | null;
-  objetos_count: number;
-}
-
-interface ObjetoCarga {
-  id: string;
-  nombre: string;
-  contenedor: string | null;
-  ubicacion: string | null;
-  parent_grid_row: number | null;
-  parent_grid_col: number | null;
-  deleted_at: string | null;
-}
-
-interface ChipCarga {
-  id: string;
-  nombre: string;
-  tipo: 'contenedor' | 'objeto';
-}
 
 let rootEl: HTMLElement | null = null;
 let contenedores: ContenedorCarga[] = [];
@@ -94,10 +66,6 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
     nextUrl = data.next;
   }
   return todos;
-}
-
-function sinCasillero(x: { parent_grid_row?: unknown; parent_grid_col?: unknown }): boolean {
-  return x.parent_grid_row == null && x.parent_grid_col == null;
 }
 
 function numero(v: unknown): number {
@@ -132,60 +100,6 @@ function normalizarObjeto(o: Record<string, unknown>): ObjetoCarga {
   };
 }
 
-/**
- * Chips «por ubicar» del bloque superior: MISMA regla hermética que la bandeja
- * inferior. Cajas pequeñas (sin sub-contenedores ni es_inmueble) sin casillero
- * y objetos sin contenedor que estén sueltos (sin ubicación o sin coordenadas).
- */
-function chipsSueltos(): ChipCarga[] {
-  const contenedoresSueltos: ChipCarga[] = contenedores
-    .filter((c) => (Number(c.subcontenedores_count) || 0) === 0)
-    .filter((c) => !c.es_inmueble)
-    .filter((c) => sinCasillero(c))
-    .map((c) => ({ id: c.id, nombre: c.nombre, tipo: 'contenedor' as const }));
-
-  const objetosSueltos: ChipCarga[] = objetos
-    .filter((o) => !o.deleted_at)
-    .filter((o) => !o.contenedor)
-    .filter((o) => o.ubicacion == null || sinCasillero(o))
-    .map((o) => ({ id: o.id, nombre: o.nombre, tipo: 'objeto' as const }));
-
-  return [...contenedoresSueltos, ...objetosSueltos];
-}
-
-/**
- * Contenedores «que ya tienen ubicación» de la habitación activa y que además
- * contienen objetos internos (útil para el inspector de cambio de contenedor).
- */
-function contenedoresUbicadosConObjetos(): ContenedorCarga[] {
-  if (!roomId) return [];
-  const conObjetos = new Set<string>();
-  for (const o of objetos) {
-    if (!o.deleted_at && o.contenedor) conObjetos.add(o.contenedor);
-  }
-  return contenedores
-    .filter((c) => c.ubicacion === roomId)
-    .filter((c) => conObjetos.has(c.id))
-    .sort(
-      (a, b) =>
-        (Number(b.objetos_count) || 0) - (Number(a.objetos_count) || 0) ||
-        a.nombre.localeCompare(b.nombre, 'es'),
-    );
-}
-
-function objetosInternosDe(contenedorId: string): ObjetoCarga[] {
-  return objetos
-    .filter((o) => !o.deleted_at && o.contenedor === contenedorId)
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-}
-
-/** Imagen icónica de un contenedor: archivador si es mueble/estante, caja si no. */
-function imagenDeContenedor(c: ContenedorCarga): string {
-  return (Number(c.subcontenedores_count) || 0) > 0 || Boolean(c.es_inmueble)
-    ? IMG_CONTENEDOR_GRANDE
-    : IMG_CONTENEDOR_PEQUENO;
-}
-
 // =============================================================================
 // CARGA ASINCRÓNICA (multi-tenant: JWT + X-Estok-Id vía getAuthHeaders)
 // =============================================================================
@@ -210,100 +124,28 @@ async function cargar(): Promise<void> {
 }
 
 // =============================================================================
-// RENDER (HTML puro; selectores globales del CSS de carga fina)
+// RENDER (delega el marcado a bandejaCargaFinaHtml.ts; selectores globales CSS)
 // =============================================================================
-
-function chipHtml(chip: ChipCarga): string {
-  if (chip.tipo === 'contenedor') {
-    return `<span class="bandeja-chip" draggable="true" data-cf-dnd="${chip.id}" data-cf-tipo="contenedor" title="Arrastrá «${escapeHtml(chip.nombre)}» a un casillero del mueble para fijar su coordenada">
-      <img src="${IMG_CONTENEDOR_PEQUENO}" alt="" class="bandeja-chip-img" draggable="false" />
-      <span class="bandeja-chip-nombre">${escapeHtml(chip.nombre)}</span>
-    </span>`;
-  }
-  return `<span class="bandeja-chip" draggable="true" data-cf-dnd="${chip.id}" data-cf-tipo="objeto" title="Arrastrá «${escapeHtml(chip.nombre)}» a un casillero del mueble para fijar su coordenada">
-    <img src="${IMG_OBJETO}" alt="" class="bandeja-chip-img bandeja-chip-img-objeto" draggable="false" />
-    <span class="bandeja-chip-nombre">${escapeHtml(chip.nombre)}</span>
-  </span>`;
-}
-
-function objetoInternoHtml(o: ObjetoCarga): string {
-  return `<span class="bandeja-chip" draggable="true" data-cf-dnd="${o.id}" data-cf-tipo="objeto" title="Arrastrá «${escapeHtml(o.nombre)}» a un casillero del mueble para cambiarle el contenedor">
-    <img src="${IMG_OBJETO}" alt="" class="bandeja-chip-img bandeja-chip-img-objeto" draggable="false" />
-    <span class="bandeja-chip-nombre">${escapeHtml(o.nombre)}</span>
-  </span>`;
-}
-
-function contenedorHtml(c: ContenedorCarga): string {
-  const abierto = contenedorSeleccionadoId === c.id;
-  const internos = abierto ? objetosInternosDe(c.id) : [];
-  const cuerpo = abierto
-    ? `<div class="cf-contenedor-cuerpo">
-        <span class="cf-sub-titulo">Objetos internos — tomalos y soltalos en un estante del mueble</span>
-        <div class="cf-objetos">
-          ${internos.length ? internos.map(objetoInternoHtml).join('') : '<div class="cf-vacio">Este contenedor no tiene objetos internos.</div>'}
-        </div>
-      </div>`
-    : '';
-  return `<article class="cf-contenedor${abierto ? ' cf-contenedor-abierto' : ''}">
-    <button type="button" class="cf-contenedor-cab" data-cf-cont-toggle="${c.id}" aria-expanded="${abierto ? 'true' : 'false'}" title="Ver los objetos internos de «${escapeHtml(c.nombre)}»">
-      <img src="${imagenDeContenedor(c)}" alt="" class="cf-contenedor-img" draggable="false" />
-      <span class="cf-contenedor-nombre">${escapeHtml(c.nombre)}</span>
-      <span class="cf-contenedor-meta">${Number(c.objetos_count) || 0} obj</span>
-      <span class="cf-chevron" aria-hidden="true">${abierto ? '▴' : '▾'}</span>
-    </button>
-    ${cuerpo}
-  </article>`;
-}
-
-function listadoAcordeonHtml(): string {
-  const ubicados = contenedoresUbicadosConObjetos();
-  if (!dataCargado) {
-    return '<div class="cf-vacio">⏳ Cargando contenedores con ubicación…</div>';
-  }
-  if (!ubicados.length) {
-    return roomId
-      ? '<div class="cf-vacio">📭 No hay contenedores con objetos internos en «' + escapeHtml(roomNombre || 'esta habitación') + '» todavía.</div>'
-      : '<div class="cf-vacio">👈 Seleccioná una habitación para inspeccionar sus contenedores.</div>';
-  }
-  return ubicados.map(contenedorHtml).join('');
-}
 
 function render(): void {
   if (!rootEl) return;
-  const sueltos = chipsSueltos();
-  if (contenedorSeleccionadoId && !objetos.some((o) => o.contenedor === contenedorSeleccionadoId)) {
+  if (
+    contenedorSeleccionadoId &&
+    !contenedoresFuenteDeContenidoDe(contenedores, objetos, roomId).some(
+      (c) => c.id === contenedorSeleccionadoId,
+    )
+  ) {
     contenedorSeleccionadoId = null;
   }
-
-  const sueltosHtml = sueltos.length
-    ? sueltos.map(chipHtml).join('')
-    : '<div class="cf-vacio">✨ No hay objetos ni cajas sin ubicar. Soltá un elemento desde un casillero del mueble para extraerlo y aparecerá acá.</div>';
-
-  const cuerpoAcordeon = acordeonAbierto ? listadoAcordeonHtml() : '';
-
-  rootEl.innerHTML = `
-  <div class="cf-panel">
-    <!-- BLOQUE SUPERIOR: objetos y cajas huérfanos / sin ubicación -->
-    <section class="cf-bloque">
-      <div class="cf-bloque-cab">
-        <span class="cf-bloque-titulo">🫳 A primera vista · por ubicar</span>
-        <span class="cf-bloque-badge">${sueltos.length}</span>
-      </div>
-      <p class="cf-bloque-hint">Objetos 🧸 y cajas 📦 sin casillero asignado. Arrastralos hacia un estante del mueble (panel izquierdo).</p>
-      <div class="cf-chips">${sueltosHtml}</div>
-    </section>
-
-    <!-- BLOQUE INFERIOR: inspector "Cambiar Contenedor" (acordeón async) -->
-    <section class="cf-bloque cf-acordeon${acordeonAbierto ? ' cf-acordeon-abierto' : ''}">
-      <button type="button" class="cf-acordeon-toggle" data-cf-toggle-accordeon aria-expanded="${acordeonAbierto ? 'true' : 'false'}">
-        <span class="cf-bloque-titulo">🔄 Cambiar Contenedor</span>
-        <span class="cf-bloque-badge">${roomId ? contenedoresUbicadosConObjetos().length : 0}</span>
-        <span class="cf-chevron" aria-hidden="true">▾</span>
-      </button>
-      <p class="cf-bloque-hint">Contenedores con ubicación que ya tienen objetos internos. Elegí uno y tomá sus objetos para mudarlos al mueble activo.</p>
-      <div class="cf-acordeon-cuerpo">${cuerpoAcordeon}</div>
-    </section>
-  </div>`;
+  rootEl.innerHTML = renderBandejaCargaFinaHtml({
+    contenedores,
+    objetos,
+    roomId,
+    roomNombre,
+    dataCargado,
+    acordeonAbierto,
+    contenedorSeleccionadoId,
+  });
   enlazar();
 }
 
@@ -314,8 +156,9 @@ function render(): void {
 function enlazar(): void {
   if (!rootEl) return;
 
-  // Origen de arrastre: chips sueltos (bloque superior) y objetos internos
-  // (acordeón). Emiten los MIME types que las Drop Zones del mueble consumen.
+  // Origen de arrastre: chips de los grupos sin ubicar (bloque superior) y de los
+  // elementos internos del acordeón (cajas y objetos). Emiten los MIME types que
+  // las Drop Zones del mueble consumen para persistir con PUT multi-tenant.
   rootEl.querySelectorAll<HTMLElement>('[data-cf-dnd]').forEach((el) => {
     el.addEventListener('dragstart', (e) => {
       const de = e as DragEvent;
@@ -341,7 +184,8 @@ function enlazar(): void {
     render();
   });
 
-  // Selección de un contenedor: despliega sus objetos internos en chips compactos.
+  // Selección de un contenedor origen: despliega su contenido jerárquico (primero
+  // sus cajas internas, después sus objetos sueltos) en chips compactos.
   rootEl.querySelectorAll<HTMLElement>('[data-cf-cont-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.cfContToggle ?? null;
