@@ -236,7 +236,9 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         if not incluir_eliminados:
             qs = qs.filter(deleted_at__isnull=True)
 
-        return qs.select_related('ubicacion', 'contenedor').prefetch_related('fotos')
+        return qs.select_related(
+            'ubicacion', 'contenedor', 'categoria', 'objeto_padre',
+        ).prefetch_related('fotos')
 
     # ------------------------------------------------------------------
     # Helpers compartidos

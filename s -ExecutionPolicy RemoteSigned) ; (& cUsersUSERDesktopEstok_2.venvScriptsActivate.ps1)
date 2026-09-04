@@ -1,15 +1,23 @@
-[33mcbb2332[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m cambio url
-[33mc5a39b3[m feat(profile): mudar seccion de integraciones omnicanal dentro de mi perfil y limpiar navbar
-[33mdccc4bd[m design: duplicar el tamano de los botones de imagen nueva ubicacion y nuevo contenedor en el panel
-[33md98448f[m design: reemplazar botones de nueva ubicacion y nuevo contenedor por sus imagenes png correspondientes
-[33m02a2ec2[m feat(storage): edicion tecnica total con medidas y foto via FormData en modal de almacenamiento
-[33m883f1ea[m feat(storage): edicion en caliente de ubicaciones y contenedores con modal asincrono
-[33me47763a[m feat(storage): unificar ubicaciones y contenedores en una pestaña con drag and drop jerarquico nativo
-[33mf706cb3[m feat(almacenamiento): unificar Ubicaciones y Contenedores en tablero drag & drop con jerarquia de sub-contenedores
-[33m3458eeb[m design: triplicar el tamaño de la imagen del boton nuevo objeto en el encabezado
-[33m59bd715[m design: segmentar accesos por estok en la membresia y fusionar fondo de la app con nuevo objeto png
-[33mab4f864[m feat(auth): contador de inicios de sesion (login_count) visible en Admin Global
-[33m5e269ff[m fix(auth): blindar seed_ygumy para evitar la sobreescritura de contraseñas personalizadas
-[33mb272772[m fix(auth): evitar que el script de inicio sobreescriba la contraseña personalizada del usuario
-[33mda4813a[m fix(analytics): flexibilizar conteo de objetos vender_publicado para pintar segmento verde en el dashboard
-[33mc0b1e09[m fix(dashboard): objetos publicados en ML suman al segmento vender_publicado del grafico de barras apiladas
+warning: in the working copy of 'frontend/src/lib/bandejaSinUbicar.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/frontend/src/lib/bandejaSinUbicar.ts b/frontend/src/lib/bandejaSinUbicar.ts[m
+[1mindex 41c20b4..00d9c0f 100644[m
+[1m--- a/frontend/src/lib/bandejaSinUbicar.ts[m
+[1m+++ b/frontend/src/lib/bandejaSinUbicar.ts[m
+[36m@@ -16,7 +16,7 @@[m
+ // Persistencia multi-tenant estricta: JWT + header X-Estok-Id (getAuthHeaders).[m
+ // =============================================================================[m
+ [m
+[31m-import { getAuthHeaders, API_BASE_URL } from '../services/auth';[m
+[32m+[m[32mimport { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';[m
+ import { escapeHtml, toast } from './mapaJerarquico';[m
+ [m
+ const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';[m
+[36m@@ -54,7 +54,7 @@[m [masync function fetchTodos(url: string): Promise<Record<string, unknown>[]> {[m
+     if (!res.ok) return todos;[m
+     const data = await res.json();[m
+     todos.push(...(data.results || data));[m
+[31m-    nextUrl = data.next;[m
+[32m+[m[32m    nextUrl = normalizarUrlApi(data.next);[m
+   }[m
+   return todos;[m
+ }[m

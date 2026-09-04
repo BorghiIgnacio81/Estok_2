@@ -46,14 +46,19 @@ class ObjetoListSerializer(serializers.ModelSerializer):
         ]
 
     def get_foto_principal(self, obj):
-        """Obtiene la URL de la foto principal si existe."""
-        foto = obj.fotos.filter(es_principal=True).first()
-        if foto:
-            return foto.imagen.url
-        primera_foto = obj.fotos.first()
-        if primera_foto:
-            return primera_foto.imagen.url
-        return None
+        """
+        Obtiene la URL de la foto principal si existe.
+
+        Optimizado para cero N+1: consume la caché de `prefetch_related('fotos')`
+        (presente en el listado y en el árbol jerárquico). Sin caché, resuelve
+        con una única consulta, igual que el comportamiento previo.
+        """
+        fotos = list(obj.fotos.all())
+        if not fotos:
+            return None
+        principal = next((f for f in fotos if f.es_principal), None)
+        foto = principal or fotos[0]
+        return foto.imagen.url
 
 
 class ObjetoDetailSerializer(serializers.ModelSerializer):

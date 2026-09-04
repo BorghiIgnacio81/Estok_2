@@ -1,7 +1,10 @@
 ---
-// =============================================================================
-// PÁGINA DE LISTADO DE OBJETOS (Dinámico con API)
-// =============================================================================
+// Listado jerárquico de objetos (inventario en cascada).
+// Prioriza las estructuras de almacenamiento del Estok activo (cajas, estantes,
+// armarios y muebles) desglosando en viñetas su contenido interno (sub-cajas
+// recursivas primero, luego objetos). Los objetos sueltos van en la sección
+// inferior. La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
+// Payload: GET /api/contenedores/arbol/ (backend optimizado, cero N+1).
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
@@ -19,31 +22,30 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
       <div>
         <h1 class="text-3xl font-bold text-gray-900">Objetos</h1>
-        <p class="mt-1 text-gray-500">Gestiona todos los objetos de tu inventario</p>
+        <p class="mt-1 text-gray-500">Cajas, armarios y objetos del Estok activo en vista de cascada</p>
       </div>
-      <!-- Acciones principales: CategoriaCreator, Export CSV e imagen "Nuevo Objeto" alineada a la derecha (estética Dashboard) -->
       <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
-        <!-- "+ Nueva Categoría" como imagen física local (identidad texturizada ESTOK),
-             a la misma escala responsiva que la imagen "Nuevo Objeto" del header. -->
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-        <button id="exportCsvBtn" class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
+        <button id="exportCsvBtn"
+          class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           Exportar CSV
         </button>
         <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
-          <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+          <img src="/nuevo objeto.png" alt="Nuevo Objeto"
+            class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         </a>
       </div>
     </div>
 
-    <!-- Barra de filtros dinámicos (Decisión, Categoría y Publicación ML) -->
-    <div class="flex flex-wrap items-center gap-4 bg-slate-900/5 p-4 rounded-xl mb-6" id="filtrosBarra">
-      <!-- Filtro A: Decisión del dueño -->
+    <!-- Barra de filtros dinámicos -->
+    <div class="flex flex-wrap items-end gap-4 bg-slate-900/5 p-4 rounded-xl mb-4">
       <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
         <label for="filtroDecision" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Decisión</label>
-        <select id="filtroDecision" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+        <select id="filtroDecision"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
           <option value="">Todas</option>
           <option value="vender">Vender</option>
           <option value="conservar">Conservar</option>
@@ -51,436 +53,70 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
           <option value="sin_decision">Sin Decisión</option>
         </select>
       </div>
-
-      <!-- Filtro B: Categoría oficial (poblado dinámicamente desde /api/categorias/) -->
       <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
         <label for="filtroCategoria" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</label>
-        <select id="filtroCategoria" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+        <select id="filtroCategoria"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
           <option value="">Todas</option>
-          <!-- Se completa dinámicamente -->
         </select>
       </div>
-
-      <!-- Filtro C: Estado de publicación en Mercado Libre -->
       <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
         <label for="filtroPublicado" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publicación</label>
-        <select id="filtroPublicado" class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
-          <option value="">Todos</option>
-          <option value="publicado">Publicados en Mercado Libre</option>
-          <option value="no_publicado">No Publicados</option>
+        <select id="filtroPublicado"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+          <option value="">Todas</option>
+          <option value="publicado">Publicado en MercadoLibre</option>
+          <option value="no_publicado">No publicado</option>
         </select>
       </div>
-    </div>
-
-    <!-- Barra de búsqueda -->
-    <div class="mb-6">
-      <div class="relative">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          id="searchInput"
-          type="text"
-          placeholder="Buscar objetos por nombre o descripción..."
-          class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-        />
+      <div class="flex flex-col gap-1.5 flex-1 min-w-[220px]">
+        <label for="searchInput" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Buscar</label>
+        <input id="searchInput" type="search" placeholder="Buscar por nombre o descripción…"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
       </div>
     </div>
+    <!-- Estados: carga · error · vacío -->
+    <LoadingState mensaje="Cargando inventario jerárquico…" />
+    <ErrorState mensaje="Error al cargar el inventario jerárquico." />
+    <EmptyState id="emptyState" icono="🗄️" titulo="El inventario está vacío"
+      descripcion="Creá una caja o un mueble desde Almacenamiento y cargá tu primer objeto."
+      accionTexto="Nuevo Objeto" accionHref="/objetos/nuevo" />
 
+    <!-- Sin coincidencias con los filtros activos -->
+    <div id="sinResultados"
+      class="hidden bg-amber-50 border border-amber-200 text-amber-800 px-6 py-4 rounded-xl text-center text-sm font-medium">
+      🔍 No hay objetos que coincidan con los filtros aplicados. Probá ampliar la búsqueda.
+    </div>
 
-    <LoadingState mensaje="Cargando objetos..." />
-    <ErrorState mensaje="Error al cargar objetos." />
-    <EmptyState
-      titulo="No hay objetos registrados"
-      descripcion="Comienza agregando tu primer objeto al inventario."
-      icono="📦"
-      accionTexto="Agregar Primer Objeto"
-      accionHref="/objetos/nuevo"
-    />
+    <!-- Resumen de la vista actual -->
+    <div id="resumenInventario" class="hidden mb-6"></div>
 
-    <!-- Grid de objetos -->
-    <div id="objetosGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
-  </div>
-</BaseLayout>
-
-<script>
-  // ===========================================================================
-  // LISTADO DINÁMICO DE OBJETOS
-  // ===========================================================================
-
-  import {getAuthHeaders, API_BASE_URL} from '../services/auth';
-
-  // ===========================================================================
-  // BOTÓN GIGANTE "NUEVO OBJETO" (/nuevo objeto.png) — CABECERA SUPERIOR
-  // Reseteo absoluto del formulario de captura: al navegar a /objetos/nuevo
-  // se purga cualquier estado persistido (foto, galería y campos) para
-  // garantizar que la pantalla de captura se limpie por completo.
-  // ===========================================================================
-  const btnNuevoObjeto = document.querySelector<HTMLAnchorElement>('a[href="/objetos/nuevo"]');
-  btnNuevoObjeto?.addEventListener('click', () => {
-    try { sessionStorage.removeItem('nuevo_objeto_form'); } catch (e) {}
-    try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
-    try { sessionStorage.removeItem('nuevo_objeto_fotos'); } catch (e) {}
-  });
-
-  const loadingState = document.getElementById('loadingState')!;
-  const emptyState = document.getElementById('emptyState')!;
-  const errorState = document.getElementById('errorState')!;
-  const errorMessage = document.getElementById('errorMessage')!;
-  const retryBtn = document.getElementById('retryBtn')!;
-  const objetosGrid = document.getElementById('objetosGrid')!;
-
-  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
-  const filtroDecision = document.getElementById('filtroDecision') as HTMLSelectElement | null;
-  const filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
-  const filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
-
-  let categoriasCache: any[] = [];
-
-  // Estado reactivo de los filtros (sin recargar la página al cambiar)
-  const filtros = { decision: '', categoria: '', publicado_ml: '' };
-
-
-  function showLoading() {
-
-    loadingState.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    objetosGrid.classList.add('hidden');
-  }
-
-  function showError(msg: string) {
-    loadingState.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    errorState.classList.remove('hidden');
-    objetosGrid.classList.add('hidden');
-    errorMessage.textContent = msg;
-  }
-
-  function getEstadoBadge(estado: string): string {
-    const map: Record<string, { color: string; label: string }> = {
-      excelente: { color: 'bg-green-100 text-green-700', label: 'Excelente' },
-      bueno: { color: 'bg-blue-100 text-blue-700', label: 'Bueno' },
-      regular: { color: 'bg-yellow-100 text-yellow-700', label: 'Regular' },
-      malo: { color: 'bg-orange-100 text-orange-700', label: 'Malo' },
-      muy_malo: { color: 'bg-red-100 text-red-700', label: 'Muy malo' },
-    };
-    const info = map[estado] || { color: 'bg-gray-100 text-gray-700', label: estado };
-    return `<span class="text-xs px-2 py-1 rounded-full font-medium ${info.color}">${info.label}</span>`;
-  }
-
-  // Ícono de objeto: derivado de la categoría oficial (11 Meli) si existe.
-  // Sin fallback a tipos legados (Libro/Tecnología/Mueble/Ropa) que ya no existen.
-  function getTipoIcon(obj: any): string {
-    const iconoPorCategoria = getIconoCategoria(obj.categoria_nombre);
-    if (iconoPorCategoria) return iconoPorCategoria;
-    return '📦';
-  }
-
-
-  function getIconoCategoria(nombre: string | null | undefined): string {
-    if (!nombre) return '';
-    const map: Record<string, string> = {
-      'Muebles': '🛋️',
-      'Arte': '🎨',
-      'Coleccionables': '🏺',
-      'Antigüedades': '🕰️',
-      'Jardín': '🌿',
-      'Computación': '💻',
-      'Electrónica': '📺',
-      'Cocina': '🍳',
-      'Hogar': '🏠',
-      'Herramientas': '🔧',
-      'Materiales': '🧱',
-    };
-    return map[nombre] || '';
-  }
-
-
-  function getEstadoCargaBadge(estado: string): string {
-    if (estado === 'completo') {
-      return '<span class="text-xs text-green-600 font-medium">✅ Completo</span>';
-    } else if (estado === 'incompleto') {
-      return '<span class="text-xs text-yellow-600 font-medium">⚠️ Incompleto</span>';
-    }
-    return '<span class="text-xs text-gray-400 font-medium">⏳ Pendiente IA</span>';
-  }
-
-  function getOwnerActionBadge(action: string | null): string {
-    if (!action) return '';
-    const map: Record<string, { color: string; label: string; icon: string }> = {
-      vender: { color: 'bg-green-100 text-green-700', label: 'Vender', icon: '💰' },
-      conservar: { color: 'bg-blue-100 text-blue-700', label: 'Conservar', icon: '🔄' },
-      tirar: { color: 'bg-red-100 text-red-700', label: 'Tirar', icon: '🗑️' },
-    };
-    const info = map[action] || { color: 'bg-gray-100 text-gray-700', label: action, icon: '❓' };
-    return `<span class="text-xs px-2 py-1 rounded-full font-medium ${info.color}">${info.icon} ${info.label}</span>`;
-  }
-
-
-  function renderObjetos(objetos: any[]) {
-    if (objetos.length === 0) {
-      loadingState.classList.add('hidden');
-      errorState.classList.add('hidden');
-      objetosGrid.classList.add('hidden');
-      emptyState.classList.remove('hidden');
-      return;
-    }
-
-    loadingState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    objetosGrid.classList.remove('hidden');
-
-    objetosGrid.innerHTML = objetos.map((obj) => {
-      const fotoUrl = obj.foto_principal || '';
-      const tipoIcon = getTipoIcon(obj);
-      const estadoBadge = getEstadoBadge(obj.estado_conservacion);
-
-      const cargaBadge = getEstadoCargaBadge(obj.estado_carga);
-      const valor = obj.valor_estimado
-        ? `$${parseFloat(obj.valor_estimado).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
-        : '—';
-
-      return `
-        <div class="objeto-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base cursor-pointer" data-id="${obj.id}" data-href="/objetos/${obj.id}">
-          <!-- Foto -->
-          <div class="h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
-            ${fotoUrl
-              ? `<img src="${fotoUrl}" alt="${obj.nombre}" class="w-full h-full object-cover" />`
-              : `<div class="text-center text-gray-400"><span class="text-4xl">${tipoIcon}</span><p class="text-xs mt-1">Sin foto</p></div>`
-            }
-          </div>
-          <!-- Info -->
-          <div class="p-4">
-            <div class="flex items-start justify-between gap-2 mb-2">
-              <h3 class="font-semibold text-gray-900 text-sm leading-tight line-clamp-2">${obj.nombre}</h3>
-              <span class="text-lg flex-shrink-0">${tipoIcon}</span>
-            </div>
-            <div class="flex flex-wrap gap-1.5 mb-2">
-              ${estadoBadge}
-              ${cargaBadge}
-      ${getOwnerActionBadge(obj.owner_action)}
-              ${obj.alerta_stock ? '<span class="text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-700">🔴 Stock bajo</span>' : ''}
-            </div>
-            <div class="text-xs text-gray-500 space-y-1">
-              ${obj.ubicacion_nombre ? `<p>📍 ${obj.ubicacion_nombre}</p>` : ''}
-              ${obj.contenedor_nombre ? `<p>📦 ${obj.contenedor_nombre}</p>` : ''}
-              <p class="font-medium text-gray-700">💰 ${valor}</p>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">${new Date(obj.fecha_registro).toLocaleDateString('es-AR')}</p>
-          </div>
-          <!-- Botones de acción -->
-          <div class="flex border-t border-gray-100 divide-x divide-gray-100">
-            <a href="/objetos/${obj.id}/editar" class="editar-link flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-base">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Editar
-            </a>
-            <button class="delete-btn flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-base" data-id="${obj.id}" data-nombre="${obj.nombre}">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Eliminar
-            </button>
-          </div>
+    <!-- SECCIÓN SUPERIOR · Estructuras de almacenamiento (cajas/armarios) -->
+    <section id="seccionEstructuras" class="hidden mb-10">
+      <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">🗄️ Estructuras de almacenamiento</h2>
+          <p class="text-sm text-gray-500">Cajas y armarios del Estok activo con el desglose de su contenido interno</p>
         </div>
-      `;
-    }).join('');
+      </div>
+      <div id="estructurasContainer" class="space-y-6"></div>
+    </section>
 
-    // Click en card para ver detalle (usando event delegation)
-    // Botones eliminar
-    objetosGrid.querySelectorAll('.delete-btn').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const id = btn.getAttribute('data-id');
-        const nombre = btn.getAttribute('data-nombre');
-        if (!id) return;
-        if (!confirm(`¿Estás seguro de eliminar "${nombre}"? Se marcará como eliminado.`)) return;
-        try {
-          const res = await fetch(`${API_BASE_URL}/objetos/${id}/`, {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeaders(),
-            },
-          });
-          if (res.ok || res.status === 204) {
-            (window as any).showSuccess?.(`✅ "${nombre}" eliminado`);
-            cargarObjetos();
+    <!-- SECCIÓN INFERIOR · Objetos sueltos o sin ubicación -->
+    <section id="seccionSueltos" class="hidden">
+      <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">📦 Objetos sueltos o sin ubicación</h2>
+          <p class="text-sm text-gray-500">Ítems que no residen dentro de una caja/armario · consistencia del inventario total</p>
+        </div>
+      </div>
+      <div id="objetosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+    </section>
+  </div>
 
-          } else {
-            const err = await res.json().catch(() => ({}));
-            (window as any).showError?.(`❌ Error al eliminar: ${err.detail || err.error || 'Error desconocido'}`);
-          }
-        } catch {
-          (window as any).showError?.('❌ Error de conexión');
-        }
-      });
-    });
-
-    // Navegación al hacer clic en la tarjeta (excepto en botones/links)
-    objetosGrid.querySelectorAll('.objeto-card').forEach((card) => {
-      card.addEventListener('click', (e) => {
-        // No navegar si el clic fue en un enlace o botón
-        const target = e.target as HTMLElement;
-        if (target.closest('a') || target.closest('button')) return;
-        const href = card.getAttribute('data-href');
-        if (href) window.location.href = href;
-      });
-    });
-  }
-
-  async function cargarCategoriasFiltros() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/categorias/`, {
-        headers: getAuthHeaders(),
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      categoriasCache = Array.isArray(data) ? data : (data.results || []);
-
-      // Poblar el combobox de categorías conservando la opción "Todas"
-      const optionsHtml = categoriasCache.map((cat: any) =>
-        `<option value="${cat.id}">${cat.icono || '🏷️'} ${cat.nombre}</option>`
-      ).join('');
-      if (filtroCategoria) filtroCategoria.insertAdjacentHTML('beforeend', optionsHtml);
-    } catch (err) {
-      console.error('Error al cargar categorías para filtros:', err);
-    }
-  }
-
-  // Construye la URL del listado combinando TODOS los filtros activos
-  // (decisión, categoría, publicación ML) y la búsqueda por texto.
-  function construirUrlObjetos(): string {
-    let url = `${API_BASE_URL}/objetos/?page_size=50`;
-    if (filtros.decision) url += `&decision=${encodeURIComponent(filtros.decision)}`;
-    if (filtros.categoria) url += `&categoria=${filtros.categoria}`;
-    if (filtros.publicado_ml) url += `&publicado_ml=${filtros.publicado_ml}`;
-    const query = (searchInput?.value || '').trim();
-    if (query.length >= 2) url += `&search=${encodeURIComponent(query)}`;
-    return url;
-  }
-
-  async function cargarObjetos() {
-    showLoading();
-
-    try {
-      const response = await fetch(construirUrlObjetos(), { headers: getAuthHeaders() });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        showError(`Error del servidor (${response.status})`);
-        return;
-      }
-
-      const data = await response.json();
-      const objetos = data.results || data;
-      renderObjetos(objetos);
-    } catch (err) {
-      console.error('Error al cargar objetos:', err);
-      showError('Error de conexión. Verifica que el servidor esté corriendo.');
-    }
-  }
-
-  // ===========================================================================
-  // FILTROS DINÁMICOS (Decisión, Categoría y Publicación ML)
-  // Al cambiar cualquier combobox se re-dispara la consulta a la API en caliente,
-  // sin recargar la página (window.location.reload NO se usa).
-  // ===========================================================================
-
-  function aplicarFiltros() {
-    filtros.decision = filtroDecision?.value || '';
-    filtros.categoria = filtroCategoria?.value || '';
-    filtros.publicado_ml = filtroPublicado?.value || '';
-    cargarObjetos();
-  }
-
-  filtroDecision?.addEventListener('change', aplicarFiltros);
-  filtroCategoria?.addEventListener('change', aplicarFiltros);
-  filtroPublicado?.addEventListener('change', aplicarFiltros);
-
-  // Retry
-  retryBtn?.addEventListener('click', () => cargarObjetos());
-
-  // ===========================================================================
-  // BÚSQUEDA EN TIEMPO REAL
-  // ===========================================================================
-
-  let searchTimeout: number | null = null;
-
-  searchInput?.addEventListener('input', () => {
-    if (searchTimeout) clearTimeout(searchTimeout);
-    searchTimeout = window.setTimeout(() => {
-      // La búsqueda se combina con los filtros activos en la misma petición
-      cargarObjetos();
-    }, 300);
-  });
-
-
-  // ===========================================================================
-  // EXPORTAR CSV
-  // ===========================================================================
-
-  document.getElementById('exportCsvBtn')?.addEventListener('click', async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/objetos/exportar_csv/`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        (window as any).showError?.('Error al exportar CSV');
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `inventario_estok_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      (window as any).showSuccess?.('✅ CSV exportado correctamente');
-    } catch {
-      (window as any).showError?.('Error de conexión al exportar CSV');
-    }
-  });
-
-  // ===========================================================================
-  // NAVEGACIÓN CRUZADA DESDE EL DASHBOARD
-  // Las tarjetas de categorías del dashboard enlazan con /objetos?categoria_id=XX.
-  // Si el parámetro viene en la URL, se aplica como filtro inicial en caliente:
-  // se asigna el valor al combobox de categorías, se dispara 'change'
-  // (aplicarFiltros() → cargarObjetos()) y la cuadrícula carga filtrada en el
-  // acto, sin recargas duras de pantalla (window.location.reload NO se usa).
-  // ===========================================================================
-  const params = new URLSearchParams(window.location.search);
-  const catId = params.get('categoria_id');
-
-  if (catId) {
-    // El combobox de categorías se puebla de forma asíncrona desde /api/categorias/:
-    // esperamos a que las opciones existan antes de asignar el valor filtrado.
-    cargarCategoriasFiltros().then(() => {
-      if (filtroCategoria && filtroCategoria.querySelector(`option[value="${catId}"]`)) {
-        filtroCategoria.value = catId;
-        filtroCategoria.dispatchEvent(new Event('change')); // fetch filtrado inmediato
-      } else {
-        // Fallback seguro: si el ID no está entre las opciones, listado completo.
-        cargarObjetos();
-      }
-    });
-  } else {
-    // Carga normal: categorías para el combobox + listado completo
-    cargarCategoriasFiltros();
-    cargarObjetos();
-  }
-</script>
-
+  <script>
+    import { initListadoJerarquicoObjetos } from '../lib/listadoJerarquicoObjetos';
+    initListadoJerarquicoObjetos();
+  </script>
+</BaseLayout>
 

@@ -111,9 +111,26 @@ class ContenedorSerializer(serializers.ModelSerializer):
         return None
 
     def get_objetos_count(self, obj):
-        """Retorna la cantidad de objetos NO eliminados dentro del contenedor."""
+        """
+        Retorna la cantidad de objetos NO eliminados dentro del contenedor.
+
+        Optimizado: en listados, el viewset anota `_objetos_activos_total` con
+        un único COUNT agrupado (cero N+1). Fuera del listado, cae al conteo
+        relacional clásico.
+        """
+        total = getattr(obj, '_objetos_activos_total', None)
+        if total is not None:
+            return total
         return obj.objetos.filter(deleted_at__isnull=True).count()
 
     def get_subcontenedores_count(self, obj):
-        """Retorna la cantidad de sub-contenedores directos dentro de este contenedor."""
+        """
+        Retorna la cantidad de sub-contenedores directos dentro de este contenedor.
+
+        Optimizado: en listados usa la anotación `_subcontenedores_total`
+        (COUNT agrupado, cero N+1). Fuera del listado, cae al conteo clásico.
+        """
+        total = getattr(obj, '_subcontenedores_total', None)
+        if total is not None:
+            return total
         return obj.subcontenedores.count()

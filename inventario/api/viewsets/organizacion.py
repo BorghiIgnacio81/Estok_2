@@ -11,11 +11,13 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from ...models import Ubicacion, Contenedor, Objeto, Membresia
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
 from ...services.qr_service import QRService
+from ...services.arbol_inventario_service import construir_arbol_estok
 from .base import HasRolePermission
 
 logger = logging.getLogger(__name__)
@@ -200,6 +202,19 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(ubicacion__estok_id=estok_id)
+
+        # Optimización de payload: en el listado, los conteos de sub-contenedores
+        # y objetos activos se resuelven con UN solo COUNT agrupado por página
+        # (anotación) en lugar de 2 queries N+1 por fila.
+        if self.action == 'list':
+            qs = qs.annotate(
+                _objetos_activos_total=Count(
+                    'objetos',
+                    filter=Q(objetos__deleted_at__isnull=True),
+                    distinct=True,
+                ),
+                _subcontenedores_total=Count('subcontenedores', distinct=True),
+            )
         return qs
 
     def update(self, request, *args, **kwargs):
@@ -443,6 +458,50 @@ class ContenedorViewSet(viewsets.ModelViewSet):
                 sub.ubicacion_id = contenedor.ubicacion_id
                 sub.save(update_fields=['ubicacion'])
             self._propagar_ubicacion(sub)
+
+    @action(detail=False, methods=['get'])
+    def arbol(self, request):
+        """
+        ÁRBOL JERÁRQUICO DE INVENTARIO (listado de objetos en cascada).
+
+        GET /api/contenedores/arbol/
+          ?categoria=<uuid> & decision=vender|conservar|tirar|sin_decision
+          & publicado_ml=publicado|no_publicado & search=<texto>
+
+        Retorna las estructuras de almacenamiento del Estok activo (cajas,
+        estantes, armarios, muebles) con su desglose interior en cascada
+        (sub-contenedores primero, luego objetos individuales) y los objetos
+        sueltos/sin ubicación en `sueltos`.
+
+        Consulta optimizada para PostgreSQL: 1 query de contenedores
+        (select_related) + 1 query de objetos (select_related + prefetch de
+        fotos). Cero N+1; los árboles y agrupaciones se resuelven en memoria.
+        """
+        estok_id = (
+            request.headers.get('X-Estok-Id')
+            or request.query_params.get('estok_id')
+        )
+        if not estok_id:
+            return Response({
+                'estructuras': [],
+                'sueltos': [],
+                'filtros_activos': False,
+                'resumen': {
+                    'contenedores': 0,
+                    'objetos_ubicados': 0,
+                    'objetos_sueltos': 0,
+                },
+            })
+
+        payload = construir_arbol_estok(
+            estok_id,
+            request=request,
+            categoria=request.query_params.get('categoria') or None,
+            decision=request.query_params.get('decision') or None,
+            publicado_ml=request.query_params.get('publicado_ml') or None,
+            search=(request.query_params.get('search') or '').strip() or None,
+        )
+        return Response(payload)
 
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):
