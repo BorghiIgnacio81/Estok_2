@@ -118,5 +118,36 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     import { initListadoJerarquicoObjetos } from '../lib/listadoJerarquicoObjetos';
     initListadoJerarquicoObjetos();
   </script>
+
+  <style is:global>
+    /* Acordeón nativo <details>: revelado fluido y sin marcador triangular por defecto.
+       El HTML de las tarjetas/viñetas se inyecta desde listadoJerarquicoObjetos.ts,
+       por eso estos estilos son globales (no aplican scoping de Astro). */
+    #seccionEstructuras summary {
+      list-style: none;
+    }
+    #seccionEstructuras summary::-webkit-details-marker {
+      display: none;
+    }
+    #seccionEstructuras summary::marker {
+      content: '';
+    }
+    #seccionEstructuras details .estok-cuerpo-detalle {
+      overflow: hidden;
+    }
+    #seccionEstructuras details[open] .estok-cuerpo-detalle {
+      animation: estok-reveal 0.22s ease-out;
+    }
+    @keyframes estok-reveal {
+      from {
+        opacity: 0;
+        transform: translateY(-3px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
 </BaseLayout>
 

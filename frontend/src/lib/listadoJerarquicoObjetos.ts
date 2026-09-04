@@ -129,24 +129,43 @@ function fotoDe(obj: ObjetoArbol): string {
   return obj.foto_principal ? esc(obj.foto_principal) : IMG_OBJETO;
 }
 
+/** Chevron SVG que rota 90° cuando su <details class="group"> ancestro está abierto. */
+function chevronSvg(tamano: string): string {
+  return '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="' + tamano
+    + ' text-slate-400 transition-transform duration-200 group-open:rotate-90">'
+    + '<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 010-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />'
+    + '</svg>';
+}
+
 // ---------------------------------------------------------------------------
 // Constructores de HTML (viñetas en cascada y tarjetas)
 // ---------------------------------------------------------------------------
 
 function bulletContenedorHtml(nodo: NodoContenedor, profundidad: number): string {
   const contenido = nodo.contenido || [];
-  const chip = contenido.length > 0
-    ? '<span class="text-[10px] font-semibold text-gray-400">(' + contenido.length + ')</span>'
-    : '';
-  const hijosHtml = contenido.length > 0
-    ? '<ul class="mt-0.5 ml-4 pl-2.5 border-l-2 border-amber-100 space-y-px">' + contenidoBulletsHtml(contenido, profundidad + 1) + '</ul>'
-    : '';
   const fijo = esInmueble(nodo) ? '<span class="shrink-0 text-[10px] font-bold text-gray-400">📌 FIJO</span>' : '';
-  return '<li class="py-0.5"><div class="flex items-start gap-1.5 min-w-0">'
-    + '<span class="mt-0.5 shrink-0">📦</span>'
-    + '<a href="/contenedores/' + esc(nodo.id) + '" class="font-semibold text-gray-800 hover:text-blue-700 hover:underline truncate">' + esc(nodo.nombre) + ' ' + chip + '</a>'
+  const nombreLink = '<a href="/contenedores/' + esc(nodo.id) + '" class="font-semibold text-gray-800 hover:text-blue-700 hover:underline truncate">' + esc(nodo.nombre) + '</a>';
+
+  // Sub-caja vacía: fila simple, sin acordeón (no hay nada que expandir).
+  if (contenido.length === 0) {
+    return '<li class="py-0.5"><div class="flex items-center gap-1.5 min-w-0">'
+      + '<span class="shrink-0">📦</span>' + nombreLink + fijo + '</div></li>';
+  }
+
+  const chip = '<span class="shrink-0 text-[10px] font-semibold text-gray-400">(' + contenido.length + ')</span>';
+  return '<li class="py-0.5">'
+    + '<details class="group cursor-pointer">'
+    + '<summary class="flex items-center gap-1.5 min-w-0 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden rounded-lg px-1 py-0.5 hover:bg-slate-50 transition-colors duration-150">'
+    + '<span class="shrink-0">📦</span>'
+    + nombreLink
+    + chip
     + fijo
-    + '</div>' + hijosHtml + '</li>';
+    + chevronSvg('h-3.5 w-3.5 ml-auto shrink-0')
+    + '</summary>'
+    + '<ul class="estok-cuerpo-detalle mt-1 ml-4 pl-2.5 border-l-2 border-amber-100 space-y-px">'
+    + contenidoBulletsHtml(contenido, profundidad + 1)
+    + '</ul>'
+    + '</details></li>';
 }
 
 function bulletObjetoHtml(obj: ObjetoArbol): string {
@@ -175,7 +194,7 @@ function contenidoBulletsHtml(items: Array<NodoContenedor | ObjetoArbol>, profun
   return html;
 }
 
-/** Tarjeta imponente de un contenedor (caja / estante / armario / mueble). */
+/** Tarjeta de contenedor (caja / estante / armario / mueble) colapsada por defecto. */
 function contenedorTarjetaHtml(nodo: NodoContenedor): string {
   const contenido = nodo.contenido || [];
   const tieneContenido = contenido.length > 0;
@@ -188,24 +207,38 @@ function contenedorTarjetaHtml(nodo: NodoContenedor): string {
     numerico(nodo.subcontenedores_count) + ' sub-caja(s) · ' + numerico(nodo.objetos_count) + ' objeto(s)',
   ].filter(Boolean).join(' · ');
 
-  const cuerpo = tieneContenido
-    ? '<ul class="space-y-px">' + contenidoBulletsHtml(contenido, 0) + '</ul>'
-    : '<p class="text-sm text-gray-400 italic">— Sin contenido —</p>';
-
-  return '<article class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-base">'
-    + '<header class="flex items-start justify-between gap-3 p-4 border-b border-gray-100">'
-    + '<div class="flex items-center gap-3 min-w-0">'
+  const identidad = '<span class="flex items-center gap-3 min-w-0">'
     + '<img src="' + imagenContenedor(nodo) + '" alt="" class="h-12 w-12 rounded-xl object-cover shrink-0 bg-slate-50 border border-gray-100" />'
-    + '<div class="min-w-0">'
+    + '<span class="min-w-0">'
     + '<h3 class="text-xl font-extrabold text-gray-900 leading-tight truncate" title="' + esc(nodo.nombre) + '">' + esc(nodo.nombre) + '</h3>'
-    + '<p class="text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</p>'
-    + '</div></div>'
-    + '<a href="/contenedores/' + esc(nodo.id) + '" class="shrink-0 inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>'
-    + '</header>'
-    + '<div class="p-4 pt-3 flex-1">'
+    + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
+    + '</span></span>';
+
+  // Contenedor VACÍO: tarjeta compacta estática (no hay nada que expandir).
+  if (!tieneContenido) {
+    return '<article class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+      + '<div class="flex items-center justify-between gap-3 p-4">' + identidad
+      + '<a href="/contenedores/' + esc(nodo.id) + '" class="shrink-0 inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>'
+      + '</div>'
+      + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">— Sin contenido —</p></div>'
+      + '</article>';
+  }
+
+  // Acordeón nativo HTML5: nace CERRADO (sin atributo open) para máxima densidad.
+  return '<article class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+    + '<details class="group cursor-pointer">'
+    + '<summary class="flex items-center justify-between gap-3 p-4 list-none font-bold text-slate-800 cursor-pointer select-none [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors duration-150">'
+    + identidad
+    + '<span class="flex shrink-0 items-center gap-1.5">'
+    + '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>'
+    + chevronSvg('h-4 w-4')
+    + '</span>'
+    + '</summary>'
+    + '<div class="estok-cuerpo-detalle px-4 pb-4 pt-1">'
     + '<p class="text-[11px] uppercase tracking-wider text-gray-400 font-bold mb-2">Contenido</p>'
-    + cuerpo
-    + '</div></article>';
+    + '<ul class="space-y-px">' + contenidoBulletsHtml(contenido, 0) + '</ul>'
+    + '</div>'
+    + '</details></article>';
 }
 
 /** Grupo de estructuras de una misma Ubicación (espacio de la casa). */
