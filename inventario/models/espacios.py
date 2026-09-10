@@ -123,6 +123,29 @@ class Ubicacion(models.Model):
         verbose_name="Alto visual (UI)",
         help_text="Medida de alto relativo de la tarjeta en el lienzo interactivo (ej: 'auto' o '160px'). Se persiste en caliente vía PUT desde el resizing del Mapa Estok."
     )
+    ui_left = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="0%",
+        verbose_name="Posición X visual (UI)",
+        help_text="Coordenada horizontal elástica del rectángulo libre dentro del contenedor del departamento (Modo Planta Única), ej: '12%'. Se persiste en caliente vía PUT desde el arrastre libre."
+    )
+    ui_top = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="0%",
+        verbose_name="Posición Y visual (UI)",
+        help_text="Coordenada vertical elástica del rectángulo libre dentro del contenedor del departamento (Modo Planta Única), ej: '8%'. Se persiste en caliente vía PUT desde el arrastre libre."
+    )
+    fusion_grupo = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Grupo de fusión (espacio en L)",
+        help_text="ID relacional compartido por dos o más espacios fusionados (ej: pasillos en L). Los espacios con el mismo fusion_grupo se renderizan como UN único espacio receptor Drag & Drop de geometría irregular, sin fronteras internas."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

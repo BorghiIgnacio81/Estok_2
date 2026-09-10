@@ -41,6 +41,8 @@ export interface EstokConfig {
   id: string;
   nombre: string;
   tipo_layout: string;
+  /** Cantidad de plantas (pisos) del inmueble: >1 = Modo Casa, 1 = Planta Única. */
+  cantidad_pisos: number;
   grid_filas: number;
   grid_columnas: number;
 }
@@ -69,6 +71,11 @@ export interface UbicacionPlano {
   /** Medidas visuales de la tarjeta en el lienzo interactivo (resizing en vivo). */
   ui_width?: string | null;
   ui_height?: string | null;
+  /** Coordenadas elásticas del rectángulo libre (Modo Planta Única). */
+  ui_left?: string | null;
+  ui_top?: string | null;
+  /** ID relacional del grupo de fusión (espacios en "L"): mismo valor = mismo espacio. */
+  fusion_grupo?: string | null;
   contenedores_count?: number;
   objetos_count?: number;
   sububicaciones_count?: number;
@@ -129,6 +136,7 @@ export async function fetchEstokConfig(): Promise<EstokConfig | null> {
       id: data.id,
       nombre: data.nombre || 'Mi Inventario',
       tipo_layout: data.tipo_layout || 'VISTA_PLANTA_UNICA',
+      cantidad_pisos: entero(data.cantidad_pisos, data.tipo_layout === 'CASA_2_PISOS' ? 2 : 1),
       grid_filas: entero(data.grid_filas, 3),
       grid_columnas: entero(data.grid_columnas, 3),
     };
@@ -171,6 +179,11 @@ export async function fetchUbicacionesPlano(): Promise<UbicacionPlano[]> {
       grid_filas: u.grid_filas != null ? entero(u.grid_filas, 3) : null,
       grid_columnas: u.grid_columnas != null ? entero(u.grid_columnas, 3) : null,
       grid_filas_config: Array.isArray(u.grid_filas_config) ? u.grid_filas_config : null,
+      ui_width: typeof u.ui_width === 'string' ? u.ui_width : null,
+      ui_height: typeof u.ui_height === 'string' ? u.ui_height : null,
+      ui_left: typeof u.ui_left === 'string' ? u.ui_left : null,
+      ui_top: typeof u.ui_top === 'string' ? u.ui_top : null,
+      fusion_grupo: u.fusion_grupo ?? null,
       contenedores_count: u.contenedores_count || 0,
       objetos_count: u.objetos_count || 0,
     }));

@@ -37,9 +37,12 @@ import {
   esDivisionUbicacion,
   filasInternasDe,
   columnasDeFilaInterna,
+  crearDivisionUbicacion,
 } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
 import { minimapaCasitaSvg } from './minimapa';
+import { renderPlantaUnica } from './mapaPlantaUnica';
+import { conectarPlantaUnica } from './plantaUnicaInteractivo';
 import {
   celdaOcupadaHtml,
   celdaVaciaHtml,
@@ -77,6 +80,40 @@ function totalPlantas(): number {
     1,
   );
   return Math.max(estok?.grid_filas || desdeDatos, desdeDatos);
+}
+
+// =============================================================================
+// BIFURCACIÓN DEL MODELADOR: MODO CASA ⟷ MODO PLANTA ÚNICA
+// =============================================================================
+
+/** ¿El Estok activo es de 1 sola planta? → Modo Planta Única (sin techo). */
+function esPlantaUnica(): boolean {
+  if (!estok) return false;
+  const cantidad = Number(estok.cantidad_pisos) || 0;
+  if (cantidad > 0) return cantidad <= 1;
+  return estok.tipo_layout !== 'CASA_2_PISOS';
+}
+
+/** División contenedora del departamento (la planta 1 del macro-plano). */
+function apartamentoDePlantaUnica(): UbicacionPlano | null {
+  return divisiones.find((d) => d.parent_grid_row === 1) ?? divisiones[0] ?? null;
+}
+
+/** Espacios libres inyectados dentro del contenedor del departamento. */
+function roomsDePlantaUnica(): UbicacionPlano[] {
+  const apartamento = apartamentoDePlantaUnica();
+  if (!apartamento) return [];
+  return habitaciones.filter((h) => h.parent_ubicacion === apartamento.id);
+}
+
+/** Garantiza el contenedor «Departamento» antes de inyectar el primer espacio. */
+async function crearApartamentoSiFalta(): Promise<string | null> {
+  const existente = apartamentoDePlantaUnica();
+  if (existente) return existente.id;
+  const creada = await crearDivisionUbicacion('Departamento', 1, 1);
+  if (!creada) return null;
+  divisiones.push(creada);
+  return creada.id;
 }
 
 function nombreDePlanta(fila: number): string {
@@ -266,6 +303,19 @@ function renderHabitaciones(): string {
 
 function render(): void {
   if (!refs.mapa) return;
+
+  // BIFURCACIÓN DEL MODELADOR: 1 planta → Planta Única (rectángulo perimetral
+  // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo y
+  // navegación por piso). El lienzo nunca queda vacío en ninguna rama.
+  if (esPlantaUnica()) {
+    refs.mapa.innerHTML = `<div class="casita-raiz">${renderPlantaUnica({
+      apartamento: apartamentoDePlantaUnica(),
+      rooms: roomsDePlantaUnica(),
+    })}</div>`;
+    if (refs.badge) refs.badge.textContent = `Planta Única · ${estok?.nombre || 'Departamento'}`;
+    return;
+  }
+
   refs.mapa.innerHTML = `<div class="casita-raiz">${nivelActual === 1 ? renderCasa() : renderHabitaciones()}</div>`;
   if (refs.badge) {
     refs.badge.textContent =
@@ -281,6 +331,18 @@ function render(): void {
 
 function enlazar(): void {
   if (!refs.mapa) return;
+
+  // Rama Planta Única: inyección libre, arrastre/resizing elástico y fusión en "L".
+  if (esPlantaUnica()) {
+    conectarPlantaUnica({
+      scope: refs.mapa,
+      rooms: roomsDePlantaUnica,
+      apartamentoId: () => apartamentoDePlantaUnica()?.id ?? null,
+      asegurarApartamento: crearApartamentoSiFalta,
+      notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
+    });
+    return;
+  }
 
   // Nivel 1: clic en una planta → registra estado activo + conmuta al Nivel 2.
   refs.mapa.querySelectorAll<HTMLElement>('[data-casita-piso]').forEach((el) => {

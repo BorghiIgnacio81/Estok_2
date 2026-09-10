@@ -57,6 +57,11 @@ export interface CeldaWizard {
 export interface MapaEstokWizardState {
   estokId: string;
   estokNombre: string;
+  /** Pregunta inicial: cantidad de plantas del inmueble.
+   *  1 → Modo Planta Única (departamento continuo, SIN techo);
+   *  >1 → Modo Casa (techo puntiagudo, una fila por piso). */
+  cantidadPisos?: number;
+  tipoLayout?: string;
   grid_filas: number;
   grid_columnas: number;
   grid_filas_config: number[] | null;
@@ -375,12 +380,17 @@ export function renderVistaWizard(state: MapaEstokWizardState): string {
   const nodo = nodoDeRuta(state, state.ruta);
   const info = NIVELES[nivel];
   const esNivel1 = nivel === 1;
+  // Bifurcación del modelador según la respuesta "¿Cuántas plantas?".
+  const esPlantaUnica = (state.tipoLayout ?? 'VISTA_PLANTA_UNICA') !== 'CASA_2_PISOS';
+  const modoBadge = esPlantaUnica
+    ? '<span class="wizard-modo-badge">🏢 Modo Planta Única</span>'
+    : '<span class="wizard-modo-badge wizard-modo-casa">🏠 Modo Casa</span>';
   return `
   <div class="wizard-overlay">
     <div class="wizard-modal">
       <div class="wizard-header">
         <div class="wizard-header-info">
-          <h3 class="wizard-titulo">${info.icono} Mapa de Estok · Nivel ${nivel} — ${info.nombre}</h3>
+          <h3 class="wizard-titulo">${info.icono} Mapa de Estok · Nivel ${nivel} — ${info.nombre}${esNivel1 ? modoBadge : ''}</h3>
           <p class="wizard-subtitulo">${esNivel1
             ? 'Definí la distribución raíz del Estok: nombrá cada celda en caliente y usá «🔍 Entrar» para modelar su interior.'
             : `Sub-divisiones de «${escapeHtml(nodo.nombreNodo)}». Cada celda se nombra en caliente y puede subdividirse.`}</p>

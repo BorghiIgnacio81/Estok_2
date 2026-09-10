@@ -12,12 +12,18 @@ import { API_BASE_URL } from './apiBase';
 // CREAR ESTOK
 // =============================================================================
 
+export interface CrearEstokOpciones {
+  /** Respuesta a "¿Cuántas plantas (pisos) tiene su inmueble?" (1 = Planta Única). */
+  cantidad_pisos?: number;
+}
+
 /**
  * Crea un nuevo Estok.
- * POST /api/estoks/ con {nombre}
- * El backend automáticamente crea la Membresía Admin para el creador.
+ * POST /api/estoks/ con {nombre, cantidad_pisos}
+ * El backend automáticamente crea la Membresía Admin para el creador y deriva
+ * el tipo_layout (CASA_2_PISOS si cantidad_pisos > 1, si no VISTA_PLANTA_UNICA).
  */
-export async function crearEstok(nombre: string): Promise<EstokInfo> {
+export async function crearEstok(nombre: string, opciones: CrearEstokOpciones = {}): Promise<EstokInfo> {
   const token = getToken();
   if (!token) {
     throw { error: 'No hay sesión activa' } as AuthError;
@@ -29,7 +35,10 @@ export async function crearEstok(nombre: string): Promise<EstokInfo> {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify({ nombre }),
+    body: JSON.stringify({
+      nombre,
+      ...(opciones.cantidad_pisos != null ? { cantidad_pisos: opciones.cantidad_pisos } : {}),
+    }),
   });
 
   if (!response.ok) {

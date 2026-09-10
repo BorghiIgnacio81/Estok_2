@@ -63,6 +63,11 @@ class HasRolePermission(permissions.BasePermission):
             'update': 'can_edit',
             'partial_update': 'can_edit',
             'destroy': 'can_delete',
+            # Motor de fusión de espacios en "L": es una edición estructural
+            # (une dos Ubicaciones bajo un mismo fusion_grupo), por eso exige
+            # capacidad de edición y no el can_read por defecto.
+            'fusionar': 'can_edit',
+            'separar': 'can_edit',
         }
 
         action = getattr(view, 'action', None)

@@ -149,11 +149,15 @@ class SuperAdminEstokSerializer(serializers.ModelSerializer):
         model = Estok
         fields = [
             'id', 'nombre', 'descripcion',
+            'tipo_layout', 'cantidad_pisos',
             'miembros', 'miembros_count', 'objetos_count',
             'ubicaciones_count', 'contenedores_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'cantidad_pisos': {'required': False, 'default': 1},
+        }
 
     def get_miembros(self, obj):
         try:

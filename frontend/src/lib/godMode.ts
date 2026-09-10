@@ -373,6 +373,12 @@ async function godCrearEstokSubmit(e: Event): Promise<void> {
   const body = {
     nombre: (document.getElementById('gENombre') as HTMLInputElement).value.trim(),
     descripcion: (document.getElementById('gEDescripcion') as HTMLTextAreaElement).value.trim(),
+    // PREGUNTA INICIAL OBLIGATORIA: "¿Cuántas plantas (pisos) tiene su inmueble?"
+    // El backend deriva el tipo_layout (>1 = Modo Casa, 1 = Modo Planta Única).
+    cantidad_pisos: Math.max(
+      1,
+      Math.floor(Number((document.getElementById('gEPisos') as HTMLInputElement | null)?.value) || 1),
+    ),
   };
 
   const btn = document.getElementById('godGuardarEstokBtn') as HTMLButtonElement;

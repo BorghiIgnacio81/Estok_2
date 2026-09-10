@@ -26,6 +26,11 @@ class Estok(models.Model):
         verbose_name="Tipo de layout del mapa espacial",
         help_text="Define cómo se renderiza el mapa espacial del Estok (inquilino)."
     )
+    cantidad_pisos = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Cantidad de plantas (pisos) del inmueble",
+        help_text="Pregunta inicial obligatoria del alta de Estok: si es mayor a 1 se activa el Modo Casa (casa con techo puntiagudo y layout multi-planta); si es exactamente 1 se activa el Modo Planta Única (departamento de perímetro continuo, sin techo)."
+    )
     grid_filas = models.PositiveIntegerField(
         default=3,
         verbose_name="Filas de la grilla del macro-Estok",
@@ -44,6 +49,25 @@ class Estok(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
+
+    def save(self, *args, **kwargs):
+        """
+        Mantiene SIEMPRE coherente el binomio cantidad_pisos ↔ tipo_layout,
+        sin importar el punto de entrada (API de usuario, panel Admin Global
+        o admin de Django):
+          - cantidad_pisos > 1  → 'CASA_2_PISOS'      (Modo Casa)
+          - cantidad_pisos == 1 → 'VISTA_PLANTA_UNICA' (Modo Planta Única)
+        Si se pasa update_fields, se agrega 'tipo_layout' para no omitirlo.
+        """
+        try:
+            cantidad = int(self.cantidad_pisos or 1)
+        except (TypeError, ValueError):
+            cantidad = 1
+        self.tipo_layout = 'CASA_2_PISOS' if cantidad > 1 else 'VISTA_PLANTA_UNICA'
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'tipo_layout'}
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Estok"

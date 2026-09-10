@@ -30,7 +30,7 @@ class EstokSerializer(serializers.ModelSerializer):
         model = Estok
         fields = [
             'id', 'nombre', 'descripcion',
-            'tipo_layout',
+            'tipo_layout', 'cantidad_pisos',
             'grid_filas', 'grid_columnas', 'grid_filas_config',
             'miembros', 'miembros_count', 'objetos_count',
             'created_at', 'updated_at',
@@ -52,9 +52,11 @@ class EstokCreateSerializer(serializers.ModelSerializer):
     frontend pueda encadenar el Wizard del Mapa sin un ID undefined.
     """
 
+    cantidad_pisos = serializers.IntegerField(min_value=1, max_value=99, required=False, default=1)
+
     class Meta:
         model = Estok
-        fields = ['id', 'nombre', 'descripcion']
+        fields = ['id', 'nombre', 'descripcion', 'tipo_layout', 'cantidad_pisos']
         read_only_fields = ['id']
 
     def create(self, validated_data):

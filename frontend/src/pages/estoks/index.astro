@@ -69,6 +69,20 @@ import '../../styles/mapa-estok-wizard.css';
                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
                 />
               </div>
+              <div>
+                <label for="pisosEstok" class="block text-sm font-medium text-gray-700 mb-1">¿Cuántas plantas (pisos) tiene su inmueble?</label>
+                <input
+                  id="pisosEstok"
+                  type="number"
+                  min="1"
+                  max="99"
+                  step="1"
+                  value="1"
+                  required
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+                <p class="mt-1 text-xs text-gray-500">Con <strong>1 planta</strong> se activa el Modo Planta Única (departamento continuo, sin techo). Con <strong>2 o más</strong>, el Modo Casa con techo.</p>
+              </div>
               <div id="crearError" class="hidden text-sm text-red-600"></div>
               <button
                 id="crearBtn"
@@ -325,6 +339,7 @@ import '../../styles/mapa-estok-wizard.css';
   // ===========================================================================
 
   const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
+  const pisosEstok = document.getElementById('pisosEstok') as HTMLInputElement | null;
 
   crearForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -336,10 +351,13 @@ import '../../styles/mapa-estok-wizard.css';
       return;
     }
 
+    // PREGUNTA INICIAL OBLIGATORIA: "¿Cuántas plantas (pisos) tiene su inmueble?"
+    const cantidadPisos = Math.max(1, Math.floor(Number(pisosEstok?.value) || 1));
+
     setLoading(crearBtn, crearBtnText, crearBtnSpinner, true);
 
     try {
-      const nuevoEstok = await crearEstok(nombre);
+      const nuevoEstok = await crearEstok(nombre, { cantidad_pisos: cantidadPisos });
 
       // Establecer el nuevo Estok como activo (para que getAuthHeaders() envíe
       // X-Estok-Id) y DESPLEGAR el wizard "Mapa de Estok" en vez de cerrar el flujo.
@@ -355,6 +373,8 @@ import '../../styles/mapa-estok-wizard.css';
       wizard.abrir(
         { id: nuevoEstok.id, nombre: nuevoEstok.nombre },
         {
+          cantidadPisos,
+          tipoLayout: cantidadPisos > 1 ? 'CASA_2_PISOS' : 'VISTA_PLANTA_UNICA',
           // Persistencia confirmada por el backend → cerrar y entrar al dashboard
           onGuardado: () => {
             (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado con su mapa espacial`);

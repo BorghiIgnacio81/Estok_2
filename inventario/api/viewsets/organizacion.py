@@ -3,7 +3,7 @@ ViewSets para organizacion espacial: Ubicaciones y Contenedores.
 """
 
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -172,6 +172,82 @@ class UbicacionViewSet(viewsets.ModelViewSet):
                 encontrados.append(hijo)
                 cola.append(hijo)
         return encontrados
+
+    # =====================================================================
+    # MOTOR DE FUSIÓN DE ESPACIOS EN "L" (pasillos / habitaciones irregulares)
+    # ---------------------------------------------------------------------
+    # Unifica dos o más espacios (Ubicaciones) bajo un MISMO ID relacional
+    # (fusion_grupo, UUID) en PostgreSQL. El frontend agrupa por ese ID y
+    # renderiza el conjunto como UN único espacio receptor Drag & Drop con
+    # geometría irregular (la unión elástica de sus rectángulos), removiendo
+    # las fronteras visuales internas.
+    # =====================================================================
+
+    @action(detail=True, methods=['post'], url_path='fusionar')
+    def fusionar(self, request, pk=None):
+        """
+        POST /api/ubicaciones/{id}/fusionar/  con {ubicacion_ids: [uuid, ...]}
+
+        La Ubicación del path es la BASE del grupo. Si ya pertenecía a un
+        fusion_grupo, se reutiliza ese ID (permite fusionar en cadena sin
+        romper grupos existentes). Valida aislamiento multi-tenant estricto:
+        TODOS los espacios deben pertenecer al mismo Estok de la base.
+        """
+        base = self.get_object()
+        ids = request.data.get('ubicacion_ids') or []
+        if not isinstance(ids, (list, tuple)):
+            raise ValidationError({'error': 'ubicacion_ids debe ser una lista de IDs.'})
+
+        ids_limpios = [str(i) for i in ids if str(i) != str(base.id)]
+        if not ids_limpios:
+            raise ValidationError(
+                {'error': 'Seleccioná al menos otro espacio para fusionar.'}
+            )
+
+        objetivo = list(
+            Ubicacion.objects.filter(id__in=ids_limpios).exclude(id=base.id)
+        )
+        if not objetivo:
+            raise ValidationError(
+                {'error': 'No se encontraron espacios válidos para fusionar.'}
+            )
+        for ubicacion in objetivo:
+            if str(ubicacion.estok_id) != str(base.estok_id):
+                raise ValidationError(
+                    {'error': 'Todos los espacios a fusionar deben pertenecer al mismo Estok.'}
+                )
+
+        grupo = base.fusion_grupo or uuid4()
+        with transaction.atomic():
+            if base.fusion_grupo != grupo:
+                base.fusion_grupo = grupo
+                base.save(update_fields=['fusion_grupo'])
+            Ubicacion.objects.filter(id__in=[u.id for u in objetivo]).update(
+                fusion_grupo=grupo
+            )
+
+        return Response({
+            'fusion_grupo': str(grupo),
+            'ubicacion_ids': [str(base.id)] + [str(u.id) for u in objetivo],
+        })
+
+    @action(detail=True, methods=['post'], url_path='separar')
+    def separar(self, request, pk=None):
+        """
+        POST /api/ubicaciones/{id}/separar/
+
+        Disuelve la fusión: libera a TODOS los espacios del grupo
+        (fusion_grupo=None) para que vuelvan a renderizarse como rectángulos
+        independientes.
+        """
+        base = self.get_object()
+        liberadas = 0
+        if base.fusion_grupo:
+            liberadas = Ubicacion.objects.filter(fusion_grupo=base.fusion_grupo).update(
+                fusion_grupo=None
+            )
+            base.fusion_grupo = None
+        return Response({'ok': True, 'liberadas': liberadas})
 
 
 class ContenedorViewSet(viewsets.ModelViewSet):

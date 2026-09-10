@@ -37,6 +37,11 @@ export interface MapaEstokWizardOpciones {
   onGuardado?: () => void;
   /** Se invoca cuando el usuario cierra el modal sin guardar. */
   onCerrar?: () => void;
+  /** Respuesta a "¿Cuántas plantas (pisos) tiene su inmueble?":
+   *  1 = Modo Planta Única; >1 = Modo Casa (una fila por piso). */
+  cantidadPisos?: number;
+  /** Layout derivado (si no se envía, se calcula desde cantidadPisos). */
+  tipoLayout?: string;
 }
 
 // =============================================================================
@@ -62,15 +67,29 @@ export class MapaEstokWizardUI {
     this.modoEdicion = false;
     this.estokOriginal = {};
     inyectarCssMinimapa();
+
+    // PREGUNTA INICIAL OBLIGATORIA: "¿Cuántas plantas (pisos) tiene su inmueble?"
+    //   - 1 planta  → Modo Planta Única: un solo contenedor continuo (sin techo).
+    //   - 2 o más   → Modo Casa: una fila por piso (layout multi-planta).
+    const cantidadPisos = Math.max(1, Math.floor(Number(opciones.cantidadPisos) || 1));
+    const esPlantaUnica = cantidadPisos <= 1;
+    const tipoLayout = opciones.tipoLayout || (esPlantaUnica ? 'VISTA_PLANTA_UNICA' : 'CASA_2_PISOS');
+    const filas = esPlantaUnica ? 1 : cantidadPisos;
+    const columnas = 1;
+
     this.state = {
       estokId: estok.id,
       estokNombre: estok.nombre,
-      grid_filas: 2,
-      grid_columnas: 2,
+      cantidadPisos,
+      tipoLayout,
+      grid_filas: filas,
+      grid_columnas: columnas,
       grid_filas_config: null,
-      celdas: reajustarCeldas([], 2, 2, null, 1),
+      celdas: reajustarCeldas([], filas, columnas, null, 1),
       ruta: [],
     };
+    // El único contenedor de una planta única ES el departamento entero.
+    if (esPlantaUnica && this.state.celdas[0]) this.state.celdas[0].nombre = 'Departamento';
     this.render();
   }
 
@@ -88,6 +107,8 @@ export class MapaEstokWizardUI {
     this.state = {
       estokId: estok.id,
       estokNombre: estok.nombre,
+      cantidadPisos: Number(estokData.cantidad_pisos) || (estokData.tipo_layout === 'CASA_2_PISOS' ? 2 : 1),
+      tipoLayout: typeof estokData.tipo_layout === 'string' ? estokData.tipo_layout : 'VISTA_PLANTA_UNICA',
       ...datos,
       ruta: [],
     };
