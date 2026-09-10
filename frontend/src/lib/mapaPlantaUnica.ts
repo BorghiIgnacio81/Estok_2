@@ -128,12 +128,14 @@ function gruposHtml(grupos: GrupoFusion[]): string {
       (g) => `
     <div class="pu-grupo" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
-         title="Espacio fusionado en «L» (${g.miembros.length} módulos). Arrastrá para moverlo o clic en el nombre para renombrarlo.">
-      ${tilesDeGrupo(g)}
+         title="Espacio en «L»: arrastrá para moverlo · clic en el nombre para renombrarlo · tildá la casilla para encadenar la fusión con otro espacio.">
+      <div class="pu-grupo-malla">${tilesDeGrupo(g)}</div>
+      <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
+        <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
+      </label>
       <button type="button" class="pu-grupo-separar" data-separar data-id="${g.base.id}" title="Separar en espacios independientes">✂️</button>
-      <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio fusionado (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
-      <span class="pu-grupo-badge">🔗 ${g.miembros.length} fusionados</span>
-      <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el bloque fusionado completo (se aplica a todas sus partes en un solo guardado)"></span>
+      <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
+      <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el espacio completo (se aplica a todas sus partes en un solo guardado)"></span>
     </div>`,
     )
     .join('');

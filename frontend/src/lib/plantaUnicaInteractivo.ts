@@ -163,7 +163,14 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
   btnFusionar?.addEventListener('click', async () => {
     const ids = Array.from(seleccion);
     if (ids.length < 2) return;
-    const [base, ...resto] = ids;
+    // FUSIÓN ENCADENADA: si algún seleccionado ya pertenece a un grupo, se toma
+    // como BASE para REUTILIZAR su `fusion_grupo` y EXPANDIR la macro-estructura
+    // existente en un mismo PUT, sin importar el orden en que se tildaron.
+    const rooms = opts.rooms();
+    const base =
+      ids.find((id) => rooms.find((r) => r.id === id)?.fusion_grupo) ?? ids[0];
+    const resto = ids.filter((id) => id !== base);
+    if (resto.length === 0) return;
     btnFusionar.disabled = true;
     const ok = await postJson(`${API_BASE_URL}/ubicaciones/${base}/fusionar/`, {
       ubicacion_ids: resto,

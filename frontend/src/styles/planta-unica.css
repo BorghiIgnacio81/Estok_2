@@ -237,10 +237,20 @@
 .pu-grupo {
   position: absolute;
   cursor: grab;
-  /* El drop-shadow del contenedor abraza la silueta irregular de la UNIÓN de
-     sus tiles: al no tener bordes internos, el conjunto se ve como un único
-     espacio continuo con geometría en "L". */
-  filter: drop-shadow(0 4px 10px rgba(120, 53, 15, 0.28));
+}
+
+/* Malla de tiles del espacio en "L": el contorno ámbar y la sombra abrazan SOLO
+   la silueta de la unión (idénticos al espacio común .pu-celda), sin teñir la
+   tarjeta ni aplicar opacidades o tonos alternos. */
+.pu-grupo-malla {
+  position: absolute;
+  inset: 0;
+  filter:
+    drop-shadow(1px 0 0 #f59e0b)
+    drop-shadow(-1px 0 0 #f59e0b)
+    drop-shadow(0 1px 0 #f59e0b)
+    drop-shadow(0 -1px 0 #f59e0b)
+    drop-shadow(0 3px 8px rgba(120, 53, 15, 0.12));
 }
 
 .pu-grupo.pu-arrastrando {
@@ -253,43 +263,35 @@
   box-sizing: border-box;
   border: none;
   border-radius: 0;
-  /* FONDO HOMOGÉNEO: color PLANO idéntico en TODAS las partes, para que la
-     unión se lea como un único bloque continuo sin costuras ni gradientes que
-     delaten las fronteras internas entre módulos. */
-  background: #fde3c2;
+  /* FONDO IDÉNTICO al del espacio común (.pu-celda): blanco plano y homogéneo en
+     TODAS las partes, para que la unión se lea como un espacio más del plano,
+     sin tonos alternos ni costuras que delaten las fronteras internas. */
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .pu-grupo-nombre {
   position: absolute;
-  top: 5px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
   max-width: 80%;
-  padding: 2px 9px;
   font-size: 12px;
   font-weight: 700;
-  color: #7c2d12;
+  color: #374151;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 999px;
+  border-radius: 6px;
+  padding: 1px 4px;
   cursor: text;
-  box-shadow: 0 1px 3px rgba(120, 53, 15, 0.18);
+  transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
-.pu-grupo-badge {
-  position: absolute;
-  bottom: 4px;
-  left: 6px;
-  z-index: 4;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #9a3412;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 999px;
-  padding: 1px 7px;
+.pu-grupo-nombre:hover {
+  background: #fff7ed;
+  box-shadow: inset 0 0 0 1px #fdba74;
 }
 
 .pu-grupo-separar {
