@@ -68,6 +68,9 @@ class HasRolePermission(permissions.BasePermission):
             # capacidad de edición y no el can_read por defecto.
             'fusionar': 'can_edit',
             'separar': 'can_edit',
+            # Edición consolidada del bloque fusionado (nombre/geometría de todas
+            # las partes en un único PUT atómico).
+            'grupo': 'can_edit',
         }
 
         action = getattr(view, 'action', None)

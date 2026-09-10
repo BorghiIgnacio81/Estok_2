@@ -116,8 +116,8 @@ function tilesDeGrupo(g: GrupoFusion): string {
       const relTop = ((geo.top - g.caja.top) / g.caja.height) * 100;
       const relW = (geo.width / g.caja.width) * 100;
       const relH = (geo.height / g.caja.height) * 100;
-      return `<span class="pu-tile" style="left:${relLeft}%;top:${relTop}%;width:${relW}%;height:${relH}%"
-        data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}"></span>`;
+      return `<span class="pu-tile" style="left:${relLeft}%;top:${relTop}%;width:calc(${relW}% + 1px);height:calc(${relH}% + 1px)"
+        data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}" data-tile-width="${geo.width}" data-tile-height="${geo.height}"></span>`;
     })
     .join('');
 }
@@ -131,8 +131,9 @@ function gruposHtml(grupos: GrupoFusion[]): string {
          title="Espacio fusionado en «L» (${g.miembros.length} módulos). Arrastrá para moverlo o clic en el nombre para renombrarlo.">
       ${tilesDeGrupo(g)}
       <button type="button" class="pu-grupo-separar" data-separar data-id="${g.base.id}" title="Separar en espacios independientes">✂️</button>
-      <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio fusionado">${escapeHtml(g.base.nombre)}</span>
+      <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio fusionado (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
       <span class="pu-grupo-badge">🔗 ${g.miembros.length} fusionados</span>
+      <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el bloque fusionado completo (se aplica a todas sus partes en un solo guardado)"></span>
     </div>`,
     )
     .join('');

@@ -249,6 +249,65 @@ class UbicacionViewSet(viewsets.ModelViewSet):
             base.fusion_grupo = None
         return Response({'ok': True, 'liberadas': liberadas})
 
+    @action(detail=True, methods=['put', 'patch'], url_path='grupo')
+    def grupo(self, request, pk=None):
+        """
+        PUT /api/ubicaciones/{id}/grupo/
+
+        Edición CONSOLIDADA del espacio fusionado en UNA sola transacción
+        hermética: un único request impacta a TODAS las partes de la
+        macro-estructura (sean 2 o más).
+
+          - "nombre":  se aplica simultáneamente a todos los miembros del grupo.
+          - "partes":  [{id, ui_left, ui_top, ui_width, ui_height}] con la
+                       geometría relativa recalculada al mover/redimensionar el
+                       bloque completo, preservando la forma irregular en "L".
+
+        Valida multi-tenant y que cada parte pertenezca REALMENTE al grupo.
+        """
+        base = self.get_object()
+        if not base.fusion_grupo:
+            raise ValidationError(
+                {'error': 'El espacio no pertenece a ningún grupo de fusión. Fusioná primero.'}
+            )
+
+        miembros = Ubicacion.objects.filter(fusion_grupo=base.fusion_grupo)
+        ids_grupo = {str(m.id) for m in miembros}
+
+        nombre = request.data.get('nombre')
+        partes = request.data.get('partes')
+        if nombre is None and partes is None:
+            raise ValidationError(
+                {'error': 'Enviá "nombre" y/o "partes" para actualizar el grupo.'}
+            )
+        if nombre is not None and not str(nombre).strip():
+            raise ValidationError(
+                {'error': 'El nombre del espacio fusionado no puede estar vacío.'}
+            )
+
+        campos_permitidos = ('ui_left', 'ui_top', 'ui_width', 'ui_height')
+        with transaction.atomic():
+            if nombre is not None:
+                miembros.update(nombre=str(nombre).strip())
+            if isinstance(partes, list):
+                for parte in partes:
+                    if not isinstance(parte, dict):
+                        continue
+                    parte_id = str(parte.get('id') or '')
+                    if parte_id not in ids_grupo:
+                        raise ValidationError(
+                            {'error': f'La parte {parte_id or "?"} no pertenece a este grupo de fusión.'}
+                        )
+                    cambios = {c: parte[c] for c in campos_permitidos if c in parte}
+                    if cambios:
+                        Ubicacion.objects.filter(id=parte_id).update(**cambios)
+
+        return Response({
+            'fusion_grupo': str(base.fusion_grupo),
+            'ubicacion_ids': sorted(ids_grupo),
+            'nombre': str(nombre).strip() if nombre is not None else None,
+        })
+
 
 class ContenedorViewSet(viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()

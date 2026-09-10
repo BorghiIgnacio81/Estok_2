@@ -1,28 +1,25 @@
 // =============================================================================
-// PLANTA ÚNICA - INTERACCIÓN Y PERSISTENCIA EN CALIENTE
+// PLANTA ÚNICA - ORQUESTADOR DE INTERACCIÓN Y PERSISTENCIA EN CALIENTE
 // -----------------------------------------------------------------------------
-// Motor de edición del Modo Planta Única (departamento de 1 sola planta).
-// Reutiliza la auth centralizada (services/auth) y el rename in-place del motor
-// recursivo (lienzoInteractivo.conectarRenombradoEnVivo). Aporta:
+// Une todas las capacidades del Modelador 2D del Modo Planta Única:
 //   - Inyección elástica de espacios libres (botón /nueva ubicacion.png).
-//   - Arrastre libre por todo el lienzo  → PUT ui_left / ui_top.
-//   - Resizing elástico desde la esquina → PUT ui_width / ui_height.
-//   - Selección múltiple + "🔗 Fusionar Espacios" → POST /fusionar/ (grupo en L).
-// Todo persiste de forma REAL en PostgreSQL vía la API multi-tenant.
+//   - Renombrado in-place con SINCRONIZACIÓN del bloque fusionado: un ÚNICO PUT
+//     actualiza el nombre de TODAS las partes de la macro-estructura.
+//   - Arrastre + resizing con FÍSICA DE COLISIONES (AABB) y AJUSTE MAGNÉTICO a
+//     huecos → delegado en ./plantaUnicaArrastre.
+//   - Selección múltiple + motor de fusión/separación (espacio en "L").
+// La geometría pura vive en colisionesPlantaUnica.ts y la persistencia
+// consolidada del grupo en plantaUnicaGrupo.ts. Módulos chicos y enfocados.
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { guardarUbicacion, toast } from './mapaJerarquico';
-import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
-import { pctValor } from './mapaPlantaUnica';
+import { conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
+import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
+import { putGrupo } from './plantaUnicaGrupo';
 
-const ANCHO_MIN = 8;
-const ALTO_MIN = 8;
-
-function acotar(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
+export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
 /** POST JSON con auth centralizada (JWT + X-Estok-Id). Devuelve true si fue 2xx. */
 async function postJson(url: string, body: Record<string, unknown>): Promise<boolean> {
@@ -42,15 +39,6 @@ async function postJson(url: string, body: Record<string, unknown>): Promise<boo
   }
 }
 
-export interface OpcionesPlantaUnica {
-  scope: ParentNode;
-  rooms: () => UbicacionPlano[];
-  apartamentoId: () => string | null;
-  /** Crea el contenedor «Departamento» si aún no existe y devuelve su id. */
-  asegurarApartamento: () => Promise<string | null>;
-  notificarCambios: () => void;
-}
-
 /** Conecta TODAS las capacidades de edición del lienzo de Planta Única. */
 export function conectarPlantaUnica(opts: OpcionesPlantaUnica): void {
   conectarRenombrado(opts);
@@ -61,11 +49,33 @@ export function conectarPlantaUnica(opts: OpcionesPlantaUnica): void {
 }
 
 // =============================================================================
-// CLIC PARA RENOMBRAR (in-place, reutiliza el motor recursivo)
+// CLIC PARA RENOMBRAR (in-place) + SINCRONIZACIÓN DE BLOQUES FUSIONADOS
 // =============================================================================
 
 function conectarRenombrado(opts: OpcionesPlantaUnica): void {
-  conectarRenombradoEnVivo(opts.scope, async (id, nombre) => {
+  conectarRenombradoEnVivo(opts.scope, async (id, nombre, el) => {
+    const grupo = el.closest<HTMLElement>('.pu-grupo');
+    // --- Espacio FUSIONADO: un único PUT renombra TODAS las partes. ---
+    if (grupo) {
+      const baseId = grupo.dataset.id ?? id;
+      const grupoId = grupo.dataset.fusionGrupo ?? '';
+      const ok = await putGrupo(baseId, { nombre });
+      if (!ok) {
+        toast('❌ No se pudo renombrar el espacio fusionado.');
+        return false;
+      }
+      // Sincronizar el estado en memoria de TODAS las partes del grupo.
+      opts.rooms()
+        .filter((r) => r.fusion_grupo && r.fusion_grupo === grupoId)
+        .forEach((r) => {
+          r.nombre = nombre;
+        });
+      toast(`🔗 Espacio fusionado renombrado a «${nombre}» en todas sus partes.`);
+      opts.notificarCambios();
+      return true;
+    }
+
+    // --- Espacio suelto: PUT individual. ---
     const room = opts.rooms().find((r) => r.id === id);
     if (!room) return false;
     if (nombre === room.nombre) return true;
@@ -124,198 +134,6 @@ function conectarCreacion(opts: OpcionesPlantaUnica): void {
 }
 
 // =============================================================================
-// ARRASTRE LIBRE POR TODO EL LIENZO (persiste ui_left / ui_top)
-// =============================================================================
-
-function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
-  opts.scope.querySelectorAll<HTMLElement>('[data-libre-drag]').forEach((card) => {
-    card.addEventListener('pointerdown', (evDown) => {
-      const e = evDown as PointerEvent;
-      if (e.button !== 0) return;
-      const target = e.target as HTMLElement;
-      if (target.closest('[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-separar]')) return;
-      const lienzo = card.closest<HTMLElement>('[data-lienzo-pu]');
-      if (!lienzo) return;
-      e.preventDefault();
-      const rect = lienzo.getBoundingClientRect();
-      const x0 = e.clientX;
-      const y0 = e.clientY;
-      const baseLeft = pctValor(card.style.left, 0);
-      const baseTop = pctValor(card.style.top, 0);
-      const ancho = pctValor(card.style.width, 28);
-      const alto = pctValor(card.style.height, 24);
-      let arrastrado = false;
-      card.classList.add('pu-arrastrando');
-      try {
-        card.setPointerCapture(e.pointerId);
-      } catch {
-        /* sin captura: el seguimiento continúa igual */
-      }
-
-      const enMovimiento = (m: PointerEvent): void => {
-        m.preventDefault();
-        arrastrado = true;
-        const dL = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
-        const dT = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
-        card.style.left = `${acotar(baseLeft + dL, 0, 100 - ancho)}%`;
-        card.style.top = `${acotar(baseTop + dT, 0, 100 - alto)}%`;
-      };
-
-      const alSoltar = (): void => {
-        card.removeEventListener('pointermove', enMovimiento);
-        card.removeEventListener('pointerup', alSoltar);
-        card.removeEventListener('pointercancel', alSoltar);
-        card.classList.remove('pu-arrastrando');
-        if (!arrastrado) return;
-        // Delta REALMENTE aplicado (ya acotado al lienzo): así el grupo fusionado
-        // conserva su geometría relativa al moverse en bloque.
-        const dLa = pctValor(card.style.left, baseLeft) - baseLeft;
-        const dTa = pctValor(card.style.top, baseTop) - baseTop;
-        if (card.dataset.fusionGrupo) {
-          void persistirGrupo(card, dLa, dTa, opts);
-        } else {
-          void persistirSuelto(card, baseLeft, baseTop, ancho, alto, dLa, dTa, opts);
-        }
-      };
-
-      card.addEventListener('pointermove', enMovimiento);
-      card.addEventListener('pointerup', alSoltar);
-      card.addEventListener('pointercancel', alSoltar);
-    });
-  });
-}
-
-async function persistirSuelto(
-  card: HTMLElement,
-  baseLeft: number,
-  baseTop: number,
-  ancho: number,
-  alto: number,
-  dL: number,
-  dT: number,
-  opts: OpcionesPlantaUnica,
-): Promise<void> {
-  const id = card.dataset.id ?? '';
-  if (!id) return;
-  const left = Math.round(acotar(baseLeft + dL, 0, 100 - ancho));
-  const top = Math.round(acotar(baseTop + dT, 0, 100 - alto));
-  const ok = await guardarUbicacion(id, { ui_left: `${left}%`, ui_top: `${top}%` });
-  if (!ok) {
-    toast('❌ No se pudo guardar la posición del espacio.');
-    return;
-  }
-  const room = opts.rooms().find((r) => r.id === id);
-  if (room) {
-    room.ui_left = `${left}%`;
-    room.ui_top = `${top}%`;
-  }
-  toast(`✅ Espacio reubicado en X:${left}% · Y:${top}%.`);
-  opts.notificarCambios();
-}
-
-async function persistirGrupo(
-  card: HTMLElement,
-  dL: number,
-  dT: number,
-  opts: OpcionesPlantaUnica,
-): Promise<void> {
-  const tiles = Array.from(card.querySelectorAll<HTMLElement>('[data-tile-id]'));
-  let todoOk = true;
-  for (const tile of tiles) {
-    const id = tile.dataset.tileId ?? '';
-    if (!id) continue;
-    const baseL = parseFloat(tile.dataset.tileLeft || '0');
-    const baseT = parseFloat(tile.dataset.tileTop || '0');
-    const left = Math.round(acotar(baseL + dL, 0, 100));
-    const top = Math.round(acotar(baseT + dT, 0, 100));
-    const ok = await guardarUbicacion(id, { ui_left: `${left}%`, ui_top: `${top}%` });
-    if (!ok) {
-      todoOk = false;
-      continue;
-    }
-    const room = opts.rooms().find((r) => r.id === id);
-    if (room) {
-      room.ui_left = `${left}%`;
-      room.ui_top = `${top}%`;
-    }
-  }
-  toast(todoOk ? '✅ Espacio fusionado reubicado.' : '⚠️ Algunos módulos no se pudieron reposicionar.');
-  opts.notificarCambios();
-}
-
-// =============================================================================
-// RESIZING ELÁSTICO (persiste ui_width / ui_height en %)
-// =============================================================================
-
-function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
-  opts.scope.querySelectorAll<HTMLElement>('[data-libre-resize]').forEach((handle) => {
-    handle.addEventListener('pointerdown', (evDown) => {
-      const e = evDown as PointerEvent;
-      if (e.button !== 0) return;
-      const card = handle.closest<HTMLElement>('[data-inplace-card]');
-      const lienzo = handle.closest<HTMLElement>('[data-lienzo-pu]');
-      // Un espacio fusionado mueve en bloque, no se redimensiona por módulo.
-      if (!card || !lienzo || card.dataset.fusionGrupo) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const rect = lienzo.getBoundingClientRect();
-      const x0 = e.clientX;
-      const y0 = e.clientY;
-      const baseLeft = pctValor(card.style.left, 0);
-      const baseTop = pctValor(card.style.top, 0);
-      const baseW = pctValor(card.style.width, 28);
-      const baseH = pctValor(card.style.height, 24);
-      const topeW = Math.max(ANCHO_MIN, 100 - baseLeft);
-      const topeH = Math.max(ALTO_MIN, 100 - baseTop);
-      let redimensionado = false;
-      card.classList.add('pu-redimensionando');
-      try {
-        handle.setPointerCapture(e.pointerId);
-      } catch {
-        /* sin captura: el seguimiento continúa igual */
-      }
-
-      const enMovimiento = (m: PointerEvent): void => {
-        m.preventDefault();
-        redimensionado = true;
-        const dW = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
-        const dH = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
-        card.style.width = `${acotar(baseW + dW, ANCHO_MIN, topeW)}%`;
-        card.style.height = `${acotar(baseH + dH, ALTO_MIN, topeH)}%`;
-      };
-
-      const alSoltar = async (): Promise<void> => {
-        handle.removeEventListener('pointermove', enMovimiento);
-        handle.removeEventListener('pointerup', alSoltar);
-        handle.removeEventListener('pointercancel', alSoltar);
-        card.classList.remove('pu-redimensionando');
-        if (!redimensionado) return;
-        const id = card.dataset.id ?? '';
-        if (!id) return;
-        const w = Math.round(pctValor(card.style.width, baseW));
-        const h = Math.round(pctValor(card.style.height, baseH));
-        const ok = await guardarUbicacion(id, { ui_width: `${w}%`, ui_height: `${h}%` });
-        if (!ok) {
-          toast('❌ No se pudo guardar el nuevo tamaño.');
-          return;
-        }
-        const room = opts.rooms().find((r) => r.id === id);
-        if (room) {
-          room.ui_width = `${w}%`;
-          room.ui_height = `${h}%`;
-        }
-        toast(`✅ Tamaño actualizado (${w}% × ${h}%).`);
-        opts.notificarCambios();
-      };
-
-      handle.addEventListener('pointermove', enMovimiento);
-      handle.addEventListener('pointerup', alSoltar);
-      handle.addEventListener('pointercancel', alSoltar);
-    });
-  });
-}
-
-// =============================================================================
 // SELECCIÓN MÚLTIPLE + MOTOR DE FUSIÓN (espacios en "L")
 // =============================================================================
 
@@ -325,7 +143,9 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
   const contador = opts.scope.querySelector<HTMLElement>('[data-fusion-contador]');
 
   const refrescar = (): void => {
-    if (contador) contador.textContent = `${seleccion.size} seleccionado${seleccion.size === 1 ? '' : 's'}`;
+    if (contador) {
+      contador.textContent = `${seleccion.size} seleccionado${seleccion.size === 1 ? '' : 's'}`;
+    }
     if (btnFusionar) btnFusionar.disabled = seleccion.size < 2;
   };
 

@@ -252,8 +252,11 @@
   position: absolute;
   box-sizing: border-box;
   border: none;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #fff7ed 0%, #fed7aa 100%);
+  border-radius: 0;
+  /* FONDO HOMOGÉNEO: color PLANO idéntico en TODAS las partes, para que la
+     unión se lea como un único bloque continuo sin costuras ni gradientes que
+     delaten las fronteras internas entre módulos. */
+  background: #fde3c2;
 }
 
 .pu-grupo-nombre {
@@ -307,3 +310,49 @@
   background: #ffffff;
   border-color: #f87171;
 }
+
+/* --- Física de colisiones: feedback en caliente + rebote limpio ------------- */
+
+.pu-celda.pu-en-colision,
+.pu-grupo.pu-en-colision {
+  outline: 2px dashed #dc2626;
+  outline-offset: -2px;
+}
+
+@keyframes pu-rebote {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+.pu-rebote {
+  animation: pu-rebote 0.3s ease;
+}
+
+/* --- Tirador de resizing del BLOQUE fusionado completo ---------------------- */
+
+.pu-grupo-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.pu-grupo-resize::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-right: 3px solid #ea580c;
+  border-bottom: 3px solid #ea580c;
+  border-bottom-right-radius: 2px;
+}
+
