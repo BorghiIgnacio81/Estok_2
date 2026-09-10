@@ -255,6 +255,36 @@ class Contenedor(models.Model):
         verbose_name="Espacio físicamente lleno",
         help_text="Marca manual del casillero/estante del mueble (multi-elemento): si está activo, el espacio se pinta con opacidad sutil y deja de aceptar elementos por arrastre (dragover/ondrop bloqueados) hasta desmarcarlo. Se persiste vía PUT hermético al Estok activo."
     )
+    # =====================================================================
+    # GEOMETRÍA ELÁSTICA 2D (arquitectura unificada recursiva)
+    # Los muebles (Nivel 2: habitación) y sus estantes/cajones internos
+    # (Nivel 3/4: interior del mueble) se reposicionan como rectángulos libres
+    # en el lienzo interactivo: mismos campos que Ubicacion (ui_left/ui_top +
+    # fusion_grupo) para reutilizar el motor 2D y permitir fusiones en "L".
+    # =====================================================================
+    ui_left = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="0%",
+        verbose_name="Posición X visual (UI)",
+        help_text="Coordenada horizontal elástica del rectángulo libre dentro del lienzo del visor (Nivel 2 habitación / Nivel 3-4 interior del mueble), ej: '12%'. Se persiste en caliente vía PUT desde el arrastre libre."
+    )
+    ui_top = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        default="0%",
+        verbose_name="Posición Y visual (UI)",
+        help_text="Coordenada vertical elástica del rectángulo libre dentro del lienzo del visor (Nivel 2 habitación / Nivel 3-4 interior del mueble), ej: '8%'. Se persiste en caliente vía PUT desde el arrastre libre."
+    )
+    fusion_grupo = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="Grupo de fusión (espacio en L)",
+        help_text="ID relacional compartido por dos o más muebles/estantes fusionados (geometría en L). Los espacios con el mismo fusion_grupo se renderizan como UN único rectángulo elástico receptor, sin fronteras internas."
+    )
     ui_width = models.CharField(
         max_length=20,
         null=True,

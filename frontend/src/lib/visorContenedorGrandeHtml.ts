@@ -11,10 +11,11 @@
 // src/lib/visorContenedorGrande.ts (persistencia y eventos viven allá).
 // =============================================================================
 
-import { escapeHtml, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
+import { escapeHtml } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-import { minimapaRectangularSvg } from './minimapa';
 import { iconoContenedorVisor } from './visorHabitacionHtml';
+import { renderLienzoElastico } from './mapaPlantaUnica';
+import type { ItemElastico } from './lienzoElastico';
 
 const IMG_MUEBLE = '/archivador-login.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
@@ -44,9 +45,13 @@ export interface SubContVisor {
   /** Marca manual de clausura: el casillero F·C del mueble está físicamente lleno. */
   espacio_lleno?: boolean;
   subcontenedores_count?: number;
-  /** Medidas visuales de la estantería/caja (resizing recursivo, PUT ui_*). */
+  /** Medidas visuales + geometría elástica de la estantería/caja (rectángulo libre). */
+  ui_left?: string | null;
+  ui_top?: string | null;
   ui_width?: string | null;
   ui_height?: string | null;
+  /** ID relacional del grupo de fusión (estantes en "L"). */
+  fusion_grupo?: string | null;
 }
 
 export interface SubObjVisor {
@@ -69,12 +74,6 @@ export interface OpcionesVisorContenido {
 // HELPERS
 // =============================================================================
 
-function columnasPorFilaDeMueble(m: MuebleVisor): number[] {
-  const div = m as unknown as UbicacionPlano;
-  const filas = filasInternasDe(div);
-  return Array.from({ length: filas }, (_, i) => columnasDeFilaInterna(div, i + 1));
-}
-
 /** Visual contextual de la ficha: emoji (🗄️ Ropero / 🛏️ Cama) o icono por defecto. */
 function fichaVisualHtml(nombre: string, clase: string): string {
   const ico = iconoContenedorVisor(nombre);
@@ -83,141 +82,44 @@ function fichaVisualHtml(nombre: string, clase: string): string {
     : `<img src="${IMG_MUEBLE}" alt="" class="${clase}" draggable="false" />`;
 }
 
-/** Contenido de un casillero interno del mueble (sub-contenedores, objetos o ➕). */
-function celdaMuebleContenidoHtml(
-  muebleId: string,
-  r: number,
-  c: number,
-  conts: SubContVisor[],
-  objs: SubObjVisor[],
-): string {
-  if (!conts.length && !objs.length) {
-    return `<button type="button" class="mueble-celda-crear" data-mueble-celda-crear data-mueble-id="${muebleId}" data-mueble-row="${r}" data-mueble-col="${c}" title="Fundar una sub-división (estante/cajón) en F${r}·C${c} de este mueble">➕</button>`;
-  }
-
-  // Grilla LIMPIA para el Drag & Drop: las celdas/estantes NO llevan botones de
-  // borrado ni lápices secundarios. La única botonera de control (+/−) vive
-  // agrupada al extremo derecho de cada fila, por fuera de la zona de soltado.
-  const contsHtml = conts
-    .map((x) => {
-      const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
-      const uiH = x.ui_height && x.ui_height !== 'auto' ? x.ui_height : null;
-      const estilosUI = uiW || uiH
-        ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
-        : '';
-      return `<span class="mueble-item" data-inplace-card data-id="${x.id}" ${estilosUI} data-mueble-sub-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja. Clic en el nombre para renombrar · tirá de la esquina para estirar">
-        <img src="${IMG_MUEBLE}" alt="" class="mueble-item-img" draggable="false" />
-        <span class="mueble-item-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar esta estantería en caliente">${escapeHtml(x.nombre)}</span>
-        ${x.es_inmueble ? '<span class="mueble-item-fijo">📌</span>' : ''}
-        <span class="mueble-item-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual (se guarda automáticamente)"></span>
-      </span>`;
-    })
-    .join('');
-
-  const objsHtml = objs
-    .map(
-      (x) => `<span class="mueble-item" data-mueble-obj-dnd="${x.id}" draggable="true" title="Arrastrá «${escapeHtml(x.nombre)}» para reacomodarlo o extraerlo a la bandeja">
+/** Objetos sueltos colgados directamente del mueble (chips arrastrables a la bandeja). */
+function muebleObjetosHtml(m: MuebleVisor, objs: SubObjVisor[]): string {
+  const directos = objs.filter((o) => o.contenedor === m.id);
+  if (!directos.length) return '';
+  return `<div class="mueble-objetos-sueltos">
+    <span class="mueble-objetos-titulo">Objetos sueltos</span>
+    ${directos
+      .map(
+        (o) => `<span class="mueble-item mueble-item-objeto" draggable="true" data-mueble-obj-dnd="${o.id}" title="Arrastrá «${escapeHtml(o.nombre)}» para reacomodarlo o extraerlo a la bandeja">
         <img src="${IMG_OBJETO}" alt="" class="mueble-item-img mueble-item-img-objeto" draggable="false" />
-        <span class="mueble-item-nombre">${escapeHtml(x.nombre)}</span>
+        <span class="mueble-item-nombre">${escapeHtml(o.nombre)}</span>
       </span>`,
-    )
-    .join('');
-
-  return `${contsHtml}${objsHtml}`;
+      )
+      .join('')}
+  </div>`;
 }
 
 
-/** Grilla interna asimétrica del mueble, con controles opcionales por fila. */
-function muebleGrillaHtml(
-  m: MuebleVisor,
-  conts: SubContVisor[],
-  objs: SubObjVisor[],
-  conControles: boolean,
-): string {
-  const div = m as unknown as UbicacionPlano;
-  const filas = filasInternasDe(div);
-  const colsPorFila = columnasPorFilaDeMueble(m);
-  const filasHtml: string[] = [];
-
-  for (let r = 1; r <= filas; r++) {
-    const cols = colsPorFila[r - 1] || 1;
-    const celdas: string[] = [];
-
-    for (let c = 1; c <= cols; c++) {
-      const contsCelda = conts.filter(
-        (x) => x.parent_contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
-      );
-      const objsCelda = objs.filter(
-        (x) => x.contenedor === m.id && x.parent_grid_row === r && x.parent_grid_col === c,
-      );
-      // =====================================================================
-      // CASILLERO MULTI-ELEMENTO (Nivel 3/4): la celda ya NO es de ocupación
-      // estricta — varias cajas/estantes (Contenedor) y objetos pueden cohabitar
-      // el mismo cuadrante F·C y se renderizan juntos (miniaturas flex-wrap).
-      // El checkbox compacto «🔒 Lleno» es la clausura MANUAL del espacio:
-      //   · Se persiste como espacio_lleno en el/los Contenedor(es) ocupante(s).
-      //   · llena = algún Contenedor ocupante de la celda tiene espacio_lleno.
-      //   · Con la celda llena se pinta con opacidad sutil y se bloquean los
-      //     eventos de caída (dragover/ondrop rebotan con aviso en pantalla).
-      //   · El control se deshabilita si la celda no tiene ningún Contenedor
-      //     ancla (una celda solo con objetos sueltos no puede persistir la
-      //     bandera: necesita una caja/división que la lleve).
-      // =====================================================================
-      const llena = contsCelda.some((x) => x.espacio_lleno);
-      const hayAncla = contsCelda.length > 0;
-      const hayContenido = contsCelda.length > 0 || objsCelda.length > 0;
-      const controlLlenoHtml = hayContenido
-        ? `<label class="mueble-celda-lleno-control${llena ? ' esta-llena' : ''}${hayAncla ? '' : ' is-disabled'}" title="${
-            hayAncla
-              ? llena
-                ? 'Espacio marcado como LLENO: no acepta más elementos por arrastre. Desmarcá para liberar su capacidad.'
-                : 'Marcar este espacio como físicamente lleno: dejará de aceptar elementos por arrastre.'
-              : 'Para marcar «Lleno», este casillero debe contener al menos una caja o división (Contenedor).'
-          }">
-            <input type="checkbox" data-mueble-celda-lleno data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}"${llena ? ' checked' : ''}${hayAncla ? '' : ' disabled'} />
-            <span>🔒 Lleno</span>
-          </label>`
-        : '';
-      celdas.push(`<div class="mueble-celda${llena ? ' mueble-celda-llena' : ''}" data-mueble-celda data-mueble-id="${m.id}" data-mueble-row="${r}" data-mueble-col="${c}"${llena ? ' data-mueble-celda-llena="1"' : ''} title="Casillero F${r}·C${c} — soltá aquí elementos por arrastre: pueden convivir varias cajas y objetos en la misma celda. Usá ➕ en celdas vacías para fundar una sub-división">
-        <div class="mueble-celda-contenido">
-          ${celdaMuebleContenidoHtml(m.id, r, c, contsCelda, objsCelda)}
-        </div>
-        ${controlLlenoHtml}
-      </div>`);
-    }
-
-    const grilla = `<div class="mueble-fila" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">${celdas.join('')}</div>`;
-
-    if (!conControles) {
-      filasHtml.push(grilla);
-      continue;
-    }
-
-    // Botonera AGRUPADA de control al EXTREMO DERECHO de cada fila, por FUERA de
-    // la grilla (no interfiere con las Drop Zones del Drag & Drop interno):
-    //   · Botón AGREGAR (+): círculo verde → suma una división/columna vacía.
-    //   · Botón RESTAR (−):  círculo rojo → borra la ÚLTIMA división/columna de
-    //                        la fila. Solo visible cuando la fila tiene más de 1
-    //                        columna (una fila de 1 celda no puede contraerse).
-    // Clases Tailwind explícitas (mismo tamaño circular h-8 w-8) y z-20 para
-    // garantizar visibilidad y evitar recortes por desbordamiento del padre.
-    const quitarHtml = cols > 1
-      ? `<button type="button" class="flex-shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center text-lg transition-all cursor-pointer relative z-20" data-mueble-fila-quitar data-mueble-id="${m.id}" data-mueble-row="${r}" title="Eliminar la última división/columna de la fila ${r} de «${escapeHtml(m.nombre)}» — su contenido quedará sin ubicación en la bandeja de «por ubicar»">−</button>`
-      : '';
-    filasHtml.push(`
-      <div class="mueble-fila-linea">
-        <div class="mueble-fila-contenido">
-          <span class="mueble-fila-tag">Fila ${r} · ${cols} casillero${cols === 1 ? '' : 's'}</span>
-          ${grilla}
-        </div>
-        <div class="flex items-center gap-2 ml-4 flex-shrink-0">
-          <button type="button" class="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white font-bold rounded-full h-8 w-8 flex items-center justify-center text-lg transition-all cursor-pointer relative z-20" data-mueble-fila-agregar data-mueble-id="${m.id}" data-mueble-row="${r}" title="Agregar una división/columna vacía a la fila ${r} de «${escapeHtml(m.nombre)}»">+</button>
-          ${quitarHtml}
-        </div>
-      </div>`);
-  }
-
-  return filasHtml.join('');
+/** Lienzo 2D elástico del interior del mueble (estantes/cajones como rectángulos libres). */
+function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
+  const items: ItemElastico[] = conts
+    .filter((x) => x.parent_contenedor === m.id)
+    .map((x) => ({
+      id: x.id,
+      nombre: x.nombre,
+      ui_left: x.ui_left,
+      ui_top: x.ui_top,
+      ui_width: x.ui_width,
+      ui_height: x.ui_height,
+      fusion_grupo: x.fusion_grupo,
+      meta: x.es_inmueble ? '📌 fijo' : null,
+    }));
+  return renderLienzoElastico({
+    items,
+    etiquetaCrear: 'Estante',
+    textoVacio: 'Este mueble todavía no tiene estantes/cajones. Usá «➕ Estante» para fundar el primero.',
+    tip: '🧩 <strong>Interior elástico</strong> · arrastrá cada estante para reacomodarlo, estirá de la esquina, renombrá con clic y <strong>seleccioná 2+ para fusionarlos</strong> en un único espacio con geometría en «L».',
+  });
 }
 
 
@@ -228,9 +130,6 @@ export function muebleCardHtml(
   objs: SubObjVisor[],
   opts: { abrible?: boolean; conControles?: boolean } = {},
 ): string {
-  const div = m as unknown as UbicacionPlano;
-  const filas = filasInternasDe(div);
-  const colsPorFila = columnasPorFilaDeMueble(m);
   const abrirHtml = opts.abrible
     ? `<button type="button" class="cg-mueble-abrir" data-mueble-abrir="${m.id}" title="Inspeccionar la ficha y distribución interna de «${escapeHtml(m.nombre)}»">🔍 Abrir ficha</button>`
     : '';
@@ -246,9 +145,8 @@ export function muebleCardHtml(
       </div>
       ${m.es_inmueble ? '<span class="mueble-inmueble">📌 Mueble fijo</span>' : ''}
       ${abrirHtml}
-      <div class="mueble-minimapa" title="Minimapa rectangular de la grilla del mueble">${minimapaRectangularSvg({ filas, columnasPorFila: colsPorFila, filaActiva: null, columnaActiva: null })}</div>
     </div>
-    <div class="mueble-grilla">${muebleGrillaHtml(m, conts, objs, Boolean(opts.conControles))}</div>
+    <div class="mueble-grilla">${muebleLienzoHtml(m, conts)}${muebleObjetosHtml(m, objs)}</div>
   </div>`;
 }
 

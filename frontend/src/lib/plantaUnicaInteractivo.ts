@@ -13,11 +13,10 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { guardarUbicacion, toast } from './mapaJerarquico';
+import { toast } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
-import { conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
+import { adaptadorDe, conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
 import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
-import { putGrupo } from './plantaUnicaGrupo';
 
 export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -39,14 +38,20 @@ async function postJson(url: string, body: Record<string, unknown>): Promise<boo
   }
 }
 
-/** Conecta TODAS las capacidades de edición del lienzo de Planta Única. */
-export function conectarPlantaUnica(opts: OpcionesPlantaUnica): void {
+/** Conecta TODAS las capacidades de edición de cualquier lienzo elástico 2D. */
+export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarRenombrado(opts);
   conectarCreacion(opts);
   conectarArrastreLibre(opts);
   conectarResizeLibre(opts);
   conectarSeleccionYFusion(opts);
 }
+
+/**
+ * Alias de compatibilidad: Planta Única (Nivel 1) reutiliza el MISMO motor 2D
+ * con el adaptador de Ubicación por defecto.
+ */
+export const conectarPlantaUnica = conectarLienzoElastico;
 
 // =============================================================================
 // CLIC PARA RENOMBRAR (in-place) + SINCRONIZACIÓN DE BLOQUES FUSIONADOS
@@ -59,7 +64,7 @@ function conectarRenombrado(opts: OpcionesPlantaUnica): void {
     if (grupo) {
       const baseId = grupo.dataset.id ?? id;
       const grupoId = grupo.dataset.fusionGrupo ?? '';
-      const ok = await putGrupo(baseId, { nombre });
+      const ok = await adaptadorDe(opts).guardarGrupo(baseId, { nombre });
       if (!ok) {
         toast('❌ No se pudo renombrar el espacio fusionado.');
         return false;
@@ -79,7 +84,7 @@ function conectarRenombrado(opts: OpcionesPlantaUnica): void {
     const room = opts.rooms().find((r) => r.id === id);
     if (!room) return false;
     if (nombre === room.nombre) return true;
-    const ok = await guardarUbicacion(id, { nombre });
+    const ok = await adaptadorDe(opts).guardarItem(id, { nombre });
     if (!ok) {
       toast('❌ No se pudo renombrar el espacio.');
       return false;
@@ -96,41 +101,65 @@ function conectarRenombrado(opts: OpcionesPlantaUnica): void {
 // =============================================================================
 
 function conectarCreacion(opts: OpcionesPlantaUnica): void {
-  opts.scope.querySelectorAll<HTMLElement>('[data-nueva-ubicacion]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (btn.dataset.creando === '1') return;
-      btn.dataset.creando = '1';
-      btn.classList.add('pu-creando');
-      try {
-        const apartamento = opts.apartamentoId() ?? (await opts.asegurarApartamento());
-        if (!apartamento) {
-          toast('⚠️ No se pudo preparar el contenedor del departamento.');
-          return;
+  opts.scope
+    .querySelectorAll<HTMLElement>('[data-nueva-ubicacion],[data-lienzo-crear]')
+    .forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (btn.dataset.creando === '1') return;
+        btn.dataset.creando = '1';
+        btn.classList.add('pu-creando');
+        try {
+          await crearRectangulo(opts);
+        } finally {
+          delete btn.dataset.creando;
+          btn.classList.remove('pu-creando');
         }
-        const n = opts.rooms().length;
-        const izquierda = 6 + (n % 5) * 12;
-        const arriba = 8 + (n % 4) * 16;
-        const ok = await postJson(`${API_BASE_URL}/ubicaciones/`, {
-          nombre: `Espacio ${n + 1}`,
-          parent_ubicacion: apartamento,
-          piso: 'PLANTA_BAJA',
-          ui_left: `${izquierda}%`,
-          ui_top: `${arriba}%`,
-          ui_width: '28%',
-          ui_height: '24%',
-        });
-        if (!ok) {
-          toast('❌ No se pudo inyectar la ubicación libre.');
-          return;
-        }
-        toast('✅ Espacio libre inyectado. Arrastralo para acomodarlo.');
-        opts.notificarCambios();
-      } finally {
-        delete btn.dataset.creando;
-        btn.classList.remove('pu-creando');
-      }
+      });
     });
+}
+
+/**
+ * Crea un rectángulo nuevo en el lienzo. Si el consumidor inyecta `crearItem`
+ * (visores de Nivel 2/3/4) se usa ese; si no, se cae al alta de Ubicación de
+ * Planta Única (Nivel 1) con el contenedor «Departamento» como padre.
+ */
+async function crearRectangulo(opts: OpcionesPlantaUnica): Promise<void> {
+  if (opts.crearItem) {
+    const ok = await opts.crearItem();
+    if (ok) {
+      toast('✅ Espacio libre inyectado. Arrastralo para acomodarlo.');
+      opts.notificarCambios();
+    } else {
+      toast('❌ No se pudo inyectar el espacio libre.');
+    }
+    return;
+  }
+
+  const apartamento =
+    opts.apartamentoId?.() ??
+    (opts.asegurarApartamento ? await opts.asegurarApartamento() : null);
+  if (!apartamento) {
+    toast('⚠️ No se pudo preparar el contenedor del departamento.');
+    return;
+  }
+  const n = opts.rooms().length;
+  const izquierda = 6 + (n % 5) * 12;
+  const arriba = 8 + (n % 4) * 16;
+  const ok = await postJson(`${API_BASE_URL}/ubicaciones/`, {
+    nombre: `Espacio ${n + 1}`,
+    parent_ubicacion: apartamento,
+    piso: 'PLANTA_BAJA',
+    ui_left: `${izquierda}%`,
+    ui_top: `${arriba}%`,
+    ui_width: '28%',
+    ui_height: '24%',
   });
+  if (!ok) {
+    toast('❌ No se pudo inyectar la ubicación libre.');
+    return;
+  }
+  toast('✅ Espacio libre inyectado. Arrastralo para acomodarlo.');
+  opts.notificarCambios();
 }
 
 // =============================================================================
@@ -172,9 +201,7 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
     const resto = ids.filter((id) => id !== base);
     if (resto.length === 0) return;
     btnFusionar.disabled = true;
-    const ok = await postJson(`${API_BASE_URL}/ubicaciones/${base}/fusionar/`, {
-      ubicacion_ids: resto,
-    });
+    const ok = await adaptadorDe(opts).fusionar(base, resto);
     if (!ok) {
       toast('❌ No se pudieron fusionar los espacios.');
       refrescar();
@@ -189,7 +216,7 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
       ev.stopPropagation();
       const id = btn.dataset.id ?? '';
       if (!id) return;
-      const ok = await postJson(`${API_BASE_URL}/ubicaciones/${id}/separar/`, {});
+      const ok = await adaptadorDe(opts).separar(id);
       if (!ok) {
         toast('❌ No se pudo separar el espacio fusionado.');
         return;

@@ -17,7 +17,8 @@
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-import { conectarRenombradoEnVivo, conectarResizeElastico } from './lienzoInteractivo';
+import { conectarLienzoElastico } from './plantaUnicaInteractivo';
+import { adaptadorContenedores } from './lienzoElastico';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import {
@@ -112,8 +113,11 @@ async function cargar(): Promise<void> {
       es_inmueble: Boolean(c.es_inmueble),
       espacio_lleno: Boolean(c.espacio_lleno),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
+      ui_left: c.ui_left != null ? String(c.ui_left) : null,
+      ui_top: c.ui_top != null ? String(c.ui_top) : null,
       ui_width: c.ui_width != null ? String(c.ui_width) : null,
       ui_height: c.ui_height != null ? String(c.ui_height) : null,
+      fusion_grupo: c.fusion_grupo != null ? String(c.fusion_grupo) : null,
     }));
 
   subObjetos = (objData as Record<string, unknown>[])
@@ -336,12 +340,97 @@ function enlazar(): void {
   });
 
   // =========================================================================
-  // MOTOR RECURSIVO DE EDICIÓN IN-PLACE (lienzoInteractivo.ts) — Nivel 4
-  // Estanterías internas de la Ficha del Mueble Inmueble: renombrar al clic y
-  // estirar con el tirador de esquina (PUT /api/contenedores/{id}/ ui_*).
+  // LIENZO 2D ELÁSTICO UNIFICADO (Nivel 3/4): los estantes/cajones del mueble
+  // son rectángulos libres fusionables (motor compartido con Planta Única).
   // =========================================================================
-  conectarRenombradoEnVivo(rootEl, renombrarEstanteriaEnVivo);
-  conectarResizeElastico(rootEl, { onConfirmar: redimensionarEstanteriaEnVivo });
+  conectarLienzosElasticos();
+}
+
+/** Conecta el motor 2D elástico a cada lienzo de mueble renderizado. */
+function conectarLienzosElasticos(): void {
+  if (!rootEl) return;
+  rootEl.querySelectorAll<HTMLElement>('[data-lienzo-elastico]').forEach((scope) => {
+    const card = scope.closest<HTMLElement>('[data-mueble-card]');
+    const muebleId = card?.dataset.muebleCard ?? '';
+    if (!muebleId) return;
+    conectarLienzoElastico({
+      scope,
+      rooms: () =>
+        subContenedores.map((x) => ({
+          id: x.id,
+          nombre: x.nombre,
+          ui_left: x.ui_left,
+          ui_top: x.ui_top,
+          ui_width: x.ui_width,
+          ui_height: x.ui_height,
+          fusion_grupo: x.fusion_grupo,
+        })),
+      adaptador: adaptadorContenedores(),
+      notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
+      crearItem: () => crearEstanteEnMueble(muebleId),
+    });
+    const lienzo = scope.querySelector<HTMLElement>('[data-lienzo-pu]');
+    if (lienzo) enlazarDropPadre(lienzo, muebleId);
+  });
+}
+
+/** Drop Zone del lienzo completo: anida el elemento soltado dentro del mueble. */
+function enlazarDropPadre(lienzo: HTMLElement, muebleId: string): void {
+  lienzo.addEventListener('dragover', (e) => {
+    const de = e as DragEvent;
+    e.preventDefault();
+    if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
+    lienzo.classList.add('lienzo-elastico-drop-activo');
+  });
+  lienzo.addEventListener('dragleave', () => lienzo.classList.remove('lienzo-elastico-drop-activo'));
+  lienzo.addEventListener('drop', (e) => {
+    const de = e as DragEvent;
+    e.preventDefault();
+    lienzo.classList.remove('lienzo-elastico-drop-activo');
+    const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
+    const objId = de.dataTransfer?.getData('application/x-estok-objeto');
+    if (contId) void asignarSubContenedor(contId, muebleId, 1, 1);
+    else if (objId) void asignarObjetoAMueble(objId, muebleId, 1, 1);
+  });
+}
+
+/** Crea un estante/cajón nuevo dentro del mueble (rectángulo libre, sin grilla). */
+async function crearEstanteEnMueble(muebleId: string): Promise<boolean> {
+  if (!roomActual) return false;
+  const mueble = muebles.find((m) => m.id === muebleId);
+  const n = subContenedores.filter((x) => x.parent_contenedor === muebleId).length;
+  try {
+    const res = await fetch(`${API_BASE_URL}/contenedores/`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: `Estante ${n + 1}`,
+        descripcion: '',
+        ubicacion: roomActual.id,
+        parent_contenedor: muebleId,
+        ui_left: `${6 + (n % 5) * 12}%`,
+        ui_top: `${8 + (n % 4) * 16}%`,
+        ui_width: '28%',
+        ui_height: '24%',
+        es_inmueble: false,
+      }),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) {
+      toast(`✅ «Estante ${n + 1}» fundado en «${mueble?.nombre || 'el mueble'}».`);
+      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      return true;
+    }
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo fundar el estante.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al fundar el estante.');
+    return false;
+  }
 }
 
 // =============================================================================
@@ -519,55 +608,6 @@ async function persistirEspacioLleno(muebleId: string, r: number, c: number, lle
     toast('❌ Error de conexión al actualizar el estado del casillero.');
     return false;
   }
-}
-
-// =============================================================================
-// EDICIÓN IN-PLACE DE ESTANTERÍAS INTERNAS (PUT /api/contenedores/{id}/)
-// =============================================================================
-
-async function persistirSubContenedor(id: string, data: Record<string, unknown>): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
-      method: 'PUT',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    if (res.ok) return true;
-    const err = await res.json().catch(() => ({}));
-    toast('❌ ' + (err?.detail || err?.error || 'No se pudo actualizar la estantería.'));
-    return false;
-  } catch {
-    toast('❌ Error de conexión al actualizar la estantería.');
-    return false;
-  }
-}
-
-async function renombrarEstanteriaEnVivo(id: string, nombre: string): Promise<boolean> {
-  const item = subContenedores.find((x) => x.id === id);
-  if (!item) return false;
-  if (nombre === item.nombre) return true;
-  const ok = await persistirSubContenedor(id, { nombre });
-  if (!ok) return false;
-  item.nombre = nombre;
-  toast(`✅ Estantería renombrada a «${nombre}».`);
-  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
-  return true;
-}
-
-async function redimensionarEstanteriaEnVivo(id: string, dim: { ui_width: string; ui_height: string }): Promise<boolean> {
-  const item = subContenedores.find((x) => x.id === id);
-  if (!item) return false;
-  const ok = await persistirSubContenedor(id, { ui_width: dim.ui_width, ui_height: dim.ui_height });
-  if (!ok) return false;
-  item.ui_width = dim.ui_width;
-  item.ui_height = dim.ui_height;
-  toast('✅ Tamaño de la estantería actualizado.');
-  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
-  return true;
 }
 
 // =============================================================================

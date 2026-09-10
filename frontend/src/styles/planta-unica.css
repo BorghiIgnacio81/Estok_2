@@ -358,3 +358,58 @@
   border-bottom-right-radius: 2px;
 }
 
+/* =============================================================================
+   LIENZO ELÁSTICO REUTILIZABLE (Nivel 2/3/4: visores de habitación y mueble)
+   ============================================================================= */
+
+/* Botón de creación genérico del lienzo (mueble/estante). */
+.lienzo-elastico-nueva {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.35);
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.lienzo-elastico-nueva:hover {
+  background: #15803d;
+}
+
+.lienzo-elastico-nueva.pu-creando {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Drop Zone del lienzo completo (anidar el elemento soltado en el contenedor). */
+.planta-unica-lienzo.lienzo-elastico-drop-activo {
+  outline: 3px dashed #16a34a;
+  outline-offset: -4px;
+}
+
+/* Mueble destacado en el lienzo de la habitación (ficha abierta a la derecha). */
+.pu-celda.visor-mueble-activo,
+.pu-grupo.visor-mueble-activo {
+  outline: 3px solid #f97316;
+  outline-offset: -2px;
+}
+
+/* Chips de objetos sueltos colgados directamente de un mueble. */
+.mueble-objetos-sueltos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px 0;
+}
+
+.mueble-objetos-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+}
+

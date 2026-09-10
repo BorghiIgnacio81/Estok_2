@@ -31,9 +31,12 @@ import {
   conectarRenombradoEnVivo,
   conectarResizeElastico,
 } from './lienzoInteractivo';
+import { conectarLienzoElastico } from './plantaUnicaInteractivo';
+import { adaptadorContenedores } from './lienzoElastico';
+import type { ItemElastico } from './lienzoElastico';
+import { renderLienzoElastico } from './mapaPlantaUnica';
 import {
   ETIQUETAS_PARED,
-  celdaVisorContenidoHtml,
   cuerpoConParedesHtml,
   paletaPuertaHtml,
   medidasDe,
@@ -50,9 +53,13 @@ interface ContenedorVisor {
   parent_grid_col?: number | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina. */
   es_inmueble?: boolean;
-  /** Medidas visuales del mueble (resizing recursivo, PUT ui_width/ui_height). */
+  /** Geometría elástica del mueble en el lienzo 2D de la habitación. */
+  ui_left?: string | null;
+  ui_top?: string | null;
   ui_width?: string | null;
   ui_height?: string | null;
+  /** ID relacional del grupo de fusión (muebles en "L"). */
+  fusion_grupo?: string | null;
 }
 
 interface ObjetoVisor {
@@ -152,17 +159,9 @@ function aplicarMuebleActivo(): void {
     el.classList.remove('visor-mueble-activo');
   });
   if (!muebleActivoId) return;
-  cont.querySelectorAll<HTMLElement>('[data-contenedor-id]').forEach((el) => {
-    if (el.dataset.contenedorId !== muebleActivoId) return;
+  cont.querySelectorAll<HTMLElement>('[data-inplace-card]').forEach((el) => {
+    if (el.dataset.id !== muebleActivoId) return;
     el.classList.add('visor-mueble-activo');
-    const celda = el.closest<HTMLElement>('[data-visor-celda]');
-    if (celda?.dataset.visorRow && celda?.dataset.visorCol) {
-      celdaInspeccionada = {
-        fila: Number(celda.dataset.visorRow),
-        col: Number(celda.dataset.visorCol),
-      };
-      refrescarMinimapa();
-    }
   });
 }
 
@@ -200,35 +199,28 @@ function renderVisor(): void {
   }
 
   const room = roomActual;
-  const filasInt = filasInternasDe(room);
   const med = medidasDe(room);
   const puerta = room.posicion_puerta || null;
 
-  const filasHtml: string[] = [];
-  for (let r = 1; r <= filasInt; r++) {
-    const cols = columnasDeFilaInterna(room, r);
-    const celdas: string[] = [];
-    for (let c = 1; c <= cols; c++) {
-      celdas.push(`
-        <div class="visor-celda" data-visor-celda data-visor-row="${r}" data-visor-col="${c}" title="Soltá contenedores u objetos aquí">
-          ${celdaVisorContenidoHtml(contenedoresRoom, objetosRoom, r, c)}
-        </div>`);
-    }
-    filasHtml.push(`
-      <div class="visor-fila-interna">
-        <div class="visor-fila-interna-cab">
-          <span class="visor-fila-interna-etiqueta">Fila ${r}</span>
-          <span class="mapa-cols-control">
-            <button type="button" class="num-btn" data-visor-cols="menos" data-fila="${r}" title="Quitar columna a la fila ${r}">−</button>
-            <input type="number" class="num-input" min="1" max="12" value="${cols}" readonly data-visor-cols-input="${r}" aria-label="Columnas de la fila ${r} del Visor" />
-            <button type="button" class="num-btn" data-visor-cols="mas" data-fila="${r}" title="Agregar columna a la fila ${r}">+</button>
-          </span>
-        </div>
-        <div class="visor-fila-celdas" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
-          ${celdas.join('')}
-        </div>
-      </div>`);
-  }
+  const items: ItemElastico[] = contenedoresRoom.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    ui_left: c.ui_left,
+    ui_top: c.ui_top,
+    ui_width: c.ui_width,
+    ui_height: c.ui_height,
+    fusion_grupo: c.fusion_grupo,
+    meta:
+      (c.subcontenedores_count || 0) > 0 ? `${c.subcontenedores_count} sub` : null,
+  }));
+
+  const lienzo = renderLienzoElastico({
+    items,
+    etiquetaCrear: 'Mueble',
+    textoVacio:
+      'Esta habitación no tiene muebles/archivadores todavía. Usá «➕ Mueble» para crear el primero, o soltá una caja desde la bandeja inferior.',
+    tip: '🧩 <strong>Lienzo elástico de la habitación</strong> · arrastrá cada mueble para acomodarlo, estirá de la esquina, renombrá con clic y <strong>seleccioná 2+ para fusionarlos</strong> en un único espacio con geometría en «L».',
+  });
 
   cont.innerHTML = `
   <div class="visor-habitacion">
@@ -240,21 +232,14 @@ function renderVisor(): void {
         ${med ? `<p class="visor-medidas">📐 ${escapeHtml(med)}</p>` : ''}
       </div>
     </div>
-    <div id="visorMinimapaSlot">${minimapaHabitacionHtml(room, celdaInspeccionada?.fila ?? null, celdaInspeccionada?.col ?? null)}</div>
+    <div id="visorMinimapaSlot"></div>
     <div class="visor-encabezado">
-      <span class="visor-titulo">Lienzo matricial de la habitación</span>
-      <span class="mapa-filas-internas-control">
-        <span class="mapa-filas-internas-etiqueta">Filas</span>
-        <span class="num-control">
-          <button type="button" class="num-btn" data-visor-filas="menos" title="Quitar fila interna del lienzo">−</button>
-          <input type="number" class="num-input" min="1" max="12" value="${filasInt}" readonly data-visor-filas-input aria-label="Filas internas del lienzo del Visor" />
-          <button type="button" class="num-btn" data-visor-filas="mas" title="Agregar fila interna del lienzo">+</button>
-        </span>
-      </span>
+      <span class="visor-titulo">Lienzo 2D de la habitación</span>
+      <span class="visor-sub">Rectángulos elásticos: arrastrá, estirá y fusioná libremente.</span>
     </div>
-    ${cuerpoConParedesHtml(filasHtml.join(''), puerta)}
+    ${cuerpoConParedesHtml(lienzo, puerta)}
     ${paletaPuertaHtml()}
-    <p class="visor-ayuda">Arrastrá muebles entre casilleros libres, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación.</p>
+    <p class="visor-ayuda">Arrastrá muebles libremente dentro del lienzo, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación.</p>
   </div>`;
 }
 
@@ -340,52 +325,56 @@ function enlazarVisor(): void {
     });
   });
 
-  // Reacomodo por Drag & Drop dentro del Visor: muebles arrastrables
-  // (excepto los inmuebles fijos) hacia otro casillero libre.
-  cont.querySelectorAll<HTMLElement>('[data-contenedor-id]').forEach((el) => {
-    el.addEventListener('dragstart', (e) => {
-      const de = e as DragEvent;
-      const id = el.dataset.contenedorId;
-      if (!id) { de.preventDefault(); return; }
-      const c = contenedoresRoom.find((x) => x.id === id);
-      if (c?.es_inmueble) { de.preventDefault(); return; }
-      dragTipoVisor = 'contenedor';
-      el.dataset.arrastreEnCurso = '1';
-      if (de.dataTransfer) {
-        de.dataTransfer.setData('application/x-estok-contenedor', id);
-        de.dataTransfer.setData('text/plain', id);
-        de.dataTransfer.effectAllowed = 'move';
-      }
-      el.classList.add('opacity-50');
-    });
-    el.addEventListener('dragend', () => {
-      el.classList.remove('opacity-50');
-      dragTipoVisor = null;
-      setTimeout(() => delete el.dataset.arrastreEnCurso, 0);
-    });
-    // Conmutación EN CALIENTE del tercer nivel: un clic sobre el mueble limpia y
-    // abre su ficha/distribución interna en el "Visor Contenedor Grande" (derecha).
+  // Muebles del lienzo elástico: un clic (sin arrastre) abre su ficha interna.
+  cont.querySelectorAll<HTMLElement>('[data-inplace-card]').forEach((el) => {
     el.addEventListener('click', (e) => {
-      if (el.dataset.arrastreEnCurso === '1') {
-        delete el.dataset.arrastreEnCurso;
+      const objetivo = e.target as HTMLElement | null;
+      if (
+        objetivo?.closest(
+          '[data-inplace-renombrar],[data-fusion-check],[data-separar],[data-libre-resize],[data-grupo-resize]',
+        )
+      ) {
         return;
       }
-      const objetivo = e.target as HTMLElement | null;
-      if (objetivo?.closest('[data-inplace-renombrar], [data-inplace-resize], [data-editar-contenedor-visor], .visor-celda-editar, .visor-celda-fijo')) return;
-      const id = el.dataset.contenedorId;
+      const id = el.dataset.id;
       if (!id) return;
       const dato = contenedoresRoom.find((x) => x.id === id);
+      if (!dato) return;
       // Solo los muebles (con sub-divisiones o inmuebles fijos) abren ficha.
-      if (!dato || (!(Number(dato.subcontenedores_count) > 0) && !dato.es_inmueble)) return;
+      if (!(Number(dato.subcontenedores_count) > 0) && !dato.es_inmueble) return;
       muebleActivoId = id;
       aplicarMuebleActivo();
-      // Evento que dispara la actualización EN CALIENTE del "Visor Contenedor
-      // Grande" (panel derecho): cada tarjeta lleva su UUID único de registro.
       window.dispatchEvent(
         new CustomEvent('estok:mueble-seleccionado', { detail: { id, nombre: dato.nombre } }),
       );
     });
   });
+
+  // =========================================================================
+  // LIENZO 2D ELÁSTICO (Nivel 2): los muebles de la habitación son rectángulos
+  // libres fusionables (motor compartido con Planta Única y el Nivel 3/4).
+  // =========================================================================
+  const scopeLienzo = cont.querySelector<HTMLElement>('[data-lienzo-elastico]');
+  if (scopeLienzo) {
+    conectarLienzoElastico({
+      scope: scopeLienzo,
+      rooms: () =>
+        contenedoresRoom.map((c) => ({
+          id: c.id,
+          nombre: c.nombre,
+          ui_left: c.ui_left,
+          ui_top: c.ui_top,
+          ui_width: c.ui_width,
+          ui_height: c.ui_height,
+          fusion_grupo: c.fusion_grupo,
+        })),
+      adaptador: adaptadorContenedores(),
+      notificarCambios: notificarEspacios,
+      crearItem: crearMuebleEnHabitacion,
+    });
+    const lienzoEl = scopeLienzo.querySelector<HTMLElement>('[data-lienzo-pu]');
+    if (lienzoEl) enlazarDropHabitacion(lienzoEl);
+  }
 
   // Objetos extraíbles: cada bolita de una celda se arrastra a otro casillero
   // o se suelta sobre la bandeja inferior para extraerla.
@@ -681,6 +670,63 @@ async function guardarPuerta(pared: 'TOP' | 'BOTTOM' | 'LEFT' | 'RIGHT'): Promis
     enlazarVisor();
   } else {
     toast('❌ No se pudo guardar la posición de la puerta.');
+  }
+}
+
+/** Drop Zone del lienzo de la habitación: coloca el elemento soltado en la sala. */
+function enlazarDropHabitacion(lienzo: HTMLElement): void {
+  lienzo.addEventListener('dragover', (e) => {
+    const de = e as DragEvent;
+    e.preventDefault();
+    if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
+    lienzo.classList.add('lienzo-elastico-drop-activo');
+  });
+  lienzo.addEventListener('dragleave', () => lienzo.classList.remove('lienzo-elastico-drop-activo'));
+  lienzo.addEventListener('drop', (e) => {
+    const de = e as DragEvent;
+    e.preventDefault();
+    lienzo.classList.remove('lienzo-elastico-drop-activo');
+    const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
+    const objId = de.dataTransfer?.getData('application/x-estok-objeto');
+    if (contId) void asignarContenedorACelda(contId, 1, 1);
+    else if (objId) void asignarObjetoACelda(objId, 1, 1);
+  });
+}
+
+/** Crea un mueble nuevo (rectángulo libre) dentro de la habitación activa. */
+async function crearMuebleEnHabitacion(): Promise<boolean> {
+  if (!roomActual) return false;
+  const n = contenedoresRoom.length;
+  try {
+    const res = await fetch(`${API_BASE_URL}/contenedores/`, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: `Mueble ${n + 1}`,
+        descripcion: '',
+        ubicacion: roomActual.id,
+        ui_left: `${6 + (n % 5) * 12}%`,
+        ui_top: `${8 + (n % 4) * 16}%`,
+        ui_width: '28%',
+        ui_height: '24%',
+        es_inmueble: false,
+      }),
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return false;
+    }
+    if (res.ok) {
+      toast(`✅ «Mueble ${n + 1}» creado en «${roomActual.nombre}».`);
+      notificarEspacios();
+      return true;
+    }
+    const err = await res.json().catch(() => ({}));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo crear el mueble.'));
+    return false;
+  } catch {
+    toast('❌ Error de conexión al crear el mueble.');
+    return false;
   }
 }
 

@@ -3,7 +3,7 @@ ViewSets para organizacion espacial: Ubicaciones y Contenedores.
 """
 
 import logging
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
@@ -19,6 +19,7 @@ from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListS
 from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
 from .base import HasRolePermission
+from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo
 
 logger = logging.getLogger(__name__)
 
@@ -188,48 +189,17 @@ class UbicacionViewSet(viewsets.ModelViewSet):
         """
         POST /api/ubicaciones/{id}/fusionar/  con {ubicacion_ids: [uuid, ...]}
 
-        La Ubicación del path es la BASE del grupo. Si ya pertenecía a un
-        fusion_grupo, se reutiliza ese ID (permite fusionar en cadena sin
-        romper grupos existentes). Valida aislamiento multi-tenant estricto:
-        TODOS los espacios deben pertenecer al mismo Estok de la base.
+        Delega en el motor genérico `fusion_espacial`: la Ubicación del path es
+        la BASE del grupo. Si ya pertenecía a un fusion_grupo, se reutiliza ese
+        ID (permite fusionar en cadena sin romper grupos existentes).
         """
         base = self.get_object()
-        ids = request.data.get('ubicacion_ids') or []
-        if not isinstance(ids, (list, tuple)):
-            raise ValidationError({'error': 'ubicacion_ids debe ser una lista de IDs.'})
-
-        ids_limpios = [str(i) for i in ids if str(i) != str(base.id)]
-        if not ids_limpios:
-            raise ValidationError(
-                {'error': 'Seleccioná al menos otro espacio para fusionar.'}
+        return Response(
+            fusionar_espacios(
+                Ubicacion, base, request.data.get('ubicacion_ids') or [],
+                lambda u: u.estok_id,
             )
-
-        objetivo = list(
-            Ubicacion.objects.filter(id__in=ids_limpios).exclude(id=base.id)
         )
-        if not objetivo:
-            raise ValidationError(
-                {'error': 'No se encontraron espacios válidos para fusionar.'}
-            )
-        for ubicacion in objetivo:
-            if str(ubicacion.estok_id) != str(base.estok_id):
-                raise ValidationError(
-                    {'error': 'Todos los espacios a fusionar deben pertenecer al mismo Estok.'}
-                )
-
-        grupo = base.fusion_grupo or uuid4()
-        with transaction.atomic():
-            if base.fusion_grupo != grupo:
-                base.fusion_grupo = grupo
-                base.save(update_fields=['fusion_grupo'])
-            Ubicacion.objects.filter(id__in=[u.id for u in objetivo]).update(
-                fusion_grupo=grupo
-            )
-
-        return Response({
-            'fusion_grupo': str(grupo),
-            'ubicacion_ids': [str(base.id)] + [str(u.id) for u in objetivo],
-        })
 
     @action(detail=True, methods=['post'], url_path='separar')
     def separar(self, request, pk=None):
@@ -238,16 +208,10 @@ class UbicacionViewSet(viewsets.ModelViewSet):
 
         Disuelve la fusión: libera a TODOS los espacios del grupo
         (fusion_grupo=None) para que vuelvan a renderizarse como rectángulos
-        independientes.
+        independientes. Delegado en el motor genérico `fusion_espacial`.
         """
         base = self.get_object()
-        liberadas = 0
-        if base.fusion_grupo:
-            liberadas = Ubicacion.objects.filter(fusion_grupo=base.fusion_grupo).update(
-                fusion_grupo=None
-            )
-            base.fusion_grupo = None
-        return Response({'ok': True, 'liberadas': liberadas})
+        return Response(separar_espacios(Ubicacion, base))
 
     @action(detail=True, methods=['put', 'patch'], url_path='grupo')
     def grupo(self, request, pk=None):
@@ -256,57 +220,15 @@ class UbicacionViewSet(viewsets.ModelViewSet):
 
         Edición CONSOLIDADA del espacio fusionado en UNA sola transacción
         hermética: un único request impacta a TODAS las partes de la
-        macro-estructura (sean 2 o más).
-
-          - "nombre":  se aplica simultáneamente a todos los miembros del grupo.
-          - "partes":  [{id, ui_left, ui_top, ui_width, ui_height}] con la
-                       geometría relativa recalculada al mover/redimensionar el
-                       bloque completo, preservando la forma irregular en "L".
-
-        Valida multi-tenant y que cada parte pertenezca REALMENTE al grupo.
+        macro-estructura. Delegado en el motor genérico `fusion_espacial`.
         """
         base = self.get_object()
-        if not base.fusion_grupo:
-            raise ValidationError(
-                {'error': 'El espacio no pertenece a ningún grupo de fusión. Fusioná primero.'}
+        return Response(
+            editar_grupo(
+                Ubicacion, base,
+                request.data.get('nombre'), request.data.get('partes'),
             )
-
-        miembros = Ubicacion.objects.filter(fusion_grupo=base.fusion_grupo)
-        ids_grupo = {str(m.id) for m in miembros}
-
-        nombre = request.data.get('nombre')
-        partes = request.data.get('partes')
-        if nombre is None and partes is None:
-            raise ValidationError(
-                {'error': 'Enviá "nombre" y/o "partes" para actualizar el grupo.'}
-            )
-        if nombre is not None and not str(nombre).strip():
-            raise ValidationError(
-                {'error': 'El nombre del espacio fusionado no puede estar vacío.'}
-            )
-
-        campos_permitidos = ('ui_left', 'ui_top', 'ui_width', 'ui_height')
-        with transaction.atomic():
-            if nombre is not None:
-                miembros.update(nombre=str(nombre).strip())
-            if isinstance(partes, list):
-                for parte in partes:
-                    if not isinstance(parte, dict):
-                        continue
-                    parte_id = str(parte.get('id') or '')
-                    if parte_id not in ids_grupo:
-                        raise ValidationError(
-                            {'error': f'La parte {parte_id or "?"} no pertenece a este grupo de fusión.'}
-                        )
-                    cambios = {c: parte[c] for c in campos_permitidos if c in parte}
-                    if cambios:
-                        Ubicacion.objects.filter(id=parte_id).update(**cambios)
-
-        return Response({
-            'fusion_grupo': str(base.fusion_grupo),
-            'ubicacion_ids': sorted(ids_grupo),
-            'nombre': str(nombre).strip() if nombre is not None else None,
-        })
+        )
 
 
 class ContenedorViewSet(viewsets.ModelViewSet):
@@ -593,6 +515,40 @@ class ContenedorViewSet(viewsets.ModelViewSet):
                 sub.ubicacion_id = contenedor.ubicacion_id
                 sub.save(update_fields=['ubicacion'])
             self._propagar_ubicacion(sub)
+
+    # =====================================================================
+    # MOTOR DE FUSIÓN DE ESPACIOS EN "L" (muebles/estantes) - misma lógica
+    # genérica que Ubicación: permite unificar dos o más Contenedores en un
+    # único rectángulo elástico con geometría irregular (fusion_grupo).
+    # =====================================================================
+
+    @action(detail=True, methods=['post'], url_path='fusionar')
+    def fusionar(self, request, pk=None):
+        """POST /api/contenedores/{id}/fusionar/ con {ubicacion_ids: [uuid, ...]}."""
+        base = self.get_object()
+        return Response(
+            fusionar_espacios(
+                Contenedor, base, request.data.get('ubicacion_ids') or [],
+                lambda c: c.ubicacion.estok_id if c.ubicacion_id else None,
+            )
+        )
+
+    @action(detail=True, methods=['post'], url_path='separar')
+    def separar(self, request, pk=None):
+        """POST /api/contenedores/{id}/separar/ → libera el grupo de fusión."""
+        base = self.get_object()
+        return Response(separar_espacios(Contenedor, base))
+
+    @action(detail=True, methods=['put', 'patch'], url_path='grupo')
+    def grupo(self, request, pk=None):
+        """PUT /api/contenedores/{id}/grupo/ → nombre/geometría de todas las partes."""
+        base = self.get_object()
+        return Response(
+            editar_grupo(
+                Contenedor, base,
+                request.data.get('nombre'), request.data.get('partes'),
+            )
+        )
 
     @action(detail=False, methods=['get'])
     def arbol(self, request):

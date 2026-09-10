@@ -1,22 +1,22 @@
 // =============================================================================
-// MODELADOR 2D ADAPTABLE - MODO PLANTA ÚNICA (render puro)
+// MODELADOR 2D ADAPTABLE - LIENZO ELÁSTICO (render puro, genérico por ítem)
 // -----------------------------------------------------------------------------
-// Rama del "Mapa de Estok" que se activa cuando el inmueble tiene 1 sola planta
-// (Estok.cantidad_pisos == 1). Reemplaza la casa con techo puntiagudo por UN gran
-// rectángulo contenedor perimetral continuo (el departamento entero), mimetizado
-// con la textura de la app, y SIN techo.
+// Motor de render del rectángulo elástico reutilizable en TODOS los niveles:
+//   - Nivel 1 (Planta Única): departamento de perímetro continuo (renderPlantaUnica).
+//   - Nivel 2 (habitación): muebles como rectángulos libres (renderLienzoElastico).
+//   - Nivel 3/4 (interior del mueble): estantes/cajones libres (renderLienzoElastico).
 //
-// Dentro del contenedor se inyectan RECTÁNGULOS LIBRES (habitaciones/espacios)
-// posicionados de forma elástica (ui_left / ui_top / ui_width / ui_height) y se
-// agrupan por `fusion_grupo` para renderizar los espacios en "L" como un ÚNICO
-// espacio receptor Drag & Drop de geometría irregular (sin fronteras internas).
+// El tipo de entrada es `ItemElastico` (id/nombre/ui_* + fusion_grupo), por lo
+// que sirve tanto para Ubicación como para Contenedor. Los ítems se agrupan por
+// `fusion_grupo` para renderizar los espacios en "L" como UN rectángulo continuo
+// (color homogéneo idéntico al de un ambiente común, sin etiquetas redundantes).
 //
 // Este módulo es 100% render (sin estado ni listeners). La interacción y la
-// persistencia viven en ./plantaUnicaInteractivo.ts.
+// persistencia viven en ./plantaUnicaInteractivo.ts y ./plantaUnicaArrastre.ts.
 // =============================================================================
 
 import { escapeHtml } from './mapaJerarquico';
-import type { UbicacionPlano } from './mapaJerarquico';
+import type { ItemElastico } from './lienzoElastico';
 
 // =============================================================================
 // GEOMETRÍA ELÁSTICA (porcentajes sobre el lienzo del departamento)
@@ -39,17 +39,17 @@ export interface GeoLibre {
 }
 
 /**
- * Geometría elástica de un espacio libre. Un espacio "sin definir" (ui_height
- * por defecto 'auto') recibe una caja y una posición en cascada para que el
- * usuario lo vea dentro del plano la primera vez.
+ * Geometría elástica de un rectángulo libre. Un ítem "sin definir" (ui_height
+ * por defecto 'auto') recibe una caja en cascada para que el usuario lo vea
+ * dentro del plano la primera vez.
  */
-export function geoDe(room: UbicacionPlano, indice = 0): GeoLibre {
-  const sinDefinir = (room.ui_height ?? 'auto') === 'auto';
+export function geoDe(item: ItemElastico, indice = 0): GeoLibre {
+  const sinDefinir = (item.ui_height ?? 'auto') === 'auto';
   return {
-    left: pctValor(room.ui_left, 6 + (indice % 5) * 12),
-    top: pctValor(room.ui_top, 8 + (indice % 4) * 16),
-    width: sinDefinir ? 28 : pctValor(room.ui_width, 28),
-    height: sinDefinir ? 24 : pctValor(room.ui_height, 24),
+    left: pctValor(item.ui_left, 6 + (indice % 5) * 12),
+    top: pctValor(item.ui_top, 8 + (indice % 4) * 16),
+    width: sinDefinir ? 28 : pctValor(item.ui_width, 28),
+    height: sinDefinir ? 24 : pctValor(item.ui_height, 24),
   };
 }
 
@@ -59,26 +59,26 @@ export function geoDe(room: UbicacionPlano, indice = 0): GeoLibre {
 
 export interface GrupoFusion {
   grupo: string;
-  base: UbicacionPlano;
-  miembros: UbicacionPlano[];
+  base: ItemElastico;
+  miembros: ItemElastico[];
   caja: GeoLibre;
 }
 
-/** Separa los espacios en grupos fusionados (≥2) y rectángulos independientes. */
-export function agruparFusiones(rooms: UbicacionPlano[]): {
+/** Separa los ítems en grupos fusionados (≥2) y rectángulos independientes. */
+export function agruparFusiones(items: ItemElastico[]): {
   grupos: GrupoFusion[];
-  sueltas: UbicacionPlano[];
+  sueltas: ItemElastico[];
 } {
-  const porGrupo = new Map<string, UbicacionPlano[]>();
-  const sueltas: UbicacionPlano[] = [];
-  rooms.forEach((room) => {
-    const grupo = room.fusion_grupo;
+  const porGrupo = new Map<string, ItemElastico[]>();
+  const sueltas: ItemElastico[] = [];
+  items.forEach((item) => {
+    const grupo = item.fusion_grupo;
     if (!grupo) {
-      sueltas.push(room);
+      sueltas.push(item);
       return;
     }
     const arr = porGrupo.get(grupo) ?? [];
-    arr.push(room);
+    arr.push(item);
     porGrupo.set(grupo, arr);
   });
 
@@ -141,40 +141,83 @@ function gruposHtml(grupos: GrupoFusion[]): string {
     .join('');
 }
 
-function sueltasHtml(sueltas: UbicacionPlano[]): string {
+function sueltasHtml(sueltas: ItemElastico[]): string {
   return sueltas
-    .map((room, i) => {
-      const geo = geoDe(room, i);
-      const meta = [
-        (room.objetos_count || 0) > 0 ? `${room.objetos_count} obj` : null,
-        (room.contenedores_count || 0) > 0 ? `${room.contenedores_count} cont` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ');
+    .map((item, i) => {
+      const geo = geoDe(item, i);
+      const meta =
+        item.meta ??
+        [
+          (item.objetos_count || 0) > 0 ? `${item.objetos_count} obj` : null,
+          (item.contenedores_count || 0) > 0 ? `${item.contenedores_count} cont` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
       return `
-    <div class="pu-celda" data-inplace-card data-id="${room.id}" data-libre-drag
+    <div class="pu-celda" data-inplace-card data-id="${item.id}" data-libre-drag
          style="left:${geo.left}%;top:${geo.top}%;width:${geo.width}%;height:${geo.height}%"
          title="Arrastrá para acomodar · Clic en el nombre para renombrar · Tirá de la esquina para estirar">
       <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
-        <input type="checkbox" data-fusion-check data-id="${room.id}" />
+        <input type="checkbox" data-fusion-check data-id="${item.id}" />
       </label>
-      <span class="pu-nombre" data-inplace-renombrar data-id="${room.id}">${escapeHtml(room.nombre)}</span>
+      <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}
-      <span class="pu-resize" data-libre-resize data-id="${room.id}" title="Estirar para cambiar el tamaño (se guarda solo)"></span>
+      <span class="pu-resize" data-libre-resize data-id="${item.id}" title="Estirar para cambiar el tamaño (se guarda solo)"></span>
     </div>`;
     })
     .join('');
 }
 
 /**
- * Lienzo completo del Modo Planta Única:
+ * LIENZO ELÁSTICO GENÉRICO (Nivel 2 habitación / Nivel 3-4 interior del mueble).
+ * Renderiza una lista de `ItemElastico` como rectángulos libres fusionables,
+ * con el MISMO lenguaje visual que Planta Única (color homogéneo, sin etiquetas
+ * redundantes y con el checkbox permanente de fusión en la esquina).
+ *
+ *  - etiquetaCrear: texto del botón de creación (data-lienzo-crear). Opcional.
+ *  - textoVacio:   mensaje cuando el lienzo no tiene ítems.
+ *  - tip:          ayuda contextual opcional bajo la cabecera.
+ */
+export function renderLienzoElastico(opts: {
+  items: ItemElastico[];
+  etiquetaCrear?: string;
+  textoVacio?: string;
+  tip?: string;
+}): string {
+  const { items, etiquetaCrear, textoVacio, tip } = opts;
+  const { grupos, sueltas } = agruparFusiones(items);
+  const botonCrear = etiquetaCrear
+    ? `<button type="button" class="lienzo-elastico-nueva" data-lienzo-crear title="Crear un nuevo espacio libre en este lienzo">➕ ${escapeHtml(etiquetaCrear)}</button>`
+    : '';
+  const vacio =
+    items.length === 0
+      ? `<div class="pu-vacio">${escapeHtml(textoVacio || 'Sin espacios todavía. Usá el botón de creación para inyectar el primero.')}</div>`
+      : '';
+  return `
+  <div class="lienzo-elastico-raiz" data-lienzo-elastico>
+    <div class="planta-unica-cab">
+      ${botonCrear}
+      <button type="button" class="planta-unica-fusionar" data-fusionar disabled title="Seleccioná 2 o más espacios para fusionarlos en un único espacio en «L»">🔗 Fusionar Espacios</button>
+      <span class="planta-unica-contador" data-fusion-contador>0 seleccionados</span>
+    </div>
+    ${tip ? `<p class="planta-unica-tip">${tip}</p>` : ''}
+    <div class="planta-unica-lienzo" data-lienzo-pu>
+      ${vacio}
+      ${gruposHtml(grupos)}
+      ${sueltasHtml(sueltas)}
+    </div>
+  </div>`;
+}
+
+/**
+ * Lienzo completo del Modo Planta Única (Nivel 1):
  *  - Cabecera: botón gráfico "Nueva ubicación" + "🔗 Fusionar Espacios".
  *  - Contenedor del departamento (rectángulo perimetral continuo, sin techo).
  *  - Rectángulos libres y espacios fusionados en "L".
  */
 export function renderPlantaUnica(opts: {
-  apartamento: UbicacionPlano | null;
-  rooms: UbicacionPlano[];
+  apartamento: ItemElastico | null;
+  rooms: ItemElastico[];
 }): string {
   const { apartamento, rooms } = opts;
   const { grupos, sueltas } = agruparFusiones(rooms);

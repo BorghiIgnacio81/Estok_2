@@ -14,11 +14,11 @@
 //     recalcula todas sus partes y las persiste en un ÚNICO PUT atómico.
 // =============================================================================
 
-import { guardarUbicacion, toast } from './mapaJerarquico';
-import type { UbicacionPlano } from './mapaJerarquico';
+import { toast } from './mapaJerarquico';
 import { pctValor } from './mapaPlantaUnica';
 import { ajustarAHuecos, colisionaConAlguna, LADO_MIN, type Caja } from './colisionesPlantaUnica';
-import { partesTrasEscalar, partesTrasMover, putGrupo } from './plantaUnicaGrupo';
+import { partesTrasEscalar, partesTrasMover } from './plantaUnicaGrupo';
+import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
 
 // =============================================================================
 // CONTRATO COMPARTIDO CON EL ORQUESTADOR (plantaUnicaInteractivo.ts)
@@ -26,11 +26,21 @@ import { partesTrasEscalar, partesTrasMover, putGrupo } from './plantaUnicaGrupo
 
 export interface OpcionesPlantaUnica {
   scope: ParentNode;
-  rooms: () => UbicacionPlano[];
-  apartamentoId: () => string | null;
-  /** Crea el contenedor «Departamento» si aún no existe y devuelve su id. */
-  asegurarApartamento: () => Promise<string | null>;
+  rooms: () => ItemElastico[];
+  /** Id del contenedor padre (Planta Única). Opcional para visores de Nivel 2/3/4. */
+  apartamentoId?: () => string | null;
+  /** Garantiza el contenedor padre antes de crear (Planta Única). Opcional. */
+  asegurarApartamento?: () => Promise<string | null>;
   notificarCambios: () => void;
+  /** Persistencia del recurso espacial (por defecto: Ubicación, Nivel 1/2). */
+  adaptador?: AdaptadorEspacios;
+  /** Crea un nuevo rectángulo en el lienzo. Por defecto: Ubicación de Planta Única. */
+  crearItem?: () => Promise<boolean>;
+}
+
+/** Adaptador de persistencia efectivo (Ubicación por defecto). */
+export function adaptadorDe(opts: OpcionesPlantaUnica): AdaptadorEspacios {
+  return opts.adaptador ?? adaptadorUbicaciones();
 }
 
 // =============================================================================
@@ -183,7 +193,7 @@ async function soltarSuelto(
     ui_width: `${redondear(caja.width)}%`,
     ui_height: `${redondear(caja.height)}%`,
   };
-  const ok = await guardarUbicacion(id, valores);
+  const ok = await adaptadorDe(opts).guardarItem(id, valores);
   if (!ok) {
     toast('❌ No se pudo guardar la posición del espacio.');
     rebotar(card, base);
@@ -221,7 +231,7 @@ async function soltarGrupo(
   }
 
   const partes = partesTrasMover(card, cand.left - base.left, cand.top - base.top);
-  const ok = await putGrupo(baseId, { partes });
+  const ok = await adaptadorDe(opts).guardarGrupo(baseId, { partes });
   if (!ok) {
     toast('❌ No se pudo mover el espacio fusionado.');
     rebotar(card, base);
@@ -293,7 +303,7 @@ function conectarResizeSuelto(opts: OpcionesPlantaUnica): void {
         if (!id) return;
         const w = redondear(nueva.width);
         const h = redondear(nueva.height);
-        const ok = await guardarUbicacion(id, { ui_width: `${w}%`, ui_height: `${h}%` });
+        const ok = await adaptadorDe(opts).guardarItem(id, { ui_width: `${w}%`, ui_height: `${h}%` });
         if (!ok) {
           toast('❌ No se pudo guardar el nuevo tamaño.');
           rebotar(card, base);
@@ -372,7 +382,7 @@ function conectarResizeGrupo(opts: OpcionesPlantaUnica): void {
           y: nueva.height / Math.max(1, base.height),
         };
         const partes = partesTrasEscalar(card, { left: base.left, top: base.top }, escala);
-        const ok = await putGrupo(baseId, { partes });
+        const ok = await adaptadorDe(opts).guardarGrupo(baseId, { partes });
         if (!ok) {
           toast('❌ No se pudo redimensionar el bloque fusionado.');
           rebotar(card, base);
