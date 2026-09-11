@@ -68,6 +68,8 @@ export interface OpcionesVisorContenido {
   subContenedores: SubContVisor[];
   subObjetos: SubObjVisor[];
   muebleActivoId: string | null;
+  /** Contenedores RAÍZ de la habitación (lienzo elástico del estado vacío). */
+  raices: ItemElastico[];
 }
 
 // =============================================================================
@@ -170,7 +172,7 @@ function conmutadorMueblesHtml(muebles: MuebleVisor[], activoId: string | null):
 
 /** Cuerpo completo del Visor Contenedor Grande según el estado de la ESCENA 3. */
 export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
-  const { room, muebles, subContenedores, subObjetos, muebleActivoId } = opts;
+  const { room, muebles, subContenedores, subObjetos, muebleActivoId, raices } = opts;
   if (!room) return '';
 
   const cabecera = `
@@ -179,11 +181,20 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
       <span class="cg-sub">Elegí un mueble en el Visor de Habitación (izquierda) o con el conmutador para inspeccionar su ficha y su distribución interna. Los casilleros reciben elementos por Drag &amp; Drop.</span>
     </div>`;
 
+  // REGLA DE INICIALIZACIÓN: una habitación SIN muebles NUNCA deja el panel
+  // derecho en blanco. Se monta en el acto el MISMO lienzo editor elástico que
+  // usamos para las plantas (rectángulos libres) con el botón visible
+  // «➕ Crear mueble aquí», para modelar la distribución interna en caliente.
   if (!muebles.length) {
     return `${cabecera}
-      <div class="cg-vacio">
-        <span class="cg-vacio-ico">📦</span>
-        <p class="cg-vacio-texto">Esta habitación no tiene muebles/archivadores todavía. Arrastrá contenedores pequeños y objetos desde la bandeja inferior hacia los casilleros cuando existan.</p>
+      <div class="cg-vacio-editor">
+        <p class="cg-vacio-texto">Esta habitación todavía no tiene muebles/archivadores. Modelá su interior en caliente: creá el primer mueble y acomodalo en el lienzo.</p>
+        ${renderLienzoElastico({
+          items: raices,
+          etiquetaCrear: 'Crear mueble aquí',
+          textoVacio: 'Sin muebles todavía. Usá «➕ Crear mueble aquí» para inyectar el primero.',
+          tip: '🧱 Editor interno de la habitación · mismo motor 2D elástico que los planos de planta.',
+        })}
       </div>`;
   }
 

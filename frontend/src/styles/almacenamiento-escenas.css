@@ -248,6 +248,15 @@
   color: #9ca3af;
   max-width: 280px;
 }
+/* Editor elástico del estado vacío: la habitación sin muebles nunca queda en blanco. */
+.cg-vacio-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cg-vacio-editor .cg-vacio-texto {
+  max-width: none;
+}
 
 .mueble-card {
   background: #ffffff;

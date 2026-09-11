@@ -19,6 +19,9 @@ import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico'
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
+import type { ItemElastico } from './lienzoElastico';
+import { aplicarModo, modoLienzoActual } from './modoLienzo';
+import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import {
@@ -32,6 +35,10 @@ import type { ItemADesplazar } from './visorContenedorGrandeAcciones';
 
 let roomActual: UbicacionPlano | null = null;
 let muebles: MuebleVisor[] = [];
+/** Contenedores RAÍZ de la habitación (alimentan el lienzo elástico vacío). */
+let raices: ItemElastico[] = [];
+/** ¿El MODO EDICIÓN fue activado automáticamente por una habitación vacía? */
+let autoEdicionVacia = false;
 let subContenedores: SubContVisor[] = [];
 let subObjetos: SubObjVisor[] = [];
 let rootEl: HTMLElement | null = null;
@@ -79,6 +86,7 @@ async function cargar(): Promise<void> {
     muebles = [];
     subContenedores = [];
     subObjetos = [];
+    raices = [];
     muebleActivoId = null;
     render();
     return;
@@ -130,6 +138,20 @@ async function cargar(): Promise<void> {
       parent_grid_col: o.parent_grid_col != null ? Number(o.parent_grid_col) : null,
     }));
 
+  // RAÍCES de la habitación: TODOS los contenedores sin padre. Alimentan el
+  // lienzo elástico del estado vacío (nunca deja el panel derecho en blanco).
+  raices = conts
+    .filter((c) => !c.parent_contenedor)
+    .map((c) => ({
+      id: String(c.id),
+      nombre: String(c.nombre || 'Mueble'),
+      ui_left: c.ui_left != null ? String(c.ui_left) : null,
+      ui_top: c.ui_top != null ? String(c.ui_top) : null,
+      ui_width: c.ui_width != null ? String(c.ui_width) : null,
+      ui_height: c.ui_height != null ? String(c.ui_height) : null,
+      fusion_grupo: c.fusion_grupo != null ? String(c.fusion_grupo) : null,
+    }));
+
   // Si el mueble inspeccionado desapareció (borrado en otra vista), se vuelve
   // al listado general sin romper la ESCENA 3.
   if (muebleActivoId && !muebles.some((m) => m.id === muebleActivoId)) {
@@ -153,8 +175,31 @@ function render(): void {
     subContenedores,
     subObjetos,
     muebleActivoId,
+    raices,
   });
+  sincronizarModoEdicionVacia();
   enlazar();
+}
+
+/**
+ * REGLA DE INICIALIZACIÓN: al entrar a una habitación SIN muebles se activa el
+ * MODO EDICIÓN por defecto, de modo que el botón «➕ Crear mueble aquí» quede
+ * visible y los rectángulos sean arrastrables/estirables al instante. Al salir
+ * de ese estado (otra habitación o vuelta a la planta) se restaura el modo
+ * NAVEGACIÓN para que el clic sobre las tarjetas siga navegando por portales.
+ */
+function sincronizarModoEdicionVacia(): void {
+  if (roomActual && !muebles.length) {
+    if (modoLienzoActual() === 'navegacion') {
+      aplicarModo('edicion');
+      autoEdicionVacia = true;
+    }
+    return;
+  }
+  if (autoEdicionVacia) {
+    aplicarModo('navegacion');
+    autoEdicionVacia = false;
+  }
 }
 
 // =============================================================================
@@ -344,6 +389,8 @@ function enlazar(): void {
   // son rectángulos libres fusionables (motor compartido con Planta Única).
   // =========================================================================
   conectarLienzosElasticos();
+  // Habitación SIN muebles: el panel derecho monta el editor elástico vacío.
+  conectarLienzoHabitacionVacia({ scope: rootEl, raices: () => raices, room: () => roomActual });
 }
 
 /** Conecta el motor 2D elástico a cada lienzo de mueble renderizado. */

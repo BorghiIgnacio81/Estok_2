@@ -134,6 +134,7 @@ function gruposHtml(grupos: GrupoFusion[]): string {
         <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
       </label>
       <button type="button" class="pu-grupo-separar" data-separar data-id="${g.base.id}" title="Separar en espacios independientes">✂️</button>
+      ${g.base.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(g.base.icono)}</span>` : ''}
       <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
       <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el espacio completo (se aplica a todas sus partes en un solo guardado)"></span>
     </div>`,
@@ -160,6 +161,7 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
       <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${item.id}" />
       </label>
+      ${item.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(item.icono)}</span>` : ''}
       <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}
       <span class="pu-resize" data-libre-resize data-id="${item.id}" title="Estirar para cambiar el tamaño (se guarda solo)"></span>

@@ -17,6 +17,8 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 export interface ItemElastico {
   id: string;
   nombre: string;
+  /** Icono/emoji contextual opcional (🚽 🛏️ 🗄️ 🏠) que precede al nombre. */
+  icono?: string | null;
   ui_left?: string | null;
   ui_top?: string | null;
   ui_width?: string | null;

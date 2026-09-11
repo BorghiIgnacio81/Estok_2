@@ -185,6 +185,12 @@
   cursor: pointer;
 }
 
+/* Icono contextual dinámico (🚽 🛏️ 🗄️ 🏠) del rectángulo elástico. */
+.pu-icono {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .pu-nombre {
   font-size: 12px;
   font-weight: 700;

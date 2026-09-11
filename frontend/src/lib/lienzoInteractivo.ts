@@ -1,37 +1,22 @@
 // =============================================================================
 // LIENZO INTERACTIVO RECURSIVO - edición in-place compartida entre niveles
 // -----------------------------------------------------------------------------
-// Motor genérico que abstrae las tres capacidades de edición en caliente para
-// que se ejecuten de forma IDÉNTICA en cualquier lienzo que declare los
-// atributos de contrato:
+// Motor genérico que abstrae las capacidades de edición en caliente para que se
+// ejecuten de forma IDÉNTICA en cualquier lienzo que declare los atributos de
+// contrato:
 //   - Renombrar    : [data-inplace-renombrar] (etiqueta de nombre clicable).
-//   - Reacomodar   : [data-inplace-drag] (carta) → [data-inplace-drop] (celda).
 //   - Resizing     : [data-inplace-resize] (tirador) sobre [data-inplace-card].
 // Consumido por:
-//   - Nivel 2 : Mapa Estok (plano de habitaciones)      → mapaCasitaNavegable.
-//   - Nivel 3 : Visor de Habitación (muebles grandes)    → visorHabitacion.
-//   - Nivel 4 : Visor de Contenedor Grande (estanterías) → visorContenedorGrande.
-// La persistencia (PUT multi-tenant) NO vive acá: cada nivel inyecta su
-// callback y decide la geometría de su grilla.
+//   - Nivel 2 : Visor de Habitación (muebles grandes)    → visorHabitacion.
+//   - Nivel 3 : Visor de Contenedor Grande (estanterías) → visorContenedorGrande.
+// La geometría ELÁSTICA libre (arrastre/resize con colisiones y fusión) vive en
+// plantaUnicaArrastre.ts. La persistencia (PUT multi-tenant) NO vive acá: cada
+// nivel inyecta su callback y decide la geometría de su lienzo.
 // =============================================================================
 
 export interface DimensionVisual {
   ui_width: string;
   ui_height: string;
-}
-
-export interface DestinoDrop {
-  fila: number;
-  col: number;
-}
-
-/** Normaliza un valor persistido ui_* a algo usable por CSS ('' = default). */
-export function tokenCssVisual(valor: string | null | undefined): string {
-  const v = (valor || '').trim().toLowerCase();
-  if (!v || v === 'auto' || v === '100%') return '';
-  if (/^\d{1,3}(\.\d+)?%$/.test(v)) return `${Math.min(100, Math.max(8, parseFloat(v)))}%`;
-  if (/^\d{1,4}px$/.test(v)) return `${Math.min(600, Math.max(24, parseFloat(v)))}px`;
-  return '';
 }
 
 // =============================================================================
@@ -98,55 +83,7 @@ export function conectarRenombradoEnVivo(
 }
 
 // =============================================================================
-// 2. ARRASTRAR PARA REACOMODAR (HTML5 DnD entre cuadrantes de la grilla)
-// =============================================================================
-
-export function conectarReacomodoDrag(
-  scope: ParentNode,
-  onMover: (id: string, destino: DestinoDrop) => Promise<boolean>,
-): void {
-  scope.querySelectorAll<HTMLElement>('[data-inplace-drag]').forEach((carta) => {
-    carta.setAttribute('draggable', 'true');
-    carta.addEventListener('dragstart', (e) => {
-      const id = carta.dataset.id ?? '';
-      if (!id) {
-        e.preventDefault();
-        return;
-      }
-      const de = e as DragEvent;
-      de.dataTransfer?.setData('text/plain', id);
-      de.dataTransfer?.setData('application/x-estok-espacio', id);
-      if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
-      carta.classList.add('inplace-arrastrando');
-    });
-    carta.addEventListener('dragend', () => carta.classList.remove('inplace-arrastrando'));
-  });
-
-  scope.querySelectorAll<HTMLElement>('[data-inplace-drop]').forEach((celda) => {
-    celda.addEventListener('dragover', (e) => {
-      const de = e as DragEvent;
-      if (!de.dataTransfer?.types.includes('application/x-estok-espacio')) return;
-      e.preventDefault();
-      if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
-      celda.classList.add('inplace-drop-activo');
-    });
-    celda.addEventListener('dragleave', () => celda.classList.remove('inplace-drop-activo'));
-    celda.addEventListener('drop', (e) => {
-      const de = e as DragEvent;
-      e.preventDefault();
-      celda.classList.remove('inplace-drop-activo');
-      const id = de.dataTransfer?.getData('application/x-estok-espacio');
-      if (!id) return;
-      const fila = Number(celda.dataset.fila);
-      const col = Number(celda.dataset.col);
-      if (!fila || !col) return;
-      void onMover(id, { fila, col });
-    });
-  });
-}
-
-// =============================================================================
-// 3. ESTIRAR PARA CAMBIAR TAMAÑO (resizing elástico con puntero)
+// 2. ESTIRAR PARA CAMBIAR TAMAÑO (resizing elástico con puntero)
 // -----------------------------------------------------------------------------
 // Al soltar, dispara onConfirmar(id, { ui_width, ui_height }) con STRINGS CSS
 // válidos (ej: "45%" / "210px") para que el PUT de Django los persista.
