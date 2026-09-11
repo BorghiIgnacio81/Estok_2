@@ -20,6 +20,7 @@ import '../styles/almacenamiento-escenas.css';
 import '../styles/almacenamiento-controles.css';
 import '../styles/almacenamiento-carga-fina.css';
 import '../styles/planta-unica.css';
+import '../styles/almacenamiento-portales.css';
 ---
 
 <AuthGuard />
@@ -69,14 +70,20 @@ import '../styles/planta-unica.css';
               <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
             </div>
-            <button type="button" id="btnVolverEscena4" class="hidden inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-full px-3 py-1.5 transition-colors cursor-pointer" title="Salir de la Organización Interna y volver a la Escena 3">⬅ Volver</button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" id="btnVolverNivel" class="hidden portales-modo-boton" title="⬅ Volver de Nivel: desandá el camino de portales paso a paso">⬅ Volver de Nivel</button>
+              <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
+              <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
+            </div>
           </div>
           <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Edición en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrá las tarjetas para reacomodarlas entre cuadrantes y tirá de su esquina para estirarlas. Tocá una planta para desplegar el plano de sus habitaciones.</p>
           <div id="contenidoPanelIzquierdo" class="mt-1">
             <div id="mapaEstokPanel">
               <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
             </div>
-            <!-- En ESCENA 3 el #visorHabitacion se reubica aquí desde el panel derecho -->
+            <!-- Nivel 4: el canvas de la caja/estante reemplaza al plano en la izquierda -->
+            <div id="cajaCanvas" class="hidden mt-1"></div>
+            <!-- En Nivel 2 el #visorHabitacion se reubica aquí desde el panel derecho -->
           </div>
         </div>
 
@@ -86,7 +93,9 @@ import '../styles/planta-unica.css';
             <div class="flex items-center gap-2">
               <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
+              <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
               <button type="button" id="btnOrganizarEscena4" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer" title="Abrir la Organización Interna del mueble: pantalla dividida con la Bandeja de Carga Fina a la derecha">📦 Organizar Contenido</button>
               <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
                 <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
@@ -94,6 +103,8 @@ import '../styles/planta-unica.css';
               </button>
             </div>
           </div>
+          <!-- RED DE MINIMAPAS ANIDADOS: historial gráfico con el nodo activo en naranja -->
+          <div id="minimapasAnidados" class="hidden"></div>
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1">
             <div id="visorHabitacion" class="min-h-[180px]">
@@ -104,6 +115,8 @@ import '../styles/planta-unica.css';
             </div>
             <div id="visorContenedorGrande" class="hidden mt-1"></div>
             <div id="cargaFinaPanel" class="hidden mt-1"></div>
+            <!-- Nivel 4: listado fino de objetos de la caja activa -->
+            <div id="cajaObjetos" class="hidden mt-1"></div>
           </div>
         </div>
       </div>
@@ -238,6 +251,9 @@ import '../styles/planta-unica.css';
   import { initVisorContenedorGrande } from '../lib/visorContenedorGrande';
   import { initBandeja } from '../lib/bandejaSinUbicar';
   import { initBandejaCargaFina } from '../lib/bandejaCargaFina';
+  import { iniciarPortalesAlmacenamiento } from '../lib/portalesAlmacenamiento';
+  import { iniciarModoLienzo } from '../lib/modoLienzo';
+  import { initCajaDetalle } from '../lib/cajaDetalle';
 
   // ===========================================================================
   // ARRANQUE CON GARANTÍA DE DOM LISTO
@@ -259,142 +275,16 @@ import '../styles/planta-unica.css';
     void tablero.init();
 
     // =========================================================================
-    // MÁQUINA DE TRES ESCENAS EN CASCADA (izquierda → derecha)
-    //   ESCENA 1: Mapa Estok (casa) · Mapa general de la Planta
-    //   ESCENA 2: Plano de habitaciones · Visor de Habitación
-    //   ESCENA 3: Visor de Habitación · Visor Contenedor Grande (+ Volver)
+    // LA MÁQUINA DE NIVELES (PORTALES) Y EL MODO EDICIÓN/NAVEGACIÓN VIVEN EN src/lib/
+    // portalesAlmacenamiento.ts → flujo izquierda ⟵ derecha + minimapas anidados.
+    // modoLienzo.ts            → botones ✏️ Editar / 💾 Guardar (PUT ui_width/ui_height).
     // =========================================================================
-    type Escena = 1 | 2 | 3;
-    let plantaActiva = false;
-    let habitacionActiva = false;
 
-    const slotIzq = () => document.getElementById('contenidoPanelIzquierdo') as HTMLElement | null;
-    const slotDer = () => document.getElementById('contenidoPanelDerecho') as HTMLElement | null;
-    const visorEl = () => document.getElementById('visorHabitacion') as HTMLElement | null;
-    const mapaEl = () => document.getElementById('mapaEstokPanel') as HTMLElement | null;
-    const cgEl = () => document.getElementById('visorContenedorGrande') as HTMLElement | null;
-    const btnVolver = () => document.getElementById('btnVolverEscena') as HTMLElement | null;
-    const btnOrganizar = () => document.getElementById('btnOrganizarEscena4') as HTMLElement | null;
-    const btnVolver4 = () => document.getElementById('btnVolverEscena4') as HTMLElement | null;
-    // ESCENA 4: el Visor CG pasa al panel izquierdo; derecha = Bandeja de Carga Fina.
-    let organizacionActiva = false;
 
-    function irAEscena(escena: Escena): void {
-      const visor = visorEl();
-      const mapa = mapaEl();
-      const cg = cgEl();
-      const badge = document.getElementById('mapaJerarquicoBadge');
-      const tituloIzq = document.getElementById('tituloPanelIzquierdo');
-      const tituloDer = document.getElementById('tituloPanelDerecho');
-      const descIzq = document.getElementById('descPanelIzquierdo');
-      const descDer = document.getElementById('descPanelDerecho');
 
-      if (escena === 3) {
-        // El "Visor de Habitación" se DESPLAZA al panel izquierdo.
-        if (visor && slotIzq()) slotIzq()!.appendChild(visor);
-        mapa?.classList.add('hidden');
-        cg?.classList.remove('hidden');
-        if (tituloIzq) tituloIzq.textContent = '🧭 Visor de Habitación';
-        if (tituloDer) tituloDer.textContent = '📦 Visor Contenedor Grande';
-        if (descIzq) descIzq.textContent = 'Lienzo matricial de la habitación: recibí muebles, cajas y objetos por arrastre. Hacé clic sobre un mueble para inspeccionar su ficha y su distribución interna en el panel derecho.';
-        if (descDer) descDer.textContent = 'Muebles y archivadores de la habitación. Clic en un mueble del panel izquierdo para conmutar su ficha en caliente; usá + y − para ajustar las sub-divisiones internas de la fila seleccionada.';
-        badge?.classList.add('hidden');
-        btnVolver()?.classList.remove('hidden');
-        btnOrganizar()?.classList.remove('hidden');
-        btnVolver4()?.classList.add('hidden');
-      } else {
-        // El "Visor de Habitación" vuelve al panel derecho.
-        if (visor && slotDer()) slotDer()!.appendChild(visor);
-        mapa?.classList.remove('hidden');
-        cg?.classList.add('hidden');
-        if (tituloIzq) tituloIzq.textContent = '🏠 Mapa Estok';
-        if (tituloDer) tituloDer.textContent = escena === 1 ? '🗺️ Mapa general de la Planta' : '🧭 Visor de Habitación';
-        if (descIzq) descIzq.textContent = 'Navegación táctil por niveles en cascada: tocá una planta para desplegar el plano de sus habitaciones, y una habitación para inspeccionarla.';
-        if (descDer) descDer.textContent = escena === 1
-          ? 'Vista general de las plantas del Estok activo. Seleccioná una planta en el Mapa Estok para descender al plano de habitaciones.'
-          : 'Seleccioná una habitación en el plano para abrir su Visor. Los casilleros reciben elementos por Drag & Drop exclusivamente.';
-        badge?.classList.remove('hidden');
-        btnOrganizar()?.classList.add('hidden');
-        btnVolver4()?.classList.add('hidden');
-        if (escena === 1) btnVolver()?.classList.add('hidden');
-      }
-    }
 
-    // ESCENA 4: pantalla dividida reactiva de Organización Interna de Muebles.
-    function organizarContenidoMueble(activo: boolean): void {
-      const visor = visorEl();
-      const mapa = mapaEl();
-      const cg = cgEl();
-      const carga = document.getElementById('cargaFinaPanel');
-      const tituloIzq = document.getElementById('tituloPanelIzquierdo');
-      const tituloDer = document.getElementById('tituloPanelDerecho');
-      const descIzq = document.getElementById('descPanelIzquierdo');
-      const descDer = document.getElementById('descPanelDerecho');
 
-      if (activo) {
-        if (!habitacionActiva || !cg) return;
-        organizacionActiva = true;
-        // El Visor Contenedor Grande (grilla del mueble con +/−) se desplaza al panel izquierdo.
-        visor?.classList.add('hidden');
-        mapa?.classList.add('hidden');
-        slotIzq()?.appendChild(cg);
-        cg.classList.remove('hidden');
-        carga?.classList.remove('hidden');
-        document.getElementById('mapaJerarquicoBadge')?.classList.add('hidden');
-        btnVolver()?.classList.add('hidden');
-        btnOrganizar()?.classList.add('hidden');
-        btnVolver4()?.classList.remove('hidden');
-        if (tituloIzq) tituloIzq.textContent = '🧰 Organización Interna del Mueble';
-        if (tituloDer) tituloDer.textContent = '🧺 Bandeja de Carga Fina';
-        if (descIzq) descIzq.textContent = 'Grilla del mueble en foco: arrastrá objetos y cajas desde la Bandeja de Carga Fina (derecha) hacia un estante para encastrarlos en su fila·columna F·C. Usá + y − para ajustar las sub-divisiones internas de cada fila.';
-        if (descDer) descDer.textContent = 'Carga fina del mueble activo: GRUPO 1 (cajas sin ubicación) y GRUPO 2 (objetos sueltos) en la cima, y acordeón «Cambiar Contenedor» abajo — cajas internas primero y objetos sueltos después — para mudarlos físicamente a la grilla de la izquierda.';
-        return;
-      }
 
-      // Regreso a la máquina base (Escena 3 o inferior): restaura los paneles.
-      organizacionActiva = false;
-      visor?.classList.remove('hidden');
-      carga?.classList.add('hidden');
-      btnVolver4()?.classList.add('hidden');
-      btnOrganizar()?.classList.add('hidden');
-      if (cg) {
-        const der = slotDer();
-        if (der) {
-          const ref = visorEl();
-          if (ref && der.contains(ref)) ref.insertAdjacentElement('afterend', cg);
-          else der.appendChild(cg);
-        }
-      }
-      recalcularEscena();
-    }
-
-    function recalcularEscena(): void {
-      if (organizacionActiva) {
-        if (!habitacionActiva) organizarContenidoMueble(false);
-        return;
-      }
-      irAEscena(habitacionActiva ? 3 : plantaActiva ? 2 : 1);
-    }
-
-    window.addEventListener('estok:planta-seleccionada', (e) => {
-      const detalle = (e as CustomEvent<{ fila: number | null }>).detail;
-      plantaActiva = Boolean(detalle?.fila);
-      recalcularEscena();
-    });
-    window.addEventListener('estok:habitacion-seleccionada', (e) => {
-      const room = (e as CustomEvent<{ room: { id: string } | null }>).detail?.room ?? null;
-      habitacionActiva = Boolean(room);
-      recalcularEscena();
-    });
-
-    // Botón "⬅ Volver" (ESCENA 3 → 2): deselecciona la habitación y la
-    // máquina reubica el Visor en el panel derecho.
-    btnVolver()?.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room: null } }));
-    });
-
-    btnOrganizar()?.addEventListener('click', () => organizarContenidoMueble(true));
-    btnVolver4()?.addEventListener('click', () => organizarContenidoMueble(false));
 
     // =========================================================================
     // ARRANQUE DE MÓDULOS
@@ -407,5 +297,12 @@ import '../styles/planta-unica.css';
     });
     initVisor();
     initBandejaCargaFina({ contenedor: document.getElementById('cargaFinaPanel') });
+    initCajaDetalle({
+      canvas: document.getElementById('cajaCanvas'),
+      lista: document.getElementById('cajaObjetos'),
+    });
+    // Modo ✏️ Editar ⇄ 💾 Guardar de los planos + navegación por PORTALES.
+    iniciarModoLienzo();
+    iniciarPortalesAlmacenamiento();
   });
 </script>

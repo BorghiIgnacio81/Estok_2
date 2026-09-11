@@ -147,6 +147,8 @@ function notificarPlanta(): void {
       detail: {
         fila: filaActiva,
         nombre: filaActiva ? div?.nombre || nombreDePlanta(filaActiva) : null,
+        /** Total de plantas del inmueble (para la red de minimapas anidados). */
+        total: totalPlantas(),
       },
     }),
   );

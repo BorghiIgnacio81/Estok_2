@@ -1,0 +1,246 @@
+/* =============================================================================
+   ALMACENAMIENTO - ESTILOS DE LA NAVEGACIÓN POR PORTALES
+   -----------------------------------------------------------------------------
+   Complementa almacenamiento-escenas.css con tres bloques nuevos:
+     1. Botones intercambiables ✏️ Editar / 💾 Guardar del cabezal de cada plano.
+     2. Barra de MINIMAPAS ANIDADOS (4× más chica, nodo activo en naranja).
+     3. Reglas de BLOQUEO de la edición en modo NAVEGACIÓN (el clic navega).
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. BOTONES DE MODO (Editar ⟷ Guardar) en el cabezal de cada plano
+   --------------------------------------------------------------------------- */
+.portales-modo-boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.portales-modo-boton:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+.portales-modo-boton:active {
+  transform: scale(0.96);
+}
+.portales-modo-boton[data-modo-guardar] {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+.portales-modo-boton[data-modo-guardar]:hover {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+/* Precedencia sobre el `display` del componente: los botones de modo y el
+   «Volver de Nivel» se ocultan con la utilidad `.hidden` de Tailwind. */
+.portales-modo-boton.hidden,
+#btnVolverNivel.hidden {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   2. BARRA DE MINIMAPAS ANIDADOS (cima del panel derecho)
+   --------------------------------------------------------------------------- */
+.mini-anidados-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  overflow-x: auto;
+}
+.mini-anidado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 76px;
+  opacity: 0.6;
+  filter: grayscale(0.35);
+}
+.mini-anidado-activo {
+  opacity: 1;
+  filter: none;
+}
+.mini-anidado-ico {
+  font-size: 10px;
+  line-height: 1;
+}
+.mini-anidado-lienzo {
+  display: block;
+  line-height: 0;
+}
+/* 4× más chico que el minimapa de origen (el SVG nativo mide ~90-140px). */
+.mini-anidado-lienzo svg {
+  width: 40px;
+  height: auto;
+  max-height: 44px;
+}
+.mini-anidado-activo .mini-anidado-lienzo svg {
+  outline: 1.5px solid #f97316;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+.mini-anidado-nombre {
+  max-width: 100%;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-anidado-activo .mini-anidado-nombre {
+  color: #ea580c;
+  font-weight: 800;
+}
+.mini-anidado-flecha {
+  font-size: 10px;
+  color: #d1d5db;
+  align-self: center;
+}
+
+/* ---------------------------------------------------------------------------
+   3. BLOQUEO DE EDICIÓN EN MODO NAVEGACIÓN
+   El clic queda libre para disparar el PORTAL de nivel; los asideros de edición
+   (checkbox de fusión, tiradores de resize, separar) desaparecen y el nombre
+   deja pasar el clic a la tarjeta contenedora.
+   --------------------------------------------------------------------------- */
+body.modo-navegacion .pu-check,
+body.modo-navegacion [data-separar],
+body.modo-navegacion [data-grupo-resize],
+body.modo-navegacion [data-libre-resize],
+body.modo-navegacion [data-inplace-resize],
+body.modo-navegacion .lienzo-elastico-nueva,
+body.modo-navegacion .planta-unica-nueva,
+body.modo-navegacion [data-fusionar],
+body.modo-navegacion .planta-unica-contador,
+body.modo-navegacion .pu-grupo-separar,
+body.modo-navegacion .visor-celda-vacia-crear,
+body.modo-navegacion .mueble-celda-crear {
+  display: none !important;
+}
+body.modo-navegacion [data-inplace-renombrar] {
+  pointer-events: none;
+}
+body.modo-navegacion [data-libre-drag],
+body.modo-navegacion [data-inplace-card] {
+  cursor: pointer;
+}
+body.modo-edicion [data-libre-drag],
+body.modo-edicion [data-inplace-card] {
+  cursor: grab;
+}
+
+/* ---------------------------------------------------------------------------
+   4. NIVEL 4 - CANVAS DE LA CAJA/ESTANTE + LISTADO FINO DE OBJETOS
+   --------------------------------------------------------------------------- */
+.caja-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.caja-detalle-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.caja-detalle-ico {
+  font-size: 22px;
+  line-height: 1;
+}
+.caja-detalle-nombre {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.caja-detalle-meta {
+  font-size: 11px;
+  color: #6b7280;
+}
+.caja-detalle-lienzo {
+  position: relative;
+  min-height: 130px;
+  border: 2px solid #fdba74;
+  border-radius: 12px;
+  background: repeating-linear-gradient(45deg, #fff7ed, #fff7ed 10px, #ffedd5 10px, #ffedd5 20px);
+  padding: 8px;
+}
+.caja-detalle-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.caja-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 74px;
+  padding: 6px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: center;
+}
+.caja-tile-ico {
+  font-size: 18px;
+  line-height: 1;
+}
+.caja-tile-nombre {
+  font-size: 9px;
+  font-weight: 600;
+  color: #7c2d12;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.caja-objetos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.caja-objeto-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+.caja-objeto-fila img {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.caja-objeto-nombre {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+.caja-vacio {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 10px;
+  text-align: center;
+}
