@@ -22,6 +22,7 @@ import {
   reajustarCeldas,
   construirPayload,
   renderVistaWizard,
+  subarbolVacio,
 } from './mapaEstokWizard';
 import type { MapaEstokWizardState, CeldaWizard } from './mapaEstokWizard';
 import { estructuraDesdeDatos } from './mapaEstokEstructura';
@@ -238,7 +239,10 @@ export class MapaEstokWizardUI {
     if (nivelActual(estado) >= NIVEL_MAXIMO) return;
     const celdas = this.celdasActuales(estado);
     if (!celdas[indice]) return;
-    if (!celdas[indice].nombre) {
+    // Los CONTENEDORES (Nivel 3 muebles / Nivel 4 estanterías) NO se auto-nombran
+    // al entrar: permanecen en blanco hasta que el operador los nombre o les
+    // agregue contenido real (anti "muebles fantasma" al guardar la grilla).
+    if (!celdas[indice].nombre && nivelActual(estado) < 3) {
       const vista = nodoDeRuta(estado, estado.ruta);
       const { fila, col } = coordenadasDeIndice(indice, vista.filas, vista.columnas, vista.config);
       celdas[indice].nombre = nombreDefault(nivelActual(estado), fila, col);
@@ -413,7 +417,7 @@ export class MapaEstokWizardUI {
     // Los nodos EXISTENTES se actualizan siempre por su PK (PUT /{id}/),
     // nunca con get_or_create por nombre/coordenadas parciales.
     // -------------------------------------------------------------------------
-    if (!id && !(celda.nombre || '').trim() && celda.hijos.length === 0) {
+    if (!id && subarbolVacio(celda)) {
       return null;
     }
 

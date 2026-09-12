@@ -259,11 +259,56 @@ export async function cargarObjetosRutaCaja(filtros: FiltrosRuta = {}): Promise<
  * inmueble fijo. Con `soloConContenido` activo (hay filtros) se descartan las
  * cajas sin objetos que coincidan, reflejando el mismo criterio del árbol.
  */
+// ---------------------------------------------------------------------------
+// CLASIFICACIÓN QUIRÚRGICA: CAJA REAL vs MUEBLE / ESTANTERÍA (Nivel 3/4)
+// ---------------------------------------------------------------------------
+// Patrón de los nombres AUTO-GENERADOS por el wizard del Mapa Estok
+// ("División F1·C1", "Habitación F2·C3", "Mueble F1·C2", "Estantería F2·C1"):
+// eran los "muebles fantasma" que se creaban al guardar celdas vacías de la
+// grilla. Se excluyen de TODO listado de la pestaña de Objetos.
+const RE_NOMBRE_AUTOGENERADO =
+  /^(divisi[oó]n|habitaci[oó]n|mueble|estanter[ií]a|cajonera)\s+f\d+\s*[·.\-x]\s*c\d+$/i;
+
+/** True si el nombre es un rótulo por defecto del wizard (contenedor fantasma). */
+function esNombreAutogenerado(nombre: string): boolean {
+  return RE_NOMBRE_AUTOGENERADO.test((nombre || '').trim());
+}
+
+/**
+ * FILTRO QUIRÚRGICO DE CAJAS (SECCIÓN 1 del listado de Objetos).
+ *
+ * Una CAJA REAL es un Contenedor Pequeño MÓVIL donde el operador mete objetos:
+ *   - NO es un mueble inmueble fijo (`es_inmueble`).
+ *   - NO tiene sub-contenedores internos (si los tiene es un MUEBLE GRANDE).
+ *   - NO arrastra un nombre auto-generado por el wizard (mueble fantasma).
+ *   - NO es una estantería/cajonera de 3er/4to nivel: se excluye todo
+ *     contenedor cuya cadena de ancestros sea una sub-división encastrada en
+ *     la grilla del Mapa Estok (un mueble de grilla o algo que cuelga de él).
+ *
+ * Las cajas REALES pueden ser raíz o vivir dentro de un mueble (Nivel 3): en
+ * ambos casos su cadena de minimapas (Piso → Habitación → Mueble) es válida.
+ */
+function esCajaReal(c: ContenedorRuta): boolean {
+  if (c.es_inmueble) return false;
+  if (c.subcontenedores_count > 0) return false;
+  if (esNombreAutogenerado(c.nombre)) return false;
+  if (c.parent_contenedor) {
+    const padre = contenedoresPorId.get(c.parent_contenedor);
+    // El padre es a su vez una sub-división (Nivel 4): la pieza es una
+    // cajonera/estantería interna, jamás una caja listable.
+    if (padre && padre.parent_contenedor) return false;
+  } else if (c.parent_grid_row != null) {
+    // Contenedor RAÍZ encastrado en la grilla de la habitación: es un MUEBLE
+    // GRANDE del Mapa Estok (Nivel 3), no una caja móvil.
+    return false;
+  }
+  return true;
+}
+
 export function cajasDelEstok(opts: { soloConContenido?: boolean } = {}): NodoCaja[] {
   const cajas: NodoCaja[] = [];
   for (const c of contenedoresPorId.values()) {
-    if (c.es_inmueble) continue;
-    if (c.subcontenedores_count > 0) continue;
+    if (!esCajaReal(c)) continue;
     const objetos = objetosPorContenedor.get(c.id) || [];
     if (opts.soloConContenido && objetos.length === 0) continue;
     cajas.push({

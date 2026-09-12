@@ -93,6 +93,37 @@ def _grilla_de_celda(celda):
 
 
 # =============================================================================
+# BLINDAJE ANTI-FANTASMA (grillas vacías)
+# =============================================================================
+# Claves de los nodos hijos por nivel. Una celda puede declarar UNA sola de
+# ellas, por eso el chequeo recursivo las recorre todas sin ambigüedad.
+_CLAVES_HIJOS = (NIVEL_2_KEY, NIVEL_3_KEY, NIVEL_4_KEY)
+
+
+def _nombre_de(celda):
+    """Nombre normalizado de una celda ('' si no fue nombrada por el operador)."""
+    return str(celda.get('nombre') or '').strip()
+
+
+def _subarbol_vacio(celda, claves_hijos=_CLAVES_HIJOS):
+    """
+    True si la celda y TODO su subárbol están sin nombre.
+
+    Un espacio "vacío" (sin nombre propio ni descendientes nombrados) NO debe
+    persistirse: era la causa de los muebles/estanterías FANTASMA que aparecían
+    al guardar la grilla con celdas en blanco. El operador los crea recién
+    cuando decide nombrarlos o agregarles contenido.
+    """
+    if _nombre_de(celda):
+        return False
+    for clave in claves_hijos:
+        for hijo in celda.get(clave) or []:
+            if isinstance(hijo, dict) and not _subarbol_vacio(hijo, claves_hijos):
+                return False
+    return True
+
+
+# =============================================================================
 # SERVICIO PRINCIPAL
 # =============================================================================
 
@@ -116,12 +147,15 @@ class MapaEstokService:
         total_contenedores = 0
 
         for indice, celda in enumerate(payload.get('nivel_1') or []):
+            # Celda vacía (sin nombre ni descendientes): NO se materializa.
+            if _subarbol_vacio(celda):
+                continue
             fila, col = _validar_coordenadas(
                 indice, filas, cols_por_fila,
                 celda.get('parent_grid_row'), celda.get('parent_grid_col'),
             )
             division = Ubicacion.objects.create(
-                nombre=celda['nombre'].strip() or f'División F{fila}·C{col}',
+                nombre=_nombre_de(celda) or f'División F{fila}·C{col}',
                 estok=estok,
                 piso='PRIMER_PISO' if fila == 1 else 'PLANTA_BAJA',
                 parent_grid_row=fila,
@@ -159,12 +193,14 @@ class MapaEstokService:
         sub_filas, sub_columnas, sub_config, sub_cols_por_fila = _grilla_de_celda(celda)
         total = 0
         for indice, hijo in enumerate(celda.get(NIVEL_2_KEY) or []):
+            if _subarbol_vacio(hijo):
+                continue
             fila, col = _validar_coordenadas(
                 indice, sub_filas, sub_cols_por_fila,
                 hijo.get('parent_grid_row'), hijo.get('parent_grid_col'),
             )
             habitacion = Ubicacion.objects.create(
-                nombre=hijo['nombre'].strip() or f'Habitación F{fila}·C{col}',
+                nombre=_nombre_de(hijo) or f'Habitación F{fila}·C{col}',
                 estok=division.estok,
                 parent_ubicacion=division,
                 parent_grid_row=fila,
@@ -189,12 +225,15 @@ class MapaEstokService:
         sub_filas, sub_columnas, sub_config, sub_cols_por_fila = _grilla_de_celda(celda)
         total = 0
         for indice, hijo in enumerate(celda.get(NIVEL_3_KEY) or []):
+            # Mueble vacío (sin nombre ni estanterías nombradas): NO se crea.
+            if _subarbol_vacio(hijo):
+                continue
             fila, col = _validar_coordenadas(
                 indice, sub_filas, sub_cols_por_fila,
                 hijo.get('parent_grid_row'), hijo.get('parent_grid_col'),
             )
             mueble = Contenedor.objects.create(
-                nombre=hijo['nombre'].strip() or f'Mueble F{fila}·C{col}',
+                nombre=_nombre_de(hijo) or f'Mueble F{fila}·C{col}',
                 ubicacion=habitacion,
                 parent_contenedor=None,
                 parent_grid_row=fila,
@@ -217,12 +256,15 @@ class MapaEstokService:
         sub_filas, sub_columnas, sub_config, sub_cols_por_fila = _grilla_de_celda(celda)
         total = 0
         for indice, hijo in enumerate(celda.get(NIVEL_4_KEY) or []):
+            # Estantería vacía (sin nombre): NO se crea (nivel terminal).
+            if _subarbol_vacio(hijo):
+                continue
             fila, col = _validar_coordenadas(
                 indice, sub_filas, sub_cols_por_fila,
                 hijo.get('parent_grid_row'), hijo.get('parent_grid_col'),
             )
             Contenedor.objects.create(
-                nombre=hijo['nombre'].strip() or f'Estantería F{fila}·C{col}',
+                nombre=_nombre_de(hijo) or f'Estantería F{fila}·C{col}',
                 ubicacion=mueble.ubicacion,
                 parent_contenedor=mueble,
                 parent_grid_row=fila,

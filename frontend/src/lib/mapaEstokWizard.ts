@@ -107,12 +107,30 @@ export function nombreDefault(nivel: number, fila: number, col: number): string 
 
 export function crearCelda(nivel: number, fila: number, col: number): CeldaWizard {
   return {
-    nombre: nombreDefault(nivel, fila, col),
+    // BLINDAJE ANTI-FANTASMA: los nodos de CONTENEDOR (Nivel 3 = muebles y
+    // Nivel 4 = estanterías) nacen SIN nombre. Antes se precargaba
+    // nombreDefault() ("Mueble F1·C1") y, al guardar la grilla, CADA celda
+    // vacía se persistía como mueble/estantería fantasma en PostgreSQL.
+    // Ahora una celda de contenedor sin nombre queda en blanco hasta que el
+    // operador decida crear algo (el placeholder gris conserva la UX).
+    nombre: nivel >= 3 ? '' : nombreDefault(nivel, fila, col),
     grid_filas: 2,
     grid_columnas: 2,
     grid_filas_config: null,
     hijos: [],
   };
+}
+
+/**
+ * BLINDAJE ANTI-FANTASMA (grillas vacías).
+ *
+ * True si la celda y TODO su subárbol están sin nombre propio: un "vacío"
+ * (sin nombre ni descendientes nombrados) NO debe persistirse jamás. Antes el
+ * wizard guardaba CADA celda de la grilla como mueble/estantería fantasma.
+ */
+export function subarbolVacio(celda: CeldaWizard): boolean {
+  if ((celda.nombre || '').trim()) return false;
+  return (celda.hijos || []).every(subarbolVacio);
 }
 
 export function columnasDeFila(filas: number, columnas: number, config: number[] | null, fila: number): number {
@@ -247,7 +265,9 @@ function celdaPayload(
 ): Record<string, unknown> {
   const { fila, col } = coordenadasDeIndice(indice, filasPadre, columnasPadre, configPadre);
   const nodo: Record<string, unknown> = {
-    nombre: celda.nombre || nombreDefault(nivel, fila, col),
+    // Nivel 3/4 (contenedores): sin nombre = celda vacía; se envía '' para que
+    // el backend NO invente un "Mueble/Estantería F·C" fantasma.
+    nombre: celda.nombre || (nivel >= 3 ? '' : nombreDefault(nivel, fila, col)),
     parent_grid_row: fila,
     parent_grid_col: col,
     grid_filas: celda.grid_filas,

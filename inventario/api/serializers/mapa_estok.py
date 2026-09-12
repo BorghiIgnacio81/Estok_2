@@ -14,7 +14,11 @@ from rest_framework import serializers
 class CeldaMapaSerializer(serializers.Serializer):
     """Una celda del mapa: nombre + sub-grilla propia + nodos del nivel siguiente."""
 
-    nombre = serializers.CharField(max_length=200, allow_blank=False)
+    # allow_blank=True: las celdas de CONTENEDOR (Nivel 3/4) pueden llegar sin
+    # nombre cuando el operador aún no decidió crear nada. El servicio
+    # (mapa_estok_service) las OMITE: los espacios vacíos permanecen en blanco
+    # y jamás se materializan como "Mueble/Estantería F·C" fantasma.
+    nombre = serializers.CharField(max_length=200, allow_blank=True, required=False, default='')
     grid_filas = serializers.IntegerField(min_value=1, max_value=12, default=3)
     grid_columnas = serializers.IntegerField(min_value=1, max_value=12, default=3)
     grid_filas_config = serializers.ListField(
