@@ -289,13 +289,35 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             instance._prefetched_objects_cache = {}
         return Response(serializer.data)
 
+    @staticmethod
+    def _ids_subarbol(raiz):
+        """
+        IDs del contenedor raíz y de TODOS sus descendientes (BFS recursivo).
+
+        Se usa para liberar de una sola pasada el inventario completo del
+        subárbol eliminado, sin dejar objetos apuntando a estructuras removidas.
+        """
+        ids = [raiz.id]
+        frontera = [raiz.id]
+        while frontera:
+            hijos = list(
+                Contenedor.objects.filter(parent_contenedor_id__in=frontera)
+                .values_list('id', flat=True)
+            )
+            if not hijos:
+                break
+            ids.extend(hijos)
+            frontera = hijos
+        return ids
+
     def destroy(self, request, *args, **kwargs):
         """
         Borrado FÍSICO en caliente con protección de huérfanos:
 
-          - Los Objetos alojados DIRECTAMENTE en este contenedor se liberan:
-            contenedor=None y parent_grid_row/col=None → viajan a la bandeja
-            inferior de «por ubicar» (hermético: el inventario jamás se pierde).
+          - Los Objetos alojados en este contenedor Y en TODOS sus
+            sub-contenedores se liberan RECURSIVAMENTE: contenedor=None y
+            parent_grid_row/col=None → viajan a la bandeja inferior de «por
+            ubicar» (hermético: el inventario jamás se pierde).
           - Los sub-contenedores DIRECTOS se desacoplan del padre eliminado:
             parent_contenedor, parent_grid_row y parent_grid_col quedan en None
             (pasan a nivel raíz, disponibles y sin coordenadas fantasma).
@@ -325,8 +347,12 @@ class ContenedorViewSet(viewsets.ModelViewSet):
                 "El mueble es inmueble fijo (es_inmueble) y no puede eliminarse."
             )
 
-        # 1) Objetos guardados directamente en este contenedor → liberar.
-        Objeto.objects.filter(contenedor_id=instance.id).update(
+        # 1) Objetos guardados en este contenedor Y en TODO su subárbol →
+        #    liberar de forma RECURSIVA hacia la bandeja de huérfanos.
+        #    Se actualiza (jamás DELETE): los ítems físicos permanecen intactos
+        #    en PostgreSQL y reaparecen en «Objetos Sueltos o sin Caja».
+        ids_subarbol = self._ids_subarbol(instance)
+        Objeto.objects.filter(contenedor_id__in=ids_subarbol).update(
             contenedor=None,
             parent_grid_row=None,
             parent_grid_col=None,

@@ -1,364 +1,38 @@
 // =============================================================================
-// LISTADO JERÁRQUICO DE OBJETOS (árbol de almacenamiento en cascada)
+// LISTADO JERÁRQUICO DE OBJETOS (controlador)
 // -----------------------------------------------------------------------------
-// Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y renderiza
-// la pantalla en TRES secciones jerárquicas descendentes, con FILTRADO
-// TAXONÓMICO ESTRICTO resuelto en el ORM del backend (campo `tipo`):
-//   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno
-//      EXCLUSIVAMENTE los contenedores `tipo='CAJA'` del Estok activo
-//      (payload.cajas), listados de forma DIRECTA e INDEPENDIENTE del mueble
-//      padre (incluye las cajas anidadas dentro de roperos/archivadores). Cada
-//      tarjeta ancla la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble)
-//      justo DEBAJO DEL TÍTULO (parte activa en NARANJA #f97316), con un SUMARIO
-//      dinámico de categorías bajo los minimapas y los botones "Mover"/"Editar"
-//      SIEMPRE visibles al pie (fuera del <details>). El contenido nace CERRADO
-//      (<details> sin atributo open). Lógica: src/lib/rutaCajaMinimapas.ts y
-//      src/lib/cajaOperativa.ts.
-//   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
-//      Cuadrícula independiente de los objetos individuales sin contenedor.
-//   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles
-//      Contenedores `tipo='MUEBLE'` con `es_inmueble = false`. FILTRO CRÍTICO:
-//      los muebles inmuebles fijos quedan excluidos de forma absoluta.
-//   Los `tipo='ESTANTE'` (sub-divisiones internas) quedan EXCLUIDOS de TODA
-//   consulta y renderizado.
-// Las tres secciones comparten la misma textura/paleta corporativa continua y
-// responden de forma reactiva a los filtros (Decisión, Categoría, Publicación ML
-// y búsqueda) re-fetchando el payload con los query params del listado.
+// Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y pinta la
+// pantalla en TRES secciones jerárquicas descendentes:
+//   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno → SOLO cajas móviles
+//      (`tipo='CAJA'` y `es_inmueble=false`). El Armario Empotrado y el Setup PC
+//      (estructuras fijas) quedan FUERA de este bloque superior.
+//   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
+//   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye `es_inmueble`).
+//   Los `tipo='ESTANTE'` quedan EXCLUIDOS de toda consulta y renderizado.
+// La construcción de HTML vive en listadoObjetosRender.ts (capa pura) y las
+// acciones operativas de las tarjetas (Mover/Editar/Eliminar) en cajaOperativa.ts.
 // Auth centralizada: getAuthHeaders() desde src/services/auth (no se duplica).
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
+import { initCajaOperativa } from './cajaOperativa';
 import {
-  cargarContextoRutaCaja,
-  rutaMinimapasHtml,
-} from './rutaCajaMinimapas';
-import type { NodoCaja } from './rutaCajaMinimapas';
-import {
-  filaAccionesCajaHtml,
-  initCajaOperativa,
-  sumarioCategoriasHtml,
-} from './cajaOperativa';
+  esc,
+  resumenInventarioHtml,
+  seccionCajasHtml,
+  seccionMueblesHtml,
+  seccionSueltosHtml,
+} from './listadoObjetosRender';
+import type { PayloadArbol } from './listadoObjetosRender';
 
-// ---------------------------------------------------------------------------
-// Tipos del payload (contrato con inventario/services/arbol_inventario_service)
-// ---------------------------------------------------------------------------
-
-export interface ObjetoArbol {
-  [key: string]: any;
-}
-
-export interface NodoContenedor {
-  [key: string]: any;
-  id: string;
-  nombre: string;
-  contenido: Array<NodoContenedor | ObjetoArbol>;
-}
-
-export interface GrupoEstructura {
-  ubicacion_id: string | null;
-  ubicacion_nombre: string;
-  contenedores: NodoContenedor[];
-}
-
-export interface PayloadArbol {
-  estructuras: GrupoEstructura[];
-  cajas: NodoCaja[];
-  sueltos: ObjetoArbol[];
-  filtros_activos: boolean;
-  resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
-}
+// Re-export del contrato del payload para consumidores externos.
+export type { ObjetoArbol, NodoContenedor, GrupoEstructura, PayloadArbol } from './listadoObjetosRender';
 
 interface Filtros {
   decision: string;
   categoria: string;
   publicado_ml: string;
-}
-
-// ---------------------------------------------------------------------------
-// Constantes visuales
-// ---------------------------------------------------------------------------
-
-const IMG_ARMARIO = '/archivador-login.png';
-const IMG_CAJA = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
-const MAX_OBJETOS_POR_NIVEL = 60;
-
-const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {
-  vender: { texto: 'Vender', clase: 'bg-green-100 text-green-800' },
-  conservar: { texto: 'Conservar', clase: 'bg-blue-100 text-blue-800' },
-  tirar: { texto: 'Tirar', clase: 'bg-red-100 text-red-800' },
-};
-
-const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
-  excelente: { texto: 'Excelente', clase: 'bg-emerald-100 text-emerald-800' },
-  bueno: { texto: 'Bueno', clase: 'bg-blue-100 text-blue-800' },
-  regular: { texto: 'Regular', clase: 'bg-amber-100 text-amber-800' },
-  malo: { texto: 'Malo', clase: 'bg-orange-100 text-orange-800' },
-  muy_malo: { texto: 'Muy malo', clase: 'bg-red-100 text-red-800' },
-};
-
-// ---------------------------------------------------------------------------
-// Helpers puros
-// ---------------------------------------------------------------------------
-
-function esc(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function numerico(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function esInmueble(nodo: NodoContenedor): boolean {
-  return Boolean(nodo.es_inmueble);
-}
-
-function tieneSubContenedores(nodo: NodoContenedor): boolean {
-  // La API aplica la TAXONOMÍA ESTRICTA de la pestaña de Objetos y YA NO anida
-  // sub-contenedores (estanterías) en `contenido`. El conteo real de
-  // sub-divisiones internas del mueble viaja como metadato en
-  // `subcontenedores_count`, para conservar el icono/etiqueta correctos.
-  if ((nodo.contenido || []).some((x) => x && x.tipo === 'contenedor')) return true;
-  return numerico(nodo.subcontenedores_count) > 0;
-}
-
-function imagenContenedor(nodo: NodoContenedor): string {
-  return esInmueble(nodo) || tieneSubContenedores(nodo) ? IMG_ARMARIO : IMG_CAJA;
-}
-
-/**
- * Mueble móvil de la SECCIÓN 3 (defensa en profundidad sobre el filtro ORM del
- * backend): SOLO `tipo_contenedor === 'MUEBLE'` y NUNCA un mueble inmueble fijo
- * (`es_inmueble = true`). Los `tipo='ESTANTE'` y `tipo='CAJA'` jamás entran acá.
- */
-function esMuebleMovil(nodo: NodoContenedor): boolean {
-  return nodo.tipo_contenedor === 'MUEBLE' && !esInmueble(nodo);
-}
-
-function chipDecision(obj: ObjetoArbol): string {
-  const cfg = ETIQUETA_DECISION[String(obj.owner_action || '')];
-  if (!cfg) return '';
-  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ' + cfg.clase + '">' + cfg.texto + '</span>';
-}
-
-function chipEstado(obj: ObjetoArbol): string {
-  const cfg = ETIQUETA_ESTADO[String(obj.estado_conservacion || '')];
-  if (!cfg) return '';
-  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ' + cfg.clase + '">' + cfg.texto + '</span>';
-}
-
-function chipCategoria(obj: ObjetoArbol): string {
-  const nombre = String(obj.categoria_nombre || '');
-  if (!nombre) return '';
-  return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">' + esc(nombre) + '</span>';
-}
-
-function chipPublicado(obj: ObjetoArbol): string {
-  const pubs: unknown[] = Array.isArray(obj.plataformas_publicadas) ? obj.plataformas_publicadas : [];
-  if (!pubs.some((p) => String(p) === 'mercadolibre')) return '';
-  return '<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">MercadoLibre</span>';
-}
-
-function fotoDe(obj: ObjetoArbol): string {
-  return obj.foto_principal ? esc(obj.foto_principal) : IMG_OBJETO;
-}
-
-/** Chevron SVG que rota 90° cuando su <details class="group"> ancestro está abierto. */
-function chevronSvg(tamano: string): string {
-  return '<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="' + tamano
-    + ' text-slate-400 transition-transform duration-200 group-open:rotate-90">'
-    + '<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 010-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />'
-    + '</svg>';
-}
-
-// ---------------------------------------------------------------------------
-// Constructores de HTML (viñetas en cascada y tarjetas)
-// ---------------------------------------------------------------------------
-
-function bulletContenedorHtml(nodo: NodoContenedor, profundidad: number): string {
-  const contenido = nodo.contenido || [];
-  const fijo = esInmueble(nodo) ? '<span class="shrink-0 text-[10px] font-bold text-gray-400">📌 FIJO</span>' : '';
-  const nombreLink = '<a href="/contenedores/' + esc(nodo.id) + '" class="font-semibold text-gray-800 hover:text-blue-700 hover:underline truncate">' + esc(nodo.nombre) + '</a>';
-
-  // Sub-caja vacía: fila simple, sin acordeón (no hay nada que expandir).
-  if (contenido.length === 0) {
-    return '<li class="py-0.5"><div class="flex items-center gap-1.5 min-w-0">'
-      + '<span class="shrink-0">📦</span>' + nombreLink + fijo + '</div></li>';
-  }
-
-  const chip = '<span class="shrink-0 text-[10px] font-semibold text-gray-400">(' + contenido.length + ')</span>';
-  return '<li class="py-0.5">'
-    + '<details class="group cursor-pointer">'
-    + '<summary class="flex items-center gap-1.5 min-w-0 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden rounded-lg px-1 py-0.5 hover:bg-slate-50 transition-colors duration-150">'
-    + '<span class="shrink-0">📦</span>'
-    + nombreLink
-    + chip
-    + fijo
-    + chevronSvg('h-3.5 w-3.5 ml-auto shrink-0')
-    + '</summary>'
-    + '<ul class="estok-cuerpo-detalle mt-1 ml-4 pl-2.5 border-l-2 border-amber-100 space-y-px">'
-    + contenidoBulletsHtml(contenido, profundidad + 1)
-    + '</ul>'
-    + '</details></li>';
-}
-
-function bulletObjetoHtml(obj: ObjetoArbol): string {
-  const nombre = esc(obj.nombre);
-  return '<li class="py-px"><div class="flex items-center gap-2 min-w-0 py-0.5">'
-    + '<span class="shrink-0 text-amber-400">•</span>'
-    + '<img src="' + fotoDe(obj) + '" alt="" class="h-6 w-6 rounded-md object-cover shrink-0 bg-slate-100" loading="lazy" />'
-    + '<a href="/objetos/' + esc(obj.id) + '" class="text-sm text-gray-700 hover:text-blue-700 hover:underline truncate" title="' + nombre + '">' + nombre + '</a>'
-    + '<span class="shrink-0 flex items-center gap-1 ml-auto">' + chipCategoria(obj) + chipDecision(obj) + '</span>'
-    + '<a href="/objetos/' + esc(obj.id) + '/editar" title="Editar ' + nombre + '" class="shrink-0 text-gray-400 hover:text-blue-600">✏️</a>'
-    + '<button type="button" class="js-eliminar-objeto shrink-0 text-gray-400 hover:text-red-600 cursor-pointer" data-id="' + esc(obj.id) + '" data-nombre="' + nombre + '" title="Eliminar ' + nombre + '">🗑️</button>'
-    + '</div></li>';
-}
-
-/** Renderiza una lista de contenido (sub-contenedores + objetos) en viñetas. */
-function contenidoBulletsHtml(items: Array<NodoContenedor | ObjetoArbol>, profundidad: number): string {
-  const contenedores = items.filter((x) => x && x.tipo === 'contenedor') as NodoContenedor[];
-  const objetos = items.filter((x) => x && x.tipo === 'objeto') as ObjetoArbol[];
-  const visibles = objetos.slice(0, MAX_OBJETOS_POR_NIVEL);
-  const ocultos = objetos.length - visibles.length;
-  let html = contenedores.map((n) => bulletContenedorHtml(n, profundidad)).join('');
-  html += visibles.map((o) => bulletObjetoHtml(o)).join('');
-  if (ocultos > 0) {
-    html += '<li class="text-xs text-gray-400 italic">… +' + ocultos + ' objeto(s) más (ver contenedor)</li>';
-  }
-  return html;
-}
-
-interface TarjetaOpts {
-  /** Etiqueta de tipo mostrada en el subtítulo de la tarjeta. */
-  tipoLabel?: string;
-  /** HTML de la hilera de minimapas ULTRA-MINI (Sección 1: Piso→Habitación→Mueble). */
-  minimapa?: string;
-  /** Alineación vertical del lateral: 'start' cuando hay minimapa, si no 'center'. */
-  alinear?: 'start' | 'center';
-  /** Inyecta el sumario dinámico por categoría bajo los minimapas (Sección 1). */
-  sumario?: boolean;
-  /** Inyecta la fila de acciones Mover/Editar al pie, fuera del <details>. */
-  acciones?: boolean;
-}
-
-/** Tarjeta de contenedor (caja / mueble) colapsada por defecto. */
-function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): string {
-  const contenido = nodo.contenido || [];
-  const tieneContenido = contenido.length > 0;
-  const tipoLabel = opts.tipoLabel ?? (esInmueble(nodo)
-    ? '📌 Mueble fijo (inmueble)'
-    : (tieneSubContenedores(nodo) ? '🗄️ Mueble con sub-contenedores' : '📦 Caja/Contenedor'));
-  const subtitulo = [
-    tipoLabel,
-    nodo.material ? esc(nodo.material) : '',
-    numerico(nodo.subcontenedores_count) + ' sub-caja(s) · ' + numerico(nodo.objetos_count) + ' objeto(s)',
-  ].filter(Boolean).join(' · ');
-
-  // Con minimapa/sumario (Sección 1) el ícono va arriba; el resto conserva el
-  // centrado original. El minimapa y su sumario se anclan en la LÍNEA INFERIOR
-  // INMEDIATA del título (bloque compacto de coordenadas + stock fino), NUNCA
-  // en el lateral. El sumario solo se inyecta cuando la sección lo pide.
-  const conDetalle = Boolean(opts.minimapa || opts.sumario);
-  const alineacionIdentidad = conDetalle ? 'items-start' : 'items-center';
-
-  const identidad = '<span class="flex ' + alineacionIdentidad + ' gap-3 min-w-0">'
-    + '<img src="' + imagenContenedor(nodo) + '" alt="" class="h-12 w-12 rounded-xl object-cover shrink-0 bg-slate-50 border border-gray-100" />'
-    + '<span class="min-w-0 flex-1">'
-    + '<h3 class="text-xl font-extrabold text-gray-900 leading-tight truncate" title="' + esc(nodo.nombre) + '">' + esc(nodo.nombre) + '</h3>'
-    + (opts.minimapa ? '<div class="mt-1.5 min-w-0">' + opts.minimapa + '</div>' : '')
-    + (opts.sumario ? sumarioCategoriasHtml(contenido) : '')
-    + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
-    + '</span></span>';
-
-  // Bloque lateral: SOLO la acción "Abrir" (el minimapa se movió bajo el título).
-  const accion = '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>';
-  const lateral = '<span class="flex shrink-0 flex-col items-end gap-2">'
-    + '<span class="flex items-center gap-1.5">' + accion
-    + (tieneContenido ? chevronSvg('h-4 w-4') : '')
-    + '</span></span>';
-
-  // Fila de acciones operativas (Mover/Editar) SIEMPRE visible, fuera del <details>.
-  const acciones = opts.acciones ? filaAccionesCajaHtml(nodo) : '';
-
-  const alineacion = opts.alinear === 'start' ? 'items-start' : 'items-center';
-
-  // Contenedor VACÍO: tarjeta compacta estática (no hay nada que expandir).
-  if (!tieneContenido) {
-    return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
-      + '<div class="flex ' + alineacion + ' justify-between gap-3 p-4">'
-      + '<span class="min-w-0 flex-1">' + identidad + '</span>'
-      + lateral
-      + '</div>'
-      + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">— Sin contenido —</p></div>'
-      + acciones
-      + '</article>';
-  }
-
-  // Acordeón nativo HTML5: nace CERRADO (sin atributo open) para máxima densidad.
-  return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
-    + '<details class="group cursor-pointer">'
-    + '<summary class="flex ' + alineacion + ' justify-between gap-3 p-4 list-none font-bold text-slate-800 cursor-pointer select-none [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors duration-150">'
-    + '<span class="min-w-0 flex-1">' + identidad + '</span>'
-    + lateral
-    + '</summary>'
-    + '<div class="estok-cuerpo-detalle px-4 pb-4 pt-1">'
-    + '<p class="text-[11px] uppercase tracking-wider text-gray-400 font-bold mb-2">Contenido</p>'
-    + '<ul class="space-y-px">' + contenidoBulletsHtml(contenido, 0) + '</ul>'
-    + '</div>'
-    + '</details>'
-    + acciones
-    + '</article>';
-}
-
-/**
- * Grupo de contenedores de una misma Ubicación (espacio de la casa), filtrado
- * por sección. Devuelve '' cuando la ubicación no aporta tarjetas a esa sección
- * (así no se renderizan cabeceras vacías).
- */
-function grupoEstructurasHtml(
-  grupo: GrupoEstructura,
-  filtrar: (nodo: NodoContenedor) => boolean,
-  tarjeta: (nodo: NodoContenedor) => string,
-): string {
-  const contenedores = (grupo.contenedores || []).filter(filtrar);
-  if (contenedores.length === 0) return '';
-  const contenedoresHtml = contenedores.map(tarjeta).join('');
-  return '<section class="bg-gradient-to-b from-slate-50 to-white border border-gray-200 rounded-2xl p-4 sm:p-5">'
-    + '<div class="flex items-center justify-between gap-3 mb-4">'
-    + '<h3 class="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2"><span class="text-xl">📍</span> ' + esc(grupo.ubicacion_nombre) + '</h3>'
-    + '<span class="text-xs font-semibold text-gray-400 bg-white border border-gray-200 px-2.5 py-1 rounded-full">' + contenedores.length + ' elemento(s)</span>'
-    + '</div>'
-    + '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">' + contenedoresHtml + '</div>'
-    + '</section>';
-}
-
-/** Tarjeta de objeto individual suelto (sección inferior). */
-function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
-  const tieneAusencia = Boolean(obj.contenedor_ausente);
-  const ubicacion = esc(obj.ubicacion_nombre || 'Sin ubicación');
-  const nombre = esc(obj.nombre);
-  return '<article class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
-    + '<div class="relative h-32 bg-slate-100 flex items-center justify-center overflow-hidden">'
-    + '<img src="' + fotoDe(obj) + '" alt="' + nombre + '" class="h-full w-full object-cover" loading="lazy" />'
-    + '<div class="absolute top-2 left-2 flex flex-wrap gap-1">' + chipCategoria(obj) + chipPublicado(obj) + '</div>'
-    + '</div>'
-    + '<div class="p-3 flex-1 flex flex-col gap-1.5">'
-    + '<h3 class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2" title="' + nombre + '">' + nombre + '</h3>'
-    + '<div class="flex flex-wrap items-center gap-1">' + chipEstado(obj) + chipDecision(obj) + '</div>'
-    + '<p class="text-xs text-gray-400 flex items-center gap-1">📍 ' + ubicacion + (tieneAusencia ? ' · ⚠️ contenedor ausente' : '') + '</p>'
-    + '<div class="mt-auto flex items-center justify-between gap-1 pt-2 border-t border-gray-100">'
-    + '<a href="/objetos/' + esc(obj.id) + '" class="text-xs font-semibold text-blue-700 hover:underline">Ver</a>'
-    + '<div class="flex items-center gap-2">'
-    + '<a href="/objetos/' + esc(obj.id) + '/editar" class="text-xs text-gray-500 hover:text-blue-700 hover:underline">Editar</a>'
-    + '<button type="button" class="js-eliminar-objeto text-xs text-gray-400 hover:text-red-600 cursor-pointer" data-id="' + esc(obj.id) + '" data-nombre="' + nombre + '">Eliminar</button>'
-    + '</div></div>'
-    + '</div></article>';
 }
 
 // ---------------------------------------------------------------------------
@@ -442,25 +116,30 @@ async function cargar(): Promise<void> {
 
 function render(payload: PayloadArbol): void {
   const estructuras = payload.estructuras || [];
-  // SECCIÓN 1 · Cajas resueltas por el BACKEND con filtro ORM estricto
-  // `tipo='CAJA'` (nunca muebles ni estanterías).
   const cajas = payload.cajas || [];
   const sueltos = payload.sueltos || [];
   const resumen = payload.resumen || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
-  const hayDatos = cajas.length > 0 || estructuras.length > 0 || sueltos.length > 0;
 
-  if (resumenEl) {
-    const titulo = payload.filtros_activos ? '🔍 Resultados filtrados' : '🧺 Vista de inventario en cascada';
-    resumenEl.innerHTML = '<div class="flex flex-wrap items-center gap-x-5 gap-y-1 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm">'
-      + '<span class="font-semibold text-gray-700">' + titulo + '</span>'
-      + '<span class="text-gray-500">🗄️ <b>' + numerico(resumen.contenedores) + '</b> estructura(s)</span>'
-      + '<span class="text-gray-500">📦 <b>' + numerico(resumen.objetos_ubicados) + '</b> objeto(s) guardados</span>'
-      + '<span class="text-gray-500">🧺 <b>' + numerico(resumen.objetos_sueltos) + '</b> suelto(s)</span>'
-      + '</div>';
+  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. FILTRO DE DESCARTE ABSOLUTO
+  // aplicado en seccionCajasHtml: SOLO cajas móviles (`tipo='CAJA'` y
+  // `es_inmueble=false`). Armario Empotrado / Setup PC → removidos.
+  const cajasHtml = seccionCajasHtml(cajas);
+  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye inmuebles fijos).
+  const mueblesHtml = seccionMueblesHtml(estructuras);
+  // SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
+  const sueltosHtml = seccionSueltosHtml(sueltos);
+
+  const haySecciones = cajasHtml.length > 0 || mueblesHtml.length > 0 || sueltosHtml.length > 0;
+
+  if (resumenEl && haySecciones) {
+    resumenEl.innerHTML = resumenInventarioHtml(resumen, payload.filtros_activos);
     mostrar(resumenEl, true);
   }
 
-  if (!hayDatos) {
+  // Caso borde: si TODOS los contenedores del Estok son inmuebles fijos
+  // (descartados de forma absoluta) y no hay objetos sueltos, no queda nada que
+  // listar → se degrada al estado vacío en vez de una pantalla muda.
+  if (!haySecciones) {
     mostrar(seccionCajas, false);
     mostrar(seccionSueltos, false);
     mostrar(seccionMuebles, false);
@@ -477,60 +156,15 @@ function render(payload: PayloadArbol): void {
   mostrar(sinResultadosEl, false);
   mostrar(emptyEl, false);
 
-  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. El backend ya devuelve ÚNICA Y
-  // EXCLUSIVAMENTE los contenedores `tipo='CAJA'` (raíz o dentro de un mueble):
-  // acá NO se clasifica en el cliente. Cada tarjeta lista sus objetos directos
-  // colapsados (<details> sin atributo open), ancla la RED DE MINIMAPAS EN CADENA
-  // (Piso → Habitación → Mueble) bajo el título, con su sumario de categorías y
-  // la fila de acciones Mover/Editar siempre visible al pie.
-  const cajasHtml = cajas.length
-    ? '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
-      + cajas.map((caja: NodoCaja) => contenedorTarjetaHtml(caja, {
-          tipoLabel: '📦 Caja / Contenedor pequeño',
-          minimapa: rutaMinimapasHtml(caja),
-          alinear: 'start',
-          sumario: true,
-          acciones: true,
-        })).join('')
-      + '</div>'
-    : '';
-
-  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles. El backend ya devuelve SOLO
-  // `tipo='MUEBLE'` con `es_inmueble=False`; `esMuebleMovil` es la red de
-  // seguridad que además excluye cualquier estantería o mueble fijo.
-  const mueblesHtml = estructuras
-    .map((g) => grupoEstructurasHtml(
-      g,
-      esMuebleMovil,
-      (n) => contenedorTarjetaHtml(n, { tipoLabel: '🗄️ Mueble con sub-contenedores' }),
-    ))
-    .join('');
-
   if (cajasContainer) cajasContainer.innerHTML = cajasHtml;
   if (mueblesContainer) mueblesContainer.innerHTML = mueblesHtml;
-  if (gridSueltos) {
-    gridSueltos.innerHTML = sueltos.map((o) => objetoSueltoTarjetaHtml(o)).join('');
-  }
-
-  const haySecciones = cajasHtml.length > 0 || sueltos.length > 0 || mueblesHtml.length > 0;
+  if (gridSueltos) gridSueltos.innerHTML = sueltosHtml;
 
   mostrar(seccionCajas, cajasHtml.length > 0);
-  mostrar(seccionSueltos, sueltos.length > 0);
+  mostrar(seccionSueltos, sueltosHtml.length > 0);
   mostrar(seccionMuebles, mueblesHtml.length > 0);
   // El lienzo de textura corporativa solo se muestra si hay alguna sección.
-  mostrar(seccionesWrap, haySecciones);
-
-  // Caso borde: si TODOS los contenedores del Estok son muebles inmuebles fijos
-  // (excluidos de forma absoluta por el FILTRO CRÍTICO) y no hay objetos sueltos,
-  // no queda nada que listar → se degrada al estado vacío en vez de una pantalla muda.
-  if (!haySecciones) {
-    mostrar(resumenEl, false);
-    if (payload.filtros_activos) {
-      mostrar(sinResultadosEl, true);
-    } else {
-      mostrar(emptyEl, true);
-    }
-  }
+  mostrar(seccionesWrap, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -687,8 +321,9 @@ export function initListadoJerarquicoObjetos(): void {
   mostrar(seccionMuebles, false);
   enlazarEventos();
 
-  // Capacidades operacionales de las tarjetas de caja: los botones Mover/Editar
-  // abren micro-modales que hacen PUT a la API y, al guardar, re-pintan el árbol.
+  // Capacidades operacionales de las tarjetas de contenedor: los botones
+  // Mover/Editar/Eliminar abren micro-modales que persisten en la API y, al
+  // guardar/eliminar, re-pintan el árbol en caliente.
   initCajaOperativa(() => void cargar());
 
   // La red de minimapas en cadena de cada caja necesita el plano de ubicaciones,
@@ -715,9 +350,6 @@ export function initListadoJerarquicoObjetos(): void {
     Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => void cargar());
   }
 }
-
-
-
 
 
 

@@ -26,10 +26,10 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
 import { filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+import { ADVERTENCIA_ELIMINAR_ESTRUCTURA } from './confirmacionEliminar';
 
-// Cartel unificado de advertencia destructiva (misma regla que mapaEstokEliminar).
-export const ADVERTENCIA_ELIMINAR_DIVISION =
-  'Si elimina este contenedor/ubicacion todo su contenido quedara sin ubicacion, se perdera su estructura etc. ¿Está seguro de que desea proceder?';
+// Cartel unificado de advertencia destructiva (fuente única compartida).
+export const ADVERTENCIA_ELIMINAR_DIVISION = ADVERTENCIA_ELIMINAR_ESTRUCTURA;
 
 export interface MuebleGrillaFuente {
   id: string;

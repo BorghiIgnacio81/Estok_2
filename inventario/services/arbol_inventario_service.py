@@ -55,6 +55,30 @@ def _clave_orden_natural(nombre):
     ]
 
 
+def _decimal_a_float(valor):
+    """Decimal → float serializable a JSON (o None si el campo está vacío)."""
+    return float(valor) if valor is not None else None
+
+
+def _foto_url(instancia, request):
+    """
+    URL absoluta de la FOTO FÍSICA de un contenedor (o None si no tiene).
+
+    La ficha técnica del frontend (modal «Editar» de las tarjetas) la usa para
+    previsualizar la fotografía actual antes de reemplazarla por multipart.
+    """
+    archivo = getattr(instancia, 'foto', None)
+    if not archivo:
+        return None
+    try:
+        url = archivo.url
+    except ValueError:
+        return None
+    if request is not None:
+        return request.build_absolute_uri(url)
+    return url
+
+
 # ---------------------------------------------------------------------------
 # Regla de espejo (DUALIDAD Contenedor + Objeto)
 # ---------------------------------------------------------------------------
@@ -176,15 +200,19 @@ def construir_arbol_estok(
     # ------------------------------------------------------------------
     # 1bis) CAJAS del Estok (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO)
     #
-    #   SOLO `tipo='CAJA'`, a cualquier nivel: raíz o guardada dentro de un
-    #   ropero/archivador. Queda estrictamente prohibido devolver muebles o
-    #   estanterías en este bloque.
+    #   SOLO `tipo='CAJA'` MÓVILES (`es_inmueble=False`), a cualquier nivel:
+    #   raíz o guardada dentro de un ropero/archivador. Queda estrictamente
+    #   prohibido devolver muebles o estanterías en este bloque, y los
+    #   contenedores con flag de inmueble fijo (armario empotrado, setup PC,
+    #   etc.) se DESCARTAN de forma absoluta: por ser estructuras fijas no
+    #   pertenecen a la cima del listado de cajas.
     # ------------------------------------------------------------------
     cajas = list(
         Contenedor.objects.select_related('ubicacion')
         .filter(
             ubicacion__estok_id=estok_id,
             tipo=TIPO_CAJA,
+            es_inmueble=False,
         )
         .order_by('ubicacion__nombre', 'nombre')
     )
@@ -352,6 +380,10 @@ def construir_arbol_estok(
             ),
             'es_inmueble': bool(contenedor.es_inmueble),
             'material': contenedor.material or None,
+            'largo': _decimal_a_float(contenedor.largo),
+            'ancho': _decimal_a_float(contenedor.ancho),
+            'alto': _decimal_a_float(contenedor.alto),
+            'foto': _foto_url(contenedor, request),
             'grid_filas': contenedor.grid_filas,
             'grid_columnas': contenedor.grid_columnas,
             'grid_filas_config': contenedor.grid_filas_config,
@@ -387,8 +419,12 @@ def construir_arbol_estok(
             'ubicacion_nombre': (
                 caja.ubicacion.nombre if caja.ubicacion_id else None
             ),
-            'es_inmueble': False,
+            'es_inmueble': bool(caja.es_inmueble),
             'material': caja.material or None,
+            'largo': _decimal_a_float(caja.largo),
+            'ancho': _decimal_a_float(caja.ancho),
+            'alto': _decimal_a_float(caja.alto),
+            'foto': _foto_url(caja, request),
             'grid_filas': caja.grid_filas,
             'grid_columnas': caja.grid_columnas,
             'grid_filas_config': caja.grid_filas_config,

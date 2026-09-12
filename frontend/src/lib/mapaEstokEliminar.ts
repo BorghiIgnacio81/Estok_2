@@ -12,6 +12,7 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import type { CeldaWizard } from './mapaEstokWizard';
+import { confirmarEliminacionEstructura } from './confirmacionEliminar';
 
 export interface OpcionesEliminarCelda {
   /** Celdas del nivel actual del wizard (estado.celdas o nodo.hijos). */
@@ -44,11 +45,9 @@ export async function eliminarCeldaPersistida(opts: OpcionesEliminarCelda): Prom
   const url = `${API_BASE_URL}/${esUbicacion ? 'ubicaciones' : 'contenedores'}/${celda.id}/`;
   const nombre = celda.nombre.trim() || (esUbicacion ? 'estructura' : 'contenedor');
 
-  // Cartel de advertencia destructiva controlada (frena la ejecución hasta que
-  // el usuario confirme o cancele explícitamente).
-  const ADVERTENCIA =
-    'Si elimina este contenedor/ubicacion todo su contenido quedara sin ubicacion, se perdera su estructura etc. ¿Está seguro de que desea proceder?';
-  if (!window.confirm(ADVERTENCIA)) return false;
+  // Cartel de advertencia destructiva controlada (fuente única compartida;
+  // frena la ejecución hasta que el usuario confirme o cancele explícitamente).
+  if (!confirmarEliminacionEstructura()) return false;
 
   try {
     const res = await fetch(url, {
