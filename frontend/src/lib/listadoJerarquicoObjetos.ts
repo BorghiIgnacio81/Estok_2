@@ -8,10 +8,12 @@
 //      EXCLUSIVAMENTE los contenedores `tipo='CAJA'` del Estok activo
 //      (payload.cajas), listados de forma DIRECTA e INDEPENDIENTE del mueble
 //      padre (incluye las cajas anidadas dentro de roperos/archivadores). Cada
-//      tarjeta muestra en su esquina la RED DE MINIMAPAS EN CADENA
-//      (Piso → Habitación → Mueble) con la parte activa en NARANJA (#f97316).
-//      El contenido nace CERRADO (<details> sin atributo open). La lógica vive
-//      en src/lib/rutaCajaMinimapas.ts.
+//      tarjeta ancla la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble)
+//      justo DEBAJO DEL TÍTULO (parte activa en NARANJA #f97316), con un SUMARIO
+//      dinámico de categorías bajo los minimapas y los botones "Mover"/"Editar"
+//      SIEMPRE visibles al pie (fuera del <details>). El contenido nace CERRADO
+//      (<details> sin atributo open). Lógica: src/lib/rutaCajaMinimapas.ts y
+//      src/lib/cajaOperativa.ts.
 //   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
 //      Cuadrícula independiente de los objetos individuales sin contenedor.
 //   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles
@@ -31,6 +33,11 @@ import {
   rutaMinimapasHtml,
 } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
+import {
+  filaAccionesCajaHtml,
+  initCajaOperativa,
+  sumarioCategoriasHtml,
+} from './cajaOperativa';
 
 // ---------------------------------------------------------------------------
 // Tipos del payload (contrato con inventario/services/arbol_inventario_service)
@@ -230,10 +237,14 @@ function contenidoBulletsHtml(items: Array<NodoContenedor | ObjetoArbol>, profun
 interface TarjetaOpts {
   /** Etiqueta de tipo mostrada en el subtítulo de la tarjeta. */
   tipoLabel?: string;
-  /** HTML del minimapa ULTRA-MINI anclado a la esquina superior del bloque. */
+  /** HTML de la hilera de minimapas ULTRA-MINI (Sección 1: Piso→Habitación→Mueble). */
   minimapa?: string;
   /** Alineación vertical del lateral: 'start' cuando hay minimapa, si no 'center'. */
   alinear?: 'start' | 'center';
+  /** Inyecta el sumario dinámico por categoría bajo los minimapas (Sección 1). */
+  sumario?: boolean;
+  /** Inyecta la fila de acciones Mover/Editar al pie, fuera del <details>. */
+  acciones?: boolean;
 }
 
 /** Tarjeta de contenedor (caja / mueble) colapsada por defecto. */
@@ -249,36 +260,48 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
     numerico(nodo.subcontenedores_count) + ' sub-caja(s) · ' + numerico(nodo.objetos_count) + ' objeto(s)',
   ].filter(Boolean).join(' · ');
 
-  const identidad = '<span class="flex items-center gap-3 min-w-0">'
+  // Con minimapa/sumario (Sección 1) el ícono va arriba; el resto conserva el
+  // centrado original. El minimapa y su sumario se anclan en la LÍNEA INFERIOR
+  // INMEDIATA del título (bloque compacto de coordenadas + stock fino), NUNCA
+  // en el lateral. El sumario solo se inyecta cuando la sección lo pide.
+  const conDetalle = Boolean(opts.minimapa || opts.sumario);
+  const alineacionIdentidad = conDetalle ? 'items-start' : 'items-center';
+
+  const identidad = '<span class="flex ' + alineacionIdentidad + ' gap-3 min-w-0">'
     + '<img src="' + imagenContenedor(nodo) + '" alt="" class="h-12 w-12 rounded-xl object-cover shrink-0 bg-slate-50 border border-gray-100" />'
-    + '<span class="min-w-0">'
+    + '<span class="min-w-0 flex-1">'
     + '<h3 class="text-xl font-extrabold text-gray-900 leading-tight truncate" title="' + esc(nodo.nombre) + '">' + esc(nodo.nombre) + '</h3>'
+    + (opts.minimapa ? '<div class="mt-1.5 min-w-0">' + opts.minimapa + '</div>' : '')
+    + (opts.sumario ? sumarioCategoriasHtml(contenido) : '')
     + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
     + '</span></span>';
 
-  // Bloque lateral superior: minimapa ULTRA-MINI (opcional) + acción "Abrir".
+  // Bloque lateral: SOLO la acción "Abrir" (el minimapa se movió bajo el título).
   const accion = '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>';
   const lateral = '<span class="flex shrink-0 flex-col items-end gap-2">'
-    + (opts.minimapa || '')
     + '<span class="flex items-center gap-1.5">' + accion
     + (tieneContenido ? chevronSvg('h-4 w-4') : '')
     + '</span></span>';
+
+  // Fila de acciones operativas (Mover/Editar) SIEMPRE visible, fuera del <details>.
+  const acciones = opts.acciones ? filaAccionesCajaHtml(nodo) : '';
 
   const alineacion = opts.alinear === 'start' ? 'items-start' : 'items-center';
 
   // Contenedor VACÍO: tarjeta compacta estática (no hay nada que expandir).
   if (!tieneContenido) {
-    return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+    return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
       + '<div class="flex ' + alineacion + ' justify-between gap-3 p-4">'
       + '<span class="min-w-0 flex-1">' + identidad + '</span>'
       + lateral
       + '</div>'
       + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">— Sin contenido —</p></div>'
+      + acciones
       + '</article>';
   }
 
   // Acordeón nativo HTML5: nace CERRADO (sin atributo open) para máxima densidad.
-  return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+  return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
     + '<details class="group cursor-pointer">'
     + '<summary class="flex ' + alineacion + ' justify-between gap-3 p-4 list-none font-bold text-slate-800 cursor-pointer select-none [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors duration-150">'
     + '<span class="min-w-0 flex-1">' + identidad + '</span>'
@@ -288,7 +311,9 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
     + '<p class="text-[11px] uppercase tracking-wider text-gray-400 font-bold mb-2">Contenido</p>'
     + '<ul class="space-y-px">' + contenidoBulletsHtml(contenido, 0) + '</ul>'
     + '</div>'
-    + '</details></article>';
+    + '</details>'
+    + acciones
+    + '</article>';
 }
 
 /**
@@ -455,14 +480,17 @@ function render(payload: PayloadArbol): void {
   // SECCIÓN 1 · 📦 Cajas e Inventario Interno. El backend ya devuelve ÚNICA Y
   // EXCLUSIVAMENTE los contenedores `tipo='CAJA'` (raíz o dentro de un mueble):
   // acá NO se clasifica en el cliente. Cada tarjeta lista sus objetos directos
-  // colapsados (<details> sin atributo open) y lleva la RED DE MINIMAPAS EN
-  // CADENA (Piso → Habitación → Mueble) en su esquina.
+  // colapsados (<details> sin atributo open), ancla la RED DE MINIMAPAS EN CADENA
+  // (Piso → Habitación → Mueble) bajo el título, con su sumario de categorías y
+  // la fila de acciones Mover/Editar siempre visible al pie.
   const cajasHtml = cajas.length
     ? '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
       + cajas.map((caja: NodoCaja) => contenedorTarjetaHtml(caja, {
           tipoLabel: '📦 Caja / Contenedor pequeño',
           minimapa: rutaMinimapasHtml(caja),
           alinear: 'start',
+          sumario: true,
+          acciones: true,
         })).join('')
       + '</div>'
     : '';
@@ -658,6 +686,10 @@ export function initListadoJerarquicoObjetos(): void {
   mostrar(seccionSueltos, false);
   mostrar(seccionMuebles, false);
   enlazarEventos();
+
+  // Capacidades operacionales de las tarjetas de caja: los botones Mover/Editar
+  // abren micro-modales que hacen PUT a la API y, al guardar, re-pintan el árbol.
+  initCajaOperativa(() => void cargar());
 
   // La red de minimapas en cadena de cada caja necesita el plano de ubicaciones,
   // TODOS los contenedores del Estok (incluidas las cajas anidadas) y la grilla
