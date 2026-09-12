@@ -18,6 +18,7 @@ from ...models import Ubicacion, Contenedor, Objeto, Membresia
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
 from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
+from ...services.taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
 from .base import HasRolePermission
 from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo
 
@@ -333,10 +334,22 @@ class ContenedorViewSet(viewsets.ModelViewSet):
 
         # 2) Sub-contenedores directos → a nivel raíz, sin coordenadas huérfanas
         #    (su contenido interno queda intacto y disponible en el Estok).
-        Contenedor.objects.filter(parent_contenedor_id=instance.id).update(
+        #    TAXONOMÍA: al desacoplarse del mueble eliminado, un estante hoja
+        #    pasa a ser CAJA móvil; si a su vez contiene sub-divisiones, pasa a
+        #    MUEBLE. Así ninguna pieza queda huérfana de los listados.
+        hijos = Contenedor.objects.filter(parent_contenedor_id=instance.id)
+        con_hijos = hijos.filter(subcontenedores__isnull=False).distinct()
+        hijos.exclude(pk__in=con_hijos.values('pk')).update(
             parent_contenedor=None,
             parent_grid_row=None,
             parent_grid_col=None,
+            tipo=TIPO_CAJA,
+        )
+        con_hijos.update(
+            parent_contenedor=None,
+            parent_grid_row=None,
+            parent_grid_col=None,
+            tipo=TIPO_MUEBLE,
         )
 
         # 3) Eliminación física de la fila en PostgreSQL.
@@ -559,11 +572,11 @@ class ContenedorViewSet(viewsets.ModelViewSet):
           ?categoria=<uuid> & decision=vender|conservar|tirar|sin_decision
           & publicado_ml=publicado|no_publicado & search=<texto>
 
-        Retorna SOLO la taxonomía válida del inventario: Muebles Mayores y
-        Contenedores Pequeños (cajas) RAÍZ, cada uno con sus Objetos físicos
-        individuales, más los objetos sueltos/sin ubicación en `sueltos`.
-        Las sub-divisiones internas / estanterías / cajoneras de un mueble
-        quedan estrictamente EXCLUIDAS del listado (filtro ORM estricto).
+        Retorna SOLO la taxonomía válida del inventario con filtros ORM
+        estrictos por tipo: `cajas` (tipo='CAJA', SECCIÓN 1), `estructuras`
+        (muebles tipo='MUEBLE' mudables, SECCIÓN 3) y los objetos sueltos/sin
+        ubicación en `sueltos` (SECCIÓN 2). Los `tipo='ESTANTE'` quedan
+        estrictamente EXCLUIDOS de toda consulta y renderizado.
 
         Consulta optimizada para PostgreSQL: 1 query de contenedores
         (select_related) + 1 query de objetos (select_related + prefetch de
@@ -576,6 +589,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         if not estok_id:
             return Response({
                 'estructuras': [],
+                'cajas': [],
                 'sueltos': [],
                 'filtros_activos': False,
                 'resumen': {

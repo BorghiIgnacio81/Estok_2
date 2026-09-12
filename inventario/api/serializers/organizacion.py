@@ -162,3 +162,20 @@ class ContenedorSerializer(serializers.ModelSerializer):
         if total is not None:
             return total
         return obj.subcontenedores.count()
+
+    def create(self, validated_data):
+        """
+        Alta de Contenedor con TAXONOMÍA AUTOMÁTICA.
+
+        El `tipo` (MUEBLE/CAJA/ESTANTE) se infiere en `Contenedor.save()` desde
+        `inventario.services.taxonomia_contenedor` según el contexto real de
+        creación (es_inmueble, parent_contenedor, coordenadas de la grilla y
+        rótulo del modal/botonera). Si el cliente envía `tipo` explícito se
+        respeta: la bandera `_tipo_explicito` le indica al modelo que no
+        sobrescriba el valor recibido.
+        """
+        instance = Contenedor(**validated_data)
+        if 'tipo' in (getattr(self, 'initial_data', None) or {}):
+            instance._tipo_explicito = True
+        instance.save()
+        return instance

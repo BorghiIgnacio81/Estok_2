@@ -1,17 +1,24 @@
 // =============================================================================
 // RUTA GEOGRÁFICA DE UNA CAJA · RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble)
 // -----------------------------------------------------------------------------
-// Construye, para cada CAJA (Contenedor Pequeño) del Estok activo, la cadena de
-// minimapas ULTRA-MINI (4× más chica) que permite localizarla geográficamente
-// SIN depender del mueble que la contiene:
+// Construye, para cada CAJA (Contenedor con `tipo='CAJA'`) del Estok activo, la
+// cadena de minimapas ULTRA-MINI (4× más chica) que permite localizarla
+// geográficamente SIN depender del mueble que la contiene:
 //
 //   MAPA 1 (Piso)       → silueta de la casita con techo A DOS AGUAS; la planta
 //                         activa se pinta en NARANJA (#f97316).
 //   MAPA 2 (Habitación) → rectángulo PLANO con la grilla asimétrica de la
 //                         división/planta; la habitación se pinta en NARANJA.
-//   MAPA 3 (Mueble)     → SOLO si la caja reside dentro de un ropero/archivador:
-//                         la grilla interna del mueble con la celda/estante
-//                         exacto en NARANJA (coordenadas parent_grid_row/col).
+//   MAPA 3 (Mueble)     → SOLO si la caja reside dentro de un ropero/archivador
+//                         (`parent_contenedor` con `tipo='MUEBLE'`): la grilla
+//                         interna del mueble con la celda/estante exacto en
+//                         NARANJA (coordenadas parent_grid_row/col).
+//
+// FUENTE DE CAJAS: el listado NO clasifica en el cliente. La SECCIÓN 1 de la
+// pantalla se alimenta del payload del endpoint unificado con el filtro ORM
+// estricto `tipo='CAJA'` (ver listadoJerarquicoObjetos.ts). Este módulo sólo
+// aporta el CONTEXTO geográfico (ubicaciones + contenedores + grilla del
+// macro-Estok) y el dibujado de la cadena de minimapas.
 //
 // La lógica de dibujado NO se duplica: se delega al motor ya existente
 //   - mapaJerarquico.ts      → grillas asimétricas + minimapas de la casita.
@@ -21,11 +28,10 @@
 // Auth centralizada: getAuthHeaders() vive ÚNICAMENTE en src/services/auth. Este
 // módulo jamás define su propia versión.
 //
-// FUENTE DE DATOS (endpoints existentes del Estok activo, multi-tenant X-Estok-Id):
+// CONTEXTO (endpoints existentes del Estok activo, multi-tenant X-Estok-Id):
 //   GET /api/ubicaciones/?page_size=1000    jerarquía división (planta) ↔ habitación
-//   GET /api/contenedores/?page_size=1000   TODAS las cajas, incluidas las anidadas
+//   GET /api/contenedores/?page_size=1000   TODOS los contenedores (padre mueble)
 //   GET /api/estoks/{id}/                   grilla del macro-plano (total de plantas)
-//   GET /api/objetos/?page_size=1000&...    objetos DIRECTOS de cada caja (con filtros)
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
@@ -46,18 +52,12 @@ import type { NodoRuta } from './minimapasAnidados';
 // TIPOS
 // =============================================================================
 
-/** Filtros activos del listado (mismos query params del árbol jerárquico). */
-export interface FiltrosRuta {
-  decision?: string;
-  categoria?: string;
-  publicado_ml?: string;
-  search?: string;
-}
-
 /** Contenedor crudo normalizado (incluye los anidados dentro de muebles). */
 interface ContenedorRuta {
   id: string;
   nombre: string;
+  /** Taxonomía estricta del contenedor: MUEBLE | CAJA | ESTANTE. */
+  tipo: string;
   ubicacion: string | null;
   parent_contenedor: string | null;
   parent_grid_row: number | null;
@@ -65,9 +65,6 @@ interface ContenedorRuta {
   grid_filas: number;
   grid_columnas: number;
   grid_filas_config: number[] | null;
-  es_inmueble: boolean;
-  subcontenedores_count: number;
-  material: string | null;
 }
 
 /**
@@ -78,6 +75,7 @@ interface ContenedorRuta {
 export interface NodoCaja {
   [clave: string]: any;
   tipo: 'contenedor';
+  tipo_contenedor: 'CAJA';
   id: string;
   nombre: string;
   contenido: any[];
@@ -100,7 +98,6 @@ export interface NodoCaja {
 
 const ubicacionesPorId = new Map<string, UbicacionPlano>();
 const contenedoresPorId = new Map<string, ContenedorRuta>();
-const objetosPorContenedor = new Map<string, any[]>();
 let estokCfg: EstokConfig | null = null;
 let contextoListo = false;
 let contextoPromise: Promise<void> | null = null;
@@ -122,12 +119,6 @@ function enteroPositivo(v: unknown, def: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : def;
 }
 
-/** Contador no negativo (sub-contenedores / objetos). */
-function contador(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-}
-
 /** Paginación robusta reutilizando la auth centralizada del proyecto. */
 async function fetchTodos(url: string): Promise<any[]> {
   const todos: any[] = [];
@@ -144,17 +135,6 @@ async function fetchTodos(url: string): Promise<any[]> {
     nextUrl = normalizarUrlApi(data.next);
   }
   return todos;
-}
-
-/**
- * Detecta el registro ESPEJO que el backend crea al dar de alta un mueble/caja
- * raíz mudable (Contenedor + Objeto homónimo sin casillero). Se excluye del
- * desglose interior para no autoduplicar la caja como objeto de sí misma.
- */
-function esRegistroEspejo(objeto: any, contenedor: ContenedorRuta): boolean {
-  if (contenedor.es_inmueble || contenedor.parent_contenedor !== null) return false;
-  if (objeto.parent_grid_row != null || objeto.parent_grid_col != null) return false;
-  return String(objeto.nombre || '') === contenedor.nombre;
 }
 
 // =============================================================================
@@ -186,6 +166,7 @@ export function cargarContextoRutaCaja(): Promise<void> {
         contenedoresPorId.set(id, {
           id,
           nombre: String(c.nombre || 'Contenedor'),
+          tipo: String(c.tipo || 'CAJA').toUpperCase(),
           ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
           parent_contenedor: c.parent_contenedor != null ? String(c.parent_contenedor) : null,
           parent_grid_row: enteroONull(c.parent_grid_row),
@@ -195,9 +176,6 @@ export function cargarContextoRutaCaja(): Promise<void> {
           grid_filas_config: Array.isArray(c.grid_filas_config)
             ? c.grid_filas_config.map((x: unknown) => enteroPositivo(x, 1))
             : null,
-          es_inmueble: Boolean(c.es_inmueble),
-          subcontenedores_count: contador(c.subcontenedores_count),
-          material: c.material ? String(c.material) : null,
         });
       }
 
@@ -208,134 +186,6 @@ export function cargarContextoRutaCaja(): Promise<void> {
     }
   })();
   return contextoPromise;
-}
-
-/**
- * Carga (o recarga) los objetos DIRECTOS de cada caja aplicando los filtros
- * activos del listado. El agrupamiento es por `contenedor` primario, por lo que
- * cada caja expone exclusivamente sus propias viñetas internas.
- */
-export async function cargarObjetosRutaCaja(filtros: FiltrosRuta = {}): Promise<void> {
-  await cargarContextoRutaCaja();
-
-  const params = new URLSearchParams();
-  params.set('page_size', '1000');
-  if (filtros.decision) params.set('decision', filtros.decision);
-  if (filtros.categoria) params.set('categoria', filtros.categoria);
-  if (filtros.publicado_ml) params.set('publicado_ml', filtros.publicado_ml);
-  if (filtros.search) params.set('search', filtros.search);
-
-  objetosPorContenedor.clear();
-  let raw: any[] = [];
-  try {
-    raw = await fetchTodos(`${API_BASE_URL}/objetos/?${params.toString()}`);
-  } catch {
-    raw = [];
-  }
-
-  for (const o of raw) {
-    if (o.deleted_at) continue;
-    const contenedorId = o.contenedor != null ? String(o.contenedor) : null;
-    if (!contenedorId) continue;
-    const contenedor = contenedoresPorId.get(contenedorId);
-    if (!contenedor) continue;
-    if (esRegistroEspejo(o, contenedor)) continue;
-    const lista = objetosPorContenedor.get(contenedorId) || [];
-    lista.push(o);
-    objetosPorContenedor.set(contenedorId, lista);
-  }
-}
-
-// =============================================================================
-// CAJAS DEL ESTOK (Contenedores Pequeños, anidados o raíz)
-// =============================================================================
-
-/**
- * Devuelve TODAS las Cajas (Contenedores Pequeños) del Estok activo, de forma
- * directa e independiente de su mueble padre: se incluyen tanto las raíz como
- * las que viven dentro de un ropero/archivador.
- *
- * Caja = Contenedor sin sub-contenedores internos y sin carácter de mueble
- * inmueble fijo. Con `soloConContenido` activo (hay filtros) se descartan las
- * cajas sin objetos que coincidan, reflejando el mismo criterio del árbol.
- */
-// ---------------------------------------------------------------------------
-// CLASIFICACIÓN QUIRÚRGICA: CAJA REAL vs MUEBLE / ESTANTERÍA (Nivel 3/4)
-// ---------------------------------------------------------------------------
-// Patrón de los nombres AUTO-GENERADOS por el wizard del Mapa Estok
-// ("División F1·C1", "Habitación F2·C3", "Mueble F1·C2", "Estantería F2·C1"):
-// eran los "muebles fantasma" que se creaban al guardar celdas vacías de la
-// grilla. Se excluyen de TODO listado de la pestaña de Objetos.
-const RE_NOMBRE_AUTOGENERADO =
-  /^(divisi[oó]n|habitaci[oó]n|mueble|estanter[ií]a|cajonera)\s+f\d+\s*[·.\-x]\s*c\d+$/i;
-
-/** True si el nombre es un rótulo por defecto del wizard (contenedor fantasma). */
-function esNombreAutogenerado(nombre: string): boolean {
-  return RE_NOMBRE_AUTOGENERADO.test((nombre || '').trim());
-}
-
-/**
- * FILTRO QUIRÚRGICO DE CAJAS (SECCIÓN 1 del listado de Objetos).
- *
- * Una CAJA REAL es un Contenedor Pequeño MÓVIL donde el operador mete objetos:
- *   - NO es un mueble inmueble fijo (`es_inmueble`).
- *   - NO tiene sub-contenedores internos (si los tiene es un MUEBLE GRANDE).
- *   - NO arrastra un nombre auto-generado por el wizard (mueble fantasma).
- *   - NO es una estantería/cajonera de 3er/4to nivel: se excluye todo
- *     contenedor cuya cadena de ancestros sea una sub-división encastrada en
- *     la grilla del Mapa Estok (un mueble de grilla o algo que cuelga de él).
- *
- * Las cajas REALES pueden ser raíz o vivir dentro de un mueble (Nivel 3): en
- * ambos casos su cadena de minimapas (Piso → Habitación → Mueble) es válida.
- */
-function esCajaReal(c: ContenedorRuta): boolean {
-  if (c.es_inmueble) return false;
-  if (c.subcontenedores_count > 0) return false;
-  if (esNombreAutogenerado(c.nombre)) return false;
-  if (c.parent_contenedor) {
-    const padre = contenedoresPorId.get(c.parent_contenedor);
-    // El padre es a su vez una sub-división (Nivel 4): la pieza es una
-    // cajonera/estantería interna, jamás una caja listable.
-    if (padre && padre.parent_contenedor) return false;
-  } else if (c.parent_grid_row != null) {
-    // Contenedor RAÍZ encastrado en la grilla de la habitación: es un MUEBLE
-    // GRANDE del Mapa Estok (Nivel 3), no una caja móvil.
-    return false;
-  }
-  return true;
-}
-
-export function cajasDelEstok(opts: { soloConContenido?: boolean } = {}): NodoCaja[] {
-  const cajas: NodoCaja[] = [];
-  for (const c of contenedoresPorId.values()) {
-    if (!esCajaReal(c)) continue;
-    const objetos = objetosPorContenedor.get(c.id) || [];
-    if (opts.soloConContenido && objetos.length === 0) continue;
-    cajas.push({
-      tipo: 'contenedor',
-      id: c.id,
-      nombre: c.nombre,
-      contenido: objetos.map((o) => ({ ...o, tipo: 'objeto' })),
-      es_inmueble: false,
-      material: c.material,
-      subcontenedores_count: 0,
-      objetos_count: objetos.length,
-      ubicacion: c.ubicacion,
-      parent_contenedor: c.parent_contenedor,
-      parent_grid_row: c.parent_grid_row,
-      parent_grid_col: c.parent_grid_col,
-      grid_filas: c.grid_filas,
-      grid_columnas: c.grid_columnas,
-      grid_filas_config: c.grid_filas_config,
-    });
-  }
-
-  cajas.sort((a, b) => {
-    const ua = a.ubicacion ? ubicacionesPorId.get(a.ubicacion)?.nombre || '' : '';
-    const ub = b.ubicacion ? ubicacionesPorId.get(b.ubicacion)?.nombre || '' : '';
-    return ua.localeCompare(ub, 'es') || a.nombre.localeCompare(b.nombre, 'es');
-  });
-  return cajas;
 }
 
 // =============================================================================
@@ -409,7 +259,7 @@ export function rutaMinimapasHtml(nodo: NodoCaja): string {
   }
 
   const mueble = nodo.parent_contenedor ? contenedoresPorId.get(nodo.parent_contenedor) : undefined;
-  if (mueble) {
+  if (mueble && mueble.tipo === 'MUEBLE') {
     // MAPA 3 (Mueble): grilla interna del ropero/archivador con la celda/estante
     // exacto en naranja (coordenadas parent_grid_row/col persistidas).
     nodos.push({
@@ -422,8 +272,8 @@ export function rutaMinimapasHtml(nodo: NodoCaja): string {
     });
   }
 
-  // `todosActivos`: los TRES mapas conservan su resalte naranja (la ruta se lee
-  // de un vistazo, sin nodos atenuados por ser "procedencia").
+  // `todosActivos`: los mapas conservan su resalte naranja (la ruta se lee de un
+  // vistazo, sin nodos atenuados por ser "procedencia").
   return renderMinimapasAnidados(nodos, { todosActivos: true });
 }
 

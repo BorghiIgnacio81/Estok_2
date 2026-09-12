@@ -2,20 +2,23 @@
 // LISTADO JERÁRQUICO DE OBJETOS (árbol de almacenamiento en cascada)
 // -----------------------------------------------------------------------------
 // Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y renderiza
-// la pantalla en TRES secciones jerárquicas descendentes:
+// la pantalla en TRES secciones jerárquicas descendentes, con FILTRADO
+// TAXONÓMICO ESTRICTO resuelto en el ORM del backend (campo `tipo`):
 //   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno
-//      TODAS las Cajas (Contenedores Pequeños) del Estok activo, listadas de
-//      forma DIRECTA e INDEPENDIENTE del mueble padre (incluye las cajas
-//      anidadas dentro de roperos/archivadores). Cada tarjeta muestra en su
-//      esquina la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble) con la
-//      parte activa en NARANJA (#f97316). El contenido nace CERRADO (<details>
-//      sin atributo open). La lógica vive en src/lib/rutaCajaMinimapas.ts.
+//      EXCLUSIVAMENTE los contenedores `tipo='CAJA'` del Estok activo
+//      (payload.cajas), listados de forma DIRECTA e INDEPENDIENTE del mueble
+//      padre (incluye las cajas anidadas dentro de roperos/archivadores). Cada
+//      tarjeta muestra en su esquina la RED DE MINIMAPAS EN CADENA
+//      (Piso → Habitación → Mueble) con la parte activa en NARANJA (#f97316).
+//      El contenido nace CERRADO (<details> sin atributo open). La lógica vive
+//      en src/lib/rutaCajaMinimapas.ts.
 //   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
 //      Cuadrícula independiente de los objetos individuales sin contenedor.
 //   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles
-//      Contenedores GRANDES (con sub-contenedores) creados por el usuario.
-//      FILTRO CRÍTICO: se excluyen de forma absoluta los muebles con
-//      `es_inmueble = true` (solo se renderizan los mudables).
+//      Contenedores `tipo='MUEBLE'` con `es_inmueble = false`. FILTRO CRÍTICO:
+//      los muebles inmuebles fijos quedan excluidos de forma absoluta.
+//   Los `tipo='ESTANTE'` (sub-divisiones internas) quedan EXCLUIDOS de TODA
+//   consulta y renderizado.
 // Las tres secciones comparten la misma textura/paleta corporativa continua y
 // responden de forma reactiva a los filtros (Decisión, Categoría, Publicación ML
 // y búsqueda) re-fetchando el payload con los query params del listado.
@@ -25,8 +28,6 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import {
   cargarContextoRutaCaja,
-  cargarObjetosRutaCaja,
-  cajasDelEstok,
   rutaMinimapasHtml,
 } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
@@ -54,6 +55,7 @@ export interface GrupoEstructura {
 
 export interface PayloadArbol {
   estructuras: GrupoEstructura[];
+  cajas: NodoCaja[];
   sueltos: ObjetoArbol[];
   filtros_activos: boolean;
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
@@ -124,12 +126,12 @@ function imagenContenedor(nodo: NodoContenedor): string {
 }
 
 /**
- * Mueble mudable = Contenedor GRANDE (con sub-contenedores) que el usuario
- * puede mover. FILTRO CRÍTICO de la SECCIÓN 3: los muebles inmuebles fijos
- * (`es_inmueble = true`) quedan EXCLUIDOS de forma estricta y absoluta.
+ * Mueble móvil de la SECCIÓN 3 (defensa en profundidad sobre el filtro ORM del
+ * backend): SOLO `tipo_contenedor === 'MUEBLE'` y NUNCA un mueble inmueble fijo
+ * (`es_inmueble = true`). Los `tipo='ESTANTE'` y `tipo='CAJA'` jamás entran acá.
  */
-function esMuebleMudable(nodo: NodoContenedor): boolean {
-  return !esInmueble(nodo) && tieneSubContenedores(nodo);
+function esMuebleMovil(nodo: NodoContenedor): boolean {
+  return nodo.tipo_contenedor === 'MUEBLE' && !esInmueble(nodo);
 }
 
 function chipDecision(obj: ObjetoArbol): string {
@@ -386,20 +388,7 @@ async function cargar(): Promise<void> {
   mostrar(emptyEl, false);
   mostrar(sinResultadosEl, false);
   mostrar(loadingEl, true);
-  const texto = (searchInput && searchInput.value ? searchInput.value : '').trim();
-  const search = texto.length >= 2 ? texto : '';
-  // Con filtros activos la SECCIÓN 1 solo muestra cajas con objetos coincidentes.
-  const soloConContenido = Boolean(search || filtros.decision || filtros.categoria || filtros.publicado_ml);
   try {
-    // Las cajas (SECCIÓN 1) se resuelven con sus PROPIOS objetos, de forma
-    // independiente del mueble que las contiene: se cargan en paralelo al árbol.
-    const objetosPromise = cargarObjetosRutaCaja({
-      decision: filtros.decision,
-      categoria: filtros.categoria,
-      publicado_ml: filtros.publicado_ml,
-      search,
-    }).catch(() => undefined);
-
     const res = await fetch(construirUrlArbol(), { headers: getAuthHeaders() });
     if (res.status === 401) {
       window.location.href = '/login';
@@ -409,8 +398,7 @@ async function cargar(): Promise<void> {
       throw new Error('Error al consultar el árbol de inventario (' + res.status + ').');
     }
     const payload = (await res.json()) as PayloadArbol;
-    await objetosPromise;
-    render(payload, soloConContenido);
+    render(payload);
   } catch (err: any) {
     if (errorMsgEl) {
       errorMsgEl.textContent = err && err.message
@@ -427,13 +415,13 @@ async function cargar(): Promise<void> {
 // Render del árbol jerárquico
 // ---------------------------------------------------------------------------
 
-function render(payload: PayloadArbol, soloConContenido: boolean): void {
+function render(payload: PayloadArbol): void {
   const estructuras = payload.estructuras || [];
+  // SECCIÓN 1 · Cajas resueltas por el BACKEND con filtro ORM estricto
+  // `tipo='CAJA'` (nunca muebles ni estanterías).
+  const cajas = payload.cajas || [];
   const sueltos = payload.sueltos || [];
   const resumen = payload.resumen || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
-  // SECCIÓN 1 · Cajas (Contenedores Pequeños) resueltas de forma DIRECTA e
-  // INDEPENDIENTE del mueble padre (incluye las cajas anidadas en roperos).
-  const cajas = cajasDelEstok({ soloConContenido });
   const hayDatos = cajas.length > 0 || estructuras.length > 0 || sueltos.length > 0;
 
   if (resumenEl) {
@@ -464,10 +452,11 @@ function render(payload: PayloadArbol, soloConContenido: boolean): void {
   mostrar(sinResultadosEl, false);
   mostrar(emptyEl, false);
 
-  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. Se listan TODAS las cajas del
-  // Estok activo directamente (sin agrupar por mueble padre). Cada tarjeta lleva
-  // la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble) en su esquina y su
-  // contenido nace cerrado por defecto (<details> sin atributo open).
+  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. El backend ya devuelve ÚNICA Y
+  // EXCLUSIVAMENTE los contenedores `tipo='CAJA'` (raíz o dentro de un mueble):
+  // acá NO se clasifica en el cliente. Cada tarjeta lista sus objetos directos
+  // colapsados (<details> sin atributo open) y lleva la RED DE MINIMAPAS EN
+  // CADENA (Piso → Habitación → Mueble) en su esquina.
   const cajasHtml = cajas.length
     ? '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
       + cajas.map((caja: NodoCaja) => contenedorTarjetaHtml(caja, {
@@ -478,12 +467,13 @@ function render(payload: PayloadArbol, soloConContenido: boolean): void {
       + '</div>'
     : '';
 
-  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles. FILTRO CRÍTICO: los muebles
-  // con `es_inmueble = true` quedan excluidos por completo (solo mudables).
+  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles. El backend ya devuelve SOLO
+  // `tipo='MUEBLE'` con `es_inmueble=False`; `esMuebleMovil` es la red de
+  // seguridad que además excluye cualquier estantería o mueble fijo.
   const mueblesHtml = estructuras
     .map((g) => grupoEstructurasHtml(
       g,
-      esMuebleMudable,
+      esMuebleMovil,
       (n) => contenedorTarjetaHtml(n, { tipoLabel: '🗄️ Mueble con sub-contenedores' }),
     ))
     .join('');

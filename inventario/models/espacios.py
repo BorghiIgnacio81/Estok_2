@@ -250,6 +250,28 @@ class Contenedor(models.Model):
         verbose_name="Mueble inmueble",
         help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
     )
+    # =====================================================================
+    # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO
+    # El listado de la pestaña de Objetos filtra por este campo con el ORM:
+    #   SECCIÓN 1 (Cajas e Inventario Interno) → tipo='CAJA' EXCLUSIVAMENTE.
+    #   SECCIÓN 3 (Muebles y Estructuras Móviles) → tipo='MUEBLE' y
+    #     es_inmueble=False.
+    #   tipo='ESTANTE' (sub-divisiones internas) → EXCLUIDO de todo listado.
+    # El valor se infiere automáticamente al crear desde cualquier modal,
+    # botonera o servicio (ver inventario/services/taxonomia_contenedor.py).
+    # =====================================================================
+    tipo = models.CharField(
+        max_length=10,
+        choices=[
+            ('MUEBLE', 'Mueble Grande'),
+            ('CAJA', 'Caja Móvil Menor'),
+            ('ESTANTE', 'Estante/Cajón Interno'),
+        ],
+        default='CAJA',
+        db_index=True,
+        verbose_name="Tipo de contenedor",
+        help_text="Taxonomía estricta del inventario: MUEBLE (armario/cucheta/ropero), CAJA (contenedor pequeño móvil de objetos) o ESTANTE (sub-división interna de un mueble, excluida de los listados)."
+    )
     espacio_lleno = models.BooleanField(
         default=False,
         verbose_name="Espacio físicamente lleno",
@@ -320,8 +342,27 @@ class Contenedor(models.Model):
         return f"{self.nombre} ({self.ubicacion.nombre})"
 
     def save(self, *args, **kwargs):
-        """Al guardar, genera el QR automáticamente si no existe."""
+        """
+        Al guardar:
+          - En CREACIÓN infiere el `tipo` taxonómico legítimo (MUEBLE/CAJA/
+            ESTANTE) desde los servicios, salvo que el cliente lo haya enviado
+            explícitamente (bandera `_tipo_explicito` que fija el serializer).
+          - Al crear una sub-división interna, promueve al mueble anfitrión a
+            MUEBLE (un contenedor con hijos nunca es una caja).
+          - Genera el QR automáticamente si no existe.
+        """
         from inventario.services.qr_service import QRService
+        from inventario.services.taxonomia_contenedor import (
+            TIPO_MUEBLE,
+            inferir_tipo_contenedor,
+        )
+
+        es_nuevo = self._state.adding
+        if es_nuevo:
+            self.tipo = inferir_tipo_contenedor(
+                self, tipo_explicito=getattr(self, '_tipo_explicito', False),
+            )
+
         super().save(*args, **kwargs)  # Guardar primero para tener ID
         if not self.qr_code_image:
             qr_service = QRService()
@@ -329,3 +370,11 @@ class Contenedor(models.Model):
             if qr_path:
                 self.qr_code_image = qr_path
                 super().save(update_fields=['qr_code_image'])
+
+        # Promoción del anfitrión: al recibir una sub-división interna, un
+        # contenedor RAÍZ deja de ser caja y pasa a ser MUEBLE GRANDE.
+        if es_nuevo and self.parent_contenedor_id:
+            Contenedor.objects.filter(
+                pk=self.parent_contenedor_id,
+                parent_contenedor__isnull=True,
+            ).exclude(tipo=TIPO_MUEBLE).update(tipo=TIPO_MUEBLE)
