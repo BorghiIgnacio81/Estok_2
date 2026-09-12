@@ -559,10 +559,11 @@ class ContenedorViewSet(viewsets.ModelViewSet):
           ?categoria=<uuid> & decision=vender|conservar|tirar|sin_decision
           & publicado_ml=publicado|no_publicado & search=<texto>
 
-        Retorna las estructuras de almacenamiento del Estok activo (cajas,
-        estantes, armarios, muebles) con su desglose interior en cascada
-        (sub-contenedores primero, luego objetos individuales) y los objetos
-        sueltos/sin ubicación en `sueltos`.
+        Retorna SOLO la taxonomía válida del inventario: Muebles Mayores y
+        Contenedores Pequeños (cajas) RAÍZ, cada uno con sus Objetos físicos
+        individuales, más los objetos sueltos/sin ubicación en `sueltos`.
+        Las sub-divisiones internas / estanterías / cajoneras de un mueble
+        quedan estrictamente EXCLUIDAS del listado (filtro ORM estricto).
 
         Consulta optimizada para PostgreSQL: 1 query de contenedores
         (select_related) + 1 query de objetos (select_related + prefetch de

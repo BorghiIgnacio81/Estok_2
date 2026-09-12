@@ -94,7 +94,12 @@ function esInmueble(nodo: NodoContenedor): boolean {
 }
 
 function tieneSubContenedores(nodo: NodoContenedor): boolean {
-  return (nodo.contenido || []).some((x) => x && x.tipo === 'contenedor');
+  // La API aplica la TAXONOMÍA ESTRICTA de la pestaña de Objetos y YA NO anida
+  // sub-contenedores (estanterías) en `contenido`. El conteo real de
+  // sub-divisiones internas del mueble viaja como metadato en
+  // `subcontenedores_count`, para conservar el icono/etiqueta correctos.
+  if ((nodo.contenido || []).some((x) => x && x.tipo === 'contenedor')) return true;
+  return numerico(nodo.subcontenedores_count) > 0;
 }
 
 function imagenContenedor(nodo: NodoContenedor): string {

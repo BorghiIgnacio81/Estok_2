@@ -188,7 +188,12 @@ export const prerender = false;
       // === Info básica ===
       document.getElementById('nombreContenedor')!.textContent = contenedor.nombre;
       document.getElementById('descripcionContenedor')!.textContent = contenedor.descripcion || 'Sin descripción';
-      document.getElementById('ubicacionContenedor')!.textContent = contenedor.ubicacion_nombre || 'Sin ubicación';
+      // Procedencia en caliente: si la caja vive dentro de un contenedor padre
+      // (estante/mueble), se muestra SU nombre actual resuelto por el backend
+      // (procedencia_nombre = self.parent_contenedor.nombre); si es raíz, la
+      // ubicación. Nunca un valor estático cacheado viejo.
+      document.getElementById('ubicacionContenedor')!.textContent =
+        contenedor.procedencia_nombre || contenedor.ubicacion_nombre || 'Sin ubicación';
       document.getElementById('objetosCount')!.textContent = `${contenedor.objetos_count || 0} objetos`;
 
       // === QR ===

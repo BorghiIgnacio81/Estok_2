@@ -82,11 +82,16 @@ class ContenedorSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    parent_contenedor_nombre = serializers.CharField(
-        source='parent_contenedor.nombre',
-        read_only=True,
-        default=None,
-    )
+    # HERENCIA DINÁMICA DE NOMBRES (sin caché): el nombre del padre jamás se
+    # denormaliza ni se lee de un valor estático viejo. Se resuelve EN CALIENTE
+    # contra PostgreSQL vía la FK auto-referencial (self.parent_contenedor).
+    parent_contenedor_nombre = serializers.SerializerMethodField()
+    # Procedencia/ubicación ACTUAL de la pieza: si la caja/estante vive dentro
+    # de otro contenedor, devuelve el nombre del PADRE en vivo; si es raíz, la
+    # ubicación (habitación). Así, al renombrar el estante ("F2-C3" →
+    # "estantería arriba derecha"), las cajas hijas reflejan el nuevo nombre de
+    # forma instantánea en todo el sistema.
+    procedencia_nombre = serializers.SerializerMethodField()
     subcontenedores_count = serializers.SerializerMethodField()
     # Campos de dimensiones y material (editable desde el frontend)
     largo = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, allow_null=True)
@@ -109,6 +114,29 @@ class ContenedorSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.qr_code_image.url)
             return obj.qr_code_image.url
         return None
+
+    def get_parent_contenedor_nombre(self, obj):
+        """
+        Nombre del contenedor padre resuelto EN TIEMPO REAL.
+
+        NUNCA lee un valor denormalizado/cacheado: consulta la FK
+        `self.parent_contenedor` en PostgreSQL en cada serialización, de modo
+        que un renombre del padre se refleja al instante en las cajas hijas.
+        """
+        return obj.parent_contenedor.nombre if obj.parent_contenedor_id else None
+
+    def get_procedencia_nombre(self, obj):
+        """
+        Procedencia/ubicación actual de la pieza, resuelta en vivo.
+
+        Regla de herencia dinámica: si el contenedor vive dentro de otro
+        (caja dentro de un estante/mueble) devuelve el nombre del PADRE;
+        si es raíz, devuelve la ubicación (habitación). Siempre consulta
+        PostgreSQL, jamás un campo estático viejo.
+        """
+        if obj.parent_contenedor_id:
+            return obj.parent_contenedor.nombre
+        return obj.ubicacion.nombre if obj.ubicacion_id else None
 
     def get_objetos_count(self, obj):
         """

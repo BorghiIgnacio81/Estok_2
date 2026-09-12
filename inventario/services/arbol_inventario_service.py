@@ -1,20 +1,26 @@
 """
 Servicio de construcción del ÁRBOL JERÁRQUICO DE INVENTARIO (Objetos).
 
-Reúne en UNA sola respuesta la estructura de almacenamiento del Estok activo:
+Reúne en UNA sola respuesta la TAXONOMÍA VÁLIDA del Estok activo:
 
-  - Contenedores físicos (cajas, estantes, armarios, muebles) anidados por
-    `parent_contenedor` (cascada recursiva de sub-contenedores).
-  - El contenido de cada contenedor (`contenido`): desglose ordenado de todo lo
-    que reside en su interior, primero sub-cajas (recursivo) y luego objetos
+  - Muebles Mayores y Contenedores Pequeños (cajas) RAÍZ (parent_contenedor
+    NULL), agrupados por Ubicación.
+  - El contenido de cada estructura (`contenido`): SOLO sus Objetos físicos
     individuales (FK `Objeto.contenedor`).
   - Objetos sueltos o sin ubicación (sección inferior del listado).
 
+REGLA TAXONÓMICA ESTRICTA (pestaña de Objetos):
+  Las sub-divisiones internas, estanterías o cajoneras de los muebles
+  (Contenedor con `parent_contenedor` != NULL) quedan TERMINANTEMENTE
+  PROHIBIDAS en este listado: NUNCA se devuelven al cliente. El filtro se
+  aplica en el ORM (`parent_contenedor__isnull=True`), no en memoria.
+
 Optimización SQL/ORM en PostgreSQL:
-  - 1 query para contenedores del Estok (select_related('ubicacion')).
+  - 1 query para los contenedores RAÍZ del Estok (select_related('ubicacion')).
+  - 1 query liviana para el mapa de ancestros (id → parent_contenedor_id),
+    usada para reasignar el inventario de una estantería a su mueble raíz.
   - 1 query para objetos del Estok (select_related + prefetch_related('fotos')).
-  - Cero consultas N+1: los árboles, conteos y agrupaciones se resuelven en
-    memoria a partir de los dos resultados prefetcheados.
+  - Cero consultas N+1: los conteos y agrupaciones se resuelven en memoria.
 
 REGLA DE DUALIDAD (Contenedor + Objeto): al crear un mueble/caja raíz mudable,
 el backend inserta un registro ESPEJO en Objeto (mismo nombre, sin coordenadas
@@ -136,26 +142,71 @@ def construir_arbol_estok(
       "resumen": { "contenedores": N, "objetos_ubicados": N, "objetos_sueltos": N }
     }
 
-    Cada Nodo de contenedor incluye "contenido": desglose ordenado de su
-    interior (sub-contenedores recursivos primero, luego objetos individuales).
+    Cada Nodo de contenedor (Mueble Mayor / Caja raíz) incluye "contenido":
+    el desglose de sus Objetos físicos individuales. Las sub-divisiones
+    internas/estanterías NO se incluyen nunca (filtro ORM estricto).
     """
     # ------------------------------------------------------------------
-    # 1) Contenedores del Estok (1 query con select_related)
+    # 1) Contenedores RAÍZ del Estok (1 query con select_related)
+    #
+    # REGLA TAXONÓMICA ESTRICTA DE LA PESTAÑA DE OBJETOS:
+    #   Esta pantalla SOLO lista Muebles Mayores y Contenedores Pequeños
+    #   (cajas) RAÍZ. Quedan TERMINANTEMENTE EXCLUIDAS todas las filas que
+    #   representen sub-divisiones internas, estanterías o cajoneras de un
+    #   mueble (parent_contenedor != NULL): son estructura interna del mueble
+    #   y NO ítems de inventario independientes. El filtro es ORM (no en
+    #   memoria) para que PostgreSQL nunca devuelva esas filas al cliente.
     # ------------------------------------------------------------------
     contenedores = list(
         Contenedor.objects.select_related('ubicacion')
-        .filter(ubicacion__estok_id=estok_id)
+        .filter(
+            ubicacion__estok_id=estok_id,
+            parent_contenedor__isnull=True,
+        )
         .order_by('ubicacion__nombre', 'nombre')
     )
     contenedores_por_id = {str(c.id): c for c in contenedores}
 
-    # Hijos directos por contenedor padre (preservando el orden natural).
-    hijos_por_padre = {}
-    for c in contenedores:
-        if c.parent_contenedor_id is not None:
-            hijos_por_padre.setdefault(str(c.parent_contenedor_id), []).append(c)
-    for lista in hijos_por_padre.values():
-        lista.sort(key=lambda c: _clave_orden_natural(c.nombre))
+    # Mapa liviano de la jerarquía completa (id → parent_contenedor_id) del
+    # Estok: permite subir por la cadena de ancestros SIN devolver las
+    # sub-divisiones internas en el listado. Sirve para reasignar el inventario
+    # de una caja que vive dentro de una estantería a su Mueble Mayor raíz.
+    padres_por_id = {
+        str(cid): pid
+        for cid, pid in Contenedor.objects.filter(
+            ubicacion__estok_id=estok_id,
+        ).values_list('id', 'parent_contenedor_id')
+    }
+
+    # Cantidad REAL de sub-divisiones internas por Mueble Mayor (metadato de
+    # ficha: NO se listan, sólo alimentan el conteo de la tarjeta del mueble).
+    subcontenedores_por_padre = {}
+    for cid, pid in padres_por_id.items():
+        if pid is not None:
+            clave_padre = str(pid)
+            subcontenedores_por_padre[clave_padre] = (
+                subcontenedores_por_padre.get(clave_padre, 0) + 1
+            )
+
+    def _raiz_de(contenedor_id):
+        """
+        Sube por la cadena de contenedores padre hasta el RAÍZ del Estok.
+
+        Devuelve el id (str) del Mueble Mayor/Caja raíz, o None si el id no
+        pertenece a ningún contenedor del Estok (registro fantasma/borrado).
+        Se apoya en `padres_por_id` (una sola query) → cero N+1.
+        """
+        cursor = str(contenedor_id)
+        visitados = set()
+        while cursor is not None and cursor not in visitados:
+            visitados.add(cursor)
+            if cursor not in padres_por_id:
+                return None
+            padre = padres_por_id.get(cursor)
+            if padre is None:
+                return cursor
+            cursor = str(padre)
+        return None
 
     # ------------------------------------------------------------------
     # 2) Objetos del Estok (1 query con select_related + prefetch fotos)
@@ -178,8 +229,13 @@ def construir_arbol_estok(
         contenedor_id = od.get('contenedor')
         if not contenedor_id:
             objetos_sueltos.append(od)
-        elif str(contenedor_id) in contenedores_por_id:
-            objetos_por_contenedor.setdefault(str(contenedor_id), []).append(od)
+            continue
+        # Los objetos que cuelgan de una sub-división interna (estantería) se
+        # reasignan a su Mueble Mayor raíz: la pantalla sólo estructura Muebles
+        # Mayores, Cajas y Objetos, jamás la estantería intermedia.
+        raiz_id = _raiz_de(contenedor_id)
+        if raiz_id is not None and raiz_id in contenedores_por_id:
+            objetos_por_contenedor.setdefault(raiz_id, []).append(od)
         else:
             # Contenedor fantasma (borrado/migrado): el inventario jamás se pierde.
             od['contenedor_ausente'] = True
@@ -200,46 +256,33 @@ def construir_arbol_estok(
             contenedor = contenedores_por_id.get(cid)
             if contenedor is None:
                 continue
+            # Con el filtro ORM estricto TODA fila incluida es RAÍZ, por lo que
+            # no hace falta subir por ancestros: basta con que tenga contenido.
             tiene_contenido_real = any(
                 not _es_registro_espejo(o, contenedor) for o in objetos
             )
-            if not tiene_contenido_real:
-                continue
-            cursor = contenedor
-            while cursor is not None:
-                contenedores_incluidos.add(str(cursor.id))
-                if (
-                    cursor.parent_contenedor_id is not None
-                    and str(cursor.parent_contenedor_id) in contenedores_por_id
-                ):
-                    cursor = contenedores_por_id[str(cursor.parent_contenedor_id)]
-                else:
-                    break
+            if tiene_contenido_real:
+                contenedores_incluidos.add(cid)
     else:
         contenedores_incluidos = set(contenedores_por_id.keys())
 
     # ------------------------------------------------------------------
-    # 5) Nodo recursivo de contenedor (con su desglose "contenido")
+    # 5) Nodo de contenedor RAÍZ (con su desglose "contenido")
     # ------------------------------------------------------------------
     def _nodo_contenedor(contenedor):
-        hijos_incluidos = [
-            h for h in hijos_por_padre.get(str(contenedor.id), [])
-            if str(h.id) in contenedores_incluidos
-        ]
         objetos_directos = [
             od for od in objetos_por_contenedor.get(str(contenedor.id), [])
             if not _es_registro_espejo(od, contenedor)
         ]
 
-        contenido = []
-        for hijo in hijos_incluidos:
-            contenido.append(_nodo_contenedor(hijo))
-        for od in objetos_directos:
-            contenido.append({**od, 'tipo': 'objeto'})
+        # La pantalla NO anida sub-contenedores: el "contenido" de un Mueble
+        # Mayor/Caja raíz son exclusivamente sus Objetos físicos individuales.
+        contenido = [{**od, 'tipo': 'objeto'} for od in objetos_directos]
+        clave = str(contenedor.id)
 
         return {
             'tipo': 'contenedor',
-            'id': str(contenedor.id),
+            'id': clave,
             'nombre': contenedor.nombre,
             'descripcion': contenedor.descripcion or '',
             'ubicacion': (
@@ -253,11 +296,10 @@ def construir_arbol_estok(
             'grid_filas': contenedor.grid_filas,
             'grid_columnas': contenedor.grid_columnas,
             'grid_filas_config': contenedor.grid_filas_config,
-            'parent_contenedor': (
-                str(contenedor.parent_contenedor_id)
-                if contenedor.parent_contenedor_id else None
-            ),
-            'subcontenedores_count': len(hijos_incluidos),
+            'parent_contenedor': None,
+            # Metadato real de ficha: cuántas sub-divisiones internas tiene el
+            # mueble (NO se listan: sólo caracterizan la tarjeta).
+            'subcontenedores_count': subcontenedores_por_padre.get(clave, 0),
             'objetos_count': len(objetos_directos),
             'contenido': contenido,
         }

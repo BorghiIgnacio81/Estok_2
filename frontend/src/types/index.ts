@@ -76,6 +76,8 @@ export interface Contenedor {
   ubicacion_nombre: string;
   parent_contenedor: string | null;
   parent_contenedor_nombre: string | null;
+  /** Procedencia dinámica: nombre del contenedor padre si existe, si no la ubicación. */
+  procedencia_nombre?: string | null;
   subcontenedores_count: number;
   qr_code_image: string | null;
   qr_code_url: string | null;
