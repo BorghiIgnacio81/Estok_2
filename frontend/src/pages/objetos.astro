@@ -1,9 +1,11 @@
 ---
 // Listado jerárquico de objetos (inventario en cascada).
-// Prioriza las estructuras de almacenamiento del Estok activo (cajas, estantes,
-// armarios y muebles) desglosando en viñetas su contenido interno (sub-cajas
-// recursivas primero, luego objetos). Los objetos sueltos van en la sección
-// inferior. La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
+// La pantalla se divide en TRES secciones descendentes que heredan de forma
+// continua la misma textura y paleta corporativa:
+//   SECCIÓN 1 · 📦 Cajas e Inventario Interno (minimapa ULTRA-MINI naranja)
+//   SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
+//   SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye es_inmueble = true)
+// La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
 // Payload: GET /api/contenedores/arbol/ (backend optimizado, cero N+1).
 
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -91,27 +93,49 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     <!-- Resumen de la vista actual -->
     <div id="resumenInventario" class="hidden mb-6"></div>
 
-    <!-- SECCIÓN SUPERIOR · Estructuras de almacenamiento (cajas/armarios) -->
-    <section id="seccionEstructuras" class="hidden mb-10">
-      <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900">🗄️ Estructuras de almacenamiento</h2>
-          <p class="text-sm text-gray-500">Cajas y armarios del Estok activo con el desglose de su contenido interno</p>
-        </div>
-      </div>
-      <div id="estructurasContainer" class="space-y-6"></div>
-    </section>
+    <!-- =====================================================================
+         INVENTARIO JERÁRQUICO · tres bloques secuenciales descendentes que
+         heredan la MISMA textura y paleta corporativa (lienzo continuo):
+           SECCIÓN 1 · 📦 Cajas e Inventario Interno  (minimapa ULTRA-MINI naranja)
+           SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
+           SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye es_inmueble)
+         El HTML lo inyecta src/lib/listadoJerarquicoObjetos.ts.
+         ===================================================================== -->
+    <div id="seccionesInventario" class="hidden secciones-inventario">
 
-    <!-- SECCIÓN INFERIOR · Objetos sueltos o sin ubicación -->
-    <section id="seccionSueltos" class="hidden">
-      <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-        <div>
-          <h2 class="text-2xl font-bold text-gray-900">📦 Objetos sueltos o sin ubicación</h2>
-          <p class="text-sm text-gray-500">Ítems que no residen dentro de una caja/armario · consistencia del inventario total</p>
+      <!-- SECCIÓN 1 · Cajas e Inventario Interno -->
+      <section id="seccionCajas" class="hidden mb-10">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">📦 Cajas e Inventario Interno</h2>
+            <p class="text-sm text-gray-500">Contenedores pequeños del Estok activo, con el minimapa de su ubicación y su contenido cerrado por defecto</p>
+          </div>
         </div>
-      </div>
-      <div id="objetosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-    </section>
+        <div id="cajasContainer" class="space-y-6"></div>
+      </section>
+
+      <!-- SECCIÓN 2 · Objetos Sueltos o sin Caja -->
+      <section id="seccionSueltos" class="hidden mb-10">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">🧸 Objetos Sueltos o sin Caja</h2>
+            <p class="text-sm text-gray-500">Ítems que no residen dentro de una caja/mueble · consistencia del inventario total</p>
+          </div>
+        </div>
+        <div id="objetosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+      </section>
+
+      <!-- SECCIÓN 3 · Muebles y Estructuras Móviles -->
+      <section id="seccionMuebles" class="hidden">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">🗄 Muebles y Estructuras Móviles</h2>
+            <p class="text-sm text-gray-500">Contenedores grandes mudables · los muebles fijos (es_inmueble) quedan excluidos</p>
+          </div>
+        </div>
+        <div id="mueblesContainer" class="space-y-6"></div>
+      </section>
+    </div>
   </div>
 
   <script>
@@ -123,20 +147,55 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
     /* Acordeón nativo <details>: revelado fluido y sin marcador triangular por defecto.
        El HTML de las tarjetas/viñetas se inyecta desde listadoJerarquicoObjetos.ts,
        por eso estos estilos son globales (no aplican scoping de Astro). */
-    #seccionEstructuras summary {
+    #seccionesInventario summary {
       list-style: none;
     }
-    #seccionEstructuras summary::-webkit-details-marker {
+    #seccionesInventario summary::-webkit-details-marker {
       display: none;
     }
-    #seccionEstructuras summary::marker {
+    #seccionesInventario summary::marker {
       content: '';
     }
-    #seccionEstructuras details .estok-cuerpo-detalle {
+    #seccionesInventario details .estok-cuerpo-detalle {
       overflow: hidden;
     }
-    #seccionEstructuras details[open] .estok-cuerpo-detalle {
+    #seccionesInventario details[open] .estok-cuerpo-detalle {
       animation: estok-reveal 0.22s ease-out;
+    }
+
+    /* Textura y paleta corporativa CONTINUA compartida por las tres secciones
+       del inventario (cajas · sueltos · muebles): un único lienzo ámbar. */
+    .secciones-inventario {
+      background-image:
+        radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 78% 70%, rgba(255, 255, 255, 0.35) 0 1.5px, transparent 2.5px),
+        repeating-linear-gradient(0deg, rgba(146, 64, 14, 0.05) 0 1px, transparent 1px 27px),
+        linear-gradient(180deg, #fffbeb 0%, #fde68a 100%);
+      border-radius: 1rem;
+      padding: 1.25rem 1rem;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(120, 53, 15, 0.06);
+    }
+
+    /* Minimapa ULTRA-MINI de las cajas (esquina superior de cada tarjeta).
+       El HTML lo inyecta minimapaContenedor.ts → mapaJerarquico.ts y el CSS base
+       (.minimapa*) lo inyecta inyectarCssMinimapa() en runtime. */
+    .minimapa-planta {
+      display: inline-block;
+      padding: 3px;
+      border: 0.5px solid #fdba74;
+      border-radius: 6px;
+      background: #fff7ed;
+    }
+    .minimapa-planta .minimapa-grilla {
+      max-width: 40px;
+    }
+    .minimapa-planta .minimapa-titulo {
+      font-size: 6px;
+    }
+    .minimapa-planta-vacia {
+      font-size: 6px;
+      color: #b45309;
+      padding: 2px 4px;
     }
     @keyframes estok-reveal {
       from {

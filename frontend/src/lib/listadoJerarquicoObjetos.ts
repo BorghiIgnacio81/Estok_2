@@ -1,18 +1,27 @@
 // =============================================================================
 // LISTADO JERÁRQUICO DE OBJETOS (árbol de almacenamiento en cascada)
 // -----------------------------------------------------------------------------
-// Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y renderiza:
-//   1. SECCIÓN SUPERIOR · Estructuras de almacenamiento del Estok activo
-//      (cajas, estantes, armarios y muebles) como tarjetas imponentes, cada una
-//      con un bloque de viñetas que desglosa su contenido interno en cascada
-//      (sub-cajas recursivas primero · objetos individuales después).
-//   2. SECCIÓN INFERIOR · Objetos sueltos o sin ubicación (inventario total).
-// Responde a los filtros (Decisión, Categoría, Publicación ML y búsqueda)
-// re-fetchando el payload con los mismos query params del listado /objetos/.
+// Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y renderiza
+// la pantalla en TRES secciones jerárquicas descendentes:
+//   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno
+//      Contenedores PEQUEÑOS (sin sub-contenedores) del Estok activo. Cada
+//      tarjeta muestra su MINIMAPA ULTRA-MINI en la esquina superior, pintando
+//      en NARANJA (#f97316) el cuadrante exacto de la habitación donde reside.
+//      El contenido interno nace CERRADO (<details> sin atributo open).
+//   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
+//      Cuadrícula independiente de los objetos individuales sin contenedor.
+//   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles
+//      Contenedores GRANDES (con sub-contenedores) creados por el usuario.
+//      FILTRO CRÍTICO: se excluyen de forma absoluta los muebles con
+//      `es_inmueble = true` (solo se renderizan los mudables).
+// Las tres secciones comparten la misma textura/paleta corporativa continua y
+// responden de forma reactiva a los filtros (Decisión, Categoría, Publicación ML
+// y búsqueda) re-fetchando el payload con los query params del listado.
 // Auth centralizada: getAuthHeaders() desde src/services/auth (no se duplica).
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { cargarContextoMinimapa, minimapaUbicacionHtml } from './minimapaContenedor';
 
 // ---------------------------------------------------------------------------
 // Tipos del payload (contrato con inventario/services/arbol_inventario_service)
@@ -104,6 +113,23 @@ function tieneSubContenedores(nodo: NodoContenedor): boolean {
 
 function imagenContenedor(nodo: NodoContenedor): string {
   return esInmueble(nodo) || tieneSubContenedores(nodo) ? IMG_ARMARIO : IMG_CAJA;
+}
+
+/**
+ * Caja = Contenedor PEQUEÑO: sin sub-contenedores internos y sin carácter de
+ * mueble inmueble. Es la materia prima de la SECCIÓN 1 del listado.
+ */
+function esCaja(nodo: NodoContenedor): boolean {
+  return !esInmueble(nodo) && !tieneSubContenedores(nodo);
+}
+
+/**
+ * Mueble mudable = Contenedor GRANDE (con sub-contenedores) que el usuario
+ * puede mover. FILTRO CRÍTICO de la SECCIÓN 3: los muebles inmuebles fijos
+ * (`es_inmueble = true`) quedan EXCLUIDOS de forma estricta y absoluta.
+ */
+function esMuebleMudable(nodo: NodoContenedor): boolean {
+  return !esInmueble(nodo) && tieneSubContenedores(nodo);
 }
 
 function chipDecision(obj: ObjetoArbol): string {
@@ -199,13 +225,22 @@ function contenidoBulletsHtml(items: Array<NodoContenedor | ObjetoArbol>, profun
   return html;
 }
 
-/** Tarjeta de contenedor (caja / estante / armario / mueble) colapsada por defecto. */
-function contenedorTarjetaHtml(nodo: NodoContenedor): string {
+interface TarjetaOpts {
+  /** Etiqueta de tipo mostrada en el subtítulo de la tarjeta. */
+  tipoLabel?: string;
+  /** HTML del minimapa ULTRA-MINI anclado a la esquina superior del bloque. */
+  minimapa?: string;
+  /** Alineación vertical del lateral: 'start' cuando hay minimapa, si no 'center'. */
+  alinear?: 'start' | 'center';
+}
+
+/** Tarjeta de contenedor (caja / mueble) colapsada por defecto. */
+function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): string {
   const contenido = nodo.contenido || [];
   const tieneContenido = contenido.length > 0;
-  const tipoLabel = esInmueble(nodo)
+  const tipoLabel = opts.tipoLabel ?? (esInmueble(nodo)
     ? '📌 Mueble fijo (inmueble)'
-    : (tieneSubContenedores(nodo) ? '🗄️ Mueble con sub-contenedores' : '📦 Caja/Contenedor');
+    : (tieneSubContenedores(nodo) ? '🗄️ Mueble con sub-contenedores' : '📦 Caja/Contenedor'));
   const subtitulo = [
     tipoLabel,
     nodo.material ? esc(nodo.material) : '',
@@ -219,25 +254,33 @@ function contenedorTarjetaHtml(nodo: NodoContenedor): string {
     + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
     + '</span></span>';
 
+  // Bloque lateral superior: minimapa ULTRA-MINI (opcional) + acción "Abrir".
+  const accion = '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>';
+  const lateral = '<span class="flex shrink-0 flex-col items-end gap-2">'
+    + (opts.minimapa || '')
+    + '<span class="flex items-center gap-1.5">' + accion
+    + (tieneContenido ? chevronSvg('h-4 w-4') : '')
+    + '</span></span>';
+
+  const alineacion = opts.alinear === 'start' ? 'items-start' : 'items-center';
+
   // Contenedor VACÍO: tarjeta compacta estática (no hay nada que expandir).
   if (!tieneContenido) {
-    return '<article class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
-      + '<div class="flex items-center justify-between gap-3 p-4">' + identidad
-      + '<a href="/contenedores/' + esc(nodo.id) + '" class="shrink-0 inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>'
+    return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+      + '<div class="flex ' + alineacion + ' justify-between gap-3 p-4">'
+      + '<span class="min-w-0 flex-1">' + identidad + '</span>'
+      + lateral
       + '</div>'
       + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">— Sin contenido —</p></div>'
       + '</article>';
   }
 
   // Acordeón nativo HTML5: nace CERRADO (sin atributo open) para máxima densidad.
-  return '<article class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
+  return '<article class="relative bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base">'
     + '<details class="group cursor-pointer">'
-    + '<summary class="flex items-center justify-between gap-3 p-4 list-none font-bold text-slate-800 cursor-pointer select-none [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors duration-150">'
-    + identidad
-    + '<span class="flex shrink-0 items-center gap-1.5">'
-    + '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>'
-    + chevronSvg('h-4 w-4')
-    + '</span>'
+    + '<summary class="flex ' + alineacion + ' justify-between gap-3 p-4 list-none font-bold text-slate-800 cursor-pointer select-none [&::-webkit-details-marker]:hidden hover:bg-slate-50 transition-colors duration-150">'
+    + '<span class="min-w-0 flex-1">' + identidad + '</span>'
+    + lateral
     + '</summary>'
     + '<div class="estok-cuerpo-detalle px-4 pb-4 pt-1">'
     + '<p class="text-[11px] uppercase tracking-wider text-gray-400 font-bold mb-2">Contenido</p>'
@@ -246,13 +289,23 @@ function contenedorTarjetaHtml(nodo: NodoContenedor): string {
     + '</details></article>';
 }
 
-/** Grupo de estructuras de una misma Ubicación (espacio de la casa). */
-function grupoEstructurasHtml(grupo: GrupoEstructura): string {
-  const contenedoresHtml = (grupo.contenedores || []).map((n) => contenedorTarjetaHtml(n)).join('');
+/**
+ * Grupo de contenedores de una misma Ubicación (espacio de la casa), filtrado
+ * por sección. Devuelve '' cuando la ubicación no aporta tarjetas a esa sección
+ * (así no se renderizan cabeceras vacías).
+ */
+function grupoEstructurasHtml(
+  grupo: GrupoEstructura,
+  filtrar: (nodo: NodoContenedor) => boolean,
+  tarjeta: (nodo: NodoContenedor) => string,
+): string {
+  const contenedores = (grupo.contenedores || []).filter(filtrar);
+  if (contenedores.length === 0) return '';
+  const contenedoresHtml = contenedores.map(tarjeta).join('');
   return '<section class="bg-gradient-to-b from-slate-50 to-white border border-gray-200 rounded-2xl p-4 sm:p-5">'
     + '<div class="flex items-center justify-between gap-3 mb-4">'
     + '<h3 class="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2"><span class="text-xl">📍</span> ' + esc(grupo.ubicacion_nombre) + '</h3>'
-    + '<span class="text-xs font-semibold text-gray-400 bg-white border border-gray-200 px-2.5 py-1 rounded-full">' + (grupo.contenedores || []).length + ' estructura(s)</span>'
+    + '<span class="text-xs font-semibold text-gray-400 bg-white border border-gray-200 px-2.5 py-1 rounded-full">' + contenedores.length + ' elemento(s)</span>'
     + '</div>'
     + '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">' + contenedoresHtml + '</div>'
     + '</section>';
@@ -292,8 +345,11 @@ let retryBtn: HTMLElement | null = null;
 let emptyEl: HTMLElement | null = null;
 let sinResultadosEl: HTMLElement | null = null;
 let resumenEl: HTMLElement | null = null;
-let seccionEstructuras: HTMLElement | null = null;
-let estructurasContainer: HTMLElement | null = null;
+let seccionesWrap: HTMLElement | null = null;
+let seccionCajas: HTMLElement | null = null;
+let cajasContainer: HTMLElement | null = null;
+let seccionMuebles: HTMLElement | null = null;
+let mueblesContainer: HTMLElement | null = null;
 let seccionSueltos: HTMLElement | null = null;
 let gridSueltos: HTMLElement | null = null;
 let filtroDecision: HTMLSelectElement | null = null;
@@ -375,8 +431,10 @@ function render(payload: PayloadArbol): void {
   }
 
   if (!hayDatos) {
-    mostrar(seccionEstructuras, false);
+    mostrar(seccionCajas, false);
     mostrar(seccionSueltos, false);
+    mostrar(seccionMuebles, false);
+    mostrar(seccionesWrap, false);
     mostrar(resumenEl, false);
     if (payload.filtros_activos) {
       mostrar(sinResultadosEl, true);
@@ -389,15 +447,56 @@ function render(payload: PayloadArbol): void {
   mostrar(sinResultadosEl, false);
   mostrar(emptyEl, false);
 
-  if (estructurasContainer) {
-    estructurasContainer.innerHTML = estructuras.map((g) => grupoEstructurasHtml(g)).join('');
-  }
-  mostrar(seccionEstructuras, estructuras.length > 0);
+  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. Cada caja lleva su MINIMAPA
+  // ULTRA-MINI en la esquina superior pintando en NARANJA (#f97316) el cuadrante
+  // exacto de la habitación donde reside, y su contenido nace cerrado (<details>).
+  const cajasHtml = estructuras
+    .map((g) => grupoEstructurasHtml(
+      g,
+      esCaja,
+      (n) => contenedorTarjetaHtml(n, {
+        tipoLabel: '📦 Caja / Contenedor pequeño',
+        minimapa: minimapaUbicacionHtml(n.ubicacion),
+        alinear: 'start',
+      }),
+    ))
+    .join('');
 
+  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles. FILTRO CRÍTICO: los muebles
+  // con `es_inmueble = true` quedan excluidos por completo (solo mudables).
+  const mueblesHtml = estructuras
+    .map((g) => grupoEstructurasHtml(
+      g,
+      esMuebleMudable,
+      (n) => contenedorTarjetaHtml(n, { tipoLabel: '🗄️ Mueble con sub-contenedores' }),
+    ))
+    .join('');
+
+  if (cajasContainer) cajasContainer.innerHTML = cajasHtml;
+  if (mueblesContainer) mueblesContainer.innerHTML = mueblesHtml;
   if (gridSueltos) {
     gridSueltos.innerHTML = sueltos.map((o) => objetoSueltoTarjetaHtml(o)).join('');
   }
+
+  const haySecciones = cajasHtml.length > 0 || sueltos.length > 0 || mueblesHtml.length > 0;
+
+  mostrar(seccionCajas, cajasHtml.length > 0);
   mostrar(seccionSueltos, sueltos.length > 0);
+  mostrar(seccionMuebles, mueblesHtml.length > 0);
+  // El lienzo de textura corporativa solo se muestra si hay alguna sección.
+  mostrar(seccionesWrap, haySecciones);
+
+  // Caso borde: si TODOS los contenedores del Estok son muebles inmuebles fijos
+  // (excluidos de forma absoluta por el FILTRO CRÍTICO) y no hay objetos sueltos,
+  // no queda nada que listar → se degrada al estado vacío en vez de una pantalla muda.
+  if (!haySecciones) {
+    mostrar(resumenEl, false);
+    if (payload.filtros_activos) {
+      mostrar(sinResultadosEl, true);
+    } else {
+      mostrar(emptyEl, true);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -534,8 +633,11 @@ export function initListadoJerarquicoObjetos(): void {
   emptyEl = document.getElementById('emptyState');
   sinResultadosEl = document.getElementById('sinResultados');
   resumenEl = document.getElementById('resumenInventario');
-  seccionEstructuras = document.getElementById('seccionEstructuras');
-  estructurasContainer = document.getElementById('estructurasContainer');
+  seccionesWrap = document.getElementById('seccionesInventario');
+  seccionCajas = document.getElementById('seccionCajas');
+  cajasContainer = document.getElementById('cajasContainer');
+  seccionMuebles = document.getElementById('seccionMuebles');
+  mueblesContainer = document.getElementById('mueblesContainer');
   seccionSueltos = document.getElementById('seccionSueltos');
   gridSueltos = document.getElementById('objetosGrid');
   filtroDecision = document.getElementById('filtroDecision') as HTMLSelectElement | null;
@@ -545,16 +647,23 @@ export function initListadoJerarquicoObjetos(): void {
   exportCsvBtn = document.getElementById('exportCsvBtn');
 
   mostrar(sinResultadosEl, false);
-  mostrar(seccionEstructuras, false);
+  mostrar(seccionesWrap, false);
+  mostrar(seccionCajas, false);
   mostrar(seccionSueltos, false);
+  mostrar(seccionMuebles, false);
   enlazarEventos();
+
+  // El minimapa ULTRA-MINI de cada caja necesita el plano de ubicaciones y la
+  // grilla del macro-Estok: se cargan una sola vez y la primera carga del árbol
+  // espera ese contexto para poder pintar los cuadrantes en naranja.
+  const contextoMinimapa = cargarContextoMinimapa();
 
   // Navegación cruzada desde el Dashboard: /objetos?categoria_id=XX (en caliente).
   const params = new URLSearchParams(window.location.search);
   const catId = params.get('categoria_id');
 
   if (catId) {
-    cargarCategoriasFiltros().then(() => {
+    Promise.all([contextoMinimapa, cargarCategoriasFiltros()]).then(() => {
       const existe = filtroCategoria ? Array.from(filtroCategoria.options).some((opt) => opt.value === catId) : false;
       if (existe && filtroCategoria) {
         filtroCategoria.value = catId;
@@ -564,8 +673,7 @@ export function initListadoJerarquicoObjetos(): void {
       }
     });
   } else {
-    void cargarCategoriasFiltros();
-    void cargar();
+    Promise.all([contextoMinimapa, cargarCategoriasFiltros()]).then(() => void cargar());
   }
 }
 
