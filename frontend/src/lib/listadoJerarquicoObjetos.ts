@@ -4,10 +4,12 @@
 // Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y renderiza
 // la pantalla en TRES secciones jerárquicas descendentes:
 //   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno
-//      Contenedores PEQUEÑOS (sin sub-contenedores) del Estok activo. Cada
-//      tarjeta muestra su MINIMAPA ULTRA-MINI en la esquina superior, pintando
-//      en NARANJA (#f97316) el cuadrante exacto de la habitación donde reside.
-//      El contenido interno nace CERRADO (<details> sin atributo open).
+//      TODAS las Cajas (Contenedores Pequeños) del Estok activo, listadas de
+//      forma DIRECTA e INDEPENDIENTE del mueble padre (incluye las cajas
+//      anidadas dentro de roperos/archivadores). Cada tarjeta muestra en su
+//      esquina la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble) con la
+//      parte activa en NARANJA (#f97316). El contenido nace CERRADO (<details>
+//      sin atributo open). La lógica vive en src/lib/rutaCajaMinimapas.ts.
 //   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
 //      Cuadrícula independiente de los objetos individuales sin contenedor.
 //   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles
@@ -21,7 +23,13 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { cargarContextoMinimapa, minimapaUbicacionHtml } from './minimapaContenedor';
+import {
+  cargarContextoRutaCaja,
+  cargarObjetosRutaCaja,
+  cajasDelEstok,
+  rutaMinimapasHtml,
+} from './rutaCajaMinimapas';
+import type { NodoCaja } from './rutaCajaMinimapas';
 
 // ---------------------------------------------------------------------------
 // Tipos del payload (contrato con inventario/services/arbol_inventario_service)
@@ -113,14 +121,6 @@ function tieneSubContenedores(nodo: NodoContenedor): boolean {
 
 function imagenContenedor(nodo: NodoContenedor): string {
   return esInmueble(nodo) || tieneSubContenedores(nodo) ? IMG_ARMARIO : IMG_CAJA;
-}
-
-/**
- * Caja = Contenedor PEQUEÑO: sin sub-contenedores internos y sin carácter de
- * mueble inmueble. Es la materia prima de la SECCIÓN 1 del listado.
- */
-function esCaja(nodo: NodoContenedor): boolean {
-  return !esInmueble(nodo) && !tieneSubContenedores(nodo);
 }
 
 /**
@@ -386,7 +386,20 @@ async function cargar(): Promise<void> {
   mostrar(emptyEl, false);
   mostrar(sinResultadosEl, false);
   mostrar(loadingEl, true);
+  const texto = (searchInput && searchInput.value ? searchInput.value : '').trim();
+  const search = texto.length >= 2 ? texto : '';
+  // Con filtros activos la SECCIÓN 1 solo muestra cajas con objetos coincidentes.
+  const soloConContenido = Boolean(search || filtros.decision || filtros.categoria || filtros.publicado_ml);
   try {
+    // Las cajas (SECCIÓN 1) se resuelven con sus PROPIOS objetos, de forma
+    // independiente del mueble que las contiene: se cargan en paralelo al árbol.
+    const objetosPromise = cargarObjetosRutaCaja({
+      decision: filtros.decision,
+      categoria: filtros.categoria,
+      publicado_ml: filtros.publicado_ml,
+      search,
+    }).catch(() => undefined);
+
     const res = await fetch(construirUrlArbol(), { headers: getAuthHeaders() });
     if (res.status === 401) {
       window.location.href = '/login';
@@ -396,7 +409,8 @@ async function cargar(): Promise<void> {
       throw new Error('Error al consultar el árbol de inventario (' + res.status + ').');
     }
     const payload = (await res.json()) as PayloadArbol;
-    render(payload);
+    await objetosPromise;
+    render(payload, soloConContenido);
   } catch (err: any) {
     if (errorMsgEl) {
       errorMsgEl.textContent = err && err.message
@@ -413,11 +427,14 @@ async function cargar(): Promise<void> {
 // Render del árbol jerárquico
 // ---------------------------------------------------------------------------
 
-function render(payload: PayloadArbol): void {
+function render(payload: PayloadArbol, soloConContenido: boolean): void {
   const estructuras = payload.estructuras || [];
   const sueltos = payload.sueltos || [];
   const resumen = payload.resumen || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
-  const hayDatos = estructuras.length > 0 || sueltos.length > 0;
+  // SECCIÓN 1 · Cajas (Contenedores Pequeños) resueltas de forma DIRECTA e
+  // INDEPENDIENTE del mueble padre (incluye las cajas anidadas en roperos).
+  const cajas = cajasDelEstok({ soloConContenido });
+  const hayDatos = cajas.length > 0 || estructuras.length > 0 || sueltos.length > 0;
 
   if (resumenEl) {
     const titulo = payload.filtros_activos ? '🔍 Resultados filtrados' : '🧺 Vista de inventario en cascada';
@@ -447,20 +464,19 @@ function render(payload: PayloadArbol): void {
   mostrar(sinResultadosEl, false);
   mostrar(emptyEl, false);
 
-  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. Cada caja lleva su MINIMAPA
-  // ULTRA-MINI en la esquina superior pintando en NARANJA (#f97316) el cuadrante
-  // exacto de la habitación donde reside, y su contenido nace cerrado (<details>).
-  const cajasHtml = estructuras
-    .map((g) => grupoEstructurasHtml(
-      g,
-      esCaja,
-      (n) => contenedorTarjetaHtml(n, {
-        tipoLabel: '📦 Caja / Contenedor pequeño',
-        minimapa: minimapaUbicacionHtml(n.ubicacion),
-        alinear: 'start',
-      }),
-    ))
-    .join('');
+  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. Se listan TODAS las cajas del
+  // Estok activo directamente (sin agrupar por mueble padre). Cada tarjeta lleva
+  // la RED DE MINIMAPAS EN CADENA (Piso → Habitación → Mueble) en su esquina y su
+  // contenido nace cerrado por defecto (<details> sin atributo open).
+  const cajasHtml = cajas.length
+    ? '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
+      + cajas.map((caja: NodoCaja) => contenedorTarjetaHtml(caja, {
+          tipoLabel: '📦 Caja / Contenedor pequeño',
+          minimapa: rutaMinimapasHtml(caja),
+          alinear: 'start',
+        })).join('')
+      + '</div>'
+    : '';
 
   // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles. FILTRO CRÍTICO: los muebles
   // con `es_inmueble = true` quedan excluidos por completo (solo mudables).
@@ -653,17 +669,18 @@ export function initListadoJerarquicoObjetos(): void {
   mostrar(seccionMuebles, false);
   enlazarEventos();
 
-  // El minimapa ULTRA-MINI de cada caja necesita el plano de ubicaciones y la
-  // grilla del macro-Estok: se cargan una sola vez y la primera carga del árbol
-  // espera ese contexto para poder pintar los cuadrantes en naranja.
-  const contextoMinimapa = cargarContextoMinimapa();
+  // La red de minimapas en cadena de cada caja necesita el plano de ubicaciones,
+  // TODOS los contenedores del Estok (incluidas las cajas anidadas) y la grilla
+  // del macro-Estok: se cargan una sola vez y la primera carga del árbol espera
+  // ese contexto para poder pintar la ruta (Piso → Habitación → Mueble).
+  const contextoRuta = cargarContextoRutaCaja();
 
   // Navegación cruzada desde el Dashboard: /objetos?categoria_id=XX (en caliente).
   const params = new URLSearchParams(window.location.search);
   const catId = params.get('categoria_id');
 
   if (catId) {
-    Promise.all([contextoMinimapa, cargarCategoriasFiltros()]).then(() => {
+    Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => {
       const existe = filtroCategoria ? Array.from(filtroCategoria.options).some((opt) => opt.value === catId) : false;
       if (existe && filtroCategoria) {
         filtroCategoria.value = catId;
@@ -673,7 +690,7 @@ export function initListadoJerarquicoObjetos(): void {
       }
     });
   } else {
-    Promise.all([contextoMinimapa, cargarCategoriasFiltros()]).then(() => void cargar());
+    Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => void cargar());
   }
 }
 

@@ -14,6 +14,9 @@ import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import EmptyState from '../components/EmptyState.astro';
 import CategoriaCreator from '../components/CategoriaCreator.astro';
+// Estilos de la red de MINIMAPAS EN CADENA (.mini-anidado*) reutilizados por las
+// tarjetas de caja de la SECCIÓN 1. No se duplican: viven en un único archivo.
+import '../styles/almacenamiento-portales.css';
 ---
 
 <AuthGuard />
@@ -108,7 +111,7 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
         <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
           <div>
             <h2 class="text-2xl font-bold text-gray-900">📦 Cajas e Inventario Interno</h2>
-            <p class="text-sm text-gray-500">Contenedores pequeños del Estok activo, con el minimapa de su ubicación y su contenido cerrado por defecto</p>
+            <p class="text-sm text-gray-500">Cajas del Estok activo (incluidas las guardadas dentro de muebles), con la ruta de minimapas Piso → Habitación → Mueble y su contenido cerrado por defecto</p>
           </div>
         </div>
         <div id="cajasContainer" class="space-y-6"></div>
@@ -176,27 +179,10 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(120, 53, 15, 0.06);
     }
 
-    /* Minimapa ULTRA-MINI de las cajas (esquina superior de cada tarjeta).
-       El HTML lo inyecta minimapaContenedor.ts → mapaJerarquico.ts y el CSS base
-       (.minimapa*) lo inyecta inyectarCssMinimapa() en runtime. */
-    .minimapa-planta {
-      display: inline-block;
-      padding: 3px;
-      border: 0.5px solid #fdba74;
-      border-radius: 6px;
-      background: #fff7ed;
-    }
-    .minimapa-planta .minimapa-grilla {
-      max-width: 40px;
-    }
-    .minimapa-planta .minimapa-titulo {
-      font-size: 6px;
-    }
-    .minimapa-planta-vacia {
-      font-size: 6px;
-      color: #b45309;
-      padding: 2px 4px;
-    }
+    /* Red de MINIMAPAS EN CADENA de las tarjetas de caja (SECCIÓN 1).
+       El HTML lo inyecta rutaCajaMinimapas.ts → minimapasAnidados.ts y los
+       estilos .mini-anidado* se reutilizan de styles/almacenamiento-portales.css
+       (importado en el frontmatter): no se duplican reglas acá. */
     @keyframes estok-reveal {
       from {
         opacity: 0;

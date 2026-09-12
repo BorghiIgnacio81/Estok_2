@@ -68,13 +68,19 @@ function lienzoHtml(nodo: NodoRuta): string {
 }
 
 /**
- * Renderiza la barra de minimapas anidados. El ÚLTIMO nodo de la cadena es el
- * activo y se resalta en naranja; el resto son la "migaja" de procedencia.
+ * Renderiza la barra de minimapas anidados.
+ *
+ * Por defecto el ÚLTIMO nodo de la cadena es el activo y se resalta en naranja;
+ * el resto son la "migaja" de procedencia (atenuadas). Con `todosActivos: true`
+ * (ruta geográfica de una caja) TODOS los nodos conservan su resalte naranja.
  */
-export function renderMinimapasAnidados(nodos: NodoRuta[]): string {
+export function renderMinimapasAnidados(
+  nodos: NodoRuta[],
+  opts: { todosActivos?: boolean } = {},
+): string {
   if (!nodos.length) return '';
   const piezas = nodos.map((nodo, i) => {
-    const activo = i === nodos.length - 1;
+    const activo = opts.todosActivos === true || i === nodos.length - 1;
     const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}" title="${escapeHtml(nodo.nombre)}">
       <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
       <span class="mini-anidado-lienzo">${lienzoHtml(nodo)}</span>
