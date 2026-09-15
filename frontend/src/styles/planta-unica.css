@@ -300,25 +300,6 @@
   box-shadow: inset 0 0 0 1px #fdba74;
 }
 
-.pu-grupo-separar {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  z-index: 5;
-  font-size: 12px;
-  line-height: 1;
-  padding: 2px 4px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #fecaca;
-  border-radius: 9999px;
-  cursor: pointer;
-}
-
-.pu-grupo-separar:hover {
-  background: #ffffff;
-  border-color: #f87171;
-}
-
 /* --- Física de colisiones: feedback en caliente + rebote limpio ------------- */
 
 .pu-celda.pu-en-colision,

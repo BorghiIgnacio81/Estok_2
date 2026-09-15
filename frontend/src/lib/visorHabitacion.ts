@@ -331,7 +331,7 @@ function enlazarVisor(): void {
       const objetivo = e.target as HTMLElement | null;
       if (
         objetivo?.closest(
-          '[data-inplace-renombrar],[data-fusion-check],[data-separar],[data-libre-resize],[data-grupo-resize]',
+          '[data-inplace-renombrar],[data-fusion-check],[data-eliminar-grupo],[data-libre-resize],[data-grupo-resize]',
         )
       ) {
         return;

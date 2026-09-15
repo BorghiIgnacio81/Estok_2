@@ -15,6 +15,7 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
+import { confirmarEliminacionEstructura } from './confirmacionEliminar';
 import { adaptadorDe, conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
 import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -211,17 +212,37 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
     opts.notificarCambios();
   });
 
-  opts.scope.querySelectorAll<HTMLElement>('[data-separar]').forEach((btn) => {
+  // ===========================================================================
+  // BORRADO ATÓMICO DEL MACRO-ESPACIO FUSIONADO (bloque indestructible)
+  // Una vez unidos, los cuadrantes son UN SOLO espacio: no existen controles
+  // individuales ni separación. El único 🗑️ vive en la esquina superior derecha
+  // del bloque unificado y elimina físicamente todas sus partes en el backend.
+  // ===========================================================================
+  opts.scope.querySelectorAll<HTMLButtonElement>('[data-eliminar-grupo]').forEach((btn) => {
+    // El botón vive DENTRO de la tarjeta arrastrable/navegable: se frena el
+    // gesto de arrastre (pointerdown) y el clic para no disparar el portal.
+    btn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
     btn.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       const id = btn.dataset.id ?? '';
-      if (!id) return;
-      const ok = await adaptadorDe(opts).separar(id);
-      if (!ok) {
-        toast('❌ No se pudo separar el espacio fusionado.');
+      const card = btn.closest<HTMLElement>('.pu-grupo');
+      if (!id || !card) return;
+      const nombre = btn.dataset.nombre || 'espacio fusionado';
+      // 1) Advertencia unificada de resguardo: frena el flujo ANTES del server.
+      if (!confirmarEliminacionEstructura()) return;
+      // 2) DELETE atómico del UUID del macro-espacio: el backend borra de
+      //    PostgreSQL todas las sub-celdas del grupo y desancla recursivamente
+      //    sus objetos hacia la bandeja inferior de disponibles.
+      btn.disabled = true;
+      const res = await adaptadorDe(opts).eliminar(id);
+      if (!res.ok) {
+        btn.disabled = false;
+        toast(`❌ ${res.error || 'No se pudo eliminar el espacio fusionado.'}`);
         return;
       }
-      toast('✂️ Espacio separado en rectángulos independientes.');
+      // 3) Remoción instantánea del bloque completo en pantalla (sin recargar).
+      card.remove();
+      toast(`🗑️ «${nombre}» eliminado. Su contenido quedó en la bandeja de «por ubicar».`);
       opts.notificarCambios();
     });
   });

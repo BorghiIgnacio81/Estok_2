@@ -37,7 +37,7 @@ const SELECTOR_EDICION = [
   '[data-grupo-resize]',
   '[data-inplace-resize]',
   '[data-fusion-check]',
-  '[data-separar]',
+  '[data-eliminar-grupo]',
 ].join(',');
 
 /**

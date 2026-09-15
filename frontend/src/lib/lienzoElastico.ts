@@ -32,6 +32,13 @@ export interface ItemElastico {
   contenedores_count?: number;
 }
 
+/** Resultado del borrado físico de una estructura espacial (macro-espacio). */
+export interface ResultadoEliminar {
+  ok: boolean;
+  /** Detalle devuelto por el backend (ej: «mueble inmueble fijo» protegido). */
+  error?: string;
+}
+
 export interface AdaptadorEspacios {
   /** Recurso REST base: '/ubicaciones' | '/contenedores'. */
   recurso: string;
@@ -41,8 +48,13 @@ export interface AdaptadorEspacios {
   guardarGrupo(baseId: string, payload: Record<string, unknown>): Promise<boolean>;
   /** POST fusión encadenada del grupo (base + ids). */
   fusionar(baseId: string, ids: string[]): Promise<boolean>;
-  /** POST disolución del grupo de fusión. */
-  separar(id: string): Promise<boolean>;
+  /**
+   * DELETE físico del espacio. Si el ítem pertenece a un grupo de fusión, el
+   * backend borra TODAS las partes del bloque unificado (el macro-espacio es
+   * indestructible como unidad) y desancla en cascada sus objetos hacia la
+   * bandeja de «por ubicar». NO existe separación: nunca se disuelve el grupo.
+   */
+  eliminar(id: string): Promise<ResultadoEliminar>;
 }
 
 /** Request JSON con auth centralizada (JWT + X-Estok-Id). true si fue 2xx. */
@@ -67,6 +79,25 @@ async function enviar(
   }
 }
 
+/** DELETE con auth centralizada (JWT + X-Estok-Id). Devuelve el detalle del error. */
+async function borrar(url: string): Promise<ResultadoEliminar> {
+  try {
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { ...getAuthHeaders() },
+    });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return { ok: false, error: 'Sesión expirada. Volvé a iniciar sesión.' };
+    }
+    if (res.ok) return { ok: true };
+    const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+    return { ok: false, error: data?.error || data?.detail };
+  } catch {
+    return { ok: false, error: 'Error de conexión al eliminar la estructura.' };
+  }
+}
+
 /** Construye el adaptador de persistencia para un recurso espacial REST. */
 export function crearAdaptadorEspacios(recurso: string): AdaptadorEspacios {
   const base = `${API_BASE_URL}${recurso}`;
@@ -75,7 +106,7 @@ export function crearAdaptadorEspacios(recurso: string): AdaptadorEspacios {
     guardarItem: (id, valores) => enviar(`${base}/${id}/`, 'PUT', valores),
     guardarGrupo: (baseId, payload) => enviar(`${base}/${baseId}/grupo/`, 'PUT', payload),
     fusionar: (baseId, ids) => enviar(`${base}/${baseId}/fusionar/`, 'POST', { ubicacion_ids: ids }),
-    separar: (id) => enviar(`${base}/${id}/separar/`, 'POST', {}),
+    eliminar: (id) => borrar(`${base}/${id}/`),
   };
 }
 

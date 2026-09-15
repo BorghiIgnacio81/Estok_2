@@ -120,11 +120,11 @@
 /* ---------------------------------------------------------------------------
    3. BLOQUEO DE EDICIÓN EN MODO NAVEGACIÓN
    El clic queda libre para disparar el PORTAL de nivel; los asideros de edición
-   (checkbox de fusión, tiradores de resize, separar) desaparecen y el nombre
-   deja pasar el clic a la tarjeta contenedora.
+   (checkbox de fusión, tiradores de resize y el 🗑️ del macro-espacio fusionado)
+   desaparecen y el nombre deja pasar el clic a la tarjeta contenedora.
    --------------------------------------------------------------------------- */
 body.modo-navegacion .pu-check,
-body.modo-navegacion [data-separar],
+body.modo-navegacion [data-eliminar-grupo],
 body.modo-navegacion [data-grupo-resize],
 body.modo-navegacion [data-libre-resize],
 body.modo-navegacion [data-inplace-resize],
@@ -132,7 +132,6 @@ body.modo-navegacion .lienzo-elastico-nueva,
 body.modo-navegacion .planta-unica-nueva,
 body.modo-navegacion [data-fusionar],
 body.modo-navegacion .planta-unica-contador,
-body.modo-navegacion .pu-grupo-separar,
 body.modo-navegacion .visor-celda-vacia-crear,
 body.modo-navegacion .mueble-celda-crear {
   display: none !important;

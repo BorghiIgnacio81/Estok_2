@@ -66,6 +66,20 @@ def fusionar_espacios(modelo, base, ids, estok_id_de):
     }
 
 
+def ids_del_grupo(modelo, base):
+    """
+    Espacios que forman el MACRO-BLOQUE al que pertenece `base`: TODAS las partes
+    con su mismo `fusion_grupo` (o solo `base` si no está fusionado).
+
+    El bloque fusionado es INDESTRUCTIBLE como unidad: eliminarlo implica borrar
+    físicamente TODAS sus sub-celdas en PostgreSQL (no solo la del path), para no
+    dejar partes huérfanas renderizadas como rectángulos fantasma.
+    """
+    if not base.fusion_grupo:
+        return [base]
+    return list(modelo.objects.filter(fusion_grupo=base.fusion_grupo))
+
+
 def separar_espacios(modelo, base):
     """Disuelve la fusión: libera a TODOS los miembros del grupo (fusion_grupo=None)."""
     liberadas = 0

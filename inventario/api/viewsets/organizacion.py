@@ -20,7 +20,7 @@ from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
 from ...services.taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
 from .base import HasRolePermission
-from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo
+from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo, ids_del_grupo
 
 logger = logging.getLogger(__name__)
 
@@ -124,10 +124,18 @@ class UbicacionViewSet(viewsets.ModelViewSet):
         """
         instance = self.get_object()
 
-        # 1) Sub-árbol completo de Ubicaciones que cuelgan del nodo borrado.
-        ids_ubicaciones = [str(instance.id)] + [
-            str(hijo) for hijo in self._ids_ubicaciones_descendientes(instance.id)
-        ]
+        # 1) MACRO-ESPACIO COMPLETO: el nodo borrado + TODAS las partes de su
+        #    grupo de fusión (una vez unidos, los cuadrantes son un solo espacio
+        #    indestructible: NO existe separación) + el sub-árbol de Ubicaciones
+        #    que cuelga de cada una de esas raíces. El set evita duplicados si
+        #    una parte del grupo fuese a su vez descendiente de otra.
+        ids_ubicaciones = set()
+        for raiz in ids_del_grupo(Ubicacion, instance):
+            ids_ubicaciones.add(str(raiz.id))
+            ids_ubicaciones.update(
+                str(hijo) for hijo in self._ids_ubicaciones_descendientes(raiz.id)
+            )
+        ids_ubicaciones = list(ids_ubicaciones)
 
         # 2) Contenedores (de cualquier nivel) alojados en esa estructura.
         ids_contenedores = list(
@@ -342,28 +350,39 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         if instance.ubicacion_id is None or instance.ubicacion.estok_id != estok_id_uuid:
             raise PermissionDenied("El contenedor no pertenece al Estok activo.")
 
-        if instance.es_inmueble:
+        # 0) MACRO-ESPACIO: el contenedor del path + TODAS las partes de su grupo
+        #    de fusión (el bloque unificado es una unidad indestructible, no se
+        #    separa). Si CUALQUIERA de las partes es inmueble fijo, se protege la
+        #    estructura completa.
+        partes = ids_del_grupo(Contenedor, instance)
+        ids_grupo = [parte.id for parte in partes]
+        if Contenedor.objects.filter(id__in=ids_grupo, es_inmueble=True).exists():
             raise PermissionDenied(
                 "El mueble es inmueble fijo (es_inmueble) y no puede eliminarse."
             )
 
-        # 1) Objetos guardados en este contenedor Y en TODO su subárbol →
+        # 1) Objetos guardados en estas partes Y en TODO su subárbol →
         #    liberar de forma RECURSIVA hacia la bandeja de huérfanos.
         #    Se actualiza (jamás DELETE): los ítems físicos permanecen intactos
         #    en PostgreSQL y reaparecen en «Objetos Sueltos o sin Caja».
-        ids_subarbol = self._ids_subarbol(instance)
-        Objeto.objects.filter(contenedor_id__in=ids_subarbol).update(
+        ids_subarbol = set()
+        for parte in partes:
+            ids_subarbol.update(self._ids_subarbol(parte))
+        Objeto.objects.filter(contenedor_id__in=list(ids_subarbol)).update(
             contenedor=None,
             parent_grid_row=None,
             parent_grid_col=None,
         )
 
-        # 2) Sub-contenedores directos → a nivel raíz, sin coordenadas huérfanas
-        #    (su contenido interno queda intacto y disponible en el Estok).
+        # 2) Sub-contenedores directos de CUALQUIER parte del grupo → a nivel
+        #    raíz, sin coordenadas huérfanas (su contenido interno queda intacto
+        #    y disponible en el Estok). Se excluyen las propias partes borradas.
         #    TAXONOMÍA: al desacoplarse del mueble eliminado, un estante hoja
         #    pasa a ser CAJA móvil; si a su vez contiene sub-divisiones, pasa a
         #    MUEBLE. Así ninguna pieza queda huérfana de los listados.
-        hijos = Contenedor.objects.filter(parent_contenedor_id=instance.id)
+        hijos = Contenedor.objects.filter(parent_contenedor_id__in=ids_grupo).exclude(
+            id__in=ids_grupo
+        )
         con_hijos = hijos.filter(subcontenedores__isnull=False).distinct()
         hijos.exclude(pk__in=con_hijos.values('pk')).update(
             parent_contenedor=None,
@@ -378,8 +397,8 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             tipo=TIPO_MUEBLE,
         )
 
-        # 3) Eliminación física de la fila en PostgreSQL.
-        instance.delete()
+        # 3) Eliminación física de TODAS las partes del macro-espacio.
+        Contenedor.objects.filter(id__in=ids_grupo).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @transaction.atomic
