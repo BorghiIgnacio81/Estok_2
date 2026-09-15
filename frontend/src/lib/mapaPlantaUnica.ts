@@ -9,7 +9,8 @@
 // El tipo de entrada es `ItemElastico` (id/nombre/ui_* + fusion_grupo), por lo
 // que sirve tanto para Ubicación como para Contenedor. Los ítems se agrupan por
 // `fusion_grupo` para renderizar los espacios en "L" como UN rectángulo continuo
-// (color homogéneo idéntico al de un ambiente común, sin etiquetas redundantes).
+// (un único contenedor div con textura homogénea sin costuras internas, un único
+// botón «Eliminar» 🗑️ centralizado y sin controles de separación).
 //
 // Este módulo es 100% render (sin estado ni listeners). La interacción y la
 // persistencia viven en ./plantaUnicaInteractivo.ts y ./plantaUnicaArrastre.ts.
@@ -108,18 +109,39 @@ export function agruparFusiones(items: ItemElastico[]): {
 // RENDER
 // =============================================================================
 
-function tilesDeGrupo(g: GrupoFusion): string {
-  return g.miembros
+/**
+ * SUPERFICIE CONTINUA del espacio fusionado (macro-estructura en "L").
+ *
+ * REGLA GRÁFICA ESTRICTA: se emite UN ÚNICO contenedor con UN ÚNICO SVG. La
+ * textura homogénea se declara con `patternUnits="userSpaceOnUse"`, por lo que
+ * la trama fluye SIN COSTURAS a través de todas las partes: no existen bordes,
+ * trazos ni grosores internos que delaten las fronteras de las sub-celdas (ni
+ * líneas divisorias, ni tijeras). El contorno ámbar que abraza la silueta de la
+ * unión lo aporta el `drop-shadow` de `.pu-grupo-malla`, nunca un stroke interno.
+ */
+function superficieDeGrupo(g: GrupoFusion): string {
+  const patron = `pu-textura-${g.grupo.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const partes = g.miembros
     .map((m) => {
       const geo = geoDe(m);
       const relLeft = ((geo.left - g.caja.left) / g.caja.width) * 100;
       const relTop = ((geo.top - g.caja.top) / g.caja.height) * 100;
       const relW = (geo.width / g.caja.width) * 100;
       const relH = (geo.height / g.caja.height) * 100;
-      return `<span class="pu-tile" style="left:${relLeft}%;top:${relTop}%;width:calc(${relW}% + 1px);height:calc(${relH}% + 1px)"
-        data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}" data-tile-width="${geo.width}" data-tile-height="${geo.height}"></span>`;
+      // Sin stroke: la unión se lee como un solo rectángulo continuo texturizado.
+      return `<rect x="${relLeft.toFixed(2)}" y="${relTop.toFixed(2)}" width="${relW.toFixed(2)}" height="${relH.toFixed(2)}" fill="url(#${patron})"
+        data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}" data-tile-width="${geo.width}" data-tile-height="${geo.height}" />`;
     })
     .join('');
+  return `<svg class="pu-grupo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <defs>
+        <pattern id="${patron}" width="4" height="4" patternUnits="userSpaceOnUse">
+          <rect width="4" height="4" fill="#fffbeb" />
+          <path d="M-1 1 L1 -1 M0 4 L4 0 M3 5 L5 3" stroke="#fcd34d" stroke-width="0.45" stroke-opacity="0.8" />
+        </pattern>
+      </defs>
+      ${partes}
+    </svg>`;
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {
@@ -128,14 +150,11 @@ function gruposHtml(grupos: GrupoFusion[]): string {
       (g) => `
     <div class="pu-grupo" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
-         title="Espacio en «L»: arrastrá para moverlo · clic en el nombre para renombrarlo · tildá la casilla para encadenar la fusión con otro espacio.">
-      <div class="pu-grupo-malla">${tilesDeGrupo(g)}</div>
-      <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
-        <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
-      </label>
+         title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
+      <div class="pu-grupo-malla">${superficieDeGrupo(g)}</div>
       <button type="button" data-eliminar-grupo data-id="${g.base.id}" data-nombre="${escapeHtml(g.base.nombre)}"
-        class="text-red-400 hover:text-red-600 font-bold absolute top-2 right-2 z-30 cursor-pointer"
-        title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
+        class="pu-grupo-eliminar"
+        title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas en PostgreSQL y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
       ${g.base.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(g.base.icono)}</span>` : ''}
       <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
       <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el espacio completo (se aplica a todas sus partes en un solo guardado)"></span>
@@ -163,6 +182,9 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
       <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${item.id}" />
       </label>
+      ${item.protegido ? '' : `<button type="button" data-eliminar-item data-id="${item.id}" data-nombre="${escapeHtml(item.nombre)}"
+        class="pu-celda-eliminar"
+        title="Eliminar «${escapeHtml(item.nombre)}» de forma definitiva: su contenido se desancla hacia la bandeja inferior de «por ubicar».">🗑️</button>`}
       ${item.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(item.icono)}</span>` : ''}
       <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}

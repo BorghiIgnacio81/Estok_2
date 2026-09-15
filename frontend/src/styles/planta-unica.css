@@ -245,9 +245,10 @@
   cursor: grab;
 }
 
-/* Malla de tiles del espacio en "L": el contorno ámbar y la sombra abrazan SOLO
-   la silueta de la unión (idénticos al espacio común .pu-celda), sin teñir la
-   tarjeta ni aplicar opacidades o tonos alternos. */
+/* Superficie CONTINUA del espacio fusionado: el contorno ámbar y la sombra
+   abrazan SOLO la silueta de la unión (idénticos al espacio común .pu-celda).
+   La textura homogénea la aporta el SVG interno (patrón en userSpaceOnUse), por
+   lo que las sub-celdas NO tienen fronteras: cero líneas divisorias internas. */
 .pu-grupo-malla {
   position: absolute;
   inset: 0;
@@ -264,15 +265,59 @@
   cursor: grabbing;
 }
 
-.pu-tile {
+/* Único contenedor de dibujo del bloque: la trama fluye sin costuras de extremo
+   a extremo porque todas las partes comparten el MISMO espacio de usuario. */
+.pu-grupo-svg {
   position: absolute;
-  box-sizing: border-box;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Único «Eliminar» (🗑️) del macro-espacio: CENTRALIZADO en el bloque continuo.
+   El marcado no expone ningún otro control de separación (ni tijeras ni
+   casillas por parte): el bloque fusionado es una unidad indestructible. */
+.pu-grupo-eliminar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px;
   border: none;
-  border-radius: 0;
-  /* FONDO IDÉNTICO al del espacio común (.pu-celda): blanco plano y homogéneo en
-     TODAS las partes, para que la unión se lea como un espacio más del plano,
-     sin tonos alternos ni costuras que delaten las fronteras internas. */
-  background: rgba(255, 255, 255, 0.96);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.pu-grupo-eliminar:hover {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+/* «Eliminar» (🗑️) de los espacios INDIVIDUALES: esquina superior derecha de
+   CADA rectángulo (habitaciones comunes, muebles y estantes), sin excepción. */
+.pu-celda-eliminar {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 6;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.pu-celda-eliminar:hover {
+  opacity: 1;
 }
 
 .pu-grupo-nombre {

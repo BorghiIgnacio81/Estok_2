@@ -305,3 +305,67 @@ export function minimapaRectangularSvg(opts: MinimapaRectangularOpts): string {
   return `<svg class="minimapa-rect-svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa rectangular de la grilla (casillero inspeccionado en naranja)">${marco}${celdas.join('')}</svg>`;
 }
 
+// =============================================================================
+// MINIMAPA POR SECTORES REALES (proporciones geométricas asimétricas)
+// -----------------------------------------------------------------------------
+// Elimina la cuadrícula de celdas cuadradas idénticas: cada sector se dibuja con
+// su ANCHO y ALTO REALES (ui_width / ui_height expresados en % del lienzo), de
+// modo que un espacio alargado, chico o grande se lea de un vistazo sin deformar
+// proporciones. El sector ACTIVO (el nodo que el usuario está inspeccionando) se
+// pinta en COLOR NARANJA (#f97316). 100% render puro.
+// =============================================================================
+
+export interface SectorMinimapa {
+  /** Geometría real del sector en % del lienzo (ui_left/ui_top/ui_width/ui_height). */
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  /** Sector activo: se pinta en COLOR_NARANJA. */
+  activo?: boolean;
+}
+
+export interface MinimapaSectoresOpts {
+  sectores: SectorMinimapa[];
+  /** Relación alto/ancho del lienzo real (evita deformar las proporciones). */
+  aspecto?: number;
+  /** Ancho del SVG en px (default 62). */
+  ancho?: number;
+}
+
+/** Aspecto por defecto del lienzo elástico (alto/ancho) cuando no se puede medir. */
+export const ASPECTO_LIENZO = 0.75;
+
+function acotar(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
+  const sectores = (opts.sectores ?? []).filter(
+    (s) => Number.isFinite(s.left) && Number.isFinite(s.top) && s.width > 0 && s.height > 0,
+  );
+  if (!sectores.length) return '';
+
+  const ancho = Math.round(acotar(Number(opts.ancho) || 62, 28, 140));
+  const aspecto = acotar(Number(opts.aspecto) || ASPECTO_LIENZO, 0.35, 1.8);
+  const alto = Math.max(20, Math.round(ancho * aspecto));
+  const pad = 2;
+  const sx = (ancho - pad * 2) / 100;
+  const sy = (alto - pad * 2) / 100;
+
+  const rects = sectores.map((s) => {
+    // Ningún sector puede desbordar el perímetro del lienzo (paredes).
+    const left = acotar(s.left, 0, 100);
+    const top = acotar(s.top, 0, 100);
+    const w = acotar(s.width, 0, 100 - left);
+    const h = acotar(s.height, 0, 100 - top);
+    const activo = s.activo === true;
+    return `<rect x="${(pad + left * sx).toFixed(2)}" y="${(pad + top * sy).toFixed(2)}" width="${Math.max(1.5, w * sx).toFixed(2)}" height="${Math.max(1.5, h * sy).toFixed(2)}" rx="1" fill="${activo ? COLOR_NARANJA : '#fef3c7'}" stroke="${activo ? '#c2410c' : '#d1d5db'}" stroke-width="0.5" />`;
+  });
+
+  // Marco del perímetro real del lienzo (bounded box 100% × 100%).
+  const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="2 1.6" />`;
+
+  return `<svg class="minimapa-rect-svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa proporcional del lienzo (sector activo en naranja)">${marco}${rects.join('')}</svg>`;
+}
+

@@ -46,6 +46,7 @@ export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarArrastreLibre(opts);
   conectarResizeLibre(opts);
   conectarSeleccionYFusion(opts);
+  conectarEliminacionItems(opts);
 }
 
 /**
@@ -241,6 +242,42 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
         return;
       }
       // 3) Remoción instantánea del bloque completo en pantalla (sin recargar).
+      card.remove();
+      toast(`🗑️ «${nombre}» eliminado. Su contenido quedó en la bandeja de «por ubicar».`);
+      opts.notificarCambios();
+    });
+  });
+}
+
+// ===========================================================================
+// BORRADO DE ESPACIOS INDIVIDUALES (habitaciones comunes, muebles y estantes)
+// ---------------------------------------------------------------------------
+// OMNIPRESENTE: TODA tarjeta del lienzo elástico (habitación suelta, mueble de
+// una habitación o estante de un mueble) expone su «Eliminar» (🗑️) en modo
+// edición. El DELETE recorre el subárbol completo en el backend y DESANCLA cada
+// objeto hacia la bandeja inferior de «por ubicar» (el stock nunca se pierde).
+// Las estructuras protegidas (es_inmueble) no reciben botón: el backend las
+// rechaza con 403, por lo que el lienzo no ofrece una acción imposible.
+// ===========================================================================
+function conectarEliminacionItems(opts: OpcionesPlantaUnica): void {
+  opts.scope.querySelectorAll<HTMLButtonElement>('[data-eliminar-item]').forEach((btn) => {
+    // El botón vive DENTRO de la tarjeta arrastrable/navegable: se frena el
+    // gesto de arrastre (pointerdown) y el clic para no disparar el portal.
+    btn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const id = btn.dataset.id ?? '';
+      const card = btn.closest<HTMLElement>('.pu-celda');
+      if (!id || !card) return;
+      const nombre = btn.dataset.nombre || 'espacio';
+      if (!confirmarEliminacionEstructura()) return;
+      btn.disabled = true;
+      const res = await adaptadorDe(opts).eliminar(id);
+      if (!res.ok) {
+        btn.disabled = false;
+        toast(`❌ ${res.error || 'No se pudo eliminar el espacio.'}`);
+        return;
+      }
       card.remove();
       toast(`🗑️ «${nombre}» eliminado. Su contenido quedó en la bandeja de «por ubicar».`);
       opts.notificarCambios();

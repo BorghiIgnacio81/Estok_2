@@ -210,6 +210,8 @@ function renderVisor(): void {
     ui_width: c.ui_width,
     ui_height: c.ui_height,
     fusion_grupo: c.fusion_grupo,
+    // Mueble inmueble fijo: el backend rechaza su DELETE → no se expone el 🗑️.
+    protegido: c.es_inmueble === true,
     meta:
       (c.subcontenedores_count || 0) > 0 ? `${c.subcontenedores_count} sub` : null,
   }));
@@ -331,7 +333,7 @@ function enlazarVisor(): void {
       const objetivo = e.target as HTMLElement | null;
       if (
         objetivo?.closest(
-          '[data-inplace-renombrar],[data-fusion-check],[data-eliminar-grupo],[data-libre-resize],[data-grupo-resize]',
+          '[data-inplace-renombrar],[data-fusion-check],[data-eliminar-grupo],[data-eliminar-item],[data-libre-resize],[data-grupo-resize]',
         )
       ) {
         return;
@@ -345,7 +347,15 @@ function enlazarVisor(): void {
       muebleActivoId = id;
       aplicarMuebleActivo();
       window.dispatchEvent(
-        new CustomEvent('estok:mueble-seleccionado', { detail: { id, nombre: dato.nombre } }),
+        new CustomEvent('estok:mueble-seleccionado', {
+          detail: {
+            id,
+            nombre: dato.nombre,
+            // Hermanos con su geometría real (ui_*): los minimapas de orientación
+            // dibujan las proporciones verdaderas de cada mueble de la habitación.
+            hermanos: contenedoresRoom,
+          },
+        }),
       );
     });
   });

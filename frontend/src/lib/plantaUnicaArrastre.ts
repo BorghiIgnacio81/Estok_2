@@ -101,7 +101,7 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       const target = e.target as HTMLElement;
       if (
         target.closest(
-          '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo]',
+          '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo],[data-eliminar-item]',
         )
       ) {
         return;

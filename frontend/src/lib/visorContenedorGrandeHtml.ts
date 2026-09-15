@@ -114,6 +114,8 @@ function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
       ui_width: x.ui_width,
       ui_height: x.ui_height,
       fusion_grupo: x.fusion_grupo,
+      // Estante inmueble fijo: el backend rechaza su DELETE → sin botón 🗑️.
+      protegido: x.es_inmueble === true,
       meta: x.es_inmueble ? '📌 fijo' : null,
     }));
   return renderLienzoElastico({

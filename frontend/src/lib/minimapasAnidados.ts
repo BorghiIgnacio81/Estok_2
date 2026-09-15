@@ -9,16 +9,22 @@
 // NARANJA (#f97316) — la MISMA convención del minimapa de planta y del
 // selector de posición. Los nodos de procedencia quedan en gris apagado.
 //
+// REGLA GEOMÉTRICA: los nodos con geometría real disponible (habitación, mueble)
+// se dibujan por SECTORES PROPORCIONALES (ui_left/ui_top/ui_width/ui_height) —
+// nunca con una cuadrícula de celdas cuadradas idénticas — y el sector del nodo
+// activo va en naranja. Sin geometría, cae al minimapa de grilla asimétrica.
+//
 //   Nivel 1 (Planta)      → minimapa de la casita con la planta activa naranja.
-//   Nivel 2 (Habitación)  → miniatura de la casa + grilla de la habitación con
-//                           el casillero activo en naranja.
-//   Nivel 3 (Mueble)      → casa + habitación + grilla del mueble.
+//   Nivel 2 (Habitación)  → casa + plano de la planta con los sectores reales de
+//                           sus habitaciones (la activa en naranja).
+//   Nivel 3 (Mueble)      → casa + habitación + sectores reales de sus muebles.
 //   Nivel 4 (Caja/Estante)→ casa + habitación + mueble + estante activo naranja.
 //
 // 100% render puro (sin estado). Consumido por portalesAlmacenamiento.ts.
 // =============================================================================
 
-import { minimapaCasitaSvg, minimapaRectangularSvg } from './minimapa';
+import { minimapaCasitaSvg, minimapaRectangularSvg, minimapaSectoresSvg } from './minimapa';
+import type { SectorMinimapa } from './minimapa';
 import { escapeHtml } from './mapaJerarquico';
 
 export type TipoNodoRuta = 'estok' | 'planta' | 'habitacion' | 'mueble' | 'caja';
@@ -34,6 +40,15 @@ export interface NodoRuta {
   /** Grilla del nodo para el minimapa rectangular (habitación / mueble / caja). */
   filas?: number;
   columnasPorFila?: number[];
+  /**
+   * Sectores con GEOMETRÍA REAL (ui_left/ui_top/ui_width/ui_height en % del
+   * lienzo) que reemplazan a la cuadrícula de celdas idénticas: el minimapa
+   * replica las proporciones reales de cada espacio y pinta en naranja el
+   * sector activo. Si se omite, cae al minimapa de grilla.
+   */
+  sectores?: SectorMinimapa[];
+  /** Relación alto/ancho del lienzo real (evita deformar las proporciones). */
+  aspecto?: number;
   /** Casillero activo dentro de esa grilla (1-based). */
   celdaFila?: number | null;
   celdaCol?: number | null;
@@ -53,6 +68,11 @@ function lienzoHtml(nodo: NodoRuta): string {
     const total = Math.max(1, Math.floor(Number(nodo.totalPlantas) || 1));
     const fila = Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
     return minimapaCasitaSvg({ filas: total, filaActiva: fila });
+  }
+  // Geometría REAL disponible: se dibujan sectores proporcionales (una habitación
+  // alargada, chica o grande se ve tal cual es) con el activo en naranja.
+  if (nodo.sectores && nodo.sectores.length) {
+    return minimapaSectoresSvg({ sectores: nodo.sectores, aspecto: nodo.aspecto });
   }
   const filas = Math.max(1, Math.floor(Number(nodo.filas) || 1));
   const columnasPorFila =

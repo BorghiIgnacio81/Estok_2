@@ -25,6 +25,11 @@ export interface ItemElastico {
   ui_height?: string | null;
   /** ID relacional del grupo de fusión (espacio en "L"): mismo valor = mismo rectángulo. */
   fusion_grupo?: string | null;
+  /**
+   * Estructura protegida (mueble inmueble fijo): el backend rechaza su DELETE
+   * con 403, por lo que el lienzo NO expone el botón «Eliminar» (🗑️).
+   */
+  protegido?: boolean;
   /** Meta visual opcional (texto ya formateado) que se muestra bajo el nombre. */
   meta?: string | null;
   /** Conteos opcionales: si no hay `meta`, la tarjeta los compone automáticamente. */

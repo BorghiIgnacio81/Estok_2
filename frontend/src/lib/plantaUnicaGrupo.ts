@@ -46,11 +46,12 @@ function porCiento(n: number): string {
   return `${Math.round(n * 100) / 100}%`;
 }
 
-function tiles(card: HTMLElement): HTMLElement[] {
-  return Array.from(card.querySelectorAll<HTMLElement>('[data-tile-id]'));
+function tiles(card: HTMLElement): SVGElement[] {
+  // Las partes del macro-espacio son los <rect> del SVG continuo del grupo.
+  return Array.from(card.querySelectorAll<SVGElement>('[data-tile-id]'));
 }
 
-function numero(el: HTMLElement, attr: string, def = 0): number {
+function numero(el: SVGElement, attr: string, def = 0): number {
   const n = parseFloat(el.dataset[attr] ?? '');
   return Number.isFinite(n) ? n : def;
 }

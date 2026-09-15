@@ -19,6 +19,9 @@
 
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
+import { sectoresDeItems } from './sectoresMinimapa';
+import type { ItemGeometria } from './sectoresMinimapa';
+import { ASPECTO_LIENZO } from './minimapa';
 import { modoLienzoActual } from './modoLienzo';
 import { filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
@@ -33,7 +36,11 @@ interface EstadoPortales {
   plantaTotal: number;
   plantaNombre: string;
   room: UbicacionPlano | null;
+  /** Habitaciones hermanas de la planta activa (geometría real para el minimapa). */
+  hermanasRoom: ItemGeometria[];
   mueble: { id: string; nombre: string } | null;
+  /** Muebles hermanos de la habitación activa (geometría real para el minimapa). */
+  hermanosMueble: ItemGeometria[];
   muebleFilas: number;
   muebleColumnas: number[];
   caja: CajaSeleccionada | null;
@@ -45,7 +52,9 @@ const estado: EstadoPortales = {
   plantaTotal: 1,
   plantaNombre: '',
   room: null,
+  hermanasRoom: [],
   mueble: null,
+  hermanosMueble: [],
   muebleFilas: 1,
   muebleColumnas: [1],
   caja: null,
@@ -191,6 +200,8 @@ function renderMinimapa(): void {
   const cont = el('minimapasAnidados');
   if (!cont) return;
   const nodos: NodoRuta[] = [];
+  // Proporción real del lienzo en pantalla: el minimapa no deforma la geometría.
+  const aspecto = aspectoDelLienzo();
   if (estado.nivel >= 1) {
     nodos.push({
       tipo: 'planta',
@@ -205,6 +216,9 @@ function renderMinimapa(): void {
       nombre: estado.room.nombre,
       filas: filasInternasDe(estado.room),
       columnasPorFila: columnasPorFilaDe(estado.room),
+      // Sectores con las medidas REALES (ui_width/ui_height) de cada habitación.
+      sectores: sectoresDeItems(estado.hermanasRoom, estado.room.id),
+      aspecto,
     });
   }
   if (estado.nivel >= 3 && estado.mueble) {
@@ -213,6 +227,9 @@ function renderMinimapa(): void {
       nombre: estado.mueble.nombre,
       filas: estado.muebleFilas,
       columnasPorFila: estado.muebleColumnas,
+      // Sectores con las medidas REALES de cada mueble de la habitación.
+      sectores: sectoresDeItems(estado.hermanosMueble, estado.mueble.id),
+      aspecto,
     });
   }
   if (estado.nivel >= 4 && estado.caja) {
@@ -227,6 +244,20 @@ function renderMinimapa(): void {
   }
   cont.innerHTML = renderMinimapasAnidados(nodos);
   cont.classList.toggle('hidden', nodos.length === 0);
+}
+
+/**
+ * Relación alto/ancho del lienzo elástico visible. Los minimapas de orientación
+ * la usan para conservar las proporciones reales (un pasillo alargado no puede
+ * dibujarse como un cuadrado). Cae al aspecto por defecto si no hay lienzo.
+ */
+function aspectoDelLienzo(): number {
+  const lienzo = Array.from(document.querySelectorAll<HTMLElement>('[data-lienzo-pu]')).find(
+    (candidato) => candidato.getBoundingClientRect().height > 0,
+  );
+  const rect = lienzo?.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return ASPECTO_LIENZO;
+  return Math.max(0.35, Math.min(1.8, rect.height / rect.width));
 }
 
 /** Carga la grilla del mueble (Contenedor) para el minimapa anidado del Nivel 3/4. */
@@ -320,12 +351,17 @@ export function iniciarPortalesAlmacenamiento(): void {
     irANivel(1);
   });
 
-  // Nivel 1 → 2: la habitación elegida pasa al panel izquierdo (Visor).
+  // Nivel 1 → 2: la habitación elegida pasa al panel izquierdo (Visor). El evento
+  // trae las habitaciones HERMANAS con su geometría real (ui_width/ui_height)
+  // para que el minimapa superior dibuje proporciones verdaderas.
   window.addEventListener('estok:habitacion-seleccionada', (e) => {
-    const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
+    const detalle = (e as CustomEvent<{ room: UbicacionPlano | null; hermanas?: ItemGeometria[] }>).detail;
+    const room = detalle?.room ?? null;
     estado.room = room;
+    estado.hermanasRoom = detalle?.hermanas ?? [];
     if (!room) {
       estado.mueble = null;
+      estado.hermanosMueble = [];
       estado.caja = null;
       irANivel(estado.plantaFila ? 1 : 0);
       return;
@@ -335,7 +371,9 @@ export function iniciarPortalesAlmacenamiento(): void {
 
   // Nivel 2 → 3: el mueble elegido abre su organización interna (solo navegando).
   window.addEventListener('estok:mueble-seleccionado', (e) => {
-    const detalle = (e as CustomEvent<{ id?: string | null; nombre?: string }>).detail ?? {};
+    const detalle =
+      (e as CustomEvent<{ id?: string | null; nombre?: string; hermanos?: ItemGeometria[] }>).detail ?? {};
+    estado.hermanosMueble = detalle.hermanos ?? [];
     estado.mueble = detalle.id ? { id: detalle.id, nombre: detalle.nombre || 'Mueble' } : null;
     estado.caja = null;
     if (estado.mueble) void cargarGrillaMueble(estado.mueble.id);

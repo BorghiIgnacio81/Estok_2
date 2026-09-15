@@ -20,6 +20,9 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
+import { pctValor } from './mapaPlantaUnica';
+import { autoAjustarFilas } from './autoAjusteFilas';
+import type { CajaFila } from './autoAjusteFilas';
 
 export type ModoLienzo = 'navegacion' | 'edicion';
 
@@ -81,12 +84,13 @@ function bloquearEdicion(ev: Event): void {
 
 /** Persiste las medidas y bloquea la grilla (el clic pasa a ser portal). */
 async function guardarYBloquear(): Promise<void> {
-  const total = await persistirDimensiones();
+  const { medidas, filas } = await persistirDimensiones();
   aplicarModo('navegacion');
+  const detalle = [`💾 ${medidas} medida(s) guardada(s)`];
+  if (filas > 0) detalle.push(`📐 ${filas} fila(s) auto-ajustada(s) al 100%`);
+  if (medidas === 0 && filas === 0) detalle.length = 0;
   toast(
-    total > 0
-      ? `💾 ${total} medida(s) guardada(s) · grilla bloqueada: el clic ahora navega por portales.`
-      : '💾 Grilla bloqueada: el clic ahora navega por portales.',
+    `${detalle.length ? `${detalle.join(' · ')} · ` : '💾 '}grilla bloqueada: el clic ahora navega por portales.`,
   );
 }
 
@@ -99,12 +103,56 @@ function recursoDeCarta(carta: HTMLElement): 'ubicaciones' | 'contenedores' | nu
 }
 
 /**
+ * Cajas elásticas (% del lienzo) de las tarjetas editables de un canvas.
+ * Solo se consideran los hijos directos: las tarjetas anidadas de otro lienzo
+ * (p. ej. el editor interno de un mueble) pertenecen a su propia fila.
+ */
+function cajasDelLienzo(lienzo: HTMLElement): { cartas: HTMLElement[]; cajas: CajaFila[] } {
+  const cartas = Array.from(
+    lienzo.querySelectorAll<HTMLElement>(':scope > [data-inplace-card][data-id]'),
+  );
+  const cajas = cartas.map((carta) => ({
+    left: pctValor(carta.style.left, 0),
+    top: pctValor(carta.style.top, 0),
+    width: pctValor(carta.style.width, 28),
+    height: pctValor(carta.style.height, 24),
+  }));
+  return { cartas, cajas };
+}
+
+/**
+ * FÍSICA DE LAYOUT: absorbe el hueco residual de las filas prácticamente llenas
+ * (ocupación ≥98% y <100%) estirando proporcionalmente sus rectángulos hasta
+ * encajar exactos contra las paredes perimetrales (100%). Se aplica sobre los
+ * estilos inline ANTES del PUT, de modo que las dimensiones corregidas son las
+ * que se persisten en Django. Los lienzos ocultos no se tocan.
+ */
+function autoAjustarLienzos(): number {
+  let filas = 0;
+  document.querySelectorAll<HTMLElement>('[data-lienzo-pu]').forEach((lienzo) => {
+    if (lienzo.getBoundingClientRect().height <= 0) return;
+    const { cartas, cajas } = cajasDelLienzo(lienzo);
+    const resultado = autoAjustarFilas(cajas);
+    if (!resultado.filas) return;
+    resultado.indices.forEach((indice, k) => {
+      const carta = cartas[indice];
+      if (carta) carta.style.width = `${resultado.anchos[k]}%`;
+    });
+    filas += resultado.filas;
+  });
+  return filas;
+}
+
+/**
  * PUT de ui_width/ui_height de cada tarjeta editable con estilo inline efectivo.
  * Se omiten los bloques fusionados (su geometría se consolida por su endpoint de
  * grupo) y las tarjetas sin recurso conocido. Idempotente: tras un PUT exitoso
  * se memoriza la medida en data-ui-* para no volver a enviarla sin cambios.
  */
-async function persistirDimensiones(): Promise<number> {
+async function persistirDimensiones(): Promise<{ medidas: number; filas: number }> {
+  // 1) Física de layouts ANTES de leer: el 98%+ se estira al 100% (paredes).
+  const filas = autoAjustarLienzos();
+
   const cartas = document.querySelectorAll<HTMLElement>('[data-inplace-card][data-id]');
   const tareas: Promise<void>[] = [];
   let total = 0;
@@ -135,7 +183,7 @@ async function persistirDimensiones(): Promise<number> {
   });
 
   await Promise.all(tareas);
-  return total;
+  return { medidas: total, filas };
 }
 
 async function putJson(url: string, body: Record<string, unknown>): Promise<boolean> {

@@ -375,6 +375,8 @@ function enlazar(): void {
 
   // Nivel 2: clic en una habitación (rectángulo elástico) → alimenta el Visor.
   // En MODO EDICIÓN el clic edita in-place (arrastrar/estirar) y NO navega.
+  // El evento viaja con las HERMANAS de la planta (geometría real ui_*) para que
+  // los minimapas de orientación dibujen las proporciones verdaderas de cada una.
   refs.mapa
     .querySelectorAll<HTMLElement>('[data-lienzo-pu] .pu-celda, [data-lienzo-pu] .pu-grupo')
     .forEach((el) => {
@@ -384,7 +386,11 @@ function enlazar(): void {
         if (!id) return;
         const room = habitaciones.find((h) => h.id === id);
         if (!room) return;
-        window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }));
+        window.dispatchEvent(
+          new CustomEvent('estok:habitacion-seleccionada', {
+            detail: { room, hermanas: habitacionesDePlanta(filaActiva || 1) },
+          }),
+        );
       });
     });
 
