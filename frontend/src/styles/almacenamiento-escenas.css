@@ -34,8 +34,10 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Visor de Habitación - estado inicial: minimapas rectangulares de las plantas
-   ("Planta Alta" y "Planta Baja") en paralelo + guía de casillero.
+   Visor de Habitación - estado inicial: planos PROPORCIONALES de las plantas
+   ("Planta Alta" y "Planta Baja") en paralelo. Cada ambiente se dibuja con su
+   silueta real (porcentajes CSS calculados desde ui_left/ui_top/ui_width/
+   ui_height de PostgreSQL) + su icono contextual en miniatura. Sin matriz 2×2.
    --------------------------------------------------------------------------- */
 .visor-default {
   display: flex;
@@ -67,6 +69,61 @@
 
 .visor-minimapa-planta svg {
   margin: 0 auto;
+}
+
+/* Plano proporcional de una planta: hereda el color texturizado común de los
+   planos (ámbar con tramas) y aloja cada ambiente como caja absoluta. */
+.minimapa-proporcional {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1.5px solid #b45309;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.6) 0 1px, transparent 2px),
+    radial-gradient(circle at 76% 72%, rgba(255, 255, 255, 0.45) 0 1px, transparent 2px),
+    repeating-linear-gradient(0deg, rgba(146, 64, 14, 0.06) 0 1px, transparent 1px 9px),
+    linear-gradient(180deg, #fffbeb 0%, #fde68a 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.minimapa-proporcional-vacio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #9a3412;
+}
+
+/* Sector con la silueta REAL del ambiente (left/top/width/height en %). */
+.minimapa-proporcional-sector {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 32% 32%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
+    #fef3c7;
+}
+
+.minimapa-proporcional-sector-activo {
+  background: #f97316;
+  border-color: #c2410c;
+}
+
+.minimapa-proporcional-ico {
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(120, 53, 15, 0.28));
 }
 
 /* ---------------------------------------------------------------------------

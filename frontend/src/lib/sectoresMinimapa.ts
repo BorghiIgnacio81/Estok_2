@@ -17,6 +17,8 @@ import type { SectorMinimapa } from './minimapa';
 /** Geometría mínima que necesita un ítem para posicionarse en un minimapa. */
 export interface ItemGeometria {
   id?: string | null;
+  /** Nombre legible del ítem (tooltip / icono contextual). */
+  nombre?: string | null;
   ui_left?: string | null;
   ui_top?: string | null;
   ui_width?: string | null;
@@ -29,10 +31,13 @@ const ALTO_DEFECTO = 24;
 /**
  * Sectores proporcionales de una lista de ítems.
  * `activoId` marca el sector que se pintará en naranja (#f97316).
+ * `iconoDe` (opcional) resuelve el icono contextual de cada ítem (🚽 🛏️ 🗄️ 🏠):
+ * se centraliza aquí para que TODOS los minimapas usen el mismo criterio.
  */
 export function sectoresDeItems(
   items: ItemGeometria[] | null | undefined,
   activoId?: string | null,
+  iconoDe?: (item: ItemGeometria) => string | null,
 ): SectorMinimapa[] {
   const lista = items ?? [];
   return lista.map((item, i) => {
@@ -44,6 +49,8 @@ export function sectoresDeItems(
       width: ancho > 0 ? ancho : ANCHO_DEFECTO,
       height: alto > 0 ? alto : ALTO_DEFECTO,
       activo: Boolean(activoId) && item.id === activoId,
+      nombre: item.nombre ?? '',
+      icono: iconoDe ? iconoDe(item) : '',
     };
   });
 }

@@ -10,6 +10,8 @@
 //   minimapaHtml({ fila: 2, columna: 3, titulo: 'Posición en «Armario 1»' })
 // =============================================================================
 
+import { sectoresAcotados } from './sectoresProporcionales';
+
 // =============================================================================
 // TIPOS
 // =============================================================================
@@ -323,6 +325,10 @@ export interface SectorMinimapa {
   height: number;
   /** Sector activo: se pinta en COLOR_NARANJA. */
   activo?: boolean;
+  /** Icono contextual opcional (🚽 🛏️ 🗄️ 🏠) dibujado en miniatura. */
+  icono?: string | null;
+  /** Nombre legible del sector (tooltip / descripción accesible). */
+  nombre?: string | null;
 }
 
 export interface MinimapaSectoresOpts {
@@ -341,9 +347,7 @@ function acotar(n: number, min: number, max: number): number {
 }
 
 export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
-  const sectores = (opts.sectores ?? []).filter(
-    (s) => Number.isFinite(s.left) && Number.isFinite(s.top) && s.width > 0 && s.height > 0,
-  );
+  const sectores = sectoresAcotados(opts.sectores);
   if (!sectores.length) return '';
 
   const ancho = Math.round(acotar(Number(opts.ancho) || 62, 28, 140));
@@ -353,15 +357,10 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
   const sx = (ancho - pad * 2) / 100;
   const sy = (alto - pad * 2) / 100;
 
-  const rects = sectores.map((s) => {
-    // Ningún sector puede desbordar el perímetro del lienzo (paredes).
-    const left = acotar(s.left, 0, 100);
-    const top = acotar(s.top, 0, 100);
-    const w = acotar(s.width, 0, 100 - left);
-    const h = acotar(s.height, 0, 100 - top);
-    const activo = s.activo === true;
-    return `<rect x="${(pad + left * sx).toFixed(2)}" y="${(pad + top * sy).toFixed(2)}" width="${Math.max(1.5, w * sx).toFixed(2)}" height="${Math.max(1.5, h * sy).toFixed(2)}" rx="1" fill="${activo ? COLOR_NARANJA : '#fef3c7'}" stroke="${activo ? '#c2410c' : '#d1d5db'}" stroke-width="0.5" />`;
-  });
+  const rects = sectores.map(
+    (s) =>
+      `<rect x="${(pad + s.left * sx).toFixed(2)}" y="${(pad + s.top * sy).toFixed(2)}" width="${Math.max(1.5, s.width * sx).toFixed(2)}" height="${Math.max(1.5, s.height * sy).toFixed(2)}" rx="1" fill="${s.activo ? COLOR_NARANJA : '#fef3c7'}" stroke="${s.activo ? '#c2410c' : '#d1d5db'}" stroke-width="0.5" />`,
+  );
 
   // Marco del perímetro real del lienzo (bounded box 100% × 100%).
   const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="2 1.6" />`;

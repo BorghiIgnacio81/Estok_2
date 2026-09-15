@@ -10,7 +10,10 @@
 
 import { escapeHtml, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-import { minimapaRectangularSvg } from './minimapa';
+import { ASPECTO_LIENZO, minimapaRectangularSvg } from './minimapa';
+import { minimapaSectoresHtml } from './minimapaSectoresHtml';
+import { sectoresDeItems } from './sectoresMinimapa';
+import { iconoDeHabitacion } from './planoHabitaciones';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
@@ -171,20 +174,33 @@ export function minimapaHabitacionHtml(
   </div>`;
 }
 
-/** Minimapa rectangular de una planta/división (estado inicial del Visor).
+/** Plano PROPORCIONAL de una planta (estado inicial del Visor).
+ *
+ *  REGLA GRÁFICA ESTRICTA: se eliminó de raíz la matriz estática de cuadraditos
+ *  idénticos. Cada ambiente de la planta se dibuja con su SILUETA REAL mediante
+ *  porcentajes CSS calculados desde ui_left/ui_top/ui_width/ui_height (geometría
+ *  persistida en PostgreSQL), así un pasillo fino y largo, una suite grande o un
+ *  baño compacto se leen tal cual son. Hereda el color texturizado común de los
+ *  planos y muestra su icono contextual (🚽 🛏️ 🗄️ 🏠) en miniatura cuando el
+ *  sector tiene tamaño suficiente para no ensuciar el plano.
+ *
  *  Ambos minimapas ("Planta Alta" y "Planta Baja") se renderizan en paralelo
  *  apenas carga la página para dar feedback analítico inmediato al operador. */
 export function minimapaDivisionHtml(
   division: UbicacionPlano | null,
-  filaActiva: number | null | undefined,
-  columnaActiva: number | null | undefined,
+  habitaciones: UbicacionPlano[] | null | undefined,
+  aspecto: number = ASPECTO_LIENZO,
 ): string {
   if (!division) return '';
-  const filas = filasInternasDe(division);
-  const columnasPorFila = columnasPorFilaDe(division);
-  return `<div class="visor-minimapa-planta" title="Planta «${escapeHtml(division.nombre)}»: grilla ${filas} filas · columnas por fila [${columnasPorFila.join(', ')}]">
+  const rooms = habitaciones ?? [];
+  // Sectores con geometría real + icono contextual por nombre del espacio.
+  const sectores = sectoresDeItems(rooms, null, (item) => iconoDeHabitacion(String(item.nombre ?? '')));
+  const detalle = sectores.length
+    ? `${sectores.length} ambiente${sectores.length === 1 ? '' : 's'} · silueta real`
+    : 'Sin ambientes persistidos';
+  return `<div class="visor-minimapa-planta" title="Planta «${escapeHtml(division.nombre)}»: ${detalle} (proporciones reales ui_width × ui_height)">
     <span class="visor-minimapa-titulo">📍 ${escapeHtml(division.nombre)}</span>
-    ${minimapaRectangularSvg({ filas, columnasPorFila, filaActiva: filaActiva ?? null, columnaActiva: columnaActiva ?? null })}
-    <span class="visor-minimapa-detalle">${filas} fila${filas === 1 ? '' : 's'} · [${columnasPorFila.join(', ')}] col/fila</span>
+    ${minimapaSectoresHtml({ sectores, aspecto, textoVacio: 'Sin ambientes todavía' })}
+    <span class="visor-minimapa-detalle">${detalle}</span>
   </div>`;
 }

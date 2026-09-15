@@ -78,6 +78,12 @@ let dragTipoVisor: 'contenedor' | 'objeto' | 'puerta' | null = null;
 
 /** Divisiones (plantas) del Estok activo para el estado inicial del Visor. */
 let divisionesIniciales: UbicacionPlano[] = [];
+/**
+ * Habitaciones REALES del Estok activo (todas las plantas), con su geometría
+ * nativa ui_left/ui_top/ui_width/ui_height: alimentan el plano proporcional de
+ * cada minimapa inicial (Planta Alta / Planta Baja) del Visor.
+ */
+let habitacionesIniciales: UbicacionPlano[] = [];
 /** Casillero exacto de la grilla que el usuario está inspeccionando (guía naranja). */
 let celdaInspeccionada: { fila: number; col: number } | null = null;
 /** Mueble activo (ESCENA 3): resaltado en el Visor y abierto en el panel derecho. */
@@ -126,18 +132,27 @@ async function cargarContenido(): Promise<void> {
 // ESTADO INICIAL DEL VISOR - minimapas de las plantas en paralelo
 // =============================================================================
 
-/** Carga las divisiones (plantas) del Estok activo para el estado inicial del
- *  Visor: sus minimapas rectangulares se pintan en paralelo apenas carga. */
+/** Carga las divisiones (plantas) del Estok activo y sus habitaciones encastradas
+ *  para el estado inicial del Visor: sus planos proporcionales se pintan en
+ *  paralelo apenas carga la página. */
 async function cargarDivisionesIniciales(): Promise<void> {
   try {
     const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`);
-    divisionesIniciales = (data as unknown as UbicacionPlano[])
+    const todas = data as unknown as UbicacionPlano[];
+    divisionesIniciales = todas
       .filter(esDivisionUbicacion)
       .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
+    habitacionesIniciales = todas.filter((u) => !esDivisionUbicacion(u));
   } catch {
     divisionesIniciales = [];
+    habitacionesIniciales = [];
   }
   if (!roomActual) renderVisor();
+}
+
+/** Habitaciones encastradas en una división (planta) por su relación padre. */
+function habitacionesDeDivision(divisionId: string): UbicacionPlano[] {
+  return habitacionesIniciales.filter((h) => h.parent_ubicacion === divisionId);
 }
 
 /** Actualiza en caliente SOLO el minimapa del Visor con el casillero inspeccionado. */
@@ -191,7 +206,7 @@ function renderVisor(): void {
           <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
         </div>
         <div class="visor-default-minimapas">
-          ${divisionesIniciales.map((d) => minimapaDivisionHtml(d, null, null)).join('')}
+          ${divisionesIniciales.map((d) => minimapaDivisionHtml(d, habitacionesDeDivision(d.id))).join('')}
         </div>
       </div>`;
     }
@@ -780,7 +795,8 @@ export function initVisor(): void {
       void cargarDivisionesIniciales();
     }
   });
-  // Estado inicial: minimapas rectangulares de "Planta Alta" y "Planta Baja" en paralelo.
+  // Estado inicial: planos proporcionales de "Planta Alta" y "Planta Baja" en
+  // paralelo (cada ambiente con su silueta real ui_width/ui_height + icono).
   void cargarDivisionesIniciales();
   renderVisor();
 }
