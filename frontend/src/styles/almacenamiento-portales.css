@@ -85,12 +85,21 @@
 .mini-anidado-lienzo {
   display: block;
   line-height: 0;
-}
-/* 4× más chico que el minimapa de origen (el SVG nativo mide ~90-140px). */
-.mini-anidado-lienzo svg {
+  /* 4× más chico que el minimapa de origen (el SVG nativo mide ~90-140px). */
   width: 40px;
+}
+.mini-anidado-lienzo svg {
+  display: block;
+  width: 100%;
   height: auto;
-  max-height: 44px;
+}
+/* Lienzo con GEOMETRÍA REAL (habitaciones de la planta activa, muebles o
+   estantes): la caja impone el aspecto elástico medido en vivo (`aspect-ratio`
+   dinámico inyectado por nodo en minimapasAnidados.ts) y el SVG la llena al
+   100%, de modo que la asimetría real de cada planta se refleja sin
+   deformaciones, recortes ni escalado forzado a un cuadrado. */
+.mini-anidado-proporcional svg {
+  height: 100%;
 }
 .mini-anidado-activo .mini-anidado-lienzo svg {
   outline: 1.5px solid #f97316;

@@ -247,8 +247,9 @@
 
 /* Superficie CONTINUA del espacio fusionado: el contorno ámbar y la sombra
    abrazan SOLO la silueta de la unión (idénticos al espacio común .pu-celda).
-   La textura homogénea la aporta el SVG interno (patrón en userSpaceOnUse), por
-   lo que las sub-celdas NO tienen fronteras: cero líneas divisorias internas. */
+   El fondo es el MISMO blanco nativo de .pu-celda (relleno plano del SVG
+   interno), por lo que las sub-celdas NO tienen fronteras: cero líneas
+   divisorias internas ni tramas alternas. */
 .pu-grupo-malla {
   position: absolute;
   inset: 0;

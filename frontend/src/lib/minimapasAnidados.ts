@@ -9,21 +9,25 @@
 // NARANJA (#f97316) — la MISMA convención del minimapa de planta y del
 // selector de posición. Los nodos de procedencia quedan en gris apagado.
 //
-// REGLA GEOMÉTRICA: los nodos con geometría real disponible (habitación, mueble)
-// se dibujan por SECTORES PROPORCIONALES (ui_left/ui_top/ui_width/ui_height) —
-// nunca con una cuadrícula de celdas cuadradas idénticas — y el sector del nodo
-// activo va en naranja. Sin geometría, cae al minimapa de grilla asimétrica.
+// REGLA GEOMÉTRICA: los nodos con geometría real disponible (las habitaciones de
+// la planta activa —alta o baja—, los muebles de la habitación, los estantes del
+// mueble) se dibujan por SECTORES PROPORCIONALES (ui_left/ui_top/ui_width/
+// ui_height) dentro de una CAJA CON PORCENTAJES CSS DINÁMICOS: el contenedor
+// recibe el `aspect-ratio` real del lienzo medido en vivo y cada sector conserva
+// su ancho/alto relativo — nunca celdas cuadradas idénticas ni escalado forzado a
+// un cuadrado. El sector/nodo activo va en NARANJA (#f97316).
 //
-//   Nivel 1 (Planta)      → minimapa de la casita con la planta activa naranja.
-//   Nivel 2 (Habitación)  → casa + plano de la planta con los sectores reales de
-//                           sus habitaciones (la activa en naranja).
-//   Nivel 3 (Mueble)      → casa + habitación + sectores reales de sus muebles.
-//   Nivel 4 (Caja/Estante)→ casa + habitación + mueble + estante activo naranja.
+//   Nivel 1 (Planta)      → plano proporcional de las habitaciones de la planta
+//                           activa (planta alta o baja), todas con su tamaño real.
+//   Nivel 2 (Habitación)  → plano de la planta + la habitación activa en naranja.
+//   Nivel 3 (Mueble)      → plano de la planta + habitación + muebles reales.
+//   Nivel 4 (Caja/Estante)→ lo anterior + el estante/casillero activo en naranja.
+//   Sin geometría persistida → casita (niveles) o grilla asimétrica, como fallback.
 //
 // 100% render puro (sin estado). Consumido por portalesAlmacenamiento.ts.
 // =============================================================================
 
-import { minimapaCasitaSvg, minimapaRectangularSvg, minimapaSectoresSvg } from './minimapa';
+import { ASPECTO_LIENZO, minimapaCasitaSvg, minimapaRectangularSvg, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
 import { escapeHtml } from './mapaJerarquico';
 
@@ -62,29 +66,50 @@ const ICONO: Record<TipoNodoRuta, string> = {
   caja: '📦',
 };
 
-/** Miniatura SVG del nodo según su tipo (casa con techo vs rectángulo puro). */
+/** Aspecto elástico (alto/ancho) acotado al rango real del lienzo en pantalla. */
+function aspectoValido(aspecto: number | undefined): number {
+  return Math.max(0.35, Math.min(1.8, Number(aspecto) || ASPECTO_LIENZO));
+}
+
+/**
+ * Caja del minimapa PROPORCIONAL: contenedor con PORCENTAJES CSS DINÁMICOS.
+ *
+ * El `aspect-ratio` se inyecta por nodo con la proporción real del lienzo
+ * (alto/ancho medido en vivo), así que la caja es alta o ancha según el plano:
+ * una habitación alargada, ancha, grande o chica se lee tal cual es en CUALQUIERA
+ * de las plantas. El SVG interior la llena al 100% (su viewBox comparte el mismo
+ * aspecto), por lo que los sectores nunca se deforman ni se recortan.
+ */
+function cajaProporcional(aspecto: number | undefined, svg: string): string {
+  const ratio = 1 / aspectoValido(aspecto);
+  return `<span class="mini-anidado-lienzo mini-anidado-proporcional" style="aspect-ratio:${ratio.toFixed(3)} / 1">${svg}</span>`;
+}
+
+/** Miniatura del nodo: sectores reales, casita (sin geometría) o grilla pura. */
 function lienzoHtml(nodo: NodoRuta): string {
+  // Geometría REAL disponible: se dibujan los sectores proporcionales consumiendo
+  // ui_left/ui_top/ui_width/ui_height, con el sector activo en naranja.
+  if (nodo.sectores && nodo.sectores.length) {
+    const svg = minimapaSectoresSvg({ sectores: nodo.sectores, aspecto: nodo.aspecto });
+    if (svg) return cajaProporcional(nodo.aspecto, svg);
+  }
   if (nodo.tipo === 'estok' || nodo.tipo === 'planta') {
+    // Fallback sin geometría persistida: silueta de la casita, planta activa naranja.
     const total = Math.max(1, Math.floor(Number(nodo.totalPlantas) || 1));
     const fila = Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
-    return minimapaCasitaSvg({ filas: total, filaActiva: fila });
-  }
-  // Geometría REAL disponible: se dibujan sectores proporcionales (una habitación
-  // alargada, chica o grande se ve tal cual es) con el activo en naranja.
-  if (nodo.sectores && nodo.sectores.length) {
-    return minimapaSectoresSvg({ sectores: nodo.sectores, aspecto: nodo.aspecto });
+    return `<span class="mini-anidado-lienzo">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</span>`;
   }
   const filas = Math.max(1, Math.floor(Number(nodo.filas) || 1));
   const columnasPorFila =
     nodo.columnasPorFila && nodo.columnasPorFila.length
       ? nodo.columnasPorFila
       : Array.from({ length: filas }, () => 1);
-  return minimapaRectangularSvg({
+  return `<span class="mini-anidado-lienzo">${minimapaRectangularSvg({
     filas,
     columnasPorFila,
     filaActiva: nodo.celdaFila ?? null,
     columnaActiva: nodo.celdaCol ?? null,
-  });
+  })}</span>`;
 }
 
 /**
@@ -103,7 +128,7 @@ export function renderMinimapasAnidados(
     const activo = opts.todosActivos === true || i === nodos.length - 1;
     const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}" title="${escapeHtml(nodo.nombre)}">
       <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
-      <span class="mini-anidado-lienzo">${lienzoHtml(nodo)}</span>
+      ${lienzoHtml(nodo)}
       <span class="mini-anidado-nombre">${escapeHtml(nodo.nombre)}</span>
     </div>`;
     return i < nodos.length - 1 ? `${bloque}<span class="mini-anidado-flecha" aria-hidden="true">→</span>` : bloque;

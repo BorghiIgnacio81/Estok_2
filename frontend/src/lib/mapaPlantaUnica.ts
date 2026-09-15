@@ -9,7 +9,8 @@
 // El tipo de entrada es `ItemElastico` (id/nombre/ui_* + fusion_grupo), por lo
 // que sirve tanto para Ubicación como para Contenedor. Los ítems se agrupan por
 // `fusion_grupo` para renderizar los espacios en "L" como UN rectángulo continuo
-// (un único contenedor div con textura homogénea sin costuras internas, un único
+// (un único contenedor div con la MISMA superficie nativa de un espacio común
+// —mismo fondo, mismo contorno ámbar y misma sombra, sin tramas—, un único
 // botón «Eliminar» 🗑️ centralizado y sin controles de separación).
 //
 // Este módulo es 100% render (sin estado ni listeners). La interacción y la
@@ -110,17 +111,30 @@ export function agruparFusiones(items: ItemElastico[]): {
 // =============================================================================
 
 /**
+ * Superficie NATIVA de un espacio común del plano: EXACTAMENTE el mismo fondo
+ * que `.pu-celda` (`background: rgba(255, 255, 255, 0.96)` en planta-unica.css).
+ * Si se cambia una, hay que cambiar la otra: el espacio fusionado debe verse
+ * igual que cualquier espacio sin fusionar.
+ */
+const SUPERFICIE_NATIVA = 'rgba(255, 255, 255, 0.96)';
+
+/**
  * SUPERFICIE CONTINUA del espacio fusionado (macro-estructura en "L").
  *
- * REGLA GRÁFICA ESTRICTA: se emite UN ÚNICO contenedor con UN ÚNICO SVG. La
- * textura homogénea se declara con `patternUnits="userSpaceOnUse"`, por lo que
- * la trama fluye SIN COSTURAS a través de todas las partes: no existen bordes,
- * trazos ni grosores internos que delaten las fronteras de las sub-celdas (ni
- * líneas divisorias, ni tijeras). El contorno ámbar que abraza la silueta de la
- * unión lo aporta el `drop-shadow` de `.pu-grupo-malla`, nunca un stroke interno.
+ * REGLA GRÁFICA ESTRICTA: se emite UN ÚNICO contenedor con UN ÚNICO SVG cuyas
+ * partes comparten el mismo espacio de usuario y se rellenan con la superficie
+ * NATIVA de un espacio común (blanco plano, sin tramas ni tonos alternos), por
+ * lo que el bloque se lee como UNA sola pieza: cero líneas divisorias internas
+ * y la identidad cromática de un espacio sin fusionar al 100%.
+ *
+ * `shape-rendering="crispEdges"` es obligatorio: sin él, el antialias de las
+ * fronteras entre partes contiguas delata una costura translúcida de 1px (cada
+ * parte rasteriza su borde al 50% de cobertura).
+ *
+ * El contorno ámbar y la sombra que abrazan la silueta de la unión los aporta el
+ * `drop-shadow` de `.pu-grupo-malla`, nunca un stroke interno.
  */
 function superficieDeGrupo(g: GrupoFusion): string {
-  const patron = `pu-textura-${g.grupo.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const partes = g.miembros
     .map((m) => {
       const geo = geoDe(m);
@@ -128,20 +142,12 @@ function superficieDeGrupo(g: GrupoFusion): string {
       const relTop = ((geo.top - g.caja.top) / g.caja.height) * 100;
       const relW = (geo.width / g.caja.width) * 100;
       const relH = (geo.height / g.caja.height) * 100;
-      // Sin stroke: la unión se lee como un solo rectángulo continuo texturizado.
-      return `<rect x="${relLeft.toFixed(2)}" y="${relTop.toFixed(2)}" width="${relW.toFixed(2)}" height="${relH.toFixed(2)}" fill="url(#${patron})"
+      // Sin stroke y con el MISMO relleno nativo: la unión es un rectángulo continuo.
+      return `<rect x="${relLeft.toFixed(2)}" y="${relTop.toFixed(2)}" width="${relW.toFixed(2)}" height="${relH.toFixed(2)}" fill="${SUPERFICIE_NATIVA}"
         data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}" data-tile-width="${geo.width}" data-tile-height="${geo.height}" />`;
     })
     .join('');
-  return `<svg class="pu-grupo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <defs>
-        <pattern id="${patron}" width="4" height="4" patternUnits="userSpaceOnUse">
-          <rect width="4" height="4" fill="#fffbeb" />
-          <path d="M-1 1 L1 -1 M0 4 L4 0 M3 5 L5 3" stroke="#fcd34d" stroke-width="0.45" stroke-opacity="0.8" />
-        </pattern>
-      </defs>
-      ${partes}
-    </svg>`;
+  return `<svg class="pu-grupo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges" aria-hidden="true" focusable="false">${partes}</svg>`;
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {

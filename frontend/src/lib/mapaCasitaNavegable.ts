@@ -184,6 +184,13 @@ function notificarPlanta(): void {
         nombre: filaActiva ? div?.nombre || nombreDePlanta(filaActiva) : null,
         /** Total de plantas del inmueble (para la red de minimapas anidados). */
         total: totalPlantas(),
+        /**
+         * Habitaciones REALES de la planta (geometría nativa ui_left/ui_top/
+         * ui_width/ui_height): el minimapa anidado de Nivel 1 dibuja las
+         * proporciones verdaderas de cada espacio, tanto en planta alta como
+         * en planta baja.
+         */
+        hermanas: habitacionesDePlanta(filaActiva || 1),
       },
     }),
   );

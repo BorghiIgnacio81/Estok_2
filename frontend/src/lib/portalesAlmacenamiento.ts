@@ -208,6 +208,11 @@ function renderMinimapa(): void {
       nombre: estado.plantaNombre || `Planta ${estado.plantaFila ?? 1}`,
       filaActiva: estado.plantaFila,
       totalPlantas: estado.plantaTotal,
+      // Habitaciones REALES de la planta activa (Planta Alta / Planta Baja): el
+      // minimapa replica el ancho/alto relativo verdadero de cada espacio en vez
+      // de dibujar barras idénticas. Sin geometría persistida cae a la casita.
+      sectores: sectoresDeItems(estado.hermanasRoom, null),
+      aspecto,
     });
   }
   if (estado.nivel >= 2 && estado.room) {
@@ -335,11 +340,16 @@ function conectarPortalCaja(): void {
 export function iniciarPortalesAlmacenamiento(): void {
   // Nivel 0 → 1: la planta elegida en el Mapa Estok se vuelve el contexto activo.
   window.addEventListener('estok:planta-seleccionada', (e) => {
-    const detalle = (e as CustomEvent<{ fila: number | null; nombre?: string | null; total?: number }>).detail;
+    const detalle =
+      (e as CustomEvent<{ fila: number | null; nombre?: string | null; total?: number; hermanas?: ItemGeometria[] }>)
+        .detail;
     const fila = detalle?.fila ?? null;
     estado.plantaFila = fila;
     estado.plantaNombre = detalle?.nombre ?? '';
     estado.plantaTotal = Math.max(1, Math.floor(Number(detalle?.total) || estado.plantaTotal || 1));
+    // Habitaciones REALES de la planta activa (ui_width/ui_height): el minimapa
+    // anidado de Nivel 1 dibuja la asimetría verdadera de la planta alta y baja.
+    estado.hermanasRoom = fila ? detalle?.hermanas ?? [] : [];
     if (!fila) {
       // Vuelta a la casa: se limpia toda la descendencia.
       estado.room = null;
