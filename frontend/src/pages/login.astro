@@ -1,19 +1,11 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-let error = '';
+import AuthLayout from '../layouts/AuthLayout.astro';
 ---
 
-<BaseLayout title="Iniciar Sesión - Estok">
+<AuthLayout title="Iniciar Sesión - Estok" bare>
   <style is:global>
-    header,
-    nav,
-    #global-navbar,
-    [role="navigation"],
-    .fixed.bottom-4.right-4,
-    #chatContainer,
-    button[class*="rounded-full"] {
-      display: none !important;
-    }
+    /* La página usa <AuthLayout bare>: el layout no renderiza navbar, footer,
+       chat ni menús, así que ya no hay nada duplicado que ocultar por CSS. */
 
     /* Evita que Chrome/Edge coloque el fondo blanco/celeste del autofill */
     #username:-webkit-autofill,
@@ -161,9 +153,7 @@ let error = '';
               class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !py-0 !px-2 !rounded-xl !shadow-none transition-all active:scale-[0.90]"
               style="transform: rotate(-1deg);"
             > 
-              <span id="btnText">
-                Ingresar
-              </span>
+              Ingresar
             </button> 
           </div>
 
@@ -183,6 +173,14 @@ let error = '';
       </div>
     </div> 
  
+    <!-- Alerta in-place: debajo de los inputs, sin recargar la página -->
+    <div
+      id="loginError"
+      class="hidden w-full max-w-[420px] bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mt-4 text-sm font-medium"
+      role="alert"
+      aria-live="assertive"
+    ></div>
+
     <!-- Enlace inferior --> 
     <div class="text-center mt-6 text-sm"> 
       <a 
@@ -256,12 +254,13 @@ let error = '';
     </div>
   </div>
 
-</BaseLayout> 
+</AuthLayout> 
  
 <script> 
   import { login, API_BASE_URL } from '../services/auth'; 
  
   const passwordInput = document.getElementById('password') as HTMLInputElement; 
+  const usuarioInput = document.getElementById('username') as HTMLInputElement; 
   const togglePassword = document.getElementById('togglePassword') as HTMLButtonElement; 
   const eyeOpen = document.getElementById('eyeOpen')!; 
   const eyeClosed = document.getElementById('eyeClosed')!; 
@@ -276,36 +275,52 @@ let error = '';
  
   const loginForm = document.getElementById('loginForm') as HTMLFormElement; 
   const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement; 
-  const btnText = document.getElementById('btnText')!; 
+  const loginError = document.getElementById('loginError')!; 
+
+  // Alerta in-place de errores de login (nunca se recarga la página) 
+  const MSG_CREDENCIALES = 'Usuario o contraseña incorrectos.'; 
+  const MSG_CONEXION = 'Error de conexión con el servidor. Intentá de nuevo.'; 
+
+  function mostrarError(mensaje: string): void { 
+    loginError.textContent = mensaje; 
+    loginError.classList.remove('hidden'); 
+  } 
+
+  function limpiarError(): void { 
+    loginError.textContent = ''; 
+    loginError.classList.add('hidden'); 
+  } 
+
+  function setCargando(cargando: boolean): void { 
+    submitBtn.disabled = cargando; 
+    submitBtn.textContent = cargando ? '...' : 'Ingresar'; 
+  } 
+
+  // El aviso desaparece apenas el usuario vuelve a escribir 
+  usuarioInput?.addEventListener('input', limpiarError); 
+  passwordInput?.addEventListener('input', limpiarError); 
  
   loginForm?.addEventListener('submit', async (e) => { 
     e.preventDefault(); 
+    limpiarError(); 
+    setCargando(true); 
 
-    const formData = new FormData(loginForm); 
-    const username = formData.get('username') as string; 
-    const password = formData.get('password') as string; 
- 
     try { 
-      submitBtn.disabled = true; 
-      btnText.textContent = '...'; 
-       
-      const result = await login({ username, password }); 
+      // login() guarda los JWT en localStorage (estok_access_token / estok_refresh_token) 
+      const result = await login({ 
+        username: usuarioInput.value.trim(), 
+        password: passwordInput.value, 
+      }); 
 
-      if (result.user?.tiene_clave_temporal) { 
-        // ============================================================
-        // REDIRECCIÓN OBLIGATORIA: la cuenta entró con una clave
-        // temporal (flujo "Olvidó su contraseña"). El token queda
-        // guardado, pero NO se permite acceder al Dashboard general
-        // hasta que el usuario defina una clave nueva en su Perfil.
-        // ============================================================
-        window.location.href = '/perfil'; 
-      } else { 
-        window.location.href = '/'; 
-      } 
+      // Clave temporal (flujo "Olvidó su contraseña"): el token ya quedó guardado, 
+      // pero se obliga a definir una clave nueva en el Perfil antes del Dashboard. 
+      window.location.href = result.user?.tiene_clave_temporal ? '/perfil' : '/'; 
     } catch (err) { 
-      alert('Error de conexión'); 
-      submitBtn.disabled = false; 
-      btnText.textContent = 'Ingresar'; 
+      const status = (err as { status?: number } | null)?.status; 
+      mostrarError(status === 400 || status === 401 ? MSG_CREDENCIALES : MSG_CONEXION); 
+      console.error('Login error:', err); 
+    } finally { 
+      setCargando(false); 
     } 
   }); 
 

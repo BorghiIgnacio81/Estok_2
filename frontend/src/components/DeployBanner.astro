@@ -1,0 +1,30 @@
+---
+// =============================================================================
+// BANNER DE "NUEVA VERSIÓN DETECTADA" - Estok Inventory System
+// Markup compartido del aviso post-deploy. Su visibilidad la controla el script
+// de versión del layout: busca #updateBanner y le quita la clase 'hidden'.
+// =============================================================================
+
+export interface Props {
+  /** true = flotante sobre todo el contenido (layouts sin chrome, ej. /login) */
+  fixed?: boolean;
+}
+
+const { fixed = false } = Astro.props;
+
+const clases = fixed
+  ? 'hidden fixed top-3 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md bg-green-50 border border-green-200 text-green-800 rounded-xl p-4 shadow-lg'
+  : 'hidden mb-4 bg-green-50 border border-green-200 text-green-800 rounded-xl p-4 shadow-sm';
+---
+
+<div id="updateBanner" class={clases}>
+  <div class="flex items-center gap-3">
+    <svg class="w-6 h-6 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+    <div>
+      <p class="text-sm font-semibold">🆕 Estok ha sido actualizado</p>
+      <p class="text-xs text-green-600 mt-0.5">Se ha desplegado una nueva versión de la aplicación.</p>
+    </div>
+  </div>
+</div>
