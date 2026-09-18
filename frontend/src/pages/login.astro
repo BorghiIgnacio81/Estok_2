@@ -4,79 +4,49 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
 <AuthLayout title="Iniciar Sesión - Estok" bare>
   <style is:global>
-    /* La página usa <AuthLayout bare>: el layout no renderiza navbar, footer,
-       chat ni menús, así que ya no hay nada duplicado que ocultar por CSS. */
-
-    /* Evita que Chrome/Edge coloque el fondo blanco/celeste del autofill */
+    /* Chrome/Edge: el autofill pinta fondo celeste y rompe la transparencia */
     #username:-webkit-autofill,
-    #username:-webkit-autofill:hover,
-    #username:-webkit-autofill:focus,
-    #password:-webkit-autofill,
-    #password:-webkit-autofill:hover,
-    #password:-webkit-autofill:focus {
-      -webkit-text-fill-color: white !important;
-      -webkit-box-shadow: 0 0 0px 1000px transparent inset !important;
-      box-shadow: 0 0 0px 1000px transparent inset !important;
+    #password:-webkit-autofill {
+      -webkit-text-fill-color: #f6efe3 !important;
+      -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
       background-color: transparent !important;
       transition: background-color 9999s ease-out 0s !important;
     }
 
-    #username,
-    #password {
-      background: transparent !important;
-      background-color: transparent !important;
-      color: white !important;
-      border: none !important;
-      outline: none !important;
-      box-shadow: none !important;
-      -webkit-appearance: none;
-      appearance: none;
+    /* El cartel de error entra deslizándose en vez de aparecer de golpe */
+    #loginError:not(.hidden) {
+      animation: login-error-in 0.28s ease-out both;
     }
 
-    #username::placeholder,
-    #password::placeholder {
-      color: rgba(255, 255, 255, 0.75) !important;
-    }
-
-    #username:focus,
-    #password:focus {
-      background: transparent !important;
-      background-color: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      outline: none !important;
+    @keyframes login-error-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   </style>
 
   <div class="min-h-screen bg-[#cfd5e2] flex flex-col justify-center items-center p-4 select-none">
-    
+
     <!-- Título Principal Superior -->
     <div class="text-center mb-6 z-10">
-      <h1 class="text-3xl font-extrabold text-[#1e293b] tracking-tight">
-        Estok
-      </h1>
-
-      <p class="text-xs text-gray-600 mt-1">
-        Sistema de Inventario Personal
-      </p>
+      <h1 class="text-3xl font-extrabold text-[#1e293b] tracking-tight">Estok</h1>
+      <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CONTENEDOR CON DIFUMINADO -->
-    <div 
+    <!-- CÓMODA: cada % está calibrado sobre archivador-login.png
+         (frente de cajones x 38.5%-76.5% y centros verticales 43% / 52% / 62%) -->
+    <div
       class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl"
       style="
-        background-image: url('/archivador-login.png'); 
-        background-size: 100% 100%; 
+        background-image: url('/archivador-login.png');
+        background-size: 100% 100%;
         background-position: center;
         box-shadow: inset 0 0 40px 30px #cfd5e2;
       "
     >
-      
-      <!-- CAPA DE FORMULARIO -->
       <div class="absolute inset-0 z-10">
-        
-        <!-- Título "Iniciar Sesión" -->
-        <div class="absolute left-10 right-0 top-[7%] text-center px-4">
+
+        <!-- Rótulo del panel: margen blanco superior, alineado a la columna de cajones -->
+        <div class="absolute left-[38.5%] right-[23.5%] top-[7%] text-center">
           <h2 class="text-xs font-bold text-white drop-shadow-md tracking-wider uppercase bg-slate-950/60 py-0.5 rounded max-w-[120px] mx-auto">
             Iniciar Sesión
           </h2>
@@ -84,110 +54,95 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
         <form id="loginForm" class="absolute inset-0">
 
-          <!-- CAJÓN 2: Usuario -->
-          <div class="absolute left-[39%] right-[21%] top-[39%]">
-            <input 
-              id="username" 
-              name="username" 
-              type="text" 
-              required 
+          <!-- CAJÓN 2 · USUARIO: texto transparente centrado sobre la madera -->
+          <div class="absolute left-[38.5%] right-[23.5%] top-[43%] -translate-y-1/2">
+            <input
+              id="username"
+              name="username"
+              type="text"
+              required
               autocomplete="username"
               placeholder="Usuario"
-              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 transition-all placeholder:!text-white/75"
+              class="w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 placeholder:text-[#f6efe3]/55 [text-shadow:0_1px_2px_rgba(15,23,42,0.55)] transition-colors duration-200"
             />
           </div>
 
-          <!-- CAJÓN 3: Contraseña -->
-          <div class="absolute left-[40%] right-[21%] top-[50%]">
+          <!-- CAJÓN 3 · CONTRASEÑA: cajón relativo + ojo absoluto en el extremo derecho -->
+          <div class="absolute left-[38.5%] right-[23.5%] top-[52%] -translate-y-1/2">
             <div class="relative">
-
-              <input 
-                id="password" 
-                name="password" 
-                type="password" 
-                required 
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
                 autocomplete="current-password"
                 placeholder="Contraseña"
-                class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !rounded-lg !outline-none !shadow-none !px-2 !py-0 !pr-8 transition-all placeholder:!text-white/75"
+                class="w-full h-[30px] bg-transparent border-none px-8 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 placeholder:text-[#f6efe3]/55 [text-shadow:0_1px_2px_rgba(15,23,42,0.55)] transition-colors duration-200"
               />
 
               <button
                 id="togglePassword"
                 type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 !bg-transparent !border-none !p-0 !shadow-none text-gray-400 hover:text-white transition-colors"
+                aria-label="Mostrar u ocultar la contraseña"
+                class="absolute right-3 top-1/2 -translate-y-1/2 bg-transparent border-0 p-0 text-[#f6efe3]/65 hover:text-white focus:outline-none transition-colors duration-200"
               >
-                <svg 
-                  id="eyeOpen" 
-                  class="h-4 w-4" 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor" 
-                  stroke-width="2"
-                >
+                <svg id="eyeOpen" class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
 
-                <svg 
-                  id="eyeClosed" 
-                  class="hidden h-4 w-4" 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor" 
-                  stroke-width="2"
-                >
+                <svg id="eyeClosed" class="hidden h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                 </svg>
-
               </button>
             </div>
           </div>
 
-          <!-- CAJÓN 4: Botón Ingresar -->
-          <div class="absolute left-[41%] right-[21%] top-[69%]">
-            <button  
-              type="submit"  
-              id="submitBtn" 
-              class="!w-full !h-[26px] !text-center !text-sm !font-bold !text-white !bg-transparent !border-none !py-0 !px-2 !rounded-xl !shadow-none transition-all active:scale-[0.90]"
-              style="transform: rotate(-1deg);"
-            > 
+          <!-- CAJÓN 4 · INGRESAR: etiqueta manuscrita levemente inclinada -->
+          <div class="absolute left-[38.5%] right-[23.5%] top-[62%] -translate-y-1/2">
+            <button
+              type="submit"
+              id="submitBtn"
+              class="w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-bold uppercase tracking-[0.22em] text-[#f6efe3] outline-none shadow-none -rotate-1 transition-transform duration-200 active:scale-90 [text-shadow:0_1px_3px_rgba(15,23,42,0.6)]"
+            >
               Ingresar
-            </button> 
+            </button>
           </div>
 
-          <!-- CAJÓN 5: Enlace "¿Olvidó su contraseña?" -->
-          <div class="absolute left-[8%] right-[8%] top-[84%] text-center">
+          <!-- BASE DE LA CÓMODA · recuperación de contraseña sobre el margen blanco -->
+          <div class="absolute inset-x-[8%] top-[83.5%] text-center">
             <a
               id="forgotPassword"
               href="#"
-              class="!text-black hover:!text-black !underline underline-offset-2 !text-[11px] !font-semibold transition-colors"
+              class="group relative inline-block text-[11px] font-medium tracking-wide text-slate-600 hover:text-slate-900 cursor-pointer transition-colors duration-200 focus:outline-none"
             >
               ¿Olvidó su contraseña?
+              <span class="pointer-events-none absolute -bottom-0.5 left-0 h-px w-0 bg-slate-800/80 transition-all duration-200 group-hover:w-full"></span>
             </a>
           </div>
-
         </form>
- 
-      </div>
-    </div> 
- 
-    <!-- Alerta in-place: debajo de los inputs, sin recargar la página -->
-    <div
-      id="loginError"
-      class="hidden w-full max-w-[420px] bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mt-4 text-sm font-medium"
-      role="alert"
-      aria-live="assertive"
-    ></div>
 
-    <!-- Enlace inferior --> 
-    <div class="text-center mt-6 text-sm"> 
-      <a 
-        href="/register" 
-        class="text-blue-700 hover:text-blue-900 underline font-semibold"
+        <!-- CARTEL DE ERROR · pill simétrico en la base, justo bajo el enlace de recuperación -->
+        <div id="loginError" role="alert" aria-live="assertive" class="hidden absolute inset-x-[7%] bottom-[3%] z-20">
+          <div class="flex items-center justify-center gap-2 rounded-xl bg-red-50/90 px-3 py-1.5 text-[11px] font-medium tracking-wide text-red-700 ring-1 ring-red-300/60 shadow-sm backdrop-blur-[2px]">
+            <svg class="h-3.5 w-3.5 shrink-0 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+            <span id="loginErrorText"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Enlace inferior · registro -->
+    <div class="text-center mt-6 text-xs">
+      <a
+        href="/register"
+        class="group relative inline-block font-medium tracking-wide text-slate-600 hover:text-slate-900 cursor-pointer transition-colors duration-200"
       >
         ¿No tienes cuenta? Registrarse
+        <span class="pointer-events-none absolute -bottom-0.5 left-0 h-px w-0 bg-slate-800/80 transition-all duration-200 group-hover:w-full"></span>
       </a>
     </div>
 
@@ -276,18 +231,19 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   const loginForm = document.getElementById('loginForm') as HTMLFormElement; 
   const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement; 
   const loginError = document.getElementById('loginError')!; 
+  const loginErrorText = document.getElementById('loginErrorText')!; 
 
   // Alerta in-place de errores de login (nunca se recarga la página) 
   const MSG_CREDENCIALES = 'Usuario o contraseña incorrectos.'; 
   const MSG_CONEXION = 'Error de conexión con el servidor. Intentá de nuevo.'; 
 
   function mostrarError(mensaje: string): void { 
-    loginError.textContent = mensaje; 
+    loginErrorText.textContent = mensaje; 
     loginError.classList.remove('hidden'); 
   } 
 
   function limpiarError(): void { 
-    loginError.textContent = ''; 
+    loginErrorText.textContent = ''; 
     loginError.classList.add('hidden'); 
   } 
 
@@ -392,3 +348,6 @@ import AuthLayout from '../layouts/AuthLayout.astro';
     }
   });
 </script>
+
+
+
