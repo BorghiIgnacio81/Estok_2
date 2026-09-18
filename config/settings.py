@@ -302,11 +302,14 @@ EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'True').lower() in ('true', 
 EMAIL_USE_SSL = False
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'appestok@gmail.com'
 
-# Fallback operativo: se conserva la app password vigente para que el envío
-# NO se rompa si Coolify todavía no tiene cargada la variable de entorno.
-# PENDIENTE DE SEGURIDAD: una vez cargada EMAIL_HOST_PASSWORD en Coolify,
-# eliminar este fallback del repo.
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'roxx tsxq atri nncp'
+# La contraseña de correo es EXCLUSIVAMENTE del entorno (Coolify → env del
+# contenedor → docker-compose.yml). No hay fallback hardcodeado en el repo.
+# Si la variable no llega al contenedor, `os.getenv` devuelve None, Django no
+# autentica contra Gmail (responde 530 Authentication Required) y el envío
+# falla de forma controlada: se loguea el error y el endpoint responde 503,
+# sin tumbar el worker. Verificación rápida en el contenedor:
+#   docker exec <contenedor> printenv EMAIL_HOST_PASSWORD
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 DEFAULT_FROM_EMAIL = (
     os.environ.get('DEFAULT_FROM_EMAIL') or f'Estok <{EMAIL_HOST_USER}>'
