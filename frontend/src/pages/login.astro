@@ -13,6 +13,21 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       transition: background-color 9999s ease-out 0s !important;
     }
 
+    /* Los 3 controles comparten el mismo "grabado" sobre la superficie del
+       mueble: caret crema, contraste alto y relieve mínimo (sombra oscura
+       debajo + brillo tenue arriba) para que el texto parezca incrustado.
+       Se centraliza acá para no repetir el text-shadow en cada control. */
+    .engraved-on-wood {
+      caret-color: #f6efe3;
+      text-shadow:
+        0 1px 2px rgba(2, 6, 23, 0.8),
+        0 -1px 1px rgba(255, 255, 255, 0.12);
+    }
+
+    .engraved-on-wood::placeholder {
+      color: rgba(246, 239, 227, 0.55);
+    }
+
     /* El cartel de error entra deslizándose en vez de aparecer de golpe */
     #loginError:not(.hidden) {
       animation: login-error-in 0.28s ease-out both;
@@ -32,10 +47,14 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CÓMODA: cada % está calibrado sobre archivador-login.png
-         (frente de cajones x 38.5%-76.5% y centros verticales 43% / 52% / 62%) -->
+    <!-- CÓMODA: cada % está calibrado sobre archivador-login.png (1680x1527).
+         Medido sobre el asset: frente de cajones x 38.5%-76.5% y divisiones
+         horizontales en y 38.8% / 47.3% / 56.8% / 66.3%, o sea centros de
+         cajón 43% / 52% / 62% (2º, 3º y 4º de arriba).
+         El alto se deriva del aspect-ratio real de la imagen: así la silueta
+         no se deforma ni se descalza cuando cambia el ancho (layout elástico). -->
     <div
-      class="relative w-full max-w-[420px] h-[390px] overflow-visible rounded-3xl"
+      class="relative w-full max-w-[420px] aspect-[1680/1527] overflow-visible rounded-3xl"
       style="
         background-image: url('/archivador-login.png');
         background-size: 100% 100%;
@@ -63,7 +82,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
               required
               autocomplete="username"
               placeholder="Usuario"
-              class="w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 placeholder:text-[#f6efe3]/55 [text-shadow:0_1px_2px_rgba(15,23,42,0.55)] transition-colors duration-200"
+              class="engraved-on-wood w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 transition-colors duration-200"
             />
           </div>
 
@@ -77,7 +96,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
                 required
                 autocomplete="current-password"
                 placeholder="Contraseña"
-                class="w-full h-[30px] bg-transparent border-none px-8 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 placeholder:text-[#f6efe3]/55 [text-shadow:0_1px_2px_rgba(15,23,42,0.55)] transition-colors duration-200"
+                class="engraved-on-wood w-full h-[30px] bg-transparent border-none px-8 py-0 text-center text-[13px] font-semibold tracking-[0.06em] text-[#f6efe3] outline-none ring-0 shadow-none focus:border-transparent focus:ring-0 transition-colors duration-200"
               />
 
               <button
@@ -103,7 +122,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
             <button
               type="submit"
               id="submitBtn"
-              class="w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-bold uppercase tracking-[0.22em] text-[#f6efe3] outline-none shadow-none -rotate-1 transition-transform duration-200 active:scale-90 [text-shadow:0_1px_3px_rgba(15,23,42,0.6)]"
+              class="engraved-on-wood w-full h-[30px] bg-transparent border-none px-2 py-0 text-center text-[13px] font-bold uppercase tracking-[0.22em] text-[#f6efe3] outline-none shadow-none cursor-pointer -rotate-1 transition-all duration-200 hover:text-white active:scale-90 disabled:cursor-wait disabled:opacity-70"
             >
               Ingresar
             </button>
@@ -122,8 +141,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
           </div>
         </form>
 
-        <!-- CARTEL DE ERROR · pill simétrico en la base, justo bajo el enlace de recuperación -->
-        <div id="loginError" role="alert" aria-live="assertive" class="hidden absolute inset-x-[7%] bottom-[3%] z-20">
+        <!-- CARTEL DE ERROR · mismo inset que los enlaces (8%) para que quede
+             simétrico y centrado justo debajo del bloque principal de cajones -->
+        <div id="loginError" role="alert" aria-live="assertive" class="hidden absolute inset-x-[8%] bottom-[3%] z-20">
           <div class="flex items-center justify-center gap-2 rounded-xl bg-red-50/90 px-3 py-1.5 text-[11px] font-medium tracking-wide text-red-700 ring-1 ring-red-300/60 shadow-sm backdrop-blur-[2px]">
             <svg class="h-3.5 w-3.5 shrink-0 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
