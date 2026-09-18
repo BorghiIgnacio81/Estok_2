@@ -284,15 +284,19 @@ ADMIN_INDEX_TITLE = 'Panel de Administración'
 # =============================================================================
 # EMAIL - Configuración SMTP (Gmail)
 # =============================================================================
-# Configuración NATIVA hardcodeada: el envío funciona sin depender de variables
-# de entorno externas (Coolify). EMAIL_HOST es un HOSTNAME, NUNCA una URL con
-# esquema ("://gmail.com" no es resoluble por smtplib).
+# SEGURIDAD: la credencial SMTP NUNCA se escribe en el repositorio. Vive
+# exclusivamente en la variable de entorno EMAIL_HOST_PASSWORD (Coolify), que
+# docker-compose.yml inyecta en el contenedor. Si la variable no llega, el
+# envío falla de forma controlada y el motivo queda en el log: no hay ningún
+# fallback con credenciales hardcodeadas.
 #
-# NOTA DE DIAGNÓSTICO (2026-09-18): Gmail rechazó los envíos con
+# EMAIL_HOST es un HOSTNAME, NUNCA una URL con esquema ("://gmail.com" no es
+# resoluble por smtplib).
+#
+# NOTA DE DIAGNÓSTICO (2026-09-18): Gmail respondió
 #   550 5.4.5 "Daily user sending limit exceeded"
-# (cuota diaria / bloqueo de seguridad del entorno de salida). El error CRUDO
-# del servidor SIEMPRE queda en el log del servicio de correo, para no volver a
-# diagnosticar a ciegas:
+# (límite diario / restricción de la cuenta). El error CRUDO del servidor
+# SIEMPRE queda en el log del servicio de correo:
 #   docker logs <contenedor> 2>&1 | grep -i smtp
 # =============================================================================
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
@@ -300,7 +304,12 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = "appestok@gmail.com"
-EMAIL_HOST_PASSWORD = "roxx tsxq atri nncp"
+
+# Sin valor por defecto A PROPÓSITO: cualquier credencial hardcodeada termina
+# filtrada en el repositorio y en su historial de git. La contraseña de
+# aplicación de Google se rota en la cuenta y se carga SOLO en Coolify.
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Timeout de conexión SMTP en segundos (valor FIJO, no variable de entorno):

@@ -50,6 +50,10 @@ services:
       - JWT_ACCESS_TOKEN_LIFETIME=${JWT_ACCESS_TOKEN_LIFETIME:-3600}
       - JWT_REFRESH_TOKEN_LIFETIME=${JWT_REFRESH_TOKEN_LIFETIME:-604800}
 
+      # Credencial SMTP: se lee de Coolify y se inyecta en el contenedor.
+      # El valor NUNCA vive en el repositorio (ver settings.py).
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+
       # IA
       - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.0.101:1234/v1}
       - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
