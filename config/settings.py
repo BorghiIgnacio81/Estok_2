@@ -284,39 +284,26 @@ ADMIN_INDEX_TITLE = 'Panel de Administración'
 # =============================================================================
 # EMAIL - Configuración SMTP (Gmail)
 # =============================================================================
-# Todas las credenciales se leen de variables de entorno (Coolify → env del
-# contenedor) para no depender de valores hardcodeados en el repo.
+# Configuración NATIVA hardcodeada: el envío funciona sin depender de variables
+# de entorno externas (Coolify). EMAIL_HOST es un HOSTNAME, NUNCA una URL con
+# esquema ("://gmail.com" no es resoluble por smtplib).
 #
-# IMPORTANTE: EMAIL_HOST es un HOSTNAME, NUNCA una URL. Un valor como
-# "://gmail.com" o "smtp://gmail.com" NO es resoluble por Python/smtplib y
-# provoca que el envío falle (o cuelgue) en producción.
-#
-# EMAIL_HOST_PASSWORD es la Contraseña de aplicación de Google (16 caracteres,
-# requiere verificación en 2 pasos activa en la cuenta). Para 587 se usa
-# STARTTLS (EMAIL_USE_TLS=True) y NUNCA SSL implícito.
+# NOTA DE DIAGNÓSTICO (2026-09-18): Gmail rechazó los envíos con
+#   550 5.4.5 "Daily user sending limit exceeded"
+# (cuota diaria / bloqueo de seguridad del entorno de salida). El error CRUDO
+# del servidor SIEMPRE queda en el log del servicio de correo, para no volver a
+# diagnosticar a ciegas:
+#   docker logs <contenedor> 2>&1 | grep -i smtp
 # =============================================================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'smtp.gmail.com'
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or '587')
-EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'True').lower() in ('true', '1', 'yes')
-EMAIL_USE_SSL = False
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'appestok@gmail.com'
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "appestok@gmail.com"
+EMAIL_HOST_PASSWORD = "roxx tsxq atri nncp"
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# La contraseña de correo es EXCLUSIVAMENTE del entorno (Coolify → env del
-# contenedor → docker-compose.yml). No hay fallback hardcodeado en el repo.
-# Si la variable no llega al contenedor, `os.getenv` devuelve None, Django no
-# autentica contra Gmail (responde 530 Authentication Required) y el envío
-# falla de forma controlada: se loguea el error y el endpoint responde 503,
-# sin tumbar el worker. Verificación rápida en el contenedor:
-#   docker exec <contenedor> printenv EMAIL_HOST_PASSWORD
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-
-DEFAULT_FROM_EMAIL = (
-    os.environ.get('DEFAULT_FROM_EMAIL') or f'Estok <{EMAIL_HOST_USER}>'
-)
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
-
-# Timeout (segundos) de la conexión SMTP. Es la defensa contra el "502 por
-# timeout": sin este valor, un cuelgue de Gmail deja al worker de Gunicorn
-# esperando indefinidamente y el proxy corta la petición con un 502.
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or '10')
+# Timeout de conexión SMTP en segundos (valor FIJO, no variable de entorno):
+# evita que un cuelgue de Gmail deje un worker de Gunicorn bloqueado hasta que
+# el proxy corte la petición con un 502.
+EMAIL_TIMEOUT = 10

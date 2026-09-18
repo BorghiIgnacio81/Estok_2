@@ -168,11 +168,6 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
 
         enviado = enviar_email_usuario(user, tipo=tipo, password=clave_temporal)
         if not enviado:
-            # HTTP 503 Service Unavailable: el fallo es del servidor de correo
-            # (cuota de Gmail agotada, credenciales rechazadas, timeout), no
-            # del gateway. Se evita el 502 Bad Gateway, que se interpretaba
-            # como caída de infraestructura. El error crudo del SMTP queda en
-            # el log (inventario/services/email_service.py).
             return Response(
                 {
                     'enviado': False,
@@ -182,7 +177,7 @@ class SuperAdminUserViewSet(viewsets.ModelViewSet):
                         'Verificá la configuración SMTP.'
                     ),
                 },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status=status.HTTP_502_BAD_GATEWAY,
             )
 
         return Response(
