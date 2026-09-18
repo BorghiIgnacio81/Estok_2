@@ -284,10 +284,36 @@ ADMIN_INDEX_TITLE = 'Panel de Administración'
 # =============================================================================
 # EMAIL - Configuración SMTP (Gmail)
 # =============================================================================
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "appestok@gmail.com"
-EMAIL_HOST_PASSWORD = "roxx tsxq atri nncp"
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+# Todas las credenciales se leen de variables de entorno (Coolify → env del
+# contenedor) para no depender de valores hardcodeados en el repo.
+#
+# IMPORTANTE: EMAIL_HOST es un HOSTNAME, NUNCA una URL. Un valor como
+# "://gmail.com" o "smtp://gmail.com" NO es resoluble por Python/smtplib y
+# provoca que el envío falle (o cuelgue) en producción.
+#
+# EMAIL_HOST_PASSWORD es la Contraseña de aplicación de Google (16 caracteres,
+# requiere verificación en 2 pasos activa en la cuenta). Para 587 se usa
+# STARTTLS (EMAIL_USE_TLS=True) y NUNCA SSL implícito.
+# =============================================================================
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'smtp.gmail.com'
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or '587')
+EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'True').lower() in ('true', '1', 'yes')
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or 'appestok@gmail.com'
+
+# Fallback operativo: se conserva la app password vigente para que el envío
+# NO se rompa si Coolify todavía no tiene cargada la variable de entorno.
+# PENDIENTE DE SEGURIDAD: una vez cargada EMAIL_HOST_PASSWORD en Coolify,
+# eliminar este fallback del repo.
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or 'roxx tsxq atri nncp'
+
+DEFAULT_FROM_EMAIL = (
+    os.environ.get('DEFAULT_FROM_EMAIL') or f'Estok <{EMAIL_HOST_USER}>'
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Timeout (segundos) de la conexión SMTP. Es la defensa contra el "502 por
+# timeout": sin este valor, un cuelgue de Gmail deja al worker de Gunicorn
+# esperando indefinidamente y el proxy corta la petición con un 502.
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or '10')

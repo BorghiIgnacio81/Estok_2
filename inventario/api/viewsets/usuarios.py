@@ -168,9 +168,15 @@ class UserViewSet(viewsets.ModelViewSet):
             })
 
         if not enviado:
+            # HTTP 503 Service Unavailable: el fallo es del servidor de correo
+            # (cuota de Gmail agotada, credenciales rechazadas, timeout), NO
+            # del gateway. Antes se devolvía 502 Bad Gateway, que el frontend
+            # y el equipo interpretaban como una caída de infraestructura.
+            # El detalle técnico real queda en el log del servicio
+            # (inventario/services/email_service.py).
             return Response(
                 {'error': 'No se pudo enviar el correo. Intentá de nuevo más tarde.'},
-                status=status.HTTP_502_BAD_GATEWAY,
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         return Response({

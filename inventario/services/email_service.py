@@ -10,11 +10,36 @@ facturación, reseteo de clave) sin duplicar la lógica de envío.
 """
 
 import logging
+import smtplib
 from typing import Optional
 
-from django.core.mail import send_mail
+from django.conf import settings
+from django.core.mail import EmailMessage, get_connection
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# CONEXIÓN SMTP
+# =============================================================================
+# El detalle CRUDO del error SMTP nunca se filtra al cliente HTTP (sería una
+# fuga de información de la cuenta de correo): queda en el log con
+# logger.error desde enviar_email_usuario() para diagnóstico en producción.
+# =============================================================================
+
+
+def _crear_conexion():
+    """
+    Crea una conexión SMTP con timeout EXPLÍCITO (settings.EMAIL_TIMEOUT).
+
+    El timeout es la defensa contra el 502 por timeout: sin él, un cuelgue de
+    Gmail deja al worker de Gunicorn bloqueado hasta que el proxy corta la
+    petición (el cliente interpreta eso como "Bad Gateway").
+    """
+    return get_connection(
+        backend=settings.EMAIL_BACKEND,
+        fail_silently=False,
+        timeout=getattr(settings, 'EMAIL_TIMEOUT', 10),
+    )
 
 # =============================================================================
 # Tipos de notificación soportados (contrato con el frontend)
@@ -105,7 +130,15 @@ def enviar_email_usuario(
     Envía un correo transaccional al usuario.
 
     Devuelve True si el envío se efectuó y False si falló o el usuario no
-    tiene email. La excepción nunca se propaga (fail_silently + try/except).
+    tiene email. NUNCA propaga excepciones: todo fallo de red o rechazo del
+    servidor SMTP se captura, se loguea con el error CRUDO de Google y se
+    reporta devolviendo False, de modo que el endpoint responda un código
+    HTTP controlado en lugar de colapsar (502 / worker colgado).
+
+    Se usa `fail_silently=False` a propósito: con `True`, Django traga la
+    excepción del servidor SMTP y `send_mail` devuelve 0 sin explicación
+    (así se ocultaba el "550 Daily user sending limit exceeded" de Gmail).
+    El silencio se maneja ACÁ, devolviendo False, nunca propagando.
 
     - tipo='bienvenida': incluye las credenciales SOLO si se recibe
       `password` (el registro público lo tiene en claro; el panel admin no).
@@ -121,20 +154,44 @@ def enviar_email_usuario(
     cuerpo = _cuerpo_email(tipo, nombre, username, password)
 
     try:
-        enviados = send_mail(
+        mensaje = EmailMessage(
             subject=subject,
-            message=cuerpo,
-            from_email=None,
-            recipient_list=[email],
-            fail_silently=True,
+            body=cuerpo,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[email],
+            connection=_crear_conexion(),
         )
-    except Exception as e:  # noqa: BLE001 - nunca romper el flujo por email
-        logger.warning('No se pudo enviar email "%s" a %s: %s', tipo, email, e)
+        enviados = mensaje.send(fail_silently=False)
+    except smtplib.SMTPAuthenticationError as exc:
+        # App password revocada, 2FA desactivada o usuario mal configurado.
+        logger.error(
+            'SMTP rechazó las credenciales de "%s" (%s): %s',
+            settings.EMAIL_HOST_USER, settings.EMAIL_HOST, exc,
+        )
+        return False
+    except smtplib.SMTPDataError as exc:
+        # Ej: 550 "Daily user sending limit exceeded" (cuota diaria de Gmail)
+        # o mensaje rechazado por políticas del destinatario.
+        logger.error(
+            'SMTP rechazó el mensaje "%s" para %s: %s', tipo, email, exc,
+        )
+        return False
+    except (smtplib.SMTPException, OSError) as exc:
+        # SMTPException cubre fallos del protocolo; OSError cubre DNS,
+        # conexión rechazada y timeout (socket.timeout es subclase de OSError).
+        logger.error(
+            'Falló la conexión SMTP al enviar "%s" a %s: %s', tipo, email, exc,
+        )
+        return False
+    except Exception:  # noqa: BLE001 - el email nunca rompe el flujo
+        logger.exception(
+            'Error inesperado enviando email "%s" a %s', tipo, email,
+        )
         return False
 
     if not enviados:
         logger.warning(
-            'No se pudo enviar email "%s" a %s (send_mail devolvió 0).',
+            'No se pudo enviar email "%s" a %s (send devolvió 0).',
             tipo,
             email,
         )
