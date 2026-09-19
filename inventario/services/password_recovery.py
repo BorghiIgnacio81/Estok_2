@@ -45,20 +45,24 @@ def recuperar_password_usuario(email=None, username=None):
     """
     Procesa una solicitud de recuperación de acceso.
 
-    Encuentra la cuenta por email (prioritario) o username, genera una clave
-    temporal de 8 caracteres, la aplica con set_password(), activa el flag
-    `tiene_clave_temporal = True` y dispara el envío del correo SMTP con la
-    clave temporal (el usuario podrá loguearse y será redirigido a /perfil
-    para definir una clave nueva).
+    Exige la COMBINACIÓN EXACTA de username + email: si varios usuarios
+    comparten el mismo correo, el username desambigua la cuenta y evita
+    alterar la cuenta equivocada. Nunca se busca por un solo campo.
+
+    Genera una clave temporal de 8 caracteres, la aplica con set_password(),
+    activa el flag `tiene_clave_temporal = True` y dispara el envío del correo
+    SMTP con la clave temporal (el usuario podrá loguearse y será redirigido a
+    /perfil para definir una clave nueva).
 
     Retorna (user, clave_temporal, enviado):
-      - user: instancia de CustomUser, o None si la cuenta no existe.
+      - user: instancia de CustomUser, o None si el par no coincide con
+        ninguna cuenta.
       - clave_temporal: str en claro (None si no se generó).
       - enviado: bool, True si el correo se despachó correctamente.
 
-    Levanta ValueError con mensaje amigable ante datos inválidos, cuenta
-    inactiva o cuenta sin email configurado. El fallo de SMTP NO se propaga:
-    se reporta vía `enviado=False`.
+    Levanta ValueError con mensaje amigable si falta alguno de los dos datos,
+    si la cuenta está inactiva o si la cuenta no tiene email configurado.
+    El fallo de SMTP NO se propaga: se reporta vía `enviado=False`.
     """
     from ..models import CustomUser
     from .email_service import TIPO_RESETEO, enviar_email_usuario
@@ -66,20 +70,21 @@ def recuperar_password_usuario(email=None, username=None):
     email = (email or '').strip().lower()
     username = (username or '').strip()
 
-    if not email and not username:
-        raise ValueError('Debés indicar tu email o tu nombre de usuario.')
+    if not email or not username:
+        raise ValueError('Debés indicar tu nombre de usuario y tu email.')
 
-    # Búsqueda con prioridad al email (identificador único real).
-    user = None
-    if email:
-        user = CustomUser.objects.filter(email__iexact=email).first()
-    if user is None and username:
-        user = CustomUser.objects.filter(username__iexact=username).first()
+    # Búsqueda ESTRICTA por el par username + email (nunca por uno solo).
+    # username es exacto (campo único) y el email es case-insensitive porque
+    # en el registro se guarda tal como lo escribió el usuario.
+    user = CustomUser.objects.filter(
+        username=username,
+        email__iexact=email,
+    ).first()
 
-    # Anti-enumeración: la respuesta la decide el endpoint (genérica).
+    # El endpoint decide la respuesta (404 con mensaje controlado).
     if user is None:
         logger.info(
-            'Recuperación solicitada para cuenta inexistente '
+            'Recuperación solicitada para un par username+email inexistente '
             '(email=%s, username=%s).',
             email or '-', username or '-',
         )

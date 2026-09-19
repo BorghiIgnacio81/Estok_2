@@ -138,9 +138,18 @@ class UserViewSet(viewsets.ModelViewSet):
         `tiene_clave_temporal = True` y la envía por email al usuario.
 
         POST /api/usuarios/recuperar-password/
-        Body (uno de los dos):
-          { "email": "user@example.com" }
-          { "username": "mi_usuario" }
+        Body (AMBOS obligatorios):
+          { "username": "mi_usuario", "email": "user@example.com" }
+
+        La búsqueda es estricta por el PAR username + email: si varios
+        usuarios comparten el mismo correo, el username desambigua y se evita
+        alterar la cuenta equivocada.
+
+        Respuestas:
+          - 400: falta alguno de los dos datos, cuenta inactiva o sin email.
+          - 404: no existe una cuenta con ese par username + email.
+          - 502: el correo no pudo despacharse.
+          - 200: clave temporal generada y enviada.
 
         La lógica de negocio vive en inventario/services/password_recovery.py.
         Al loguearse con la clave temporal, el frontend detecta el flag y
@@ -157,15 +166,16 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Anti-enumeración: si la cuenta no existe, la respuesta es genérica.
         if user is None:
-            return Response({
-                'success': True,
-                'mensaje': (
-                    'Si el dato coincide con una cuenta registrada, '
-                    'recibirás un correo con tu clave temporal.'
-                ),
-            })
+            return Response(
+                {
+                    'error': (
+                        'No se encontró ningún usuario con esos '
+                        'datos combinados'
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         if not enviado:
             return Response(

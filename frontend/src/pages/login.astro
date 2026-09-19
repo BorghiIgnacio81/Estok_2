@@ -178,7 +178,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
         <div>
           <h3 class="text-lg font-bold text-gray-900">🔑 Recuperar contraseña</h3>
           <p class="text-xs text-gray-500 mt-1">
-            Ingresá el email de tu cuenta y te enviaremos una clave temporal.
+            Ingresá tu nombre de usuario y el email de tu cuenta y te enviaremos una clave temporal.
           </p>
         </div>
         <button
@@ -194,6 +194,15 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       </div>
 
       <form id="recoveryForm" class="space-y-4">
+        <!-- El par username + email es obligatorio: si varios usuarios
+             comparten el mismo correo, el username desambigua la cuenta.
+             El id es 'recoveryUsername' para no colisionar con el input
+             '#username' del formulario de login (debe ser único en el DOM). -->
+        <div>
+          <label for="recoveryUsername" class="block text-sm font-medium text-gray-700 mb-1">Nombre de Usuario</label>
+          <input id="recoveryUsername" name="username" type="text" required autocomplete="username" placeholder="tu_usuario"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
+        </div>
         <div>
           <label for="recoveryEmail" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
           <input
@@ -302,11 +311,14 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
   // ===========================================================================
   // FLUJO "¿OLVIDÓ SU CONTRASEÑA?"
-  // Modal público → POST /api/usuarios/recuperar-password/ con el email.
+  // Modal público → POST /api/usuarios/recuperar-password/ con username + email.
+  // El backend exige el PAR exacto (evita que dos usuarios con el mismo email
+  // colisionen y que se genere una clave temporal en la cuenta equivocada).
   // ===========================================================================
   const forgotPassword = document.getElementById('forgotPassword')!;
   const recoveryModal = document.getElementById('recoveryModal')!;
   const recoveryForm = document.getElementById('recoveryForm') as HTMLFormElement;
+  const recoveryUsername = document.getElementById('recoveryUsername') as HTMLInputElement;
   const recoveryEmail = document.getElementById('recoveryEmail') as HTMLInputElement;
   const recoveryClose = document.getElementById('recoveryClose')!;
   const recoveryCancel = document.getElementById('recoveryCancel')!;
@@ -316,7 +328,7 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
   function mostrarModalRecuperacion(visible: boolean): void {
     recoveryModal.classList.toggle('hidden', !visible);
-    if (visible) recoveryEmail.focus();
+    if (visible) recoveryUsername.focus();
   }
 
   forgotPassword?.addEventListener('click', (e) => {
@@ -335,8 +347,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
   recoveryForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const username = recoveryUsername.value.trim();
     const email = recoveryEmail.value.trim();
-    if (!email) return;
+    if (!username || !email) return;
 
     recoveryBtn.disabled = true;
     recoveryBtnText.textContent = 'Enviando...';
@@ -347,14 +360,15 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       const res = await fetch(`${API_BASE_URL}/usuarios/recuperar-password/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, username }),
       });
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
-        recoveryMessage.textContent = '📧 ' + (data.mensaje || 'Si el email coincide con una cuenta, recibirás tu clave temporal.');
+        recoveryMessage.textContent = '📧 ' + (data.mensaje || 'Si los datos coinciden con una cuenta, recibirás tu clave temporal.');
         recoveryMessage.className = 'text-sm text-center text-green-600 font-medium';
         recoveryEmail.value = '';
+        recoveryUsername.value = '';
       } else {
         recoveryMessage.textContent = data.error || 'No se pudo procesar la solicitud. Intentá de nuevo.';
         recoveryMessage.className = 'text-sm text-center text-red-600 font-medium';
