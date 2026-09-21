@@ -16,7 +16,14 @@
 
 import { toast } from './mapaJerarquico';
 import { pctValor } from './mapaPlantaUnica';
-import { ajustarAHuecos, colisionaConAlguna, LADO_MIN, type Caja } from './colisionesPlantaUnica';
+import {
+  ajustarAHuecos,
+  colisionaConAlguna,
+  deadzoneEnPorcentaje,
+  LADO_MIN,
+  type Caja,
+  type TolXY,
+} from './colisionesPlantaUnica';
 import { partesTrasEscalar, partesTrasMover } from './plantaUnicaGrupo';
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
 
@@ -121,8 +128,13 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       } catch {
         /* sin captura: el seguimiento continúa igual */
       }
-      // Los demás espacios no se mueven durante este gesto → se leen UNA vez.
-      const ocupadas = leerOcupadas(opts.scope, card);
+      // DEADZONE de 8 px REALES del lienzo (medido en vivo) → el roce borde con
+      // borde o un solape marginal por debajo de esa franja NO es una invasión:
+      // el rebote solo se gatilla con una penetración real y evidente.
+      const deadzone = deadzoneEnPorcentaje(rect.width, rect.height);
+      // Los demás espacios no se mueven durante este gesto → se leen UNA vez,
+      // y SOLO los del MISMO lienzo (nunca tarjetas de otro canvas vecino).
+      const ocupadas = leerOcupadas(lienzo, card);
 
       const enMovimiento = (m: PointerEvent): void => {
         m.preventDefault();
@@ -135,8 +147,9 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
           width: base.width,
           height: base.height,
         });
-        // Colisión en caliente (feedback visual inmediato).
-        const pisa = colisionaConAlguna(leerCaja(card), ocupadas);
+        // Colisión en caliente (feedback visual inmediato, con la MISMA
+        // deadzone que decide el rebote: cero falsos positivos en rojo).
+        const pisa = colisionaConAlguna(leerCaja(card), ocupadas, deadzone);
         card.classList.toggle('pu-en-colision', pisa);
       };
 
@@ -148,9 +161,9 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
         if (!arrastrado) return;
         const cand = leerCaja(card);
         if (esGrupo) {
-          void soltarGrupo(card, base, cand, ocupadas, opts);
+          void soltarGrupo(card, base, cand, ocupadas, opts, deadzone);
         } else {
-          void soltarSuelto(card, base, cand, ocupadas, opts);
+          void soltarSuelto(card, base, cand, ocupadas, opts, deadzone);
         }
       };
 
@@ -171,6 +184,7 @@ async function soltarSuelto(
   cand: Caja,
   ocupadas: Caja[],
   opts: OpcionesPlantaUnica,
+  deadzone: TolXY,
 ): Promise<void> {
   const id = card.dataset.id ?? '';
   if (!id) return;
@@ -179,8 +193,9 @@ async function soltarSuelto(
   const ajuste = ajustarAHuecos(cand, ocupadas);
   const caja = ajuste.caja;
 
-  // 2) ANTI-SUPERPOSICIÓN: si aún se pisa con otro espacio, rebota a lo válido.
-  if (colisionaConAlguna(caja, ocupadas)) {
+  // 2) ANTI-SUPERPOSICIÓN: el rebote solo se gatilla cuando la caja penetra
+  //    de forma REAL y evidente (más de la deadzone) el cuerpo de otro espacio.
+  if (colisionaConAlguna(caja, ocupadas, deadzone)) {
     rebotar(card, base);
     toast('⛔ Ese espacio se superpone con otro. Rebotó a su posición válida.');
     return;
@@ -220,11 +235,12 @@ async function soltarGrupo(
   cand: Caja,
   ocupadas: Caja[],
   opts: OpcionesPlantaUnica,
+  deadzone: TolXY,
 ): Promise<void> {
   const baseId = card.dataset.id ?? '';
   if (!baseId) return;
 
-  if (colisionaConAlguna(cand, ocupadas)) {
+  if (colisionaConAlguna(cand, ocupadas, deadzone)) {
     rebotar(card, base);
     toast('⛔ El bloque fusionado choca con otro espacio. Rebotó a su posición válida.');
     return;
@@ -245,26 +261,29 @@ async function soltarGrupo(
 // RESIZING ELÁSTICO (espacio suelto + bloque fusionado consolidado)
 // =============================================================================
 
+/**
+ * RESIZING ELÁSTICO de los rectángulos libres: el espacio SUELTO persiste su
+ * propio ancho/alto (PUT del recurso) y el BLOQUE FUSIONADO persiste todas sus
+ * partes en un ÚNICO PUT de grupo. Ambos comparten el MISMO gesto y la MISMA
+ * física de colisiones (con deadzone): solo cambia el payload enviado.
+ */
 export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
-  conectarResizeSuelto(opts);
-  conectarResizeGrupo(opts);
-}
-
-function conectarResizeSuelto(opts: OpcionesPlantaUnica): void {
-  opts.scope.querySelectorAll<HTMLElement>('[data-libre-resize]').forEach((handle) => {
+  opts.scope.querySelectorAll<HTMLElement>('[data-libre-resize],[data-grupo-resize]').forEach((handle) => {
     handle.addEventListener('pointerdown', (evDown) => {
       const e = evDown as PointerEvent;
       if (e.button !== 0) return;
       const card = handle.closest<HTMLElement>('[data-inplace-card]');
       const lienzo = handle.closest<HTMLElement>('[data-lienzo-pu]');
-      if (!card || !lienzo || card.dataset.fusionGrupo) return;
+      if (!card || !lienzo) return;
       e.preventDefault();
       e.stopPropagation();
       const rect = lienzo.getBoundingClientRect();
+      const deadzone = deadzoneEnPorcentaje(rect.width, rect.height);
       const x0 = e.clientX;
       const y0 = e.clientY;
       const base = leerCaja(card);
-      const ocupadas = leerOcupadas(opts.scope, card);
+      const esGrupo = Boolean(card.dataset.fusionGrupo);
+      const ocupadas = leerOcupadas(lienzo, card);
       let cambió = false;
       card.classList.add('pu-redimensionando');
       try {
@@ -284,7 +303,7 @@ function conectarResizeSuelto(opts: OpcionesPlantaUnica): void {
           width: acotar(base.width + dW, LADO_MIN, 100 - base.left),
           height: acotar(base.height + dH, LADO_MIN, 100 - base.top),
         });
-        card.classList.toggle('pu-en-colision', colisionaConAlguna(leerCaja(card), ocupadas));
+        card.classList.toggle('pu-en-colision', colisionaConAlguna(leerCaja(card), ocupadas, deadzone));
       };
 
       const alSoltar = async (): Promise<void> => {
@@ -293,23 +312,45 @@ function conectarResizeSuelto(opts: OpcionesPlantaUnica): void {
         handle.removeEventListener('pointercancel', alSoltar);
         card.classList.remove('pu-redimensionando', 'pu-en-colision');
         if (!cambió) return;
+        const baseId = card.dataset.id ?? '';
+        if (!baseId) return;
         const nueva = leerCaja(card);
-        if (colisionaConAlguna(nueva, ocupadas)) {
+        // Rebote SOLO ante una invasión real (más de la deadzone de 8 px).
+        if (colisionaConAlguna(nueva, ocupadas, deadzone)) {
           rebotar(card, base);
-          toast('⛔ El nuevo tamaño se superpone con otro espacio. Rebotó al anterior.');
+          toast(
+            esGrupo
+              ? '⛔ El bloque fusionado redimensionado se superpone con otro espacio. Rebotó.'
+              : '⛔ El nuevo tamaño se superpone con otro espacio. Rebotó al anterior.',
+          );
           return;
         }
-        const id = card.dataset.id ?? '';
-        if (!id) return;
+        if (esGrupo) {
+          // CONSOLIDACIÓN: se escala cada módulo y se persiste TODO en un único PUT.
+          const escala = {
+            x: nueva.width / Math.max(1, base.width),
+            y: nueva.height / Math.max(1, base.height),
+          };
+          const partes = partesTrasEscalar(card, { left: base.left, top: base.top }, escala);
+          const okGrupo = await adaptadorDe(opts).guardarGrupo(baseId, { partes });
+          if (!okGrupo) {
+            toast('❌ No se pudo redimensionar el bloque fusionado.');
+            rebotar(card, base);
+            return;
+          }
+          toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
+          opts.notificarCambios();
+          return;
+        }
         const w = redondear(nueva.width);
         const h = redondear(nueva.height);
-        const ok = await adaptadorDe(opts).guardarItem(id, { ui_width: `${w}%`, ui_height: `${h}%` });
+        const ok = await adaptadorDe(opts).guardarItem(baseId, { ui_width: `${w}%`, ui_height: `${h}%` });
         if (!ok) {
           toast('❌ No se pudo guardar el nuevo tamaño.');
           rebotar(card, base);
           return;
         }
-        const room = opts.rooms().find((r) => r.id === id);
+        const room = opts.rooms().find((r) => r.id === baseId);
         if (room) {
           room.ui_width = `${w}%`;
           room.ui_height = `${h}%`;
@@ -325,76 +366,6 @@ function conectarResizeSuelto(opts: OpcionesPlantaUnica): void {
   });
 }
 
-function conectarResizeGrupo(opts: OpcionesPlantaUnica): void {
-  opts.scope.querySelectorAll<HTMLElement>('[data-grupo-resize]').forEach((handle) => {
-    handle.addEventListener('pointerdown', (evDown) => {
-      const e = evDown as PointerEvent;
-      if (e.button !== 0) return;
-      const card = handle.closest<HTMLElement>('.pu-grupo');
-      const lienzo = handle.closest<HTMLElement>('[data-lienzo-pu]');
-      if (!card || !lienzo) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const rect = lienzo.getBoundingClientRect();
-      const x0 = e.clientX;
-      const y0 = e.clientY;
-      const base = leerCaja(card);
-      const ocupadas = leerOcupadas(opts.scope, card);
-      let cambió = false;
-      card.classList.add('pu-redimensionando');
-      try {
-        handle.setPointerCapture(e.pointerId);
-      } catch {
-        /* sin captura: el seguimiento continúa igual */
-      }
-
-      const enMovimiento = (m: PointerEvent): void => {
-        m.preventDefault();
-        cambió = true;
-        const dW = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
-        const dH = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
-        aplicarCaja(card, {
-          left: base.left,
-          top: base.top,
-          width: acotar(base.width + dW, LADO_MIN, 100 - base.left),
-          height: acotar(base.height + dH, LADO_MIN, 100 - base.top),
-        });
-        card.classList.toggle('pu-en-colision', colisionaConAlguna(leerCaja(card), ocupadas));
-      };
-
-      const alSoltar = async (): Promise<void> => {
-        handle.removeEventListener('pointermove', enMovimiento);
-        handle.removeEventListener('pointerup', alSoltar);
-        handle.removeEventListener('pointercancel', alSoltar);
-        card.classList.remove('pu-redimensionando', 'pu-en-colision');
-        if (!cambió) return;
-        const baseId = card.dataset.id ?? '';
-        if (!baseId) return;
-        const nueva = leerCaja(card);
-        if (colisionaConAlguna(nueva, ocupadas)) {
-          rebotar(card, base);
-          toast('⛔ El bloque fusionado redimensionado se superpone con otro espacio. Rebotó.');
-          return;
-        }
-        // CONSOLIDACIÓN: se escala cada módulo y se persiste TODO en un único PUT.
-        const escala = {
-          x: nueva.width / Math.max(1, base.width),
-          y: nueva.height / Math.max(1, base.height),
-        };
-        const partes = partesTrasEscalar(card, { left: base.left, top: base.top }, escala);
-        const ok = await adaptadorDe(opts).guardarGrupo(baseId, { partes });
-        if (!ok) {
-          toast('❌ No se pudo redimensionar el bloque fusionado.');
-          rebotar(card, base);
-          return;
-        }
-        toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
-        opts.notificarCambios();
-      };
-
-      handle.addEventListener('pointermove', enMovimiento);
-      handle.addEventListener('pointerup', alSoltar);
-      handle.addEventListener('pointercancel', alSoltar);
-    });
-  });
-}
+// El resizing del BLOQUE FUSIONADO quedó unificado con el del espacio suelto en
+// conectarResizeLibre (mismo gesto + misma física); ya no existe una función
+// paralela que duplique el algoritmo de colisiones.

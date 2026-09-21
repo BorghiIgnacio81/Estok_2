@@ -18,6 +18,7 @@
 // =============================================================================
 
 import { escapeHtml } from './mapaJerarquico';
+import { estiloPerimetro, tiradoresPerimetro } from './perimetroElastico';
 import type { ItemElastico } from './lienzoElastico';
 
 // =============================================================================
@@ -243,37 +244,55 @@ export function renderLienzoElastico(opts: {
 
 /**
  * Lienzo completo del Modo Planta Única (Nivel 1):
- *  - Cabecera: botón gráfico "Nueva ubicación" + "🔗 Fusionar Espacios".
- *  - Contenedor del departamento (rectángulo perimetral continuo, sin techo).
+ *  - Cabecera: botón gráfico "Nueva ubicación" (o texto libre con `etiquetaCrear`)
+ *    + "🔗 Fusionar Espacios".
+ *  - Contenedor del departamento: rectángulo perimetral continuo (sin techo) con
+ *    la medida general persistida (`ui_width`/`ui_height` en px del contenedor
+ *    padre) y sus TIRADORES de perímetro, visibles solo en Modo Edición.
  *  - Rectángulos libres y espacios fusionados en "L".
+ *
+ *  - etiquetaCrear: reemplaza el botón gráfico por un botón de texto «➕ X».
+ *  - tip:           ayuda contextual bajo la cabecera (tiene default).
  */
 export function renderPlantaUnica(opts: {
   apartamento: ItemElastico | null;
   rooms: ItemElastico[];
+  etiquetaCrear?: string;
+  tip?: string;
 }): string {
-  const { apartamento, rooms } = opts;
+  const { apartamento, rooms, etiquetaCrear, tip } = opts;
   const { grupos, sueltas } = agruparFusiones(rooms);
+  const textoCrear = etiquetaCrear ?? 'Nueva ubicación';
+
+  const botonCrear = etiquetaCrear
+    ? `<button type="button" class="lienzo-elastico-nueva" data-lienzo-crear title="Inyectar ${escapeHtml(etiquetaCrear.toLowerCase())} en el plano">➕ ${escapeHtml(etiquetaCrear)}</button>`
+    : `<button type="button" class="planta-unica-nueva" data-nueva-ubicacion title="Inyectar una habitación/espacio libre dentro del departamento">
+        <img src="/nueva ubicacion.png" alt="Nueva ubicación" />
+      </button>`;
 
   const vacio =
     rooms.length === 0
-      ? `<div class="pu-vacio">🏠 El departamento está vacío. Usá el botón <strong>«Nueva ubicación»</strong> para inyectar tu primer espacio libre.</div>`
+      ? `<div class="pu-vacio">🏠 El departamento está vacío. Usá el botón <strong>«${escapeHtml(textoCrear)}»</strong> para inyectar tu primer espacio libre.</div>`
       : '';
+
+  const ayuda =
+    tip ??
+    '🏢 <strong>Modo Planta Única</strong> · un solo departamento de perímetro continuo (sin techo): inyectá espacios libres, arrastralos para acomodarlos, estirá de la esquina y <strong>seleccioná 2+ para fusionarlos</strong> en un espacio en «L».';
 
   return `
   <div class="planta-unica-raiz" data-planta-unica>
     <div class="planta-unica-cab">
-      <button type="button" class="planta-unica-nueva" data-nueva-ubicacion title="Inyectar una habitación/espacio libre dentro del departamento">
-        <img src="/nueva ubicacion.png" alt="Nueva ubicación" />
-      </button>
+      ${botonCrear}
       <button type="button" class="planta-unica-fusionar" data-fusionar disabled title="Seleccioná 2 o más espacios para fusionarlos en un único espacio en «L»">🔗 Fusionar Espacios</button>
       <span class="planta-unica-contador" data-fusion-contador>0 seleccionados</span>
     </div>
-    <p class="planta-unica-tip">🏢 <strong>Modo Planta Única</strong> · un solo departamento de perímetro continuo (sin techo): inyectá espacios libres, arrastralos para acomodarlos, estirá de la esquina y <strong>seleccioná 2+ para fusionarlos</strong> en un espacio en «L».</p>
-    <div class="planta-unica-lienzo" data-lienzo-pu>
+    <p class="planta-unica-tip">${ayuda}</p>
+    <div class="planta-unica-lienzo" data-lienzo-pu data-perimetro-elastico${estiloPerimetro(apartamento)}>
       ${vacio}
       ${gruposHtml(grupos)}
       ${sueltasHtml(sueltas)}
       ${apartamento ? '' : '<div class="pu-sin-apartamento">⚠️ Sin división base: al inyectar el primer espacio se creará el contenedor «Departamento» automáticamente.</div>'}
+      ${tiradoresPerimetro()}
     </div>
   </div>`;
 }

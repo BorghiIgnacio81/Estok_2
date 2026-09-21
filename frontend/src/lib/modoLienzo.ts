@@ -41,6 +41,8 @@ const SELECTOR_EDICION = [
   '[data-inplace-resize]',
   '[data-fusion-check]',
   '[data-eliminar-grupo]',
+  // Tiradores del contenedor perimetral (ancho/alto del plano completo).
+  '[data-perimetro-resize]',
 ].join(',');
 
 /**

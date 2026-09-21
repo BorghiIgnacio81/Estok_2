@@ -29,7 +29,11 @@ import {
   setEstokActivoId,
 } from '../../services/auth';
 import type { EstokInfo } from '../../types';
-import { crearDivisionUbicacion, fetchUbicacionesPlano } from '../mapaJerarquico';
+import {
+  crearDivisionUbicacion,
+  fetchUbicacionesPlano,
+  type UbicacionPlano,
+} from '../mapaJerarquico';
 
 // =============================================================================
 // TIPOS
@@ -163,8 +167,12 @@ export async function sincronizarEstokActivo(estoks: EstokInfo[]): Promise<strin
 // PASO 2 — DIVIDIR ESPACIOS (Nivel 1-2)
 // =============================================================================
 
-/** División raíz del Estok activo: la existente o una «Departamento» nueva. */
-async function asegurarDivisionRaiz() {
+/**
+ * División raíz del Estok activo: la existente o una «Departamento» nueva.
+ * EXPORTADA para que el modelador 2D del Paso 2 del asistente (planoPaso2.ts)
+ * garantice EXACTAMENTE el mismo contenedor perimetral que usa Almacenamiento.
+ */
+export async function asegurarDivisionRaiz(): Promise<UbicacionPlano> {
   const ubicaciones = await fetchUbicacionesPlano();
   const raiz =
     ubicaciones.find((u) => !u.parent_ubicacion && u.parent_grid_row === 1) ??

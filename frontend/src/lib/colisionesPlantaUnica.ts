@@ -30,29 +30,75 @@ export interface ResultadoAjuste {
 /** Lado mínimo de un espacio (en % del lienzo). */
 export const LADO_MIN = 8;
 
-/** Tolerancia (en %) por debajo de la cual dos cajas deben considerarse pegadas. */
-const TOL_COLISION = 0.75;
+/**
+ * DEADZONE DE TOLERANCIA en PÍXELES REALES del lienzo (no en %).
+ *
+ * El contacto borde-con-borde —o un roce de pocos píxeles— NO es una invasión:
+ * el usuario sigue viendo espacio libre. El rebote a la posición anterior SOLO
+ * debe gatillarse cuando un rectángulo penetra de forma REAL Y EVIDENTE el
+ * cuerpo de otro ambiente consolidado. Con la vieja tolerancia fija de 0.75%
+ * (≈4 px en un lienzo de 560 px) dos habitaciones con holgura se consideraban
+ * superpuestas y rebotaban sin motivo: ese era el bug del «drop» bloqueado.
+ */
+export const DEADZONE_PX = 8;
+
+/** Piso y techo de la deadzone (en %) para lienzos gigantes o diminutos. */
+const TOL_MIN = 0.5;
+const TOL_MAX = 2.5;
+
+/** Deadzone por eje (los porcentajes de x e y no son equivalentes en px). */
+export interface TolXY {
+  x: number;
+  y: number;
+}
 
 function acotar(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
 /**
- * Detección de solapamiento AABB (Axis-Aligned Bounding Box).
- * `tolerancia` (en %) absorbe el contacto borde-con-borde para que dos cajas
- * EXACTAMENTE pegadas no se consideren superpuestas.
+ * Convierte la deadzone de 8 px a porcentaje del lienzo MEDIDO EN VIVO, eje por
+ * eje: un lienzo de 880 px de ancho tolera 0.91% de x, uno de 520 px de alto
+ * tolera 1.54% de y. Así la tolerancia física (px) es idéntica en cualquier
+ * pantalla, en vez de crecer/encogerse con el zoom del layout.
  */
-export function cajasSolapan(a: Caja, b: Caja, tolerancia = TOL_COLISION): boolean {
+export function deadzoneEnPorcentaje(anchoPx: number, altoPx: number): TolXY {
+  return {
+    x: acotar((DEADZONE_PX / Math.max(1, anchoPx)) * 100, TOL_MIN, TOL_MAX),
+    y: acotar((DEADZONE_PX / Math.max(1, altoPx)) * 100, TOL_MIN, TOL_MAX),
+  };
+}
+
+/** Deadzone de referencia (lienzo típico ≈880 × 520 px) cuando no se mide el DOM. */
+export const DEADZONE_DEFECTO: TolXY = deadzoneEnPorcentaje(880, 520);
+
+/** Normaliza la tolerancia: número (mismo % en ambos ejes) o par x/y. */
+function toleranciaXY(tolerancia: number | TolXY): TolXY {
+  return typeof tolerancia === 'number' ? { x: tolerancia, y: tolerancia } : tolerancia;
+}
+
+/**
+ * Detección de solapamiento AABB (Axis-Aligned Bounding Box).
+ * `tolerancia` absorbe el contacto borde-con-borde y los roces menores a la
+ * deadzone para que dos cajas pegadas (o casi pegadas) no se consideren
+ * superpuestas. Acepta un número (%) o un par {x,y} (deadzone en px → %).
+ */
+export function cajasSolapan(a: Caja, b: Caja, tolerancia: number | TolXY = DEADZONE_DEFECTO): boolean {
+  const tol = toleranciaXY(tolerancia);
   return (
-    a.left < b.left + b.width - tolerancia &&
-    a.left + a.width - tolerancia > b.left &&
-    a.top < b.top + b.height - tolerancia &&
-    a.top + a.height - tolerancia > b.top
+    a.left < b.left + b.width - tol.x &&
+    a.left + a.width - tol.x > b.left &&
+    a.top < b.top + b.height - tol.y &&
+    a.top + a.height - tol.y > b.top
   );
 }
 
-/** true si la caja candidata pisa alguna de las cajas ocupadas. */
-export function colisionaConAlguna(cand: Caja, ocupados: Caja[], tolerancia = TOL_COLISION): boolean {
+/** true si la caja candidata invade de forma real el cuerpo de alguna ocupada. */
+export function colisionaConAlguna(
+  cand: Caja,
+  ocupados: Caja[],
+  tolerancia: number | TolXY = DEADZONE_DEFECTO,
+): boolean {
   for (const caja of ocupados) {
     if (cajasSolapan(cand, caja, tolerancia)) return true;
   }

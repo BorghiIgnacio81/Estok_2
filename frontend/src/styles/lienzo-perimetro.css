@@ -1,0 +1,113 @@
+/* =============================================================================
+   TI RADORES DEL CONTENEDOR PERIMETRAL (ancho/alto del plano completo)
+   -----------------------------------------------------------------------------
+   El perímetro ámbar (`.planta-unica-lienzo`) expone en MODO EDICIÓN tres
+   asideros pegados a sus paredes —borde derecho, borde inferior y esquina
+   inferior derecha— para estirar el ancho y el alto de todo el plano.
+   En MODO NAVEGACIÓN se ocultan por completo (el clic navega por portales).
+   Viven DENTRO del lienzo (que recorta con overflow:hidden), por eso se apoyan
+   contra el borde interior y no sobresalen.
+   ============================================================================= */
+
+.planta-unica-lienzo[data-perimetro-elastico] {
+  /* Red de seguridad: la medida elástica nunca desborda su panel. */
+  max-width: 100%;
+}
+
+.pu-perimetro-tirador {
+  display: none;
+  position: absolute;
+  z-index: 9;
+  touch-action: none;
+  background: transparent;
+}
+
+body.modo-edicion .pu-perimetro-tirador {
+  display: block;
+}
+
+/* Borde DERECHO: ancho del plano completo. */
+.pu-perimetro-borde-derecho {
+  top: 0;
+  right: 0;
+  width: 14px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.pu-perimetro-borde-derecho::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  width: 4px;
+  height: 56px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #f97316;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  opacity: 0.75;
+  transition: opacity 0.15s ease, height 0.15s ease;
+}
+
+.pu-perimetro-borde-derecho:hover::after {
+  opacity: 1;
+  height: 84px;
+}
+
+/* Borde INFERIOR: alto del plano completo. */
+.pu-perimetro-borde-inferior {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 14px;
+  cursor: ns-resize;
+}
+
+.pu-perimetro-borde-inferior::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 56px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #f97316;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+  opacity: 0.75;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+
+.pu-perimetro-borde-inferior:hover::after {
+  opacity: 1;
+  width: 84px;
+}
+
+/* ESQUINA inferior derecha: ancho + alto en un solo gesto. */
+.pu-perimetro-esquina {
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+}
+
+.pu-perimetro-esquina::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 11px;
+  height: 11px;
+  border-right: 3px solid #ea580c;
+  border-bottom: 3px solid #ea580c;
+  border-bottom-right-radius: 3px;
+}
+
+/* Feedback en caliente mientras se estira el perímetro completo. */
+.planta-unica-lienzo.pu-perimetro-redimensionando {
+  box-shadow: inset 0 0 0 2px #f97316, 0 12px 16px rgba(120, 53, 15, 0.24);
+  outline: 2px dashed #f97316;
+  outline-offset: 2px;
+}

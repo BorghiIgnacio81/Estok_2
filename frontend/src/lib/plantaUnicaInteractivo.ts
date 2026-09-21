@@ -16,6 +16,7 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
 import { confirmarEliminacionEstructura } from './confirmacionEliminar';
+import { conectarPerimetroElastico } from './perimetroElastico';
 import { adaptadorDe, conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
 import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -47,6 +48,28 @@ export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarResizeLibre(opts);
   conectarSeleccionYFusion(opts);
   conectarEliminacionItems(opts);
+  conectarPerimetro(opts);
+}
+
+// =============================================================================
+// PERÍMETRO ELÁSTICO DEL PLANO (ancho/alto del contenedor completo)
+// -----------------------------------------------------------------------------
+// El recuadro texturizado que envuelve TODOS los ambientes se estira desde sus
+// tiradores (borde derecho, borde inferior y esquina → ver mapaPlantaUnica.ts y
+// styles/lienzo-perimetro.css) y persiste su medida general en la Ubicación que
+// oficia de perímetro con UN ÚNICO PUT (ui_width/ui_height en px).
+// Solo existe en los lienzos que exponen un dueño persistente: el «Departamento»
+// de Planta Única y el contenedor padre del plano de habitaciones.
+// =============================================================================
+function conectarPerimetro(opts: OpcionesPlantaUnica): void {
+  if (!opts.apartamentoId && !opts.asegurarApartamento) return;
+  conectarPerimetroElastico({
+    scope: opts.scope,
+    id: opts.apartamentoId,
+    asegurar: opts.asegurarApartamento,
+    adaptador: adaptadorDe(opts),
+    alGuardar: opts.notificarCambios,
+  });
 }
 
 /**
