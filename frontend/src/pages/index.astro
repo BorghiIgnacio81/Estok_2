@@ -6,6 +6,7 @@
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
+import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 
 // Detección de plataforma móvil por User Agent
 const userAgent = Astro.request.headers.get('user-agent') || '';
@@ -15,7 +16,11 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 <AuthGuard />
 
 <BaseLayout title="Estok - Dashboard | Sistema de Inventario">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: var(--bg-primary)">
+  <!-- Asistente de Bienvenida (primer inicio): si el usuario no tiene Estok, la
+       pantalla completa del asistente reemplaza al panel ordinario (data-estok-panel). -->
+  <OnboardingBienvenida />
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: var(--bg-primary)" data-estok-panel>
     <!-- ================================================================ -->
     <!-- HERO SECTION - indicador IA en la cima + CTA principal "Nuevo Objeto" -->
     <!-- ================================================================ -->

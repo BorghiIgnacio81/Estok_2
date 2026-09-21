@@ -1,0 +1,336 @@
+---
+// =============================================================================
+// COMPONENTE OnboardingBienvenida — ASISTENTE DE PRIMER INICIO (pantalla completa)
+// -----------------------------------------------------------------------------
+// Se inyecta al tope de las páginas post-login (Dashboard y Almacenamiento).
+// Lógica en src/lib/onboarding/ (api.ts + wizard.ts + index.ts).
+// El panel ordinario de la página se oculta vía [data-estok-panel] cuando
+// <html> lleva el atributo data-estok-onboarding (ver <style is:global> abajo).
+// =============================================================================
+---
+
+<div
+  id="onbRoot"
+  data-onboarding-root
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="onbTitulo"
+  class="fixed inset-0 z-[9990] overflow-y-auto bg-gradient-to-br from-[#F3DFBD] via-[#f8ecd4] to-white"
+>
+  <div class="mx-auto w-full max-w-3xl px-4 py-6 sm:py-10">
+    <!-- ======================= ENCABEZADO ======================= -->
+    <header class="flex items-start justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <img src="/favicon.png" alt="Estok" class="h-12 w-12 rounded-2xl shadow-sm object-cover" />
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Asistente de bienvenida</p>
+          <h1 id="onbTitulo" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Arranquemos con tu Estok</h1>
+        </div>
+      </div>
+      <button
+        type="button"
+        id="onbOmitirTutorial"
+        class="hidden shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/80 border border-blue-200 text-blue-800 text-sm font-semibold shadow-sm hover:bg-white transition-base"
+      >
+        Omitir Tutorial →
+      </button>
+    </header>
+
+    <!-- ======================= PROGRESO ======================= -->
+    <div class="mt-6 flex flex-wrap items-center gap-2">
+      <span data-onb-progreso="1" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-blue-700 text-white border-blue-700 shadow-sm">
+        <span class="w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-[11px] font-bold">1</span>
+        Tu Estok
+      </span>
+      <span data-onb-progreso="2" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-white/70 text-gray-500 border-gray-200">
+        <span class="w-5 h-5 rounded-full bg-white/60 flex items-center justify-center text-[11px] font-bold">2</span>
+        Espacios
+      </span>
+      <span data-onb-progreso="3" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-white/70 text-gray-500 border-gray-200">
+        <span class="w-5 h-5 rounded-full bg-white/60 flex items-center justify-center text-[11px] font-bold">3</span>
+        Almacenamiento
+      </span>
+      <span data-onb-progreso="4" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border bg-white/70 text-gray-500 border-gray-200">
+        <span class="w-5 h-5 rounded-full bg-white/60 flex items-center justify-center text-[11px] font-bold">4</span>
+        Primer Objeto
+      </span>
+    </div>
+
+    <p class="mt-3 text-xs text-gray-500 leading-relaxed">
+      El <strong class="text-gray-700">paso 1 es obligatorio</strong>: sin un Estok activo el sistema no tiene inquilinato al que apuntar (error 403).
+      Los pasos 2, 3 y 4 son opcionales y podés completarlos ahora o más tarde desde Almacenamiento.
+    </p>
+
+    <!-- ======================= CARRUSEL DE PASOS ======================= -->
+    <div class="mt-5 overflow-hidden">
+      <div id="onbTrack" class="flex transition-transform duration-500 ease-out">
+
+        <!-- ---------------------- PASO 1 ---------------------- -->
+        <section data-onb-panel="1" class="w-full shrink-0">
+          <div class="bg-white rounded-2xl shadow-xl border border-white p-6 sm:p-8">
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
+              Paso 1 · Obligatorio
+            </span>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Fundá tu primer Estok 🏠</h2>
+            <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
+              Un <strong class="text-gray-700">Estok</strong> es el espacio de inventario donde vivirá todo lo que registres: tu casa, tu oficina o un depósito.
+              Al fundarlo te convertís en su <strong class="text-gray-700">Admin</strong> y se habilita tu acceso.
+            </p>
+
+            <form id="onbFormEstok" class="mt-6 space-y-4" novalidate>
+              <div>
+                <label for="onbNombreEstok" class="block text-sm font-semibold text-gray-700 mb-1">Nombre del Estok</label>
+                <input
+                  id="onbNombreEstok"
+                  name="nombre"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  placeholder="Ej: Mi Casa"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+              </div>
+              <div>
+                <label for="onbCantidadPisos" class="block text-sm font-semibold text-gray-700 mb-1">¿Cuántas plantas tiene?</label>
+                <select
+                  id="onbCantidadPisos"
+                  name="cantidad_pisos"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                >
+                  <option value="1">1 planta (vista de planta única)</option>
+                  <option value="2">2 plantas (casa con techo)</option>
+                </select>
+              </div>
+
+              <p id="onbErrorPaso1" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
+              <p id="onbPaso1Ok" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-2xl text-sm"></p>
+
+              <button
+                type="submit"
+                id="onbFundarBtn"
+                class="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-blue-700 hover:bg-blue-800 text-white text-base font-bold rounded-2xl shadow-md transition-base"
+              >
+                🏠 Fundar Estok
+              </button>
+            </form>
+
+            <p class="mt-4 text-xs text-gray-400 leading-relaxed">
+              El asistente no avanza hasta que el servidor confirme la creación y devuelva el identificador del nuevo
+              inquilinato, que queda guardado como tu Estok activo para todas las peticiones.
+            </p>
+          </div>
+        </section>
+
+        <!-- ---------------------- PASO 2 ---------------------- -->
+        <section data-onb-panel="2" class="w-full shrink-0">
+          <div class="bg-white rounded-2xl shadow-xl border border-white p-6 sm:p-8">
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+              Paso 2 · Opcional
+            </span>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Dividí tus espacios 🚪</h2>
+            <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
+              Cargá los primeros ambientes de tu Estok (Cocina, Habitación, Living…). Más adelante podés arrastrarlos,
+              renombrarlos y redimensionarlos desde el Mapa de Almacenamiento.
+            </p>
+
+            <div class="mt-5 flex flex-col sm:flex-row gap-2">
+              <input
+                id="onbAmbienteInput"
+                type="text"
+                maxlength="200"
+                autocomplete="off"
+                placeholder="Ej: Cocina"
+                class="flex-1 px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+              />
+              <button type="button" id="onbAmbienteAgregar" class="px-5 py-3 rounded-2xl bg-gray-900 hover:bg-black text-white text-sm font-semibold transition-base">
+                Añadir
+              </button>
+            </div>
+
+            <div id="onbSugerencias" class="mt-3 flex flex-wrap gap-2"></div>
+
+            <div id="onbAmbientesChips" class="mt-4 min-h-[52px] flex flex-wrap items-center gap-2 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-3"></div>
+
+            <p id="onbErrorPaso2" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
+
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <button type="button" id="onbGuardarAmbientes" class="flex-1 px-6 py-3.5 bg-blue-700 hover:bg-blue-800 text-white text-base font-bold rounded-2xl shadow-md transition-base">
+                Crear espacios y continuar
+              </button>
+              <button type="button" id="onbOmitirPaso2" class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
+                Omitir este paso
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------------------- PASO 3 ---------------------- -->
+        <section data-onb-panel="3" class="w-full shrink-0">
+          <div class="bg-white rounded-2xl shadow-xl border border-white p-6 sm:p-8">
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+              Paso 3 · Opcional
+            </span>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Configurá tu almacenamiento 🗄️</h2>
+            <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
+              Un <strong class="text-gray-700">contenedor</strong> es el mueble o la caja donde vas a guardar las cosas:
+              un placard, una estantería, una caja de herramientas. Elegí también en qué ambiente vive.
+            </p>
+
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="onbMuebleInput" class="block text-sm font-semibold text-gray-700 mb-1">Nombre del contenedor</label>
+                <input
+                  id="onbMuebleInput"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  placeholder="Ej: Placard, Caja 1"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+              </div>
+              <div>
+                <label for="onbAmbienteSelect" class="block text-sm font-semibold text-gray-700 mb-1">¿En qué ambiente está?</label>
+                <select
+                  id="onbAmbienteSelect"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                ></select>
+              </div>
+            </div>
+
+            <p id="onbErrorPaso3" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
+
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <button type="button" id="onbGuardarMueble" class="flex-1 px-6 py-3.5 bg-blue-700 hover:bg-blue-800 text-white text-base font-bold rounded-2xl shadow-md transition-base">
+                Crear mueble y continuar
+              </button>
+              <button type="button" id="onbOmitirPaso3" class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
+                Omitir
+              </button>
+            </div>
+
+            <p class="mt-4 text-xs text-gray-400 leading-relaxed">
+              La grilla interna del mueble arranca en 3 × 3 casilleros; la ajustás cuando quieras desde el Visor de Almacenamiento.
+            </p>
+          </div>
+        </section>
+
+        <!-- ---------------------- PASO 4 ---------------------- -->
+        <section data-onb-panel="4" class="w-full shrink-0">
+          <div class="bg-white rounded-2xl shadow-xl border border-white p-6 sm:p-8">
+            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
+              Paso 4 · Opcional
+            </span>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Tu primer objeto 📦</h2>
+            <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
+              Registrá un ítem para estrenar el inventario. Si venís de los pasos anteriores, queda guardado dentro del mueble
+              que creaste; si no, cae en la bandeja de «elementos sin ubicar» y no se pierde.
+            </p>
+
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="onbObjetoInput" class="block text-sm font-semibold text-gray-700 mb-1">Nombre del objeto</label>
+                <input
+                  id="onbObjetoInput"
+                  type="text"
+                  maxlength="300"
+                  autocomplete="off"
+                  placeholder="Ej: Taladro"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+              </div>
+              <div>
+                <label for="onbObjetoValor" class="block text-sm font-semibold text-gray-700 mb-1">Valor estimado (opcional)</label>
+                <input
+                  id="onbObjetoValor"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ej: 15000"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                />
+              </div>
+            </div>
+
+            <p id="onbErrorPaso4" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
+
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <button type="button" id="onbGuardarObjeto" class="flex-1 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-base font-bold rounded-2xl shadow-md transition-base">
+                Guardar objeto y finalizar
+              </button>
+              <button type="button" id="onbOmitirPaso4" class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
+                Omitir / Finalizar
+              </button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- ======================= NAVEGACIÓN ======================= -->
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <button
+        type="button"
+        id="onbVolver"
+        class="hidden px-5 py-2.5 rounded-2xl bg-white/80 border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-white transition-base"
+      >
+        ⬅ Volver
+      </button>
+      <p class="text-xs text-gray-400">Los pasos opcionales los podés retomar cuando quieras desde Almacenamiento.</p>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================================
+     CSS DEL ASISTENTE (global, acotado por atributo)
+     El atributo data-estok-onboarding en <html> — que fija el script inline de
+     abajo ANTES de que se pinte el panel — decide quién se ve:
+       · #onbRoot visible  → asistente de bienvenida a pantalla completa.
+       · [data-estok-panel] → panel ordinario de la página (Dashboard /
+         Almacenamiento) oculto, sin scroll de fondo.
+     ========================================================================= -->
+<style is:global>
+  #onbRoot {
+    display: none;
+  }
+  html[data-estok-onboarding] #onbRoot {
+    display: block;
+  }
+  html[data-estok-onboarding] [data-estok-panel] {
+    display: none !important;
+  }
+  html[data-estok-onboarding] body {
+    overflow: hidden;
+  }
+</style>
+
+<!-- =========================================================================
+     CHEQUEO SÍNCRONO ANTI-FLASH
+     Si la caché de sesión no tiene ningún Estok, el asistente queda activo de
+     inmediato (y el panel ordinario nunca llega a pintarse). La validación
+     definitiva contra el backend vive en src/lib/onboarding/index.ts.
+     ========================================================================= -->
+<script is:inline>
+  (function () {
+    try {
+      var token = localStorage.getItem('estok_access_token');
+      var bruto = localStorage.getItem('estok_user');
+      var usuario = bruto ? JSON.parse(bruto) : null;
+      var tieneEstok = !!(usuario && usuario.estoks && usuario.estoks.length > 0);
+      if (token && !tieneEstok) {
+        document.documentElement.setAttribute('data-estok-onboarding', 'activo');
+      }
+    } catch (e) {
+      // Caché ilegible: la validación asíncrona decide.
+    }
+  })();
+</script>
+
+<script>
+  import { iniciarAsistenteBienvenida } from '../lib/onboarding';
+
+  // Decisiones: caché (inmediata) → backend /api/estoks/mis-estoks/ (fuente de
+  // verdad multi-tenant). Si el usuario SÍ tiene Estoks, el asistente se
+  // desactiva y el panel ordinario sigue funcionando con normalidad.
+  void iniciarAsistenteBienvenida('onbRoot');
+</script>

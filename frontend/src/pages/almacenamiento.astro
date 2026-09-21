@@ -12,6 +12,7 @@
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
+import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import '../styles/mapa-espacial.css';
@@ -26,7 +27,11 @@ import '../styles/almacenamiento-portales.css';
 <AuthGuard />
 
 <BaseLayout title="Estok - Almacenamiento | Inventario">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36">
+  <!-- Asistente de Bienvenida (primer inicio): sin Estok asignado, la pantalla
+       completa del asistente reemplaza al panel ordinario (data-estok-panel). -->
+  <OnboardingBienvenida />
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36" data-estok-panel>
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
