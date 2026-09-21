@@ -6,9 +6,10 @@
 // plantas elegidas en el Paso 1:
 //
 //   · 1 PLANTA  → PLANO ESPACIAL REACTIVO (./planoPaso2): rectángulos mutables
-//                 de rectángulos libres con fusión, resizing, colisiones y
-//                 perímetro elástico. NACE VACÍO: el usuario lo construye con
-//                 «➕ Habitación» y cada alta se persiste al toque.
+//                 libres con fusión, resizing elástico y perímetro. NACE VACÍO:
+//                 el usuario lo construye con «➕ Habitación» y cada alta se
+//                 persiste al toque. Al confirmar el paso corre la MISMA
+//                 compactación inteligente del botón «💾 Guardar».
 //   · 2+ PLANTAS → flujo CLÁSICO de chips: se juntan nombres y se crean los
 //                 ambientes en lote recién al confirmar (el reparto físico entre
 //                 plantas se hace después en el Mapa Estok).
@@ -22,6 +23,7 @@ import { crearAmbiente, listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal, mensajeDe } from './comunes';
 import { desmontarPlanoPaso2, montarPlanoPaso2 } from './planoPaso2';
+import { compactarYGuardarLienzos } from '../plantaGuardado';
 
 /** Tope de ambientes del asistente (chips y plano comparten el mismo límite). */
 const MAX_AMBIENTES = 8;
@@ -152,8 +154,10 @@ export class PasoEspacios {
 
   /**
    * Cierre del Paso 2 ESPACIAL: las habitaciones ya se persistieron al
-   * inyectarse, así que solo se verifica que exista al menos una y se re-lee la
-   * lista real (el Paso 3 ofrece así el selector de ambientes correcto).
+   * inyectarse, así que ANTES de continuar corre la compactación inteligente
+   * (la misma física del botón «💾 Guardar» de Almacenamiento: superposición
+   * real → zona vacía más cercana; brechas mínimas → estirado simétrico) y
+   * después se re-lee la lista real (el Paso 3 ofrece el selector correcto).
    */
   private async confirmarEspacial(): Promise<void> {
     const btn = this.q<HTMLButtonElement>('#onbGuardarAmbientes');
@@ -161,6 +165,7 @@ export class PasoEspacios {
     this.ctx.marcarOcupado(true);
     this.ctx.cargando(btn, true, 'Verificando…');
     try {
+      await compactarYGuardarLienzos();
       const ambientes = await listarAmbientes();
       if (ambientes.length === 0) {
         this.mostrar(

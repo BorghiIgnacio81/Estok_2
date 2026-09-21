@@ -240,9 +240,23 @@
 
 /* --- Espacio fusionado en "L" (geometría irregular continua) --------------- */
 
+/* La tarjeta del bloque es solo un MARCO (bbox de la silueta): NO captura el
+   puntero, así la esquina vacía de la «L» queda liberada y los ambientes vecinos
+   se pueden arrastrar/clicar a través de ella. */
 .pu-grupo {
   position: absolute;
   cursor: grab;
+  pointer-events: none;
+}
+
+/* Cuerpo físico (tiles texturados) + controles del bloque: checkbox de fusión
+   encadenada, nombre, 🗑️ y tirador elástico. */
+.pu-grupo-svg rect,
+.pu-grupo .pu-check,
+.pu-grupo .pu-grupo-nombre,
+.pu-grupo .pu-grupo-eliminar,
+.pu-grupo .pu-grupo-resize {
+  pointer-events: auto;
 }
 
 /* Superficie CONTINUA del espacio fusionado: el contorno ámbar y la sombra
@@ -346,13 +360,7 @@
   box-shadow: inset 0 0 0 1px #fdba74;
 }
 
-/* --- Física de colisiones: feedback en caliente + rebote limpio ------------- */
-
-.pu-celda.pu-en-colision,
-.pu-grupo.pu-en-colision {
-  outline: 2px dashed #dc2626;
-  outline-offset: -2px;
-}
+/* --- Rollback visual ante un fallo de red del guardado ---------------------- */
 
 @keyframes pu-rebote {
   0%, 100% { transform: translateX(0); }

@@ -5,11 +5,11 @@
 //   - Inyección elástica de espacios libres (botón /nueva ubicacion.png).
 //   - Renombrado in-place con SINCRONIZACIÓN del bloque fusionado: un ÚNICO PUT
 //     actualiza el nombre de TODAS las partes de la macro-estructura.
-//   - Arrastre + resizing con FÍSICA DE COLISIONES (AABB) y AJUSTE MAGNÉTICO a
-//     huecos → delegado en ./plantaUnicaArrastre.
-//   - Selección múltiple + motor de fusión/separación (espacio en "L").
-// La geometría pura vive en colisionesPlantaUnica.ts y la persistencia
-// consolidada del grupo en plantaUnicaGrupo.ts. Módulos chicos y enfocados.
+//   - Arrastre + resizing LIBRES (sin bloqueo ni reacomodo en caliente): la
+//     física se posterga al «💾 Guardar» → ./plantaUnicaArrastre.
+//   - Selección múltiple + motor de fusión ENCADENADA (espacio en "L").
+// La geometría pura vive en compactacionPlanta.ts, la traducción DOM↔cajas en
+// lienzoCajas.ts y la persistencia consolidada del grupo en plantaUnicaGrupo.ts.
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
@@ -219,14 +219,26 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
     if (ids.length < 2) return;
     // FUSIÓN ENCADENADA: si algún seleccionado ya pertenece a un grupo, se toma
     // como BASE para REUTILIZAR su `fusion_grupo` y EXPANDIR la macro-estructura
-    // existente en un mismo PUT, sin importar el orden en que se tildaron.
+    // existente en un mismo POST, sin importar el orden en que se tildaron.
+    // El checkbox del bloque fusionado lleva el id de su BASE, de modo que un
+    // cuarto espacio puede encadenarse al grupo ya consolidado.
     const rooms = opts.rooms();
-    const base =
-      ids.find((id) => rooms.find((r) => r.id === id)?.fusion_grupo) ?? ids[0];
-    const resto = ids.filter((id) => id !== base);
-    if (resto.length === 0) return;
+    const grupoDe = (id: string): string | null =>
+      rooms.find((r) => r.id === id)?.fusion_grupo ?? null;
+    const base = ids.find((id) => grupoDe(id)) ?? ids[0];
+    const grupoBase = grupoDe(base);
+    // Ningún grupo ajeno se PARTE: si se tildó además otro bloque fusionado, se
+    // envían TODAS sus partes (nunca un fragmento del macro-espacio).
+    const resto = new Set(ids.filter((id) => id !== base && !(grupoBase && grupoDe(id) === grupoBase)));
+    const gruposAjenos = new Set(
+      ids.map(grupoDe).filter((g): g is string => Boolean(g) && g !== grupoBase),
+    );
+    rooms.forEach((r) => {
+      if (r.fusion_grupo && gruposAjenos.has(r.fusion_grupo) && r.id !== base) resto.add(r.id);
+    });
+    if (resto.size === 0) return;
     btnFusionar.disabled = true;
-    const ok = await adaptadorDe(opts).fusionar(base, resto);
+    const ok = await adaptadorDe(opts).fusionar(base, Array.from(resto));
     if (!ok) {
       toast('❌ No se pudieron fusionar los espacios.');
       refrescar();

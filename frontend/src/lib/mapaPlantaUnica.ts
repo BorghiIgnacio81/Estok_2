@@ -10,8 +10,10 @@
 // que sirve tanto para Ubicación como para Contenedor. Los ítems se agrupan por
 // `fusion_grupo` para renderizar los espacios en "L" como UN rectángulo continuo
 // (un único contenedor div con la MISMA superficie nativa de un espacio común
-// —mismo fondo, mismo contorno ámbar y misma sombra, sin tramas—, un único
-// botón «Eliminar» 🗑️ centralizado y sin controles de separación).
+// —mismo fondo, mismo contorno ámbar y misma sombra, sin tramas—). El bloque
+// fusionado conserva TODAS las capacidades de un espacio ordinario: checkbox de
+// fusión encadenada, tirador elástico de esquina, renombrado y ÚNICAMENTE su
+// propio 🗑️ (que borra la macro-estructura completa, sin partes huérfanas).
 //
 // Este módulo es 100% render (sin estado ni listeners). La interacción y la
 // persistencia viven en ./plantaUnicaInteractivo.ts y ./plantaUnicaArrastre.ts.
@@ -159,6 +161,9 @@ function gruposHtml(grupos: GrupoFusion[]): string {
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
          title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
       <div class="pu-grupo-malla">${superficieDeGrupo(g)}</div>
+      <label class="pu-check" title="Seleccionar este bloque fusionado para ENCADENAR una fusión con otro espacio">
+        <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
+      </label>
       <button type="button" data-eliminar-grupo data-id="${g.base.id}" data-nombre="${escapeHtml(g.base.nombre)}"
         class="pu-grupo-eliminar"
         title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas en PostgreSQL y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
