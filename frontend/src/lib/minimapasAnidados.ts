@@ -37,6 +37,12 @@ export interface NodoRuta {
   tipo: TipoNodoRuta;
   /** Nombre legible del nodo (se muestra bajo la miniatura). */
   nombre: string;
+  /**
+   * ID real del espacio/contenedor que representa el nodo (Ubicación o
+   * Contenedor de PostgreSQL). Permite resaltar el nodo activo por identidad
+   * (`activoId`) en vez de por posición en la cadena.
+   */
+  id?: string | null;
   /** Planta activa (1-based) del minimapa de la casita (nodos casa/planta). */
   filaActiva?: number | null;
   /** Cantidad total de plantas (filas del macro-plano) para el minimapa casa. */
@@ -86,11 +92,11 @@ function cajaProporcional(aspecto: number | undefined, svg: string): string {
 }
 
 /** Miniatura del nodo: sectores reales, casita (sin geometría) o grilla pura. */
-function lienzoHtml(nodo: NodoRuta): string {
+function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
   // Geometría REAL disponible: se dibujan los sectores proporcionales consumiendo
   // ui_left/ui_top/ui_width/ui_height, con el sector activo en naranja.
   if (nodo.sectores && nodo.sectores.length) {
-    const svg = minimapaSectoresSvg({ sectores: nodo.sectores, aspecto: nodo.aspecto });
+    const svg = minimapaSectoresSvg({ sectores: nodo.sectores, aspecto: nodo.aspecto, activoId });
     if (svg) return cajaProporcional(nodo.aspecto, svg);
   }
   if (nodo.tipo === 'estok' || nodo.tipo === 'planta') {
@@ -112,23 +118,41 @@ function lienzoHtml(nodo: NodoRuta): string {
   })}</span>`;
 }
 
+/** Opciones del render de la red de minimapas. */
+export interface MinimapaRutaOpts {
+  /**
+   * Conserva el resalte naranja en TODOS los nodos de la cadena. Se usa en la
+   * ruta geográfica de una caja: cada mapa aporta orientación propia, no hay
+   * "migajas" atenuadas.
+   */
+  todosActivos?: boolean;
+  /**
+   * ID real del nodo activo (Ubicación o Contenedor): marca su sector y su
+   * miniatura en NARANJA (#f97316) por identidad, en vez de por posición.
+   */
+  activoId?: string | null;
+}
+
 /**
- * Renderiza la barra de minimapas anidados.
+ * Renderiza la barra de minimapas anidados (mini-guía analítica superior).
  *
  * Por defecto el ÚLTIMO nodo de la cadena es el activo y se resalta en naranja;
  * el resto son la "migaja" de procedencia (atenuadas). Con `todosActivos: true`
  * (ruta geográfica de una caja) TODOS los nodos conservan su resalte naranja.
+ * Con `activoId` el nodo y el sector con esa identidad van en naranja.
  */
 export function renderMinimapasAnidados(
   nodos: NodoRuta[],
-  opts: { todosActivos?: boolean } = {},
+  opts: MinimapaRutaOpts = {},
 ): string {
   if (!nodos.length) return '';
   const piezas = nodos.map((nodo, i) => {
-    const activo = opts.todosActivos === true || i === nodos.length - 1;
+    const activo =
+      opts.todosActivos === true ||
+      (opts.activoId != null ? nodo.id === opts.activoId : i === nodos.length - 1);
     const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}" title="${escapeHtml(nodo.nombre)}">
       <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
-      ${lienzoHtml(nodo)}
+      ${lienzoHtml(nodo, opts.activoId)}
       <span class="mini-anidado-nombre">${escapeHtml(nodo.nombre)}</span>
     </div>`;
     return i < nodos.length - 1 ? `${bloque}<span class="mini-anidado-flecha" aria-hidden="true">→</span>` : bloque;

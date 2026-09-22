@@ -1,0 +1,73 @@
+---
+// =============================================================================
+// MINIMAPA RUTA · COMPONENTE GLOBAL DE LA MINI-GUÍA ANALÍTICA SUPERIOR
+// -----------------------------------------------------------------------------
+// ÚNICA cara Astro del sistema de minimapas analíticos del proyecto: dibuja la
+// cadena horizontal de siluetas PROPORCIONALES (casita con techo a dos aguas,
+// plano real de ambientes, mueble) con la geometría REAL persistida en
+// PostgreSQL (ui_left / ui_top / ui_width / ui_height) y resalta en NARANJA
+// (#f97316) el sector activo.
+//
+// NO duplica lógica de dibujo: delega en el motor puro
+// src/lib/minimapasAnidados.ts → renderMinimapasAnidados(), el MISMO que
+// consumen las pantallas con render en caliente (portalesAlmacenamiento.ts y
+// rutaCajaMinimapas.ts de Objetos). Así Almacenamiento y Objetos muestran
+// exactamente la misma silueta asimétrica y el mismo resalte naranja.
+//
+// Props limpias (todas opcionales):
+//   nodos        → cadena de la ruta (cada nodo trae su `tipo` taxonómico:
+//                  'planta' | 'habitacion' | 'mueble' | 'caja' | 'estok').
+//   activoId     → ID del contenedor/ambiente activo en PostgreSQL. Su sector y
+//                  su miniatura se pintan en naranja por identidad.
+//   todosActivos → conserva el resalte naranja en TODA la cadena (ruta
+//                  geográfica de una caja, sin "migajas" atenuadas).
+//   aspecto      → dimensión elástica: relación alto/ancho REAL del lienzo
+//                  medido en vivo, para no deformar las proporciones.
+//   id / class   → passthrough al host (permite hidratar el contenido en
+//                  caliente desde los módulos de src/lib sin cambiar el layout).
+//
+// Sin `nodos` el componente queda como HOST vacío: la pantalla lo rellena en
+// vivo con el mismo motor (caso de Almacenamiento, que navega por portales).
+// =============================================================================
+
+import { renderMinimapasAnidados } from '../lib/minimapasAnidados';
+import type { NodoRuta } from '../lib/minimapasAnidados';
+
+interface Props {
+  /** Nodos de la ruta geográfica (casita → habitación → mueble → caja). */
+  nodos?: NodoRuta[];
+  /** ID del contenedor/ambiente activo: su sector va en NARANJA (#f97316). */
+  activoId?: string | null;
+  /** Resalta TODA la cadena (ruta geográfica de una caja móvil). */
+  todosActivos?: boolean;
+  /** Relación alto/ancho (dimensión elástica) del lienzo real medido en vivo. */
+  aspecto?: number;
+  /** ID del host (para que los módulos de src/lib inyecten la ruta en caliente). */
+  id?: string;
+  /** Clases del host (ej: `hidden` cuando la barra arranca vacía). */
+  class?: string;
+}
+
+const {
+  nodos = [],
+  activoId = null,
+  todosActivos = false,
+  aspecto,
+  id,
+  class: clase,
+} = Astro.props;
+
+// La dimensión elástica recibida por Props se hereda a los nodos que no traen
+// su propia medición en vivo: una sola fuente de verdad para las proporciones.
+const nodosFinales: NodoRuta[] =
+  aspecto != null ? nodos.map((nodo) => ({ ...nodo, aspecto: nodo.aspecto ?? aspecto })) : nodos;
+
+const html = nodosFinales.length
+  ? renderMinimapasAnidados(nodosFinales, { activoId, todosActivos })
+  : '';
+const clases = ['minimapa-ruta', clase].filter(Boolean).join(' ');
+---
+
+<div id={id} class={clases} data-minimapa-ruta>
+  {html ? <Fragment set:html={html} /> : null}
+</div>

@@ -15,6 +15,9 @@ import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
+// COMPONENTE GLOBAL de la mini-guía analítica superior: unifica en un único
+// render las siluetas asimétricas proporcionales (mismo motor puro que Objetos).
+import MinimapaRuta from '../components/MinimapaRuta.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
@@ -109,8 +112,12 @@ import '../styles/almacenamiento-portales.css';
               </button>
             </div>
           </div>
-          <!-- RED DE MINIMAPAS ANIDADOS: historial gráfico con el nodo activo en naranja -->
-          <div id="minimapasAnidados" class="hidden"></div>
+          <!-- MINI-GUÍA ANALÍTICA SUPERIOR: componente global de minimapas
+               asimétricos proporcionales (casita a dos aguas + ambientes reales
+               + mueble, sector activo en naranja #f97316). El host arranca vacío
+               y portalesAlmacenamiento.ts lo rellena en vivo con el MISMO motor
+               puro (src/lib/minimapasAnidados.ts) que usa Objetos. -->
+          <MinimapaRuta id="minimapasAnidados" class="hidden" />
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1">
             <div id="visorHabitacion" class="min-h-[180px]">

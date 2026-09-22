@@ -91,7 +91,7 @@ export function esMuebleMovil(nodo: NodoContenedor): boolean {
 interface TarjetaOpts {
   /** Etiqueta de tipo mostrada en el subtítulo de la tarjeta. */
   tipoLabel?: string;
-  /** HTML de la hilera de minimapas ULTRA-MINI (Sección 1: Piso→Habitación→Mueble). */
+  /** HTML de la mini-guía analítica asimétrica (Sección 1: Piso→Habitación→Mueble). */
   minimapa?: string;
   /** Alineación vertical del lateral: 'start' cuando hay minimapa, si no 'center'. */
   alinear?: 'start' | 'center';

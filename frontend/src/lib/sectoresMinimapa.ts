@@ -44,6 +44,9 @@ export function sectoresDeItems(
     const ancho = pctValor(item.ui_width, ANCHO_DEFECTO);
     const alto = pctValor(item.ui_height, ALTO_DEFECTO);
     return {
+      // El ID real viaja con el sector: el motor de minimapas puede resaltar el
+      // activo por identidad (override global `activoId`), no solo por posición.
+      id: item.id != null ? String(item.id) : '',
       left: pctValor(item.ui_left, 6 + (i % 5) * 12),
       top: pctValor(item.ui_top, 8 + (i % 4) * 16),
       width: ancho > 0 ? ancho : ANCHO_DEFECTO,

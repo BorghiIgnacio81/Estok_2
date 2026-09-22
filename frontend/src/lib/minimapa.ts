@@ -323,6 +323,8 @@ export interface SectorMinimapa {
   top: number;
   width: number;
   height: number;
+  /** ID del espacio real (Ubicación o Contenedor) que representa el sector. */
+  id?: string | null;
   /** Sector activo: se pinta en COLOR_NARANJA. */
   activo?: boolean;
   /** Icono contextual opcional (🚽 🛏️ 🗄️ 🏠) dibujado en miniatura. */
@@ -337,6 +339,8 @@ export interface MinimapaSectoresOpts {
   aspecto?: number;
   /** Ancho del SVG en px (default 62). */
   ancho?: number;
+  /** Override global de resalte: el sector con este ID va en COLOR_NARANJA. */
+  activoId?: string | null;
 }
 
 /** Aspecto por defecto del lienzo elástico (alto/ancho) cuando no se puede medir. */
@@ -347,7 +351,7 @@ function acotar(n: number, min: number, max: number): number {
 }
 
 export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
-  const sectores = sectoresAcotados(opts.sectores);
+  const sectores = sectoresAcotados(opts.sectores, opts.activoId);
   if (!sectores.length) return '';
 
   const ancho = Math.round(acotar(Number(opts.ancho) || 62, 28, 140));

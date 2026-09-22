@@ -2,7 +2,8 @@
 // Listado jerárquico de objetos (inventario en cascada).
 // La pantalla se divide en TRES secciones descendentes que heredan de forma
 // continua la misma textura y paleta corporativa:
-//   SECCIÓN 1 · 📦 Cajas e Inventario Interno (minimapa ULTRA-MINI naranja)
+//   SECCIÓN 1 · 📦 Cajas e Inventario Interno (mini-guía analítica asimétrica:
+//               casita a dos aguas + ambientes reales + mueble en naranja)
 //   SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
 //   SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye es_inmueble = true)
 // La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
@@ -14,8 +15,9 @@ import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import EmptyState from '../components/EmptyState.astro';
 import CategoriaCreator from '../components/CategoriaCreator.astro';
-// Estilos de la red de MINIMAPAS EN CADENA (.mini-anidado*) reutilizados por las
-// tarjetas de caja de la SECCIÓN 1. No se duplican: viven en un único archivo.
+// Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas de
+// caja de la SECCIÓN 1 y el componente global components/MinimapaRuta.astro.
+// No se duplican: viven en un único archivo compartido por Almacenamiento.
 import '../styles/almacenamiento-portales.css';
 ---
 
@@ -179,10 +181,12 @@ import '../styles/almacenamiento-portales.css';
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(120, 53, 15, 0.06);
     }
 
-    /* Red de MINIMAPAS EN CADENA de las tarjetas de caja (SECCIÓN 1).
-       El HTML lo inyecta rutaCajaMinimapas.ts → minimapasAnidados.ts y los
-       estilos .mini-anidado* se reutilizan de styles/almacenamiento-portales.css
-       (importado en el frontmatter): no se duplican reglas acá. */
+    /* MINI-GUÍA ANALÍTICA de las tarjetas de caja (SECCIÓN 1).
+       El HTML lo arma rutaCajaMinimapas.ts con el motor compartido
+       minimapasAnidados.ts (el mismo que alimenta el componente global
+       components/MinimapaRuta.astro) y los estilos .mini-anidado* se reutilizan
+       de styles/almacenamiento-portales.css (importado en el frontmatter): no se
+       duplican reglas acá. */
     @keyframes estok-reveal {
       from {
         opacity: 0;
