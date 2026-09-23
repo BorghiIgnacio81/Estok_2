@@ -5,6 +5,9 @@
 // código de invitación y, opcionalmente, lo despacha por email.
 //
 //   - Rol FIJO: "Solo lectura" (Visualizador) o "Lectura y edición" (Editor).
+//   - Estok de destino: con 2 o más inquilinatos aparece el combobox
+//     "Seleccionar Estok de destino" (preseleccionado en el Estok activo); con
+//     uno solo queda oculto y su ID viaja automático en el payload.
 //   - Caducidad FIJA: el código muere en su cuarto uso (USOS_MAXIMOS_INVITACION).
 //   - Destinatario: email o nombre de usuario, según el switch "Es usuario de
 //     Estok". El backend acepta cualquiera de los dos para la vinculación.
@@ -25,6 +28,12 @@ import {
   ROLES_INVITACION,
 } from '../services/auth';
 import type { CodigoInvitacionCreado } from '../services/auth';
+import {
+  bloqueEstokHtml,
+  escaparHtml,
+  estokPreseleccionado,
+  estoksDelUsuario,
+} from './invitacionEstok';
 
 const MODAL_ID = 'invitarModal';
 
@@ -37,15 +46,6 @@ const AVISO_CADUCIDAD = 'Este código caducará automáticamente en su cuarto us
 /** Nota sutil del modo "usuario de Estok" (se muestra solo con el switch activo). */
 const NOTA_USUARIO =
   'Si no recuerdas su nombre de usuario, puedes ingresar su email igualmente';
-
-function esc(v: unknown): string {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** Etiqueta visible de un rol fijo a partir de su nombre en el backend. */
 function etiquetaRol(nombreBackend: string): string {
@@ -86,9 +86,9 @@ function crearResolverDeRoles(): () => Promise<Record<string, string>> {
 // ESTRUCTURA DE LA TARJETA ÚNICA
 // =============================================================================
 
-function construirHtml(): string {
+function construirHtml(bloqueEstok: string): string {
   const opcionesRol = ROLES_INVITACION.map(
-    (r) => `<option value="${esc(r.nombreBackend)}">${esc(r.etiqueta)}</option>`
+    (r) => `<option value="${escaparHtml(r.nombreBackend)}">${escaparHtml(r.etiqueta)}</option>`
   ).join('');
 
   return `
@@ -107,7 +107,8 @@ function construirHtml(): string {
         </button>
       </div>
 
-      <div class="p-6 space-y-5">
+      <div class="p-6 space-y-5">${bloqueEstok}
+
         <!-- Permisos: dos opciones fijas -->
         <div>
           <label for="invRol" class="block text-sm font-medium text-gray-700 mb-1">Permisos del invitado</label>
@@ -179,16 +180,25 @@ export function abrirModalInvitacion(): void {
   // Evitar duplicados (navbar desktop y mobile comparten este modal).
   if (document.getElementById(MODAL_ID)) return;
 
+  // Estoks a los que tiene acceso la cuenta (estado global de sesión, mismo
+  // origen que el dropdown "Mis Estoks" del Navbar): con 2 o más se muestra el
+  // combobox y arranca en el Estok activo.
+  const estoks = estoksDelUsuario();
+  const estokSeleccionado = estokPreseleccionado(estoks, getEstokActivoId());
+
   const overlay = document.createElement('div');
   overlay.id = MODAL_ID;
   overlay.className =
     'fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4';
-  overlay.innerHTML = construirHtml();
+  overlay.innerHTML = construirHtml(bloqueEstokHtml(estoks, estokSeleccionado));
   document.body.appendChild(overlay);
 
   // --- Referencias DOM -------------------------------------------------------
   const buscar = <T extends HTMLElement>(id: string): T => overlay.querySelector(id) as T;
 
+  // Combobox de Estok de destino: solo existe cuando la cuenta administra 2 o
+  // más inquilinatos (con uno solo el ID viaja automático en el payload).
+  const estokSelect = overlay.querySelector<HTMLSelectElement>('#invEstok');
   const rolSelect = buscar<HTMLSelectElement>('#invRol');
   const destinatarioLabel = buscar<HTMLLabelElement>('#invDestinatarioLabel');
   const destinatarioInput = buscar<HTMLInputElement>('#invDestinatario');
@@ -254,9 +264,13 @@ export function abrirModalInvitacion(): void {
     generarBtn.disabled = true;
 
     try {
-      const estokId = getEstokActivoId();
+      // El código se crea en el Estok elegido en el combobox (o en el único al
+      // que pertenece la cuenta): ese ID es el que viaja como X-Estok-Id.
+      const estokId = (estokSelect?.value || estokSeleccionado).trim();
       if (!estokId) {
-        throw new Error('No hay Estok activo. Recargá la página e intentá de nuevo.');
+        throw new Error(
+          'No se pudo determinar el Estok de destino. Recargá la página e intentá de nuevo.'
+        );
       }
 
       const mapaRoles = await resolverRoles();
