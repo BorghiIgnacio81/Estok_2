@@ -1,0 +1,10 @@
+---
+// =============================================================================
+// ALIAS: /dashboard
+// El Dashboard real vive en la ruta raíz ("/" → src/pages/index.astro).
+// Este alias existe para que el logo del navbar pueda apuntar a "/dashboard"
+// (requisito de diseño) sin devolver 404: redirige de inmediato al inicio.
+// =============================================================================
+
+return Astro.redirect('/', 302);
+---

@@ -1,0 +1,88 @@
+---
+// =============================================================================
+// COMPONENTE: MobileNavBars
+// Navegación principal de ESTOK en móvil (<md): 3 barras horizontales sólidas
+// en paleta naranja-crema que SUSTITUYEN al clásico menú hamburguesa.
+//
+// Inspiradas en la barra celeste del tenant (#estokBarMobile, BaseLayout): un
+// bloque sólido de ancho completo por opción, con icono + etiqueta + chevron.
+// Al ser barras siempre visibles no existe estado abierto/cerrado ni JS de
+// toggle: el bloque es un simple envoltorio de anclas.
+//
+// Responsive: se renderiza SOLO en móvil (`block md:hidden`). En escritorio la
+// navegación vive en la fila "Navegación principal desktop" de BaseLayout
+// (`hidden md:flex`), por lo que ambas experiencias nunca se superponen.
+//
+// El acceso al Dashboard vive en el logo (BaseLayout) y "Mi Perfil" en el
+// avatar redondeado de la esquina superior derecha.
+// =============================================================================
+
+interface ItemNavMovil {
+  href: string;
+  label: string;
+  /** Contenido interno del <svg> (mismo trazo Heroicons que el resto de la app) */
+  icono: string;
+}
+
+const items: ItemNavMovil[] = [
+  {
+    href: '/objetos',
+    label: 'Objetos',
+    icono: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />',
+  },
+  {
+    href: '/almacenamiento',
+    label: 'Almacenamiento',
+    icono: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />',
+  },
+  {
+    href: '/alertas-stock',
+    label: 'Decisiones',
+    icono: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m6 0V9a2 2 0 012-2h2a2 2 0 012 2v10m6 0v-3a2 2 0 00-2-2h-2a2 2 0 00-2 2v3" />',
+  },
+];
+---
+
+<nav
+  id="mobileNavBars"
+  class="block md:hidden border-t border-orange-200 bg-orange-50/70"
+  aria-label="Navegación principal móvil"
+>
+  <div class="max-w-7xl mx-auto px-4 pt-2 pb-3 space-y-2">
+    {items.map((item) => (
+      <a
+        href={item.href}
+        data-mobile-nav-item={item.href}
+        class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl bg-orange-100 text-orange-800 border border-orange-200 font-semibold text-sm transition-base hover:bg-orange-200 hover:border-orange-300 active:scale-[0.99]"
+      >
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" set:html={item.icono} />
+        <span class="flex-1 text-left">{item.label}</span>
+        <svg class="w-4 h-4 flex-shrink-0 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </a>
+    ))}
+  </div>
+</nav>
+
+<script>
+  // Marca la barra activa según la ruta actual (p. ej. /objetos/123 → "Objetos").
+  // Estado puramente visual, no condiciona la navegación (cada barra es un ancla).
+  const barrasMovil = document.querySelectorAll<HTMLAnchorElement>('#mobileNavBars [data-mobile-nav-item]');
+  const rutaActual = window.location.pathname;
+
+  barrasMovil.forEach((barra) => {
+    const href = barra.dataset.mobileNavItem || '';
+    const activa = href === '/' ? rutaActual === '/' : rutaActual === href || rutaActual.startsWith(`${href}/`);
+    if (activa) barra.classList.add('is-active');
+  });
+</script>
+
+<style>
+  /* Barra activa: un escalón más sólido dentro de la misma paleta naranja-crema */
+  #mobileNavBars a.is-active {
+    background-color: #fed7aa; /* orange-200 */
+    border-color: #fdba74; /* orange-300 */
+    box-shadow: inset 3px 0 0 0 #c2410c; /* orange-700 */
+  }
+</style>

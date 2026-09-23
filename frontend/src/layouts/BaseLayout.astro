@@ -7,6 +7,7 @@
 // Importar estilos globales (Astro los procesa y los pone en /assets/ con hash)
 import '../styles/global.css';
 import ChatModal from '../components/ChatModal.astro';
+import MobileNavBars from '../components/MobileNavBars.astro';
 
 export interface Props {
   title?: string;
@@ -57,7 +58,12 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
         <div class="flex items-center justify-between h-16">
           <!-- Logo y marca -->
           <div class="flex items-center min-w-0 flex-shrink">
-            <a href="/" class="flex items-center space-x-2 flex-shrink-0">
+            <!-- Logo + marca: ancla directa de retorno al inicio (Dashboard).
+                 "/" es la ruta real del Dashboard y "/dashboard" es un alias que
+                 redirige ahí, de modo que el regreso al inicio funciona desde
+                 cualquier pantalla sin devolver 404. -->
+            <a href="/dashboard" class="flex items-center space-x-2 flex-shrink-0"
+              title="Ir al Dashboard" aria-label="Estok - Ir al Dashboard">
               <img src="/favicon.png" alt="Estok" class="h-10 w-10 sm:h-16 sm:w-16 object-cover" />
               <span class="text-xl sm:text-2xl font-bold text-blue-700">Estok</span>
             </a>
@@ -98,15 +104,15 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             </button>
-            <!-- Botón menú hamburguesa (mobile) -->
-            <button id="mobileMenuBtn" class="md:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-base" title="Menú">
-              <svg id="menuIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            <!-- Mi Perfil (móvil): ocupa el lugar que dejó el menú de las 3 rayitas.
+                 Avatar minimalista redondeado que lleva directo al módulo de perfil. -->
+            <a id="profileBtnMobile" href="/perfil"
+              class="md:hidden flex items-center justify-center w-9 h-9 rounded-full bg-orange-100 text-orange-800 border border-orange-200 hover:bg-orange-200 transition-base flex-shrink-0"
+              title="Mi Perfil" aria-label="Mi Perfil">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <svg id="closeIcon" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            </a>
             <div id="authSection" class="hidden flex items-center gap-1 sm:gap-3">
               <span id="userName" class="text-xs sm:text-sm text-gray-600 font-medium truncate max-w-[80px] sm:max-w-[150px]"></span>
               <button
@@ -164,42 +170,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
               title="Invitar miembros al Estok">
               Invitar
             </button>
-          </div>
-        </div>
-
-        <!-- Menú móvil desplegable (navegación) -->
-        <div id="mobileNavMenu" class="hidden md:hidden border-t border-gray-200 pb-3 pt-2">
-          <div class="flex flex-col space-y-1">
-            <a href="/" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
-              Dashboard
-            </a>
-            <a href="/objetos" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
-              Objetos
-            </a>
-            <a href="/almacenamiento" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
-              📦 Almacenamiento
-            </a>
-            <a href="/alertas-stock" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
-              ⚖️ Decisiones
-            </a>
-            <a href="/perfil" class="px-3 py-2 text-sm text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-base font-medium">
-              👤 Mi Perfil
-            </a>
-            <!-- ADMIN GLOBAL (mobile) - SOLO visible para ygumy44 -->
-            <!-- Toggle directo del Panel de Control del Dashboard (index.astro) -->
-            <div id="godModeWrapMobile" class="hidden">
-              <button
-                id="godModeBtnMobile"
-                type="button"
-                class="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg transition-base shadow-sm cursor-pointer"
-                title="Abrir / cerrar el Panel de Control global"
-              >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Admin Global
-              </button>
-            </div>
           </div>
         </div>
 
@@ -299,6 +269,26 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           <span id="estokBarRoleBadge" class="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-200 text-blue-800 font-medium"></span>
         </div>
       </div>
+    </div>
+
+    <!-- Navegación móvil: 3 barras naranja-crema siempre visibles (reemplazan al
+         menú hamburguesa). Solo <md; la fila desktop sigue en `hidden md:flex`. -->
+    <MobileNavBars />
+
+    <!-- ADMIN GLOBAL (móvil) - SOLO visible para ygumy44 -->
+    <!-- Toggle directo del Panel de Control del Dashboard (index.astro) -->
+    <div id="godModeWrapMobile" class="hidden md:hidden max-w-7xl mx-auto px-4 pb-3">
+      <button
+        id="godModeBtnMobile"
+        type="button"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-xl transition-base shadow-sm cursor-pointer"
+        title="Abrir / cerrar el Panel de Control global"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        Admin Global
+      </button>
     </div>
 
     <!-- Toast Container Global -->
@@ -640,13 +630,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     toggleAdminGlobal();
   });
 
-  // Toggle desde el menú móvil (cierra el menú para dejar visible el panel)
+  // Toggle desde el acceso móvil (Admin Global vive justo debajo de las 3
+  // barras naranja-crema: ya no hay menú hamburguesa que cerrar).
   godModeBtnMobile?.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    document.getElementById('mobileNavMenu')?.classList.add('hidden');
-    document.getElementById('menuIcon')?.classList.remove('hidden');
-    document.getElementById('closeIcon')?.classList.add('hidden');
     toggleAdminGlobal();
   });
 
@@ -1013,27 +1001,6 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       setTimeout(() => banner.remove(), 500);
     });
   }
-
-  // ===========================================================================
-  // MENÚ HAMBURGUESA MÓVIL
-  // ===========================================================================
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn')!;
-  const mobileNavMenu = document.getElementById('mobileNavMenu')!;
-  const menuIcon = document.getElementById('menuIcon')!;
-  const closeIcon = document.getElementById('closeIcon')!;
-
-  mobileMenuBtn?.addEventListener('click', () => {
-    const isOpen = !mobileNavMenu.classList.contains('hidden');
-    if (isOpen) {
-      mobileNavMenu.classList.add('hidden');
-      menuIcon.classList.remove('hidden');
-      closeIcon.classList.add('hidden');
-    } else {
-      mobileNavMenu.classList.remove('hidden');
-      menuIcon.classList.add('hidden');
-      closeIcon.classList.remove('hidden');
-    }
-  });
 
   // ===========================================================================
   // ESTOK UI MÓVIL

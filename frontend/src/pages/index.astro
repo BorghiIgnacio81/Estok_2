@@ -47,7 +47,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
         </div>
 
-        <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
+        <div class="flex flex-col md:flex-row items-center gap-3 md:gap-4 w-full lg:w-auto">
           <!-- PWA Install Button (hero) - SOLO MÓVIL, no se renderiza en desktop -->
           {isMobile && (
             <button id="installPwaBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-full hover:bg-green-700 transition-base shadow-sm flex-shrink-0">
@@ -57,12 +57,20 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
               Instalar App
             </button>
           )}
-          <!-- Botón Mudanza: se inyecta dinámicamente SOLO si user.estoks.length > 1 -->
-          <span id="mudanzaBtnContainer" class="flex-shrink-0"></span>
-          <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
-          <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
-            <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-          </a>
+          <!-- ACCIONES RÁPIDAS EN PARALELO (md+): "Mudanza" y "Nuevo Objeto" van
+               en la misma fila (flex flex-row gap-4 w-full) y se reparten el
+               ancho en mitades simétricas con flex-1. La fila se acota con
+               max-w-sm para que los dos bloques queden equilibrados y el hero
+               no se estire de más. En móvil el wrapper apila la fila debajo del
+               botón de instalación PWA para no comprimir las dos acciones. -->
+          <div class="flex flex-row gap-4 w-full md:max-w-sm items-center justify-center">
+            <!-- Botón Mudanza: se inyecta dinámicamente SOLO si user.estoks.length > 1 -->
+            <span id="mudanzaBtnContainer" class="flex-1 min-w-0 flex items-center justify-center"></span>
+            <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
+            <a href="/objetos/nuevo" class="flex-1 min-w-0 flex items-center justify-center" aria-label="Nuevo Objeto">
+              <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -551,20 +559,16 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   const mudanzaBtnContainer = document.getElementById('mudanzaBtnContainer');
   const usuarioCacheado = getCachedUser();
   if (mudanzaBtnContainer && usuarioCacheado && (usuarioCacheado.estoks?.length || 0) > 1) {
-    // JERARQUÍA VISUAL DEL ICONO (Mudar): el icono crece de h-20 (80px) a un
-    // escalado elástico de 96 → 112 → 128px (h-24 / md:h-28 / lg:h-32) para que
-    // se lea de un vistazo en la fila de acciones rápidas, pero SIEMPRE un
-    // escalón por debajo del CTA principal "Nuevo Objeto" (h-24 / md:h-32 /
-    // lg:h-36 = 96/128/144px): así gana presencia sin competir con la acción
-    // primaria. La imagen es 1:1 (1254×1254), por lo que h-* define también el
-    // ancho; con `w-auto object-contain` nunca se deforma ni recorta.
-    // El ancla queda FLEX-CENTRADA (inline-flex items-center justify-center)
-    // para que el icono más grande crezca simétrico dentro de su caja sin
-    // descentrar el texto vecino ni los márgenes internos de la fila.
+    // SIMETRÍA WEB: el ancla ocupa todo su contenedor (flex-1 de la fila de
+    // acciones rápidas) y centra la imagen, que escala exactamente igual que el
+    // CTA "Nuevo Objeto" (h-24 / md:h-32 / lg:h-36 = 96/128/144px) para que las
+    // dos acciones queden en paralelo con anchos proporcionales idénticos.
+    // La imagen es 1:1 (1254×1254), por lo que h-* define también el ancho;
+    // `w-auto max-w-full object-contain` evita deformación y desborde en móvil.
     mudanzaBtnContainer.innerHTML = `
-      <a href="/mudanza" class="inline-flex items-center justify-center flex-shrink-0" aria-label="Mudanza Inter-Estok"
+      <a href="/mudanza" class="flex items-center justify-center w-full" aria-label="Mudanza Inter-Estok"
         title="Transferir contenedores y objetos entre tus Estoks">
-        <img src="/mudanza.png" alt="Mudanza" class="h-24 md:h-28 lg:h-32 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+        <img src="/mudanza.png" alt="Mudanza" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
       </a>`;
   }
 
