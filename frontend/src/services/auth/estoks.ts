@@ -8,6 +8,32 @@ import { getToken } from './tokens';
 import { getEstokActivoId, getCachedUser, cacheUser } from './session';
 import { API_BASE_URL } from './apiBase';
 
+/**
+ * Mensaje legible de una respuesta de error de la API.
+ *
+ * Django REST Framework devuelve el detalle con formas distintas según el
+ * origen: `{error}` (errores de negocio propios, ej. invitaciones que no
+ * corresponden a ninguna cuenta), `{detail}` (autenticación/permisos) o
+ * `{campo: [mensajes]}` (validación del serializer). Se normalizan TODAS para
+ * que el modal muestre siempre el texto claro del backend y nunca un genérico
+ * "no se pudo completar la operación".
+ */
+async function mensajeDeError(response: Response, porDefecto: string): Promise<string> {
+  try {
+    const data = await response.json();
+    if (typeof data?.error === 'string' && data.error) return data.error;
+    if (typeof data?.detail === 'string' && data.detail) return data.detail;
+    const plano = Object.values(data ?? {})
+      .flat()
+      .filter(Boolean)
+      .join(', ');
+    return plano || porDefecto;
+  } catch {
+    // Respuesta no-JSON (ej. HTML de un 500): se usa el mensaje por defecto.
+    return porDefecto;
+  }
+}
+
 // =============================================================================
 // CREAR ESTOK
 // =============================================================================
@@ -42,14 +68,10 @@ export async function crearEstok(nombre: string, opciones: CrearEstokOpciones = 
   });
 
   if (!response.ok) {
-    let errorMsg = 'Error al crear el Estok';
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.error || Object.values(errorData).flat().join(', ') || errorMsg;
-    } catch {
-      // Usar mensaje por defecto
-    }
-    throw { error: errorMsg, status: response.status } as AuthError;
+    throw {
+      error: await mensajeDeError(response, 'Error al crear el Estok'),
+      status: response.status,
+    } as AuthError;
   }
 
   const data = await response.json();
@@ -108,14 +130,10 @@ export async function unirseConCodigo(codigo: string): Promise<{ mensaje: string
   });
 
   if (!response.ok) {
-    let errorMsg = 'Error al unirse al Estok';
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.error || errorMsg;
-    } catch {
-      // Usar mensaje por defecto
-    }
-    throw { error: errorMsg, status: response.status } as AuthError;
+    throw {
+      error: await mensajeDeError(response, 'Error al unirse al Estok'),
+      status: response.status,
+    } as AuthError;
   }
 
   return response.json();
@@ -148,7 +166,10 @@ export async function fetchRoles(): Promise<Role[]> {
   });
 
   if (!response.ok) {
-    throw { error: 'Error al obtener roles', status: response.status } as AuthError;
+    throw {
+      error: await mensajeDeError(response, 'Error al obtener roles'),
+      status: response.status,
+    } as AuthError;
   }
 
   const data = await response.json();
@@ -238,14 +259,10 @@ export async function generarCodigoInvitacion(
   });
 
   if (!response.ok) {
-    let errorMsg = 'Error al generar código de invitación';
-    try {
-      const errorData = await response.json();
-      errorMsg = errorData.error || Object.values(errorData).flat().join(', ') || errorMsg;
-    } catch {
-      // Usar mensaje por defecto
-    }
-    throw { error: errorMsg, status: response.status } as AuthError;
+    throw {
+      error: await mensajeDeError(response, 'Error al generar código de invitación'),
+      status: response.status,
+    } as AuthError;
   }
 
   return response.json();

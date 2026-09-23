@@ -2,6 +2,9 @@
 Serializers de Estok, Membresía, Códigos de Invitación.
 """
 
+import unicodedata
+import uuid
+
 from rest_framework import serializers
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role
@@ -74,11 +77,64 @@ class EstokCreateSerializer(serializers.ModelSerializer):
         return estok
 
 
+# =============================================================================
+# ROL DEL CÓDIGO DE INVITACIÓN (selector del modal "Invitar miembros")
+# =============================================================================
+# El modal manda el UUID del Role, pero se aceptan además los nombres visibles
+# ("Solo lectura" / "Lectura y edición") y los nombres reales del RBAC
+# ("Visualizador" / "Editor"): así un cliente desactualizado obtiene el rol
+# correcto (con sus permisos can_read / can_write / can_edit / can_delete) en
+# lugar de romper el alta del código.
+ALIAS_ROLES_INVITACION = {
+    'solo lectura': 'Visualizador',
+    'lectura y edicion': 'Editor',
+}
+
+
+def _clave_rol(valor: str) -> str:
+    """Clave laxa de comparación (sin tildes, minúsculas, espacios normalizados)."""
+    descompuesto = unicodedata.normalize('NFKD', str(valor))
+    sin_tildes = ''.join(c for c in descompuesto if not unicodedata.combining(c))
+    return ' '.join(sin_tildes.split()).lower()
+
+
+def _es_uuid(valor: str) -> bool:
+    """True si el valor ya es el UUID del rol (flujo normal del modal)."""
+    try:
+        uuid.UUID(str(valor))
+        return True
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
+class RolInvitacionField(serializers.PrimaryKeyRelatedField):
+    """
+    Campo `role` del código de invitación: resuelve el UUID del rol o su nombre
+    legible y devuelve SIEMPRE la instancia Role real de la base.
+
+    Un rol inexistente responde HTTP 400 con mensaje claro (nunca un 500).
+    """
+
+    default_error_messages = {
+        'rol_desconocido': 'El rol indicado no existe en el sistema.',
+    }
+
+    def to_internal_value(self, data):
+        if isinstance(data, str) and not _es_uuid(data):
+            nombre = ALIAS_ROLES_INVITACION.get(_clave_rol(data), data.strip())
+            role = self.queryset.filter(name__iexact=nombre).first()
+            if role is None:
+                self.fail('rol_desconocido')
+            return role
+        return super().to_internal_value(data)
+
+
 class CodigoInvitacionSerializer(serializers.ModelSerializer):
     estok_nombre = serializers.CharField(source='estok.nombre', read_only=True)
     role_name = serializers.CharField(source='role.name', read_only=True, allow_null=True)
     es_valido = serializers.BooleanField(read_only=True)
     creado_por_username = serializers.CharField(source='creado_por.username', read_only=True, allow_null=True)
+    role = RolInvitacionField(queryset=Role.objects.all(), required=False, allow_null=True)
 
     # -------------------------------------------------------------------------
     # Campos de SOLO ESCRITURA del modal "Invitar miembros": no son columnas del
@@ -108,6 +164,27 @@ class CodigoInvitacionSerializer(serializers.ModelSerializer):
             'invitado', 'es_usuario_estok', 'enviar_email',
         ]
         read_only_fields = ['id', 'codigo', 'usos_actuales', 'created_at', 'estok']
+
+    # -------------------------------------------------------------------------
+    # Los campos virtuales del modal (`invitado`, `es_usuario_estok` y
+    # `enviar_email`) NO son columnas de CodigoInvitacion: DRF los mete igual en
+    # validated_data y el Manager los pasaría a CodigoInvitacion(**kwargs), lo
+    # que produce TypeError y HTTP 500 en CADA POST. create() los descarta.
+    # -------------------------------------------------------------------------
+    CAMPOS_VIRTUALES = ('invitado', 'es_usuario_estok', 'enviar_email')
+
+    def create(self, validated_data):
+        """
+        Crea el código descartando antes los campos que no son del modelo.
+
+        Deja intactos `role`, `usos_maximos`, `fecha_expiracion` y `activo`, que
+        sí son columnas reales del código de invitación.
+        """
+        datos = {
+            clave: valor for clave, valor in validated_data.items()
+            if clave not in self.CAMPOS_VIRTUALES
+        }
+        return super().create(datos)
 
     def validate(self, attrs):
         """El envío por email exige un destinatario: se corta antes de enviar."""

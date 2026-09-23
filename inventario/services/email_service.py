@@ -230,36 +230,94 @@ _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$')
 # Página con el formulario "Unirme con código" (frontend /estoks).
 ENLACE_UNIRSE = 'https://eeestok.duckdns.org/estoks'
 
+# Mensaje ÚNICO que se devuelve cuando el campo unificado del modal no
+# corresponde a ninguna cuenta registrada. Vive acá (y no en la vista) porque
+# forma parte del contrato del servicio de invitaciones.
+MENSAJE_DESTINATARIO_INEXISTENTE = (
+    'El usuario o correo electrónico ingresado no corresponde a ninguna '
+    'cuenta registrada en ESTOK.'
+)
 
-def _resolver_destinatario_invitacion(
-    invitado: str, es_usuario_estok: bool
+
+def _buscar_usuario_por_username(valor: str):
+    """
+    Busca una cuenta por NOMBRE DE USUARIO (sin distinguir mayúsculas).
+
+    Devuelve None si no existe o si la consulta falla: el llamador decide el
+    mensaje, acá nunca se propaga una excepción del ORM.
+    """
+    from django.contrib.auth import get_user_model
+
+    try:
+        return get_user_model().objects.filter(username__iexact=valor).first()
+    except Exception:  # noqa: BLE001 - la búsqueda no puede tumbar el endpoint
+        logger.exception('Falló la búsqueda del invitado por username (%r)', valor)
+        return None
+
+
+def _buscar_usuario_por_email(valor: str):
+    """
+    Busca una cuenta por EMAIL (sin distinguir mayúsculas).
+
+    Devuelve None si no existe o si la consulta falla (mismo criterio que
+    _buscar_usuario_por_username).
+    """
+    from django.contrib.auth import get_user_model
+
+    try:
+        return get_user_model().objects.filter(email__iexact=valor).first()
+    except Exception:  # noqa: BLE001 - la búsqueda no puede tumbar el endpoint
+        logger.exception('Falló la búsqueda del invitado por email (%r)', valor)
+        return None
+
+
+def resolver_destinatario_invitacion(
+    invitado: str, es_usuario_estok: bool = False
 ) -> Tuple[Optional[str], Optional[str]]:
     """
-    Normaliza el dato cargado en el modal (switch "Es usuario de Estok") a una
-    dirección de correo concreta.
+    Punto ÚNICO de resolución del destinatario del modal "Invitar miembros".
 
-    El administrador puede escribir el EMAIL del invitado o, si ya tiene cuenta,
-    su NOMBRE DE USUARIO: acá se resuelve a un email real para que la invitación
-    llegue igual. Devuelve (email, aviso); con email None, `aviso` explica el
-    motivo en lenguaje llano.
+    Normaliza el dato cargado en el campo unificado (switch "Es usuario de
+    Estok") a una dirección de correo concreta de una cuenta REGISTRADA: el
+    administrador puede escribir el EMAIL del invitado o, si ya tiene cuenta, su
+    NOMBRE DE USUARIO, y acá se resuelve al email real para que la invitación
+    llegue igual.
+
+    Devuelve (email, aviso); con email None, `aviso` explica el motivo en
+    lenguaje llano. NUNCA propaga excepciones: cualquier fallo del ORM se
+    loguea acá y el endpoint responde HTTP 400 controlado en lugar de un 500.
     """
     invitado = (invitado or '').strip()
     if not invitado:
         return None, 'Indicá un email o un nombre de usuario para enviar la invitación.'
 
-    if es_usuario_estok:
-        from django.contrib.auth import get_user_model
+    try:
+        if es_usuario_estok:
+            # Switch ON: el campo es el NOMBRE DE USUARIO, pero el modal avisa
+            # que también se acepta el email del invitado.
+            usuario = (
+                _buscar_usuario_por_username(invitado)
+                or _buscar_usuario_por_email(invitado)
+            )
+            if usuario is None:
+                return None, MENSAJE_DESTINATARIO_INEXISTENTE
+            if not usuario.email:
+                return None, f'El usuario "{invitado}" no tiene email cargado en su perfil.'
+            return usuario.email, None
 
-        user = get_user_model().objects.filter(username__iexact=invitado).first()
-        if user is None:
-            return None, f'No existe un usuario de Estok con el nombre "{invitado}".'
-        if not user.email:
-            return None, f'El usuario "{invitado}" no tiene email cargado en su perfil.'
-        return user.email, None
-
-    if not _EMAIL_RE.match(invitado):
-        return None, f'"{invitado}" no parece una dirección de email válida.'
-    return invitado, None
+        # Switch OFF: el campo es un EMAIL, y también debe corresponder a una
+        # cuenta registrada (mismo contrato unificado del formulario).
+        if not _EMAIL_RE.match(invitado):
+            return None, f'"{invitado}" no parece una dirección de email válida.'
+        usuario = _buscar_usuario_por_email(invitado)
+        if usuario is None:
+            return None, MENSAJE_DESTINATARIO_INEXISTENTE
+        return usuario.email or invitado, None
+    except Exception:  # noqa: BLE001 - el modal recibe aviso, nunca un 500
+        logger.exception(
+            'No se pudo resolver el destinatario de la invitación (%r)', invitado
+        )
+        return None, MENSAJE_DESTINATARIO_INEXISTENTE
 
 
 def _cuerpo_invitacion(
@@ -289,20 +347,24 @@ def enviar_invitacion_estok(
     es_usuario_estok: bool = False,
     usos_maximos: int = 0,
     invitado_por: str = '',
+    destinatario: Optional[str] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Despacha por SMTP el código de invitación a un Estok.
 
     Acepta indistintamente el EMAIL o el NOMBRE DE USUARIO del invitado, tal
-    como lo permite el modal "Invitar miembros".
+    como lo permite el modal "Invitar miembros". `destinatario` permite pasar la
+    dirección YA resuelta (la vista la calcula antes de crear el código) y así
+    no repetir la búsqueda en la base.
 
     Devuelve (enviado, aviso) y NUNCA propaga excepciones: el código ya fue
     creado en la base, así que un fallo de correo se reporta como aviso y la
     respuesta HTTP sigue siendo exitosa (el frontend muestra el código igual).
     """
-    destinatario, aviso = _resolver_destinatario_invitacion(invitado, es_usuario_estok)
-    if not destinatario:
-        return False, aviso
+    if destinatario is None:
+        destinatario, aviso = resolver_destinatario_invitacion(invitado, es_usuario_estok)
+        if not destinatario:
+            return False, aviso
 
     enviado = _enviar_mensaje(
         asunto=_SUBJECTS[TIPO_INVITACION],

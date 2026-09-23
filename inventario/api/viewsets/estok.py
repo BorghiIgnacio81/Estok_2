@@ -10,7 +10,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role, CustomUser
-from ...services.email_service import enviar_invitacion_estok
+from ...services.email_service import (
+    MENSAJE_DESTINATARIO_INEXISTENTE,
+    enviar_invitacion_estok,
+    resolver_destinatario_invitacion,
+)
 from ...services.mapa_estok_service import MapaEstokService
 from ..serializers import (
     EstokSerializer, EstokCreateSerializer,
@@ -175,6 +179,11 @@ class CodigoInvitacionViewSet(viewsets.ModelViewSet):
         Crea el código y, si el payload trae `enviar_email: true`, despacha la
         invitación por SMTP reutilizando el servicio de correo ya saneado.
 
+        Antes de crear cualquier cosa se resuelve el destinatario del campo
+        unificado (`invitado`: email o nombre de usuario): si no corresponde a
+        ninguna cuenta registrada se responde HTTP 400 con `{error: ...}` y el
+        código NO se crea. El modal muestra ese texto tal cual.
+
         El envío es parte de la MISMA transacción de UI (el modal tiene un solo
         botón), así que la respuesta agrega `email_enviado` y, cuando el correo
         falla, `email_aviso` con el motivo en lenguaje llano. El código se
@@ -182,17 +191,34 @@ class CodigoInvitacionViewSet(viewsets.ModelViewSet):
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # El destinatario se resuelve ANTES de tocar la base: si el usuario o el
+        # email cargado en el campo unificado no corresponde a ninguna cuenta
+        # registrada, el flujo se frena con HTTP 400 y el mensaje legible del
+        # servicio (nunca un 500 ni un código huérfano).
+        invitado = (serializer.validated_data.get('invitado') or '').strip()
+        destinatario, aviso = resolver_destinatario_invitacion(
+            invitado,
+            serializer.validated_data.get('es_usuario_estok', False),
+        )
+        if invitado and not destinatario:
+            return Response(
+                {'error': aviso or MENSAJE_DESTINATARIO_INEXISTENTE},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         self.perform_create(serializer)
 
         data = dict(serializer.data)
         if serializer.validated_data.get('enviar_email'):
             enviado, aviso = enviar_invitacion_estok(
-                invitado=serializer.validated_data.get('invitado', ''),
+                invitado=invitado,
                 codigo=data['codigo'],
                 estok_nombre=serializer.instance.estok.nombre,
                 es_usuario_estok=serializer.validated_data.get('es_usuario_estok', False),
                 usos_maximos=serializer.instance.usos_maximos,
                 invitado_por=request.user.get_full_name() or request.user.username,
+                destinatario=destinatario,
             )
             data['email_enviado'] = enviado
             data['email_aviso'] = aviso
