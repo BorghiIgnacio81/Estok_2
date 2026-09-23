@@ -28,6 +28,14 @@
 //
 // Sin `nodos` el componente queda como HOST vacío: la pantalla lo rellena en
 // vivo con el mismo motor (caso de Almacenamiento, que navega por portales).
+//
+// CONTORNOS Y LÍNEAS DIVISORIAS: este componente NO declara bordes. El color y
+// el grosor de los trazos del plano (perímetro + divisorias de cada espacio)
+// viven en el motor de dibujo (lib/minimapa.ts) y se refuerzan a negro nítido
+// zinc-950 #0a0a0a / 1.5px para el bar reducido en styles/almacenamiento-
+// portales.css §2.1 — único punto que cubre a la vez Almacenamiento y Objetos
+// (esta última pantalla no importa el componente, reutiliza las mismas clases
+// `.mini-anidado-*`). No duplicar esos trazos acá.
 // =============================================================================
 
 import { renderMinimapasAnidados } from '../lib/minimapasAnidados';

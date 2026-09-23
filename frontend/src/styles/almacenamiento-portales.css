@@ -102,9 +102,36 @@
   height: 100%;
 }
 .mini-anidado-activo .mini-anidado-lienzo svg {
-  outline: 1.5px solid #f97316;
+  /* Silueta asimétrica del bloque activo: anillo naranja de 2px (antes 1.5px)
+     para que el resalte se lea por encima de las divisorias negras nuevas. */
+  outline: 2px solid #f97316;
   outline-offset: 1px;
   border-radius: 3px;
+}
+/* ---------------------------------------------------------------------------
+   2.1 TRAZOS Y CONTORNOS DE ALTA DEFINICIÓN (legibilidad a escala reducida)
+   ---------------------------------------------------------------------------
+   El bar analítico muestra cada minimapa a 40px de ancho (4× más chico que el
+   plano de origen). A esa escala los trazos NATIVOS del motor SVG
+   (lib/minimapa.ts: 0.5-0.7 unidades en gris #d1d5db / #9ca3af / #7c2d12)
+   quedan en ~0.3px reales: las líneas divisorias de habitaciones/muebles y el
+   contorno de cada espacio literalmente desaparecen.
+   Los atributos de presentación SVG (`stroke` / `stroke-width` embebidos por
+   minimapaSectoresSvg, minimapaRectangularSvg y minimapaCasitaSvg) son
+   anulables por CSS, así que el refuerzo se declara UNA sola vez acá — el
+   único archivo que conoce la escala real del bar y que importan las DOS
+   pantallas con minimapas analíticos (almacenamiento.astro y objetos.astro,
+   ambas vía portalesAlmacenamiento.ts / rutaCajaMinimapas.ts).
+   Trazo: negro nítido zinc-950 (#0a0a0a) de 1.5 unidades (≈1px en pantalla).
+   Alcance acotado a `.mini-anidados-barra`: NO afecta a los planos grandes,
+   ni al minimapa de la casita de otras pantallas, ni al visor de habitación.
+   Los `fill` no se tocan: el sector activo sigue en NARANJA #f97316 y los
+   espacios vecinos en ámbar claro, de modo que el borde negro es justamente lo
+   que recorta cada espacio y mantiene legible la asimetría del plano. */
+.mini-anidados-barra .mini-anidado-lienzo svg rect,
+.mini-anidados-barra .mini-anidado-lienzo svg path {
+  stroke: #0a0a0a;
+  stroke-width: 1.5;
 }
 .mini-anidado-nombre {
   max-width: 100%;
