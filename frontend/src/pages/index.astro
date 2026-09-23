@@ -551,10 +551,20 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   const mudanzaBtnContainer = document.getElementById('mudanzaBtnContainer');
   const usuarioCacheado = getCachedUser();
   if (mudanzaBtnContainer && usuarioCacheado && (usuarioCacheado.estoks?.length || 0) > 1) {
+    // JERARQUÍA VISUAL DEL ICONO (Mudar): el icono crece de h-20 (80px) a un
+    // escalado elástico de 96 → 112 → 128px (h-24 / md:h-28 / lg:h-32) para que
+    // se lea de un vistazo en la fila de acciones rápidas, pero SIEMPRE un
+    // escalón por debajo del CTA principal "Nuevo Objeto" (h-24 / md:h-32 /
+    // lg:h-36 = 96/128/144px): así gana presencia sin competir con la acción
+    // primaria. La imagen es 1:1 (1254×1254), por lo que h-* define también el
+    // ancho; con `w-auto object-contain` nunca se deforma ni recorta.
+    // El ancla queda FLEX-CENTRADA (inline-flex items-center justify-center)
+    // para que el icono más grande crezca simétrico dentro de su caja sin
+    // descentrar el texto vecino ni los márgenes internos de la fila.
     mudanzaBtnContainer.innerHTML = `
-      <a href="/mudanza" class="inline-block flex-shrink-0" aria-label="Mudanza Inter-Estok"
+      <a href="/mudanza" class="inline-flex items-center justify-center flex-shrink-0" aria-label="Mudanza Inter-Estok"
         title="Transferir contenedores y objetos entre tus Estoks">
-        <img src="/mudanza.png" alt="Mudanza" class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+        <img src="/mudanza.png" alt="Mudanza" class="h-24 md:h-28 lg:h-32 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
       </a>`;
   }
 
