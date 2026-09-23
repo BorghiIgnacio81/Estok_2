@@ -80,6 +80,24 @@ class CodigoInvitacionSerializer(serializers.ModelSerializer):
     es_valido = serializers.BooleanField(read_only=True)
     creado_por_username = serializers.CharField(source='creado_por.username', read_only=True, allow_null=True)
 
+    # -------------------------------------------------------------------------
+    # Campos de SOLO ESCRITURA del modal "Invitar miembros": no son columnas del
+    # modelo, viajan en el POST y el ViewSet los consume para despachar el
+    # correo (ver CodigoInvitacionViewSet.create + services/email_service.py).
+    # -------------------------------------------------------------------------
+    invitado = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, max_length=254,
+        help_text='Email o nombre de usuario del invitado (se acepta cualquiera de los dos).',
+    )
+    es_usuario_estok = serializers.BooleanField(
+        write_only=True, required=False, default=False,
+        help_text='True si `invitado` es un nombre de usuario de Estok en vez de un email.',
+    )
+    enviar_email = serializers.BooleanField(
+        write_only=True, required=False, default=False,
+        help_text='True para despachar la invitación por SMTP al destinatario indicado.',
+    )
+
     class Meta:
         model = CodigoInvitacion
         fields = [
@@ -87,8 +105,17 @@ class CodigoInvitacionSerializer(serializers.ModelSerializer):
             'codigo', 'creado_por', 'creado_por_username',
             'activo', 'usos_maximos', 'usos_actuales',
             'fecha_expiracion', 'es_valido', 'created_at',
+            'invitado', 'es_usuario_estok', 'enviar_email',
         ]
         read_only_fields = ['id', 'codigo', 'usos_actuales', 'created_at', 'estok']
+
+    def validate(self, attrs):
+        """El envío por email exige un destinatario: se corta antes de enviar."""
+        if attrs.get('enviar_email') and not (attrs.get('invitado') or '').strip():
+            raise serializers.ValidationError({
+                'invitado': 'Indicá un email o un nombre de usuario para enviar la invitación.',
+            })
+        return attrs
 
 
 class UnirseConCodigoSerializer(serializers.Serializer):

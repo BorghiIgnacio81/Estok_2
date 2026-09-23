@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role, CustomUser
+from ...services.email_service import enviar_invitacion_estok
 from ...services.mapa_estok_service import MapaEstokService
 from ..serializers import (
     EstokSerializer, EstokCreateSerializer,
@@ -168,6 +169,36 @@ class CodigoInvitacionViewSet(viewsets.ModelViewSet):
             creado_por=self.request.user,
             estok_id=estok_id,
         )
+
+    def create(self, request, *args, **kwargs):
+        """
+        Crea el código y, si el payload trae `enviar_email: true`, despacha la
+        invitación por SMTP reutilizando el servicio de correo ya saneado.
+
+        El envío es parte de la MISMA transacción de UI (el modal tiene un solo
+        botón), así que la respuesta agrega `email_enviado` y, cuando el correo
+        falla, `email_aviso` con el motivo en lenguaje llano. El código se
+        devuelve igual: el frontend lo muestra para compartirlo a mano.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        data = dict(serializer.data)
+        if serializer.validated_data.get('enviar_email'):
+            enviado, aviso = enviar_invitacion_estok(
+                invitado=serializer.validated_data.get('invitado', ''),
+                codigo=data['codigo'],
+                estok_nombre=serializer.instance.estok.nombre,
+                es_usuario_estok=serializer.validated_data.get('es_usuario_estok', False),
+                usos_maximos=serializer.instance.usos_maximos,
+                invitado_por=request.user.get_full_name() or request.user.username,
+            )
+            data['email_enviado'] = enviado
+            data['email_aviso'] = aviso
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class CambiarEstokActivoView(viewsets.ViewSet):

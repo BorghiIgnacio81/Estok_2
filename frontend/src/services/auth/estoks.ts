@@ -162,23 +162,70 @@ export async function fetchRoles(): Promise<Role[]> {
 // =============================================================================
 
 /**
+ * Límite de usos FIJO de todo código generado desde el modal "Invitar miembros".
+ *
+ * El backend invalida el código cuando `usos_actuales >= usos_maximos`
+ * (ver CodigoInvitacion.es_valido), es decir: caduca en su cuarto uso.
+ * El cartel informativo del modal muestra este mismo número, así que si se
+ * cambia acá, hay que actualizar el texto visible en lib/invitacionModal.ts.
+ */
+export const USOS_MAXIMOS_INVITACION = 4;
+
+/**
+ * Opciones FIJAS de rol ofrecidas en el modal de invitación.
+ * `nombreBackend` es el `Role.name` del RBAC dinámico (seed_data.py): el UUID
+ * real se resuelve con fetchRoles() para no duplicar los roles del backend.
+ */
+export const ROLES_INVITACION = [
+  { nombreBackend: 'Visualizador', etiqueta: 'Solo lectura' },
+  { nombreBackend: 'Editor', etiqueta: 'Lectura y edición' },
+] as const;
+
+export interface OpcionesCodigoInvitacion {
+  /** Usos antes de invalidarse (0 = sin límite). */
+  usos_maximos?: number;
+  fecha_expiracion?: string;
+  /** Email o nombre de usuario del invitado: el backend acepta cualquiera de los dos. */
+  invitado?: string;
+  /** true cuando `invitado` es un nombre de usuario de Estok en vez de un email. */
+  es_usuario_estok?: boolean;
+  /** true para que el backend despache la invitación por SMTP. */
+  enviar_email?: boolean;
+}
+
+export interface CodigoInvitacionCreado {
+  id: string;
+  codigo: string;
+  /** Resultado del envío por SMTP (null/undefined si no se solicitó envío). */
+  email_enviado?: boolean | null;
+  /** Aviso legible cuando el envío por email no se pudo completar. */
+  email_aviso?: string | null;
+}
+
+/**
  * Genera un código de invitación para un Estok.
- * POST /api/codigos-invitacion/ con {role, usos_maximos?, fecha_expiracion?}
+ * POST /api/codigos-invitacion/ con
+ * {role, usos_maximos?, fecha_expiracion?, invitado?, es_usuario_estok?, enviar_email?}
  * Requiere header X-Estok-Id.
  */
 export async function generarCodigoInvitacion(
   estokId: string,
   roleId: string,
-  opciones?: { usos_maximos?: number; fecha_expiracion?: string }
-): Promise<{ codigo: string; id: string }> {
+  opciones: OpcionesCodigoInvitacion = {}
+): Promise<CodigoInvitacionCreado> {
   const token = getToken();
   if (!token) {
     throw { error: 'No hay sesión activa' } as AuthError;
   }
 
   const body: Record<string, unknown> = { role: roleId };
-  if (opciones?.usos_maximos !== undefined) body.usos_maximos = opciones.usos_maximos;
-  if (opciones?.fecha_expiracion) body.fecha_expiracion = opciones.fecha_expiracion;
+  if (opciones.usos_maximos !== undefined) body.usos_maximos = opciones.usos_maximos;
+  if (opciones.fecha_expiracion) body.fecha_expiracion = opciones.fecha_expiracion;
+  if (opciones.invitado) {
+    body.invitado = opciones.invitado;
+    body.es_usuario_estok = Boolean(opciones.es_usuario_estok);
+  }
+  if (opciones.enviar_email) body.enviar_email = true;
 
   const response = await fetch(`${API_BASE_URL}/codigos-invitacion/`, {
     method: 'POST',

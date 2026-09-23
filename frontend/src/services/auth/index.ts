@@ -46,6 +46,13 @@ export {
   unirseConCodigo,
   fetchRoles,
   generarCodigoInvitacion,
+  USOS_MAXIMOS_INVITACION,
+  ROLES_INVITACION,
+} from './estoks';
+
+export type {
+  OpcionesCodigoInvitacion,
+  CodigoInvitacionCreado,
 } from './estoks';
 
 // Presencia en tiempo real
