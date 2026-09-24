@@ -41,12 +41,16 @@ def _detalle_error(exc):
 
 class MudanzaView(APIView):
     """
-    Transfiere un contenedor (con toda su cascada) o un objeto entre Estoks.
-    Cuerpo esperado:
-      { "contenedor_id": uuid }  O  { "objeto_id": uuid }
-      { "estok_destino_id": uuid }                 (obligatorio)
-      { "ubicacion_destino_id": uuid }             (opcional)
-      { "contenedor_destino_id": uuid }            (opcional)
+    Transfiere un elemento MÓVIL (contenedor o objeto) entre Estoks.
+
+    Cuerpo esperado por el drag & drop del tablero (POST /api/inventario/mudanza/):
+      { "contenedor_id": uuid }  O  { "objeto_id": uuid }   (exactamente uno)
+      { "estok_destino_id": uuid }                          (obligatorio)
+      { "ubicacion_destino_id": uuid }        (Habitación destino donde se soltó)
+      { "contenedor_destino_id": uuid }       (opcional: soltado dentro de un mueble)
+
+    La mutación completa corre en una sola transacción
+    (ver services/mudanza_service.MudanzaService).
     """
 
     permission_classes = [permissions.IsAuthenticated]

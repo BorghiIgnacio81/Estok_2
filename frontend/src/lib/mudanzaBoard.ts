@@ -1,92 +1,48 @@
 // =============================================================================
-// TABLERO DE MUDANZA INTER-ESTOK - Drag & Drop entre inquilinatos
+// TABLERO DE MUDANZA INTER-ESTOK - Drag & Drop de inventario móvil
 // -----------------------------------------------------------------------------
 // Grilla simétrica de dos columnas:
-//   - ORIGEN  : mapa jerárquico arrastrable (archivadores /archivador-login.png,
-//               cajas /Nuevo Contenedor.png, objetos /fluffy_plush_ball.jpg).
-//   - DESTINO : plano con habitaciones como drop zones.
-// Al soltar un elemento se envía POST /api/inventario/mudanza/ con
-// { contenedor_id | objeto_id, estok_destino_id, ubicacion_destino_id?,
-//   contenedor_destino_id? }. El backend transfiere en bloque (cascada
-// recursiva). Tras el HTTP 200 se refrescan AMBOS mapas en caliente.
+//   - ORIGEN  : ÍNDICE de elementos móviles reales del Estok (cajas móviles,
+//               muebles grandes del usuario y objetos individuales sueltos),
+//               cada tarjeta con draggable="true".
+//   - DESTINO : PLANO de las HABITACIONES del Estok destino como zonas de
+//               suelta (dragover con preventDefault + evento drop).
+// Al soltar se envía POST /api/inventario/mudanza/ con
+// { contenedor_id | objeto_id, estok_destino_id, ubicacion_destino_id } y el
+// backend transfiere el bloque COMPLETO en UNA sola transacción (contenido en
+// cascada incluido). Tras el HTTP 200 se refrescan ambos paneles en caliente.
+// La clasificación y el render viven en src/lib/mudanzaInventario.ts.
 // Auth centralizado: getAuthHeaders()/getToken() desde services/auth.
 // =============================================================================
 
 import { getAuthHeaders, getToken, getEstokActivoId, API_BASE_URL } from '../services/auth';
 import type { EstokInfo } from '../types';
 import { escapeHtml } from './mapaEstokWizard';
-
-// =============================================================================
-// TIPOS
-// =============================================================================
-
-interface UbiDto {
-  id: string;
-  nombre: string;
-  estok?: string;
-  parent_ubicacion?: string | null;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-}
-
-interface ContDto {
-  id: string;
-  nombre: string;
-  ubicacion?: string;
-  parent_contenedor?: string | null;
-}
-
-interface ObjDto {
-  id: string;
-  nombre: string;
-  estok?: string;
-  ubicacion?: string;
-  contenedor?: string;
-  deleted_at?: string | null;
-}
-
-interface DatosEstok {
-  ubicaciones: UbiDto[];
-  contenedores: ContDto[];
-  objetos: ObjDto[];
-}
-
-type TipoItem = 'division' | 'habitacion' | 'contenedor' | 'objeto';
-
-interface ItemMapa {
-  tipo: TipoItem;
-  id: string;
-  nombre: string;
-  esContenedorRaiz: boolean;
-  hijos: ItemMapa[];
-}
+import {
+  htmlCargando,
+  htmlInventarioMovil,
+  htmlPlanoDestino,
+  htmlVacio,
+} from './mudanzaInventario';
+import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaInventario';
 
 interface ItemDrag {
-  tipo: 'contenedor' | 'objeto';
+  origen: 'contenedor' | 'objeto';
   id: string;
+  nombre: string;
 }
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function pushList(map: Map<string, ItemMapa[]>, key: string, item: ItemMapa): void {
-  const lista = map.get(key);
-  if (lista) lista.push(item);
-  else map.set(key, [item]);
-}
-
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
 
 export class MudanzaBoard {
   private estoks: EstokInfo[] = [];
   private origenId: string | null = null;
   private destinoId: string | null = null;
-  private datosOrigen: DatosEstok = { ubicaciones: [], contenedores: [], objetos: [] };
-  private datosDestino: DatosEstok = { ubicaciones: [], contenedores: [], objetos: [] };
+  private contenedoresOrigen: ContenedorDto[] = [];
+  private objetosOrigen: ObjetoDto[] = [];
+  private ubicacionesDestino: UbicacionDto[] = [];
+  private errorOrigen: string | null = null;
+  private errorDestino: string | null = null;
   private dragItem: ItemDrag | null = null;
+  private mudando = false;
 
   constructor(
     private readonly origenSel: HTMLSelectElement,
@@ -95,7 +51,7 @@ export class MudanzaBoard {
     private readonly mapaDestino: HTMLElement,
   ) {}
 
-  /** Inicializa selectores y carga ambos mapas. */
+  /** Inicializa selectores y carga el inventario móvil + el plano destino. */
   async init(estoks: EstokInfo[]): Promise<void> {
     this.estoks = estoks;
     const activo = getEstokActivoId();
@@ -139,7 +95,7 @@ export class MudanzaBoard {
   }
 
   // ---------------------------------------------------------------------------
-  // CARGA DE DATOS (por Estok, con X-Estok-Id propio)
+  // CONSULTAS ASÍNCRONAS (una por Estok, con su propio X-Estok-Id)
   // ---------------------------------------------------------------------------
 
   private headersParaEstok(estokId: string): Record<string, string> {
@@ -155,254 +111,136 @@ export class MudanzaBoard {
       window.location.href = '/login';
       throw new Error('Sesión expirada.');
     }
-    if (!response.ok) throw new Error(`Error al consultar el mapa (${response.status}).`);
+    if (!response.ok) throw new Error(`Error al consultar el inventario (${response.status}).`);
     const data = await response.json();
     return (data.results || data) as T[];
   }
 
-  private async cargarDatos(estokId: string): Promise<DatosEstok> {
-    const [ubicaciones, contenedores, objetos] = await Promise.all([
-      this.fetchJson<UbiDto>(`${API_BASE_URL}/ubicaciones/?page_size=1000`, estokId),
-      this.fetchJson<ContDto>(`${API_BASE_URL}/contenedores/?page_size=1000`, estokId),
-      this.fetchJson<ObjDto>(`${API_BASE_URL}/objetos/?page_size=1000`, estokId),
+  private async cargarOrigen(estokId: string): Promise<void> {
+    const [contenedores, objetos] = await Promise.all([
+      this.fetchJson<ContenedorDto>(`${API_BASE_URL}/contenedores/?page_size=1000`, estokId),
+      this.fetchJson<ObjetoDto>(`${API_BASE_URL}/objetos/?page_size=1000`, estokId),
     ]);
-    return { ubicaciones, contenedores, objetos: objetos.filter((o) => !o.deleted_at) };
+    this.contenedoresOrigen = contenedores;
+    this.objetosOrigen = objetos;
   }
 
-
-  // ---------------------------------------------------------------------------
-  // CONSTRUCCIÓN DEL ÁRBOL JERÁRQUICO
-  // ---------------------------------------------------------------------------
-
-  private construirArbol(data: DatosEstok): ItemMapa[] {
-    const divisionesRaw = data.ubicaciones.filter((u) => u.parent_grid_row && !u.parent_grid_col);
-    const habitacionesRaw = data.ubicaciones.filter((u) => !(u.parent_grid_row && !u.parent_grid_col));
-
-    const contItems = new Map<string, ItemMapa>();
-    for (const c of data.contenedores) {
-      contItems.set(c.id, {
-        tipo: 'contenedor',
-        id: c.id,
-        nombre: c.nombre,
-        esContenedorRaiz: !c.parent_contenedor,
-        hijos: [],
-      });
-    }
-
-    // Objetos: dentro de su contenedor, o sueltos en la habitación.
-    const objsPorContenedor = new Map<string, ItemMapa[]>();
-    const objsPorUbicacion = new Map<string, ItemMapa[]>();
-    for (const o of data.objetos) {
-      const item: ItemMapa = { tipo: 'objeto', id: o.id, nombre: o.nombre, esContenedorRaiz: false, hijos: [] };
-      if (o.contenedor && contItems.has(o.contenedor)) pushList(objsPorContenedor, o.contenedor, item);
-      else if (o.ubicacion) pushList(objsPorUbicacion, o.ubicacion, item);
-    }
-
-    // Sub-contenedores dentro de su padre; objetos dentro de su contenedor.
-    for (const c of data.contenedores) {
-      const item = contItems.get(c.id)!;
-      if (c.parent_contenedor && contItems.has(c.parent_contenedor)) {
-        contItems.get(c.parent_contenedor)!.hijos.push(item);
-      }
-    }
-    for (const [cid, objs] of objsPorContenedor) {
-      const cont = contItems.get(cid);
-      if (cont) cont.hijos.push(...objs);
-    }
-
-    // Habitaciones (items vivos por id).
-    const habPorId = new Map<string, ItemMapa>();
-    for (const h of habitacionesRaw) {
-      habPorId.set(h.id, {
-        tipo: 'habitacion',
-        id: h.id,
-        nombre: h.nombre,
-        esContenedorRaiz: false,
-        hijos: [],
-      });
-    }
-    // Contenedores raíz → su habitación; objetos sueltos → su habitación.
-    for (const c of data.contenedores) {
-      if (!c.parent_contenedor) {
-        const hab = habPorId.get(c.ubicacion || '');
-        if (hab) hab.hijos.push(contItems.get(c.id)!);
-      }
-    }
-    for (const [uid, objs] of objsPorUbicacion) {
-      const hab = habPorId.get(uid);
-      if (hab) hab.hijos.push(...objs);
-    }
-
-    // Divisiones del macro-plano → habitaciones; resto bajo "Sin división".
-    const divPorId = new Map<string, ItemMapa>();
-    for (const d of divisionesRaw) {
-      divPorId.set(d.id, {
-        tipo: 'division',
-        id: d.id,
-        nombre: d.nombre,
-        esContenedorRaiz: false,
-        hijos: [],
-      });
-    }
-    const sueltos: ItemMapa = { tipo: 'division', id: '__sueltos', nombre: 'Sin división', esContenedorRaiz: false, hijos: [] };
-    for (const h of habitacionesRaw) {
-      const item = habPorId.get(h.id);
-      if (!item) continue;
-      const div = h.parent_ubicacion ? divPorId.get(h.parent_ubicacion) : undefined;
-      if (div) div.hijos.push(item);
-      else sueltos.hijos.push(item);
-    }
-    const raices: ItemMapa[] = [...divPorId.values()];
-    if (sueltos.hijos.length > 0) raices.push(sueltos);
-    return raices;
+  private async cargarDestino(estokId: string): Promise<void> {
+    this.ubicacionesDestino = await this.fetchJson<UbicacionDto>(
+      `${API_BASE_URL}/ubicaciones/?page_size=1000`,
+      estokId,
+    );
   }
 
-
   // ---------------------------------------------------------------------------
-  // RENDER
+  // RENDER + HOT RELOAD
   // ---------------------------------------------------------------------------
 
   private async recargarTodo(): Promise<void> {
     if (!this.origenId || !this.destinoId) return;
-    this.mapaOrigen.innerHTML = '<p class="mudanza-cargando">Cargando mapa de origen…</p>';
-    this.mapaDestino.innerHTML = '<p class="mudanza-cargando">Cargando plano de destino…</p>';
-    try {
-      const [datosOrigen, datosDestino] = await Promise.all([
-        this.cargarDatos(this.origenId),
-        this.cargarDatos(this.destinoId),
-      ]);
-      this.datosOrigen = datosOrigen;
-      this.datosDestino = datosDestino;
-    } catch (err: any) {
-      (window as any).showError?.(err?.message || 'Error al cargar los mapas.');
-    }
+    // Transición de carga limpia (Tailwind) en ambos paneles.
+    this.mapaOrigen.innerHTML = htmlCargando('Cargando inventario móvil…');
+    this.mapaDestino.innerHTML = htmlCargando('Cargando plano del destino…');
+    this.contenedoresOrigen = [];
+    this.objetosOrigen = [];
+    this.ubicacionesDestino = [];
+    this.errorOrigen = null;
+    this.errorDestino = null;
+
+    await Promise.all([
+      this.cargarOrigen(this.origenId).catch((err: unknown) => {
+        this.errorOrigen = mensajeDe(err);
+      }),
+      this.cargarDestino(this.destinoId).catch((err: unknown) => {
+        this.errorDestino = mensajeDe(err);
+      }),
+    ]);
+
     this.render();
   }
 
   private render(): void {
-    this.mapaOrigen.innerHTML = this.renderPanel(this.datosOrigen, false);
-    this.mapaDestino.innerHTML = this.renderPanel(this.datosDestino, true);
+    this.mapaOrigen.innerHTML = this.errorOrigen
+      ? htmlVacio('No se pudo cargar el inventario del Estok origen', this.errorOrigen)
+      : htmlInventarioMovil(this.contenedoresOrigen, this.objetosOrigen);
+    this.mapaDestino.innerHTML = this.errorDestino
+      ? htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino)
+      : htmlPlanoDestino(this.ubicacionesDestino);
     this.enlazarDnD();
   }
 
-  private renderPanel(data: DatosEstok, esDestino: boolean): string {
-    const arbol = this.construirArbol(data);
-    if (arbol.length === 0) {
-      return `<div class="mudanza-vacio">${
-        esDestino
-          ? 'El Estok destino aún no tiene espacios modelados. Activá el Mapa de Estok en Almacenamiento.'
-          : 'El Estok origen no tiene espacios para mudar.'
-      }</div>`;
-    }
-    return arbol.map((n) => this.renderItem(n, esDestino)).join('');
-  }
-
-  private iconoDe(item: ItemMapa): string {
-    if (item.tipo === 'division') return '🗂️';
-    if (item.tipo === 'habitacion') return '🚪';
-    if (item.tipo === 'contenedor') {
-      return item.esContenedorRaiz
-        ? `<img src="${IMG_CONTENEDOR_GRANDE}" alt="Archivador" class="mudanza-ico-img" />`
-        : `<img src="${IMG_CONTENEDOR_PEQUENO}" alt="Caja" class="mudanza-ico-img" />`;
-    }
-    return `<img src="${IMG_OBJETO}" alt="Objeto" class="mudanza-ico-img" />`;
-  }
-
-  private renderItem(item: ItemMapa, esDestino: boolean): string {
-    const draggable = !esDestino && (item.tipo === 'contenedor' || item.tipo === 'objeto');
-    const esDropHabitacion = esDestino && item.tipo === 'habitacion';
-    const esDropContenedor = esDestino && item.tipo === 'contenedor';
-
-    const attrs = [
-      draggable ? `draggable="true" data-drag="${item.tipo}" data-drag-id="${item.id}"` : '',
-      esDropHabitacion ? `data-drop-ubicacion="${item.id}"` : '',
-      esDropContenedor ? `data-drop-contenedor="${item.id}"` : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    const etiquetaCont = item.tipo === 'contenedor' ? `<span class="mudanza-chip">${item.esContenedorRaiz ? 'archivador' : 'caja'}</span>` : '';
-    const hintDrop = esDestino && (esDropHabitacion || esDropContenedor) ? '<span class="mudanza-drop-hint">soltar aquí</span>' : '';
-    const hijos = item.hijos.map((h) => this.renderItem(h, esDestino)).join('');
-
-    return `
-      <div class="mudanza-nodo ${esDropHabitacion ? 'mudanza-drop-zona' : ''} ${esDropContenedor ? 'mudanza-drop-caja' : ''} ${draggable ? 'mudanza-drag-item' : ''}" ${attrs}>
-        <div class="mudanza-nodo-fila">
-          <span class="mudanza-nodo-ico">${this.iconoDe(item)}</span>
-          <span class="mudanza-nodo-nombre">${escapeHtml(item.nombre)}</span>
-          ${etiquetaCont}
-          ${hintDrop}
-        </div>
-        ${hijos ? `<div class="mudanza-hijos">${hijos}</div>` : ''}
-      </div>`;
-  }
-
-
   // ---------------------------------------------------------------------------
-  // DRAG & DROP
+  // DRAG & DROP (arrastre nativo HTML5)
   // ---------------------------------------------------------------------------
 
   private enlazarDnD(): void {
-    const mapas = [this.mapaOrigen, this.mapaDestino];
-
-    mapas.forEach((mapa) => {
-      mapa.querySelectorAll<HTMLElement>('[data-drag]').forEach((el) => {
-        el.addEventListener('dragstart', (e) => {
-          const tipo = el.dataset.drag as 'contenedor' | 'objeto';
-          const id = el.dataset.dragId || '';
-          if (!id) return;
-          this.dragItem = { tipo, id };
-          el.classList.add('mudanza-dragging');
-          e.dataTransfer?.setData('text/plain', `${tipo}:${id}`);
-          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-        });
-        el.addEventListener('dragend', () => {
-          el.classList.remove('mudanza-dragging');
-          this.dragItem = null;
-          this.limpiarDropHover();
-        });
+    // 1) Elementos arrastrables del ORIGEN (draggable="true" en la tarjeta).
+    this.mapaOrigen.querySelectorAll<HTMLElement>('[data-drag]').forEach((el) => {
+      el.addEventListener('dragstart', (e) => {
+        const id = el.dataset.dragId || '';
+        if (!id) return;
+        this.dragItem = {
+          origen: el.dataset.drag === 'objeto' ? 'objeto' : 'contenedor',
+          id,
+          nombre: el.dataset.dragNombre || '',
+        };
+        el.classList.add('mudanza-dragging');
+        e.dataTransfer?.setData('text/plain', `${this.dragItem.origen}:${id}`);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       });
-
-      mapa.querySelectorAll<HTMLElement>('[data-drop-ubicacion],[data-drop-contenedor]').forEach((el) => {
-        el.addEventListener('dragover', (e) => {
-          if (!this.dragItem) return;
-          e.preventDefault();
-          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-          el.classList.add('mudanza-drop-hover');
-        });
-        el.addEventListener('dragleave', () => el.classList.remove('mudanza-drop-hover'));
-        el.addEventListener('drop', (e) => this.onDrop(e));
+      el.addEventListener('dragend', () => {
+        el.classList.remove('mudanza-dragging');
+        this.dragItem = null;
+        this.limpiarDropHover();
       });
+    });
+
+    // 2) Habitaciones receptoras del DESTINO (onDragOver + onDrop).
+    this.mapaDestino.querySelectorAll<HTMLElement>('[data-drop-ubicacion]').forEach((zona) => {
+      zona.addEventListener('dragover', (e) => {
+        if (!this.dragItem) return;
+        e.preventDefault(); // habilita la habitación como zona de suelta
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        zona.classList.add('mudanza-drop-hover');
+      });
+      zona.addEventListener('dragleave', () => zona.classList.remove('mudanza-drop-hover'));
+      zona.addEventListener('drop', (e) => this.onDrop(e));
     });
   }
 
   private limpiarDropHover(): void {
-    this.mapaDestino.querySelectorAll('.mudanza-drop-hover').forEach((el) => el.classList.remove('mudanza-drop-hover'));
+    this.mapaDestino
+      .querySelectorAll('.mudanza-drop-hover')
+      .forEach((el) => el.classList.remove('mudanza-drop-hover'));
   }
 
   private onDrop(e: DragEvent): void {
     e.preventDefault();
-    const objetivo = (e.target as HTMLElement).closest('[data-drop-contenedor],[data-drop-ubicacion]') as HTMLElement | null;
-    this.limpiarDropHover();
-    if (!objetivo || !this.dragItem) return;
+    const zona = (e.target as HTMLElement).closest('[data-drop-ubicacion]') as HTMLElement | null;
     const item = this.dragItem;
-    const contenedorId = objetivo.dataset.dropContenedor;
-    const ubicacionId = objetivo.dataset.dropUbicacion;
-    void this.mover(item, { contenedorId, ubicacionId });
+    this.limpiarDropHover();
+    this.dragItem = null;
+    const ubicacionId = zona?.dataset.dropUbicacion;
+    if (!item || !ubicacionId || this.mudando) return;
+    void this.mover(item, ubicacionId);
   }
 
   // ---------------------------------------------------------------------------
-  // PERSISTENCIA (POST /api/inventario/mudanza/) + HOT RELOAD
+  // MUTACIÓN TRANSACCIONAL (POST /api/inventario/mudanza/)
   // ---------------------------------------------------------------------------
 
-  private async mover(item: ItemDrag, destino: { contenedorId?: string; ubicacionId?: string }): Promise<void> {
-    if (!this.destinoId || !item.id) return;
+  private async mover(item: ItemDrag, ubicacionId: string): Promise<void> {
+    if (!this.destinoId) return;
+    this.mudando = true;
+    const etiqueta = item.nombre ? `«${item.nombre}»` : 'el elemento';
+    this.mapaDestino.innerHTML = htmlCargando(`Mudando ${etiqueta}…`);
 
-    const body: Record<string, unknown> = { estok_destino_id: this.destinoId };
-    if (item.tipo === 'contenedor') body.contenedor_id = item.id;
+    const body: Record<string, unknown> = {
+      estok_destino_id: this.destinoId,
+      ubicacion_destino_id: ubicacionId,
+    };
+    if (item.origen === 'contenedor') body.contenedor_id = item.id;
     else body.objeto_id = item.id;
-    if (destino.contenedorId) body.contenedor_destino_id = destino.contenedorId;
-    else if (destino.ubicacionId) body.ubicacion_destino_id = destino.ubicacionId;
 
     try {
       const response = await fetch(`${API_BASE_URL}/inventario/mudanza/`, {
@@ -417,17 +255,35 @@ export class MudanzaBoard {
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        (window as any).showError?.(data?.error || `Error del servidor (${response.status}).`);
+        notificar('showError', data?.error || `Error del servidor (${response.status}).`);
+        this.render();
         return;
       }
 
       const data = await response.json();
-      (window as any).showSuccess?.(data?.mensaje || '✅ Mudanza completada.');
-      // HOT RELOAD: ambos mapas se refrescan sin recargar la página entera.
+      notificar('showSuccess', data?.mensaje || '✅ Mudanza completada.');
+      // HOT RELOAD: ambos paneles se refrescan sin recargar la página entera.
       await this.recargarTodo();
-    } catch (err: any) {
-      (window as any).showError?.(err?.message || 'Error de conexión durante la mudanza.');
+    } catch (err: unknown) {
+      notificar('showError', mensajeDe(err));
+      this.render();
+    } finally {
+      this.mudando = false;
     }
   }
 }
 
+// ---------------------------------------------------------------------------
+// HELPERS DE NOTIFICACIÓN / MENSAJES
+// ---------------------------------------------------------------------------
+
+/** Aviso flotante global del proyecto (definido en el layout base). */
+function notificar(tipo: 'showSuccess' | 'showError', mensaje: string): void {
+  const win = window as unknown as Partial<Record<'showSuccess' | 'showError', (m: string) => void>>;
+  win[tipo]?.(mensaje);
+}
+
+function mensajeDe(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  return 'No se pudo completar la operación.';
+}
