@@ -9,16 +9,29 @@
    ============================================================================= */
 
 /* --- Paneles con SCROLL INDEPENDIENTE (una columna cada uno) ---
-   La altura la impone Tailwind (`flex-1` dentro de la columna de altura fija):
-   acá solo cosmética + barra fina, sin max-height para no recortar la grilla. */
+   La altura la impone Tailwind (`flex-1` dentro de la columna de `max-h-full`):
+   acá va la FÍSICA TÁCTIL — el gesto vertical pertenece a este panel, con
+   inercia nativa y sin encadenarse al panel vecino ni al <body>. */
 .mudanza-panel {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   overflow-y: auto;
+  /* El dedo vertical desplaza SOLO este panel (no la página ni la columna vecina) */
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; /* inercia elástica nativa iOS */
+  scrollbar-width: thin;
+}
+
+/* --- Columnas (Origen / Destino): contención del gesto ---
+   `overscroll-behavior: contain` corta la cadena de scroll: al llegar al tope o
+   al final de una columna el movimiento NO se transfiere al body ni a la otra
+   columna (evita el efecto "pantalla congelada" al deslizar el dedo). */
+.mudanza-col {
+  touch-action: pan-y;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
 }
 
 .mudanza-panel::-webkit-scrollbar {
@@ -114,4 +127,21 @@
 .mudanza-transito.mudanza-drop-hover .mudanza-drop-hint,
 .mudanza-con-seleccion .mudanza-drop-hint {
   opacity: 1;
+}
+
+/* =============================================================================
+   CONGELADO DEL VIEWPORT EN MÓVIL (mientras la mudanza está activa)
+   -----------------------------------------------------------------------------
+   El contenedor medido por JS ocupa exactamente el alto útil, y el <body> queda
+   bloqueado: la página completa NO se desplaza (nada de "tirar" el layout con
+   el dedo). Todo el paneo táctil queda delegado a cada panel, que mantiene su
+   propia inercia (`-webkit-overflow-scrolling: touch`) y su propio overscroll.
+   La clase la agrega/quita `mudanza.astro` según el ancho real del dispositivo.
+   ============================================================================= */
+@media (max-width: 767px) {
+  body.mudanza-scroll-lock {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100%;
+  }
 }

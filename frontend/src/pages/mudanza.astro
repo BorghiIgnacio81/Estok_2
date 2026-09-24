@@ -24,11 +24,14 @@ import '../styles/mudanza.css';
 <AuthGuard />
 
 <BaseLayout title="Estok - Mudanza Inter-Estok | Inventario">
-  <div class="mx-auto max-w-7xl px-2 py-4 sm:px-6 sm:py-8 lg:px-8" style="background-color: var(--bg-primary)">
-    <!-- Encabezado -->
-    <div class="mb-3 sm:mb-8">
-      <h1 class="text-xl font-bold text-gray-900 sm:text-3xl">📦 Mudanza Inter-Estok</h1>
-      <p class="mt-1 text-[11px] text-gray-500 sm:text-base">
+  <div id="mudanzaPage"
+    class="mx-auto h-screen max-w-7xl overflow-hidden px-2 py-2 sm:px-6 sm:py-8 lg:px-8 md:h-auto md:overflow-visible"
+    style="background-color: var(--bg-primary)">
+    <!-- Encabezado (compacto en móvil: el alto de la cabecera real se mide en
+         caliente para que ninguna columna quede recortada por el padre). -->
+    <div class="mb-2 sm:mb-8">
+      <h1 class="text-lg font-bold text-gray-900 sm:text-3xl">📦 Mudanza Inter-Estok</h1>
+      <p class="mt-1 hidden text-base text-gray-500 sm:block">
         Arrastrá cajas móviles, muebles o ítems sueltos desde el Estok Origen hacia una habitación del
         Estok Destino —o hacia <b>«En Tránsito»</b> para dejarlos sin ubicación física—. El contenido
         viaja en bloque, en cascada y en una sola transacción.
@@ -40,14 +43,19 @@ import '../styles/mudanza.css';
 
     <!-- ================================================================
          GRILLA SIMÉTRICA DE DOS COLUMNAS (SIEMPRE lado a lado, también en
-         móvil): Origen a la izquierda, Destino a la derecha. La grilla fija
-         la altura y cada panel conserva su SCROLL INDEPENDIENTE.
+         móvil): Origen a la izquierda, Destino a la derecha.
+         MÓVIL: el padre queda CONGELADO (h-screen + overflow-hidden) para que
+         el <body> no se mueva y el gesto lo resuelva cada panel. `max-h-full`
+         evita que las columnas se recorten por debajo del viewport (causa del
+         scroll "trabado"). DESKTOP: `md:h-auto md:overflow-visible` devuelve el
+         flujo natural del documento.
          ================================================================ -->
     <div id="mudanzaMain"
-      class="relative hidden grid h-[calc(100vh-190px)] min-h-[340px] grid-cols-2 gap-2 sm:gap-4 lg:gap-8">
+      class="relative hidden grid h-screen max-h-full grid-cols-2 gap-2 overflow-hidden sm:gap-4 lg:gap-8 md:h-auto md:max-h-none md:overflow-visible">
 
       <!-- COLUMNA IZQUIERDA: ESTOK ORIGEN -->
-      <section class="flex min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
+      <section
+        class="mudanza-col flex h-[calc(100vh-160px)] max-h-full min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4 md:h-auto md:max-h-none">
         <div class="mb-1.5 shrink-0 sm:mb-4">
           <div class="mb-0.5 flex items-center gap-1.5">
             <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500"></span>
@@ -60,7 +68,8 @@ import '../styles/mudanza.css';
           <select id="mudanzaOrigenSel"
             class="w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px] outline-none transition-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:px-3 sm:py-2 sm:text-sm"></select>
         </div>
-        <div id="mudanzaOrigenMapa" class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3">
+        <div id="mudanzaOrigenMapa"
+          class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3 md:max-h-[calc(100vh-230px)]">
           <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
             <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-orange-500 animate-spin"></span>
             <p class="text-[11px] font-medium text-gray-400 sm:text-xs">Cargando inventario móvil…</p>
@@ -88,7 +97,8 @@ import '../styles/mudanza.css';
       </button>
 
       <!-- COLUMNA DERECHA: ESTOK DESTINO -->
-      <section class="flex min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4">
+      <section
+        class="mudanza-col flex h-[calc(100vh-160px)] max-h-full min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4 md:h-auto md:max-h-none">
         <div class="mb-1.5 shrink-0 sm:mb-4">
           <div class="mb-0.5 flex items-center gap-1.5">
             <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500"></span>
@@ -104,7 +114,8 @@ import '../styles/mudanza.css';
              física, fuera del scroll del plano para estar siempre visible. -->
         <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3"></div>
 
-        <div id="mudanzaDestinoMapa" class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3">
+        <div id="mudanzaDestinoMapa"
+          class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3 md:max-h-[calc(100vh-230px)]">
           <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
             <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin"></span>
             <p class="text-[11px] font-medium text-gray-400 sm:text-xs">Cargando plano del destino…</p>
@@ -113,8 +124,8 @@ import '../styles/mudanza.css';
       </section>
     </div>
 
-    <!-- Ayuda de uso -->
-    <div class="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-3 text-[11px] text-gray-500 sm:mt-8 sm:px-5 sm:py-4 sm:text-sm">
+    <!-- Ayuda de uso (solo desktop: en móvil el padre congelado la recortaría) -->
+    <div class="mt-3 hidden rounded-xl border border-gray-200 bg-white px-3 py-3 text-[11px] text-gray-500 sm:mt-8 sm:px-5 sm:py-4 sm:text-sm md:block">
       <span class="font-semibold text-gray-700">Cómo funciona:</span>
       el índice del <b>Origen</b> lista inventario móvil (cajas tipo CAJA, muebles móviles e ítems
       sueltos —incluso los que no tienen ubicación—); los muebles inmuebles fijos no se mudan.
@@ -140,7 +151,40 @@ import '../styles/mudanza.css';
     const mapaOrigen = document.getElementById('mudanzaOrigenMapa')!;
     const mapaDestino = document.getElementById('mudanzaDestinoMapa')!;
     const transito = document.getElementById('mudanzaTransito')!;
+    const paginaMudanza = document.getElementById('mudanzaPage')!;
     const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
+
+    // =========================================================================
+    // CONTENCIÓN DEL VIEWPORT TÁCTIL (solo móvil < 768px)
+    // -------------------------------------------------------------------------
+    // La cabecera real de la app (nav + fila de Estok + barras móviles + título)
+    // cambia de alto según el dispositivo, así que el alto útil se MIDE en
+    // caliente y se lo aplica al contenedor congelado. Sin esto, las columnas
+    // (100vh - 160px) se extienden por debajo del viewport, el padre con
+    // overflow-hidden las recorta y el paneo interno se percibe "trabado".
+    // En desktop se limpia todo: el documento fluye normal (md:h-auto).
+    // =========================================================================
+    const soloMovil = (): boolean => window.matchMedia('(max-width: 767px)').matches;
+
+    function ajustarViewportMovil(): void {
+      if (!soloMovil()) {
+        paginaMudanza.style.height = '';
+        document.body.classList.remove('mudanza-scroll-lock');
+        return;
+      }
+      // Offset DOCUMENTAL de la cabecera real (estable aunque ya haya scroll).
+      const cabeceraReal = paginaMudanza.getBoundingClientRect().top + window.scrollY;
+      const altoUtil = Math.max(320, Math.round(window.innerHeight - cabeceraReal));
+      paginaMudanza.style.height = `${altoUtil}px`;
+      if (!document.body.classList.contains('mudanza-scroll-lock')) {
+        window.scrollTo(0, 0); // al congelar, el layout arranca desde arriba
+        document.body.classList.add('mudanza-scroll-lock');
+      }
+    }
+
+    window.addEventListener('resize', ajustarViewportMovil);
+    window.addEventListener('orientationchange', ajustarViewportMovil);
+    window.visualViewport?.addEventListener('resize', ajustarViewportMovil);
 
     async function iniciar() {
       try {
@@ -157,6 +201,8 @@ import '../styles/mudanza.css';
         }
         loadingState.classList.add('hidden');
         main.classList.remove('hidden');
+        // Congelado del layout recién cuando la mudanza está activa.
+        ajustarViewportMovil();
         const board = new MudanzaBoard(origenSel, destinoSel, mapaOrigen, mapaDestino, swapBtn, transito);
         await board.init(user.estoks);
       } catch (err: any) {
