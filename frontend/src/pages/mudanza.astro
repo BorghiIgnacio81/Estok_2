@@ -35,7 +35,7 @@ import '../styles/mudanza.css';
     <!-- ================================================================
          GRILLA SIMÉTRICA DE DOS COLUMNAS
          ================================================================ -->
-    <div id="mudanzaMain" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div id="mudanzaMain" class="relative hidden grid grid-cols-1 lg:grid-cols-2 gap-8">
 
       <!-- COLUMNA IZQUIERDA: ESTOK ORIGEN -->
       <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
@@ -56,6 +56,25 @@ import '../styles/mudanza.css';
           </div>
         </div>
       </section>
+
+      <!-- ================================================================
+           BOTÓN DE INTERCAMBIO RÁPIDO (FLIP) Origen ⇄ Destino
+           En móvil se apila entre ambas columnas (grid-cols-1).
+           En lg flota en el hueco central del gap-8, a la altura de los
+           selectores, sin tapar el padding de ninguna tarjeta.
+           ================================================================ -->
+      <button id="mudanzaSwapBtn" type="button"
+        class="mx-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700 shadow-sm outline-none transition-base hover:bg-amber-100 hover:text-orange-700 hover:shadow-md focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 active:scale-95 disabled:cursor-wait disabled:opacity-60 lg:absolute lg:left-1/2 lg:top-20 lg:z-20 lg:mx-0 lg:-translate-x-1/2"
+        title="Intercambiar Estok Origen ⇄ Destino"
+        aria-label="Intercambiar Estok Origen y Estok Destino">
+        <svg class="mudanza-swap-icon h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m16 3 4 4-4 4"></path>
+          <path d="M20 7H4"></path>
+          <path d="m8 21-4-4 4-4"></path>
+          <path d="M4 17h16"></path>
+        </svg>
+      </button>
 
       <!-- COLUMNA DERECHA: ESTOK DESTINO -->
       <section class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
@@ -101,6 +120,7 @@ import '../styles/mudanza.css';
     const destinoSel = document.getElementById('mudanzaDestinoSel') as HTMLSelectElement;
     const mapaOrigen = document.getElementById('mudanzaOrigenMapa')!;
     const mapaDestino = document.getElementById('mudanzaDestinoMapa')!;
+    const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
 
     async function iniciar() {
       try {
@@ -117,7 +137,7 @@ import '../styles/mudanza.css';
         }
         loadingState.classList.add('hidden');
         main.classList.remove('hidden');
-        const board = new MudanzaBoard(origenSel, destinoSel, mapaOrigen, mapaDestino);
+        const board = new MudanzaBoard(origenSel, destinoSel, mapaOrigen, mapaDestino, swapBtn);
         await board.init(user.estoks);
       } catch (err: any) {
         loadingState.classList.add('hidden');

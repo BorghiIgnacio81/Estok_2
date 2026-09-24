@@ -44,6 +44,20 @@
   opacity: 0.4;
 }
 
+/* --- Botón de intercambio rápido Origen ⇄ Destino --- */
+@keyframes mudanza-swap-flip {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+.mudanza-swap-icon.mudanza-swap-animando {
+  animation: mudanza-swap-flip 0.45s ease-in-out;
+}
+
 /* --- Habitaciones receptoras del Estok DESTINO --- */
 .mudanza-drop-zone {
   transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;

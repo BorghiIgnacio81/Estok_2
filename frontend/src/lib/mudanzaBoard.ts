@@ -43,12 +43,14 @@ export class MudanzaBoard {
   private errorDestino: string | null = null;
   private dragItem: ItemDrag | null = null;
   private mudando = false;
+  private intercambiando = false;
 
   constructor(
     private readonly origenSel: HTMLSelectElement,
     private readonly destinoSel: HTMLSelectElement,
     private readonly mapaOrigen: HTMLElement,
     private readonly mapaDestino: HTMLElement,
+    private readonly swapBtn: HTMLButtonElement | null = null,
   ) {}
 
   /** Inicializa selectores y carga el inventario móvil + el plano destino. */
@@ -59,6 +61,7 @@ export class MudanzaBoard {
     this.destinoId = this.estoks.find((e) => e.id !== this.origenId)?.id || null;
     this.renderSelects();
     this.enlazarSelects();
+    this.enlazarSwap();
     await this.recargarTodo();
   }
 
@@ -92,6 +95,49 @@ export class MudanzaBoard {
       this.renderSelects();
       void this.recargarTodo();
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // INTERCAMBIO RÁPIDO (FLIP) Origen ⇄ Destino
+  // ---------------------------------------------------------------------------
+
+  private enlazarSwap(): void {
+    this.swapBtn?.addEventListener('click', () => void this.intercambiar());
+  }
+
+  /**
+   * Invierte los Estoks (el Destino pasa a Origen y viceversa) y refresca ambos
+   * paneles en caliente. `recargarTodo()` limpia el estado en memoria e inyecta
+   * los placeholders de carga en las dos columnas ANTES de esperar la red, así
+   * el intercambio se percibe instantáneo aunque los endpoints tarden.
+   */
+  async intercambiar(): Promise<void> {
+    if (this.intercambiando || this.mudando || !this.origenId || !this.destinoId) return;
+    this.intercambiando = true;
+    if (this.swapBtn) this.swapBtn.disabled = true;
+
+    // FLIP: swap atómico de las dos referencias de Estok.
+    const origenPrevio = this.origenId;
+    this.origenId = this.destinoId;
+    this.destinoId = origenPrevio;
+
+    this.renderSelects(); // sincroniza ambos <select> con los IDs invertidos
+    this.animarSwap();
+    try {
+      await this.recargarTodo();
+    } finally {
+      this.intercambiando = false;
+      if (this.swapBtn) this.swapBtn.disabled = false;
+    }
+  }
+
+  /** Feedback visual: relanza la animación CSS del icono de flechas opuestas. */
+  private animarSwap(): void {
+    const icono = this.swapBtn?.querySelector<SVGElement>('.mudanza-swap-icon');
+    if (!icono) return;
+    icono.classList.remove('mudanza-swap-animando');
+    void icono.getBoundingClientRect(); // fuerza reflow para reiniciar la animación
+    icono.classList.add('mudanza-swap-animando');
   }
 
   // ---------------------------------------------------------------------------
