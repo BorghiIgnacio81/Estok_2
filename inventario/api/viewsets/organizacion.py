@@ -8,13 +8,13 @@ from uuid import UUID
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 
 from ...models import Ubicacion, Contenedor, Objeto, Membresia
+from ..paginacion import EstokPaginacion
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
 from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
@@ -23,15 +23,6 @@ from .base import HasRolePermission
 from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo, ids_del_grupo
 
 logger = logging.getLogger(__name__)
-
-
-class EstokPaginacion(PageNumberPagination):
-    """
-    Paginación que respeta ?page_size=N (máx 1000).
-    Sin el parámetro, conserva el PAGE_SIZE global (25).
-    """
-    page_size_query_param = 'page_size'
-    max_page_size = 1000
 
 
 def _validar_membresia(user, estok_id):

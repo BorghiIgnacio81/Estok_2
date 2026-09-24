@@ -1,64 +1,31 @@
 // =============================================================================
-// INVENTARIO MÓVIL DE LA MUDANZA INTER-ESTOK (clasificación + render puro)
+// INVENTARIO MÓVIL DEL ORIGEN (clasificación + render puro)
 // -----------------------------------------------------------------------------
 // Fuente ÚNICA de qué se puede mudar de un Estok a otro:
 //   - CAJAS móviles reales        → Contenedor tipo='CAJA'   y es_inmueble=false
 //   - MUEBLES grandes del usuario → Contenedor tipo='MUEBLE' y es_inmueble=false
-//   - OBJETOS individuales sueltos→ Objeto sin contenedor ni objeto padre
-//     (incluye los HUÉRFANOS sin ubicación física, que se marcan "sin ubicación").
-// Los espacios FIJOS (muebles inmuebles) y los estantes internos (tipo
-// 'ESTANTE') no son elementos mudables: viajan en cascada con su mueble.
-// Render puro (sin estado ni fetch): la orquestación vive en mudanzaBoard.ts.
-// Este módulo también dibuja la zona estática «En Tránsito» del destino
-// (htmlZonaTransito), receptora de sueltas sin ubicación física.
+//   - OBJETOS individuales sueltos→ Objeto cuyo padre FÍSICO es la habitación
+//     directamente (sin caja asignada) y que no está dentro de otro objeto.
+//     Incluye los HUÉRFANOS sin ubicación (limbo del inquilinato), que llegan al
+//     listado gracias a `?incluir_sin_estok=true` + paginación completa.
+// Los espacios FIJOS (es_inmueble) y los estantes internos (tipo='ESTANTE') no
+// son elementos mudables: viajan en cascada con su mueble.
+//
+// FILTROS: `agruparMoviles` recibe el set de filtros activos de la columna
+// (Objetos sueltos / Muebles / Cajas) y devuelve SOLO los grupos visibles, sin
+// volver a pedir datos al servidor.
+//
+// Render puro (sin estado ni fetch): la orquestación vive en mudanzaBoard.ts y
+// el borde HTTP en mudanzaApi.ts.
 // =============================================================================
 
 import { escapeHtml } from './mapaEstokWizard';
-import { iconoDeHabitacion } from './planoHabitaciones';
+import { filtrosActivos, FILTROS_ORIGEN } from './mudanzaFiltros';
+import type { FiltroOrigen } from './mudanzaFiltros';
+import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
 
-// =============================================================================
-// DTOs (respuestas de /api/ubicaciones/, /api/contenedores/ y /api/objetos/)
-// =============================================================================
-
-export interface UbicacionDto {
-  id: string;
-  nombre: string;
-  piso?: string;
-  parent_ubicacion?: string | null;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-  objetos_count?: number;
-  contenedores_count?: number;
-  sububicaciones_count?: number;
-}
-
-export interface ContenedorDto {
-  id: string;
-  nombre: string;
-  ubicacion?: string | null;
-  procedencia_nombre?: string | null;
-  parent_contenedor?: string | null;
-  tipo?: string;
-  es_inmueble?: boolean;
-  objetos_count?: number;
-  subcontenedores_count?: number;
-  foto?: string | null;
-}
-
-export interface ObjetoDto {
-  id: string;
-  nombre: string;
-  estok?: string | null;
-  ubicacion?: string | null;
-  ubicacion_nombre?: string | null;
-  contenedor?: string | null;
-  contenedor_nombre?: string | null;
-  objeto_padre?: string | null;
-  es_contenedor?: boolean;
-  categoria_nombre?: string | null;
-  foto_principal?: string | null;
-  deleted_at?: string | null;
-}
+// Re-export de los DTOs: el resto del módulo de mudanzas los consume desde acá.
+export type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
 
 export type ClaseElemento = 'CAJA' | 'MUEBLE' | 'OBJETO';
 
@@ -87,7 +54,7 @@ const IMG_FALLBACK: Record<ClaseElemento, string> = {
 };
 
 // =============================================================================
-// CLASIFICACIÓN
+// CLASIFICACIÓN ESPACIAL (compartida con mudanzaDestino.ts)
 // =============================================================================
 
 /**
@@ -102,6 +69,26 @@ export function esDivision(u: UbicacionDto): boolean {
 export function habitacionesDe(ubicaciones: UbicacionDto[]): UbicacionDto[] {
   return ubicaciones.filter((u) => !esDivision(u));
 }
+
+/**
+ * OBJETO INDIVIDUAL SUELTO — los dos casos que exige el negocio:
+ *   1. No tiene caja/contenedor asignado (`contenedor` nulo) → su padre físico
+ *      es la habitación directamente o el limbo del inquilinato.
+ *   2. No está dentro de otro objeto (`objeto_padre` nulo); si lo estuviera,
+ *      viaja en cascada con su objeto raíz y duplicarlo sería un error.
+ */
+export function esObjetoSuelto(o: ObjetoDto): boolean {
+  return !o.deleted_at && !o.contenedor && !o.objeto_padre;
+}
+
+/** Contenedor mudable de forma independiente (caja o mueble móvil). */
+export function esContenedorMudable(c: ContenedorDto): boolean {
+  return !c.es_inmueble && (c.tipo === 'CAJA' || c.tipo === 'MUEBLE');
+}
+
+// =============================================================================
+// MAPEO A ELEMENTOS ARRASTRABLES
+// =============================================================================
 
 function _partes(...valores: string[]): string {
   return valores.filter((v) => v.trim().length > 0).join(' · ');
@@ -126,17 +113,14 @@ function _desdeContenedor(c: ContenedorDto): ElementoMudable {
 }
 
 function _desdeObjeto(o: ObjetoDto): ElementoMudable {
-  // Procedencia real del ítem suelto: caja/contenedor si lo tiene, si no la
-  // habitación. Sin ninguna de las dos es un HUÉRFANO (limbo del inquilinato).
-  const procedencia = o.contenedor_nombre
-    ? o.contenedor_nombre
-    : o.ubicacion_nombre || 'sin ubicación (limbo)';
+  // Procedencia real del ítem suelto: la habitación donde está apoyado. Sin
+  // habitación es un HUÉRFANO que espera en el limbo del inquilinato.
   return {
     id: o.id,
     origen: 'objeto',
     clase: 'OBJETO',
     nombre: o.nombre,
-    procedencia,
+    procedencia: o.ubicacion_nombre || 'sin ubicación (limbo)',
     detalle: [o.categoria_nombre, o.es_contenedor ? 'con contenido' : 'suelto']
       .filter((parte) => Boolean(parte))
       .join(' · '),
@@ -144,38 +128,51 @@ function _desdeObjeto(o: ObjetoDto): ElementoMudable {
   };
 }
 
+/** Cantidad de elementos disponibles por cada filtro de la columna Origen. */
+export function contarOrigen(
+  contenedores: ContenedorDto[],
+  objetos: ObjetoDto[],
+): Record<FiltroOrigen, number> {
+  const moviles = contenedores.filter(esContenedorMudable);
+  return {
+    CAJA: moviles.filter((c) => c.tipo === 'CAJA').length,
+    MUEBLE: moviles.filter((c) => c.tipo === 'MUEBLE').length,
+    OBJETO: objetos.filter(esObjetoSuelto).length,
+  };
+}
+
 /**
- * Índice agrupado de los elementos MÓVILES del Estok de origen.
+ * Índice agrupado y FILTRADO de los elementos móviles del Estok de origen.
  *
- * Reglas de exclusión (deliberadas):
- *   - `es_inmueble=true` → mueble fijo adherido a la habitación, no se muda.
- *   - `tipo='ESTANTE'`   → sub-división interna, viaja con su mueble.
- *   - Objetos dentro de un contenedor o de otro objeto (incluido el ESPEJO de
- *     dualidad Contenedor+Objeto) no se listan dos veces: viajan en cascada.
- *
- * Los objetos individuales sueltos (`contenedor` y `objeto_padre` nulos) se
- * listan SIEMPRE, incluidos los huérfanos sin ubicación física (limbo del
- * inquilinato): el endpoint los devuelve con `?incluir_sin_estok=true`.
+ * Excluye deliberadamente los espacios fijos (`es_inmueble`), los estantes
+ * internos (viajan en cascada) y los objetos que ya viven dentro de una caja u
+ * otro objeto. Nunca "pierde" objetos sueltos: `esObjetoSuelto` es la regla
+ * única y explícita, y los huérfanos sin estok llegan por la capa de datos.
  */
 export function agruparMoviles(
   contenedores: ContenedorDto[],
   objetos: ObjetoDto[],
+  filtros: Set<FiltroOrigen> = filtrosActivos(FILTROS_ORIGEN),
 ): GrupoMoviles[] {
-  const moviles = contenedores.filter(
-    (c) => !c.es_inmueble && (c.tipo === 'CAJA' || c.tipo === 'MUEBLE'),
-  );
-  const cajas = moviles.filter((c) => c.tipo === 'CAJA').map(_desdeContenedor);
-  const muebles = moviles.filter((c) => c.tipo === 'MUEBLE').map(_desdeContenedor);
-  const sueltos = objetos
-    .filter((o) => !o.deleted_at && !o.contenedor && !o.objeto_padre)
-    .map(_desdeObjeto);
-
+  const moviles = contenedores.filter(esContenedorMudable);
   const grupos: GrupoMoviles[] = [
-    { clase: 'CAJA', titulo: 'Cajas móviles (tipo CAJA)', elementos: cajas },
-    { clase: 'MUEBLE', titulo: 'Muebles móviles (tipo MUEBLE)', elementos: muebles },
-    { clase: 'OBJETO', titulo: 'Objetos sueltos (fuera de cajas)', elementos: sueltos },
+    {
+      clase: 'CAJA',
+      titulo: 'Cajas móviles (tipo CAJA)',
+      elementos: moviles.filter((c) => c.tipo === 'CAJA').map(_desdeContenedor),
+    },
+    {
+      clase: 'MUEBLE',
+      titulo: 'Muebles móviles (tipo MUEBLE)',
+      elementos: moviles.filter((c) => c.tipo === 'MUEBLE').map(_desdeContenedor),
+    },
+    {
+      clase: 'OBJETO',
+      titulo: 'Objetos sueltos (sin caja asignada)',
+      elementos: objetos.filter(esObjetoSuelto).map(_desdeObjeto),
+    },
   ];
-  return grupos.filter((g) => g.elementos.length > 0);
+  return grupos.filter((g) => filtros.has(g.clase) && g.elementos.length > 0);
 }
 
 // =============================================================================
@@ -218,18 +215,29 @@ function htmlElemento(el: ElementoMudable, indice: number): string {
 
 /**
  * Panel completo de la columna ORIGEN: índice de elementos móviles agrupados
- * por naturaleza (cajas / muebles / objetos sueltos) y numerados en orden.
+ * por naturaleza (objetos sueltos / muebles / cajas) y numerados en orden.
+ *
+ * `filtros` sólo decide QUÉ GRUPOS se dibujan: no hay nuevas peticiones ni
+ * pérdida de datos (los elementos siguen en memoria y reaparecen al reactivar).
  */
 export function htmlInventarioMovil(
   contenedores: ContenedorDto[],
   objetos: ObjetoDto[],
+  filtros: Set<FiltroOrigen>,
 ): string {
-  const grupos = agruparMoviles(contenedores, objetos);
-  const total = grupos.reduce((acc, g) => acc + g.elementos.length, 0);
-  if (total === 0) {
+  const hayInventario = Object.values(contarOrigen(contenedores, objetos)).some((n) => n > 0);
+  const grupos = agruparMoviles(contenedores, objetos, filtros);
+
+  if (!hayInventario) {
     return htmlVacio(
       'Este Estok no tiene inventario móvil para mudar',
       'Creá cajas, muebles móviles u objetos individuales desde Almacenamiento y volvé a intentarlo.',
+    );
+  }
+  if (grupos.length === 0) {
+    return htmlVacio(
+      'Ningún grupo visible con los filtros actuales',
+      'Activá al menos un filtro de la barra superior (Objetos sueltos, Muebles o Cajas).',
     );
   }
 
@@ -254,93 +262,14 @@ export function htmlInventarioMovil(
     .join('');
 }
 
-function htmlHabitacion(h: UbicacionDto): string {
-  const piso = h.piso === 'PRIMER_PISO' ? '1er piso' : 'PB';
-  const muebles = Number(h.contenedores_count) || 0;
-  const objetos = Number(h.objetos_count) || 0;
-  return `
-    <div class="mudanza-drop-zone rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-2 sm:p-3"
-      data-drop-ubicacion="${h.id}" title="Soltá (o tocá) acá el elemento arrastrado">
-      <div class="flex items-start gap-1.5 sm:gap-2">
-        <span class="text-base leading-none sm:text-lg">${iconoDeHabitacion(h.nombre)}</span>
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-[11px] font-semibold text-gray-800 sm:text-[13px]">${escapeHtml(h.nombre)}</p>
-          <p class="truncate text-[10px] text-gray-500 sm:text-[11px]">${piso} · ${muebles} mueb · ${objetos} obj</p>
-        </div>
-      </div>
-      <p class="mudanza-drop-hint mt-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">soltar acá</p>
-    </div>`;
-}
-
 /**
- * Plano de la columna DESTINO: mapa de las HABITACIONES receptoras del Estok,
- * agrupadas por división del macro-plano. Cada tarjeta es una zona de suelta
- * (`data-drop-ubicacion`) que el tablero enlaza con dragover/drop.
- */
-export function htmlPlanoDestino(ubicaciones: UbicacionDto[]): string {
-  const habitaciones = habitacionesDe(ubicaciones);
-  if (habitaciones.length === 0) {
-    return htmlVacio(
-      'El Estok destino todavía no tiene habitaciones',
-      'Modelá el plano desde «Mapa de Estok» en Almacenamiento para habilitar las zonas de suelta.',
-    );
-  }
-
-  const divisiones = ubicaciones.filter(esDivision);
-  const porDivision = new Map<string, UbicacionDto[]>();
-  const sueltas: UbicacionDto[] = [];
-  for (const h of habitaciones) {
-    const div = h.parent_ubicacion ? divisiones.find((d) => d.id === h.parent_ubicacion) : undefined;
-    if (!div) {
-      sueltas.push(h);
-      continue;
-    }
-    const lista = porDivision.get(div.id);
-    if (lista) lista.push(h);
-    else porDivision.set(div.id, [h]);
-  }
-
-  const bloques: { titulo: string; icono: string; habitaciones: UbicacionDto[] }[] = [];
-  for (const d of divisiones) {
-    const lista = porDivision.get(d.id);
-    if (lista?.length) bloques.push({ titulo: d.nombre, icono: '🗂️', habitaciones: lista });
-  }
-  if (sueltas.length > 0) {
-    bloques.push({
-      titulo: divisiones.length > 0 ? 'Sin división' : 'Plano general',
-      icono: '🏠',
-      habitaciones: sueltas,
-    });
-  }
-
-  return bloques
-    .map(
-      (b) => `
-      <section class="mb-3 last:mb-0 sm:mb-4">
-        <div class="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
-          <span class="text-xs sm:text-sm">${b.icono}</span>
-          <h3 class="truncate text-[11px] font-semibold text-gray-700 sm:text-[13px]">${escapeHtml(b.titulo)}</h3>
-          <span class="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-400 sm:px-2 sm:text-[10px]">${b.habitaciones.length}</span>
-        </div>
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5">${b.habitaciones.map(htmlHabitacion).join('')}</div>
-      </section>`,
-    )
-    .join('');
-}
-
-// =============================================================================
-// ZONA ESTÁTICA «EN TRÁNSITO» (columna DESTINO)
-// =============================================================================
-
-/**
- * Receptora estática y destacada del limbo del Estok destino.
+ * Receptora estática «EN TRÁNSITO» del Estok destino.
  *
- * Se dibuja ARRIBA del plano de habitaciones y fuera del scroll del panel:
- * siempre visible para poder soltar (o tocar) un elemento que debe viajar al
- * nuevo inquilinato SIN ubicación física asignada. El tablero la enlaza como
- * zona de suelta legítima (`data-drop-transito`) y envía `en_transito: true` al
- * backend, que deja los objetos huérfanos (`ubicacion=None`) y los
- * contenedores en la habitación limbo del destino.
+ * Se dibuja ARRIBA del plano de habitaciones y fuera de su scroll: siempre
+ * visible para soltar (o tocar) un elemento que debe viajar al nuevo
+ * inquilinato SIN ubicación física. El tablero la enlaza como zona de suelta
+ * (`data-drop-transito`) y envía `en_transito: true`: el backend deja los
+ * objetos huérfanos (`ubicacion=None`) y los contenedores en la habitación limbo.
  */
 export function htmlZonaTransito(): string {
   return `

@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 
 from ....models import Objeto, FotoObjeto
+from ...paginacion import EstokPaginacion
 from ...serializers import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
 )
@@ -23,9 +24,17 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
     """
     ViewSet base para objetos del inventario.
     Contiene únicamente el CRUD estándar y el filtrado por query params.
+
+    PAGINACIÓN: usa la clase compartida `EstokPaginacion` (respeta
+    `?page_size=N`, máx 1000). Es IMPRESCINDIBLE para los listados que
+    necesitan el inventario COMPLETO del Estok (Mudanza Inter-Estok, bandejas
+    de organización y visores espaciales): con la paginación global de DRF
+    (25 filas, sin `page_size`) los objetos de las páginas 2+ nunca llegaban al
+    frontend y desaparecían de los tableros.
     """
     queryset = Objeto.objects.all()
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
+    pagination_class = EstokPaginacion
 
     def get_serializer_class(self):
         if self.action == 'list':

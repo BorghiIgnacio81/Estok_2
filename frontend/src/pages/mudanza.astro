@@ -67,6 +67,8 @@ import '../styles/mudanza.css';
           <label for="mudanzaOrigenSel" class="sr-only">Estok de origen</label>
           <select id="mudanzaOrigenSel"
             class="w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px] outline-none transition-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:px-3 sm:py-2 sm:text-sm"></select>
+          <!-- Filtros reactivos del ORIGEN (cliente, sin peticiones) -->
+          <div id="mudanzaFiltrosOrigen" class="mt-1.5"></div>
         </div>
         <div id="mudanzaOrigenMapa"
           class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3 md:max-h-[calc(100vh-230px)]">
@@ -108,6 +110,8 @@ import '../styles/mudanza.css';
           <label for="mudanzaDestinoSel" class="sr-only">Estok de destino</label>
           <select id="mudanzaDestinoSel"
             class="w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px] outline-none transition-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:px-3 sm:py-2 sm:text-sm"></select>
+          <!-- Filtros reactivos del DESTINO: escala de la suelta (gruesa/fina) -->
+          <div id="mudanzaFiltrosDestino" class="mt-1.5"></div>
         </div>
 
         <!-- ZONA ESTÁTICA «EN TRÁNSITO»: receptora de sueltas SIN ubicación
@@ -133,7 +137,8 @@ import '../styles/mudanza.css';
       del <b>Destino</b>: el backend re-ancla el elemento y su contenido completo al Estok destino en
       una sola transacción. Si la soltás en <b>«En Tránsito»</b>, viaja igual al Estok destino pero
       SIN ubicación física: queda en el limbo del nuevo inquilinato para ubicarlo luego desde
-      Almacenamiento.
+      Almacenamiento. Usá las barras de <b>filtros</b> para acotar qué querés mudar (objetos sueltos,
+      muebles, cajas) y a qué escala querés soltarlo (habitación completa, un mueble o un estante).
     </div>
   </div>
 
@@ -151,6 +156,8 @@ import '../styles/mudanza.css';
     const mapaOrigen = document.getElementById('mudanzaOrigenMapa')!;
     const mapaDestino = document.getElementById('mudanzaDestinoMapa')!;
     const transito = document.getElementById('mudanzaTransito')!;
+    const filtrosOrigen = document.getElementById('mudanzaFiltrosOrigen')!;
+    const filtrosDestino = document.getElementById('mudanzaFiltrosDestino')!;
     const paginaMudanza = document.getElementById('mudanzaPage')!;
     const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
 
@@ -203,7 +210,16 @@ import '../styles/mudanza.css';
         main.classList.remove('hidden');
         // Congelado del layout recién cuando la mudanza está activa.
         ajustarViewportMovil();
-        const board = new MudanzaBoard(origenSel, destinoSel, mapaOrigen, mapaDestino, swapBtn, transito);
+        const board = new MudanzaBoard({
+          origenSel,
+          destinoSel,
+          mapaOrigen,
+          mapaDestino,
+          swapBtn,
+          transito,
+          filtrosOrigen,
+          filtrosDestino,
+        });
         await board.init(user.estoks);
       } catch (err: any) {
         loadingState.classList.add('hidden');
