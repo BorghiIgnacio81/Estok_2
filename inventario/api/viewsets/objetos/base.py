@@ -163,8 +163,22 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             self.request.headers.get('X-Estok-Id')
             or self.request.query_params.get('estok_id')
         )
+        # `?incluir_sin_estok=true` (opt-in, default = comportamiento histórico):
+        # incluye además los objetos FÍSICAMENTE presentes en el Estok activo
+        # cuya FK `estok` quedó nula (huérfanos de carga/legacy) pero que sí
+        # cuelgan de una ubicación del inquilinato. Lo usa el listado asíncrono
+        # de la Mudanza Inter-Estok para no perder ningún objeto suelto.
+        incluir_sin_estok = (
+            self.request.query_params.get('incluir_sin_estok') or ''
+        ).strip().lower() in ('true', '1', 'si', 'yes')
         if estok_id:
-            qs = qs.filter(estok_id=estok_id)
+            if incluir_sin_estok:
+                qs = qs.filter(
+                    Q(estok_id=estok_id)
+                    | Q(estok__isnull=True, ubicacion__estok_id=estok_id)
+                )
+            else:
+                qs = qs.filter(estok_id=estok_id)
 
         # Nota: el parámetro 'tipo' (herencia multi-tabla) ya no existe.
         # La clasificación se hace exclusivamente por 'categoria'.

@@ -1,16 +1,22 @@
 // =============================================================================
 // TABLERO DE MUDANZA INTER-ESTOK - Drag & Drop de inventario móvil
 // -----------------------------------------------------------------------------
-// Grilla simétrica de dos columnas:
-//   - ORIGEN  : ÍNDICE de elementos móviles reales del Estok (cajas móviles,
-//               muebles grandes del usuario y objetos individuales sueltos),
-//               cada tarjeta con draggable="true".
-//   - DESTINO : PLANO de las HABITACIONES del Estok destino como zonas de
+// Grilla simétrica de dos columnas (lado a lado TAMBIÉN en móvil):
+//   - ORIGEN  : ÍNDICE de elementos móviles reales del Estok (cajas móviles
+//               tipo='CAJA', muebles grandes del usuario y objetos individuales
+//               sueltos — incluidos los huérfanos sin ubicación), cada tarjeta
+//               con draggable="true".
+//   - DESTINO : zona estática «En Tránsito» (limbo del inquilinato receptor) +
+//               PLANO de las HABITACIONES del Estok destino como zonas de
 //               suelta (dragover con preventDefault + evento drop).
 // Al soltar se envía POST /api/inventario/mudanza/ con
-// { contenedor_id | objeto_id, estok_destino_id, ubicacion_destino_id } y el
-// backend transfiere el bloque COMPLETO en UNA sola transacción (contenido en
-// cascada incluido). Tras el HTTP 200 se refrescan ambos paneles en caliente.
+// { contenedor_id | objeto_id, estok_destino_id, ubicacion_destino_id } o
+// { ..., en_transito: true } y el backend transfiere el bloque COMPLETO en UNA
+// sola transacción (contenido en cascada incluido). Tras el HTTP 200 se
+// refrescan ambos paneles en caliente.
+// Táctil (móvil): el arrastre nativo HTML5 no existe en pantallas táctiles, así
+// que además del drag & drop se puede TOCAR una tarjeta (queda seleccionada) y
+// luego TOCAR la habitación o «En Tránsito» para concretar la mudanza.
 // La clasificación y el render viven en src/lib/mudanzaInventario.ts.
 // Auth centralizado: getAuthHeaders()/getToken() desde services/auth.
 // =============================================================================
@@ -23,6 +29,7 @@ import {
   htmlInventarioMovil,
   htmlPlanoDestino,
   htmlVacio,
+  htmlZonaTransito,
 } from './mudanzaInventario';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaInventario';
 
@@ -42,6 +49,8 @@ export class MudanzaBoard {
   private errorOrigen: string | null = null;
   private errorDestino: string | null = null;
   private dragItem: ItemDrag | null = null;
+  /** Elemento elegido por TOQUE (móvil) a la espera de destino. */
+  private seleccion: ItemDrag | null = null;
   private mudando = false;
   private intercambiando = false;
 
@@ -51,6 +60,8 @@ export class MudanzaBoard {
     private readonly mapaOrigen: HTMLElement,
     private readonly mapaDestino: HTMLElement,
     private readonly swapBtn: HTMLButtonElement | null = null,
+    /** Contenedor estático de la zona «En Tránsito» (columna destino). */
+    private readonly transito: HTMLElement | null = null,
   ) {}
 
   /** Inicializa selectores y carga el inventario móvil + el plano destino. */
@@ -62,7 +73,34 @@ export class MudanzaBoard {
     this.renderSelects();
     this.enlazarSelects();
     this.enlazarSwap();
+    this.renderTransito();
     await this.recargarTodo();
+  }
+
+  // ---------------------------------------------------------------------------
+  // ZONA «EN TRÁNSITO» (estática, fuera del scroll del plano de habitaciones)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Dibuja y enlaza la receptora «En Tránsito»: un contenedor elástico de
+   * suelta que envía el elemento al Estok destino SIN ubicación física. Se
+   * renderiza UNA sola vez (no se re-inyecta en cada hot reload) para no
+   * duplicar listeners.
+   */
+  private renderTransito(): void {
+    if (!this.transito) return;
+    this.transito.innerHTML = htmlZonaTransito();
+    this.transito.querySelectorAll<HTMLElement>('[data-drop-transito]').forEach((zona) => {
+      zona.addEventListener('dragover', (e) => {
+        if (!this.dragItem && !this.seleccion) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        zona.classList.add('mudanza-drop-hover');
+      });
+      zona.addEventListener('dragleave', () => zona.classList.remove('mudanza-drop-hover'));
+      zona.addEventListener('drop', (e) => this.onDrop(e));
+      zona.addEventListener('click', () => this.soltarEn(zona, this.seleccion));
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -85,6 +123,7 @@ export class MudanzaBoard {
         this.destinoId = this.estoks.find((e) => e.id !== this.origenId)?.id || null;
       }
       this.renderSelects();
+      this.limpiarSeleccion();
       void this.recargarTodo();
     });
     this.destinoSel.addEventListener('change', () => {
@@ -93,6 +132,7 @@ export class MudanzaBoard {
         this.origenId = this.estoks.find((e) => e.id !== this.destinoId)?.id || null;
       }
       this.renderSelects();
+      this.limpiarSeleccion();
       void this.recargarTodo();
     });
   }
@@ -165,7 +205,14 @@ export class MudanzaBoard {
   private async cargarOrigen(estokId: string): Promise<void> {
     const [contenedores, objetos] = await Promise.all([
       this.fetchJson<ContenedorDto>(`${API_BASE_URL}/contenedores/?page_size=1000`, estokId),
-      this.fetchJson<ObjetoDto>(`${API_BASE_URL}/objetos/?page_size=1000`, estokId),
+      // `incluir_sin_estok=true`: el índice del ORIGEN debe traer la TOTALIDAD
+      // de los objetos individuales sueltos, incluidos los huérfanos cuya FK
+      // `estok` quedó nula pero que siguen colgando de una habitación del
+      // inquilinato (= objeto físico que hay que poder arrastrar).
+      this.fetchJson<ObjetoDto>(
+        `${API_BASE_URL}/objetos/?page_size=1000&incluir_sin_estok=true`,
+        estokId,
+      ),
     ]);
     this.contenedoresOrigen = contenedores;
     this.objetosOrigen = objetos;
@@ -206,6 +253,7 @@ export class MudanzaBoard {
   }
 
   private render(): void {
+    this.limpiarSeleccion(); // el DOM se reemplaza: la selección por toque caduca
     this.mapaOrigen.innerHTML = this.errorOrigen
       ? htmlVacio('No se pudo cargar el inventario del Estok origen', this.errorOrigen)
       : htmlInventarioMovil(this.contenedoresOrigen, this.objetosOrigen);
@@ -216,22 +264,29 @@ export class MudanzaBoard {
   }
 
   // ---------------------------------------------------------------------------
-  // DRAG & DROP (arrastre nativo HTML5)
+  // DRAG & DROP (arrastre nativo HTML5) + SUELTA POR TOQUE (móvil)
   // ---------------------------------------------------------------------------
+
+  /** Identidad de la tarjeta arrastrable leída de sus data-attributes. */
+  private itemDe(el: HTMLElement): ItemDrag | null {
+    const id = el.dataset.dragId || '';
+    if (!id) return null;
+    return {
+      origen: el.dataset.drag === 'objeto' ? 'objeto' : 'contenedor',
+      id,
+      nombre: el.dataset.dragNombre || '',
+    };
+  }
 
   private enlazarDnD(): void {
     // 1) Elementos arrastrables del ORIGEN (draggable="true" en la tarjeta).
     this.mapaOrigen.querySelectorAll<HTMLElement>('[data-drag]').forEach((el) => {
       el.addEventListener('dragstart', (e) => {
-        const id = el.dataset.dragId || '';
-        if (!id) return;
-        this.dragItem = {
-          origen: el.dataset.drag === 'objeto' ? 'objeto' : 'contenedor',
-          id,
-          nombre: el.dataset.dragNombre || '',
-        };
+        const item = this.itemDe(el);
+        if (!item) return;
+        this.dragItem = item;
         el.classList.add('mudanza-dragging');
-        e.dataTransfer?.setData('text/plain', `${this.dragItem.origen}:${id}`);
+        e.dataTransfer?.setData('text/plain', `${item.origen}:${item.id}`);
         if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       });
       el.addEventListener('dragend', () => {
@@ -239,52 +294,96 @@ export class MudanzaBoard {
         this.dragItem = null;
         this.limpiarDropHover();
       });
+      // TOQUE (móvil): sin arrastre nativo, la tarjeta queda seleccionada y el
+      // destino se completa tocando una habitación o la zona «En Tránsito».
+      el.addEventListener('click', () => this.alternarSeleccion(this.itemDe(el), el));
     });
 
-    // 2) Habitaciones receptoras del DESTINO (onDragOver + onDrop).
+    // 2) Habitaciones receptoras del DESTINO (onDragOver + onDrop + toque).
     this.mapaDestino.querySelectorAll<HTMLElement>('[data-drop-ubicacion]').forEach((zona) => {
       zona.addEventListener('dragover', (e) => {
-        if (!this.dragItem) return;
+        if (!this.dragItem && !this.seleccion) return;
         e.preventDefault(); // habilita la habitación como zona de suelta
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
         zona.classList.add('mudanza-drop-hover');
       });
       zona.addEventListener('dragleave', () => zona.classList.remove('mudanza-drop-hover'));
       zona.addEventListener('drop', (e) => this.onDrop(e));
+      zona.addEventListener('click', () => this.soltarEn(zona, this.seleccion));
     });
   }
 
+  /** Alterna la tarjeta elegida por toque y su feedback visual. */
+  private alternarSeleccion(item: ItemDrag | null, el: HTMLElement): void {
+    if (!item) return;
+    const mismo = this.seleccion?.id === item.id && this.seleccion.origen === item.origen;
+    this.limpiarSeleccion();
+    if (mismo) return; // segundo toque sobre la misma tarjeta = deseleccionar
+    this.seleccion = item;
+    el.classList.add('mudanza-seleccionado');
+    this.marcarDestinos(true);
+  }
+
+  /** Limpia la selección por toque y su resaltado. */
+  private limpiarSeleccion(): void {
+    this.seleccion = null;
+    this.mapaOrigen
+      .querySelectorAll('.mudanza-seleccionado')
+      .forEach((n) => n.classList.remove('mudanza-seleccionado'));
+    this.marcarDestinos(false);
+  }
+
+  /** Resalta las zonas receptoras mientras hay un elemento seleccionado. */
+  private marcarDestinos(activa: boolean): void {
+    this.mapaDestino.classList.toggle('mudanza-con-seleccion', activa);
+    this.transito?.classList.toggle('mudanza-con-seleccion', activa);
+  }
+
   private limpiarDropHover(): void {
-    this.mapaDestino
-      .querySelectorAll('.mudanza-drop-hover')
-      .forEach((el) => el.classList.remove('mudanza-drop-hover'));
+    for (const raiz of [this.mapaDestino, this.transito]) {
+      raiz?.querySelectorAll('.mudanza-drop-hover')
+        .forEach((el) => el.classList.remove('mudanza-drop-hover'));
+    }
   }
 
   private onDrop(e: DragEvent): void {
     e.preventDefault();
-    const zona = (e.target as HTMLElement).closest('[data-drop-ubicacion]') as HTMLElement | null;
-    const item = this.dragItem;
+    this.soltarEn(e.target as HTMLElement, this.dragItem ?? this.seleccion);
+  }
+
+  /**
+   * Concreta la suelta (mouse o toque). Resuelve el destino elegido:
+   *   - «En Tránsito» (`data-drop-transito`) → limbo del Estok destino: el
+   *     backend mueve el elemento SIN ubicación física.
+   *   - Habitación (`data-drop-ubicacion`)   → re-ancla al espacio real.
+   */
+  private soltarEn(destino: HTMLElement | null, item: ItemDrag | null): void {
+    if (!item || this.mudando) return;
+    const enTransito = Boolean(destino?.closest('[data-drop-transito]'));
+    const ubicacionId = (destino?.closest('[data-drop-ubicacion]') as HTMLElement | null)
+      ?.dataset.dropUbicacion;
+    if (!enTransito && !ubicacionId) return;
     this.limpiarDropHover();
     this.dragItem = null;
-    const ubicacionId = zona?.dataset.dropUbicacion;
-    if (!item || !ubicacionId || this.mudando) return;
-    void this.mover(item, ubicacionId);
+    this.limpiarSeleccion();
+    void this.mover(item, ubicacionId || null, enTransito);
   }
 
   // ---------------------------------------------------------------------------
   // MUTACIÓN TRANSACCIONAL (POST /api/inventario/mudanza/)
   // ---------------------------------------------------------------------------
 
-  private async mover(item: ItemDrag, ubicacionId: string): Promise<void> {
+  private async mover(item: ItemDrag, ubicacionId: string | null, enTransito: boolean): Promise<void> {
     if (!this.destinoId) return;
     this.mudando = true;
     const etiqueta = item.nombre ? `«${item.nombre}»` : 'el elemento';
-    this.mapaDestino.innerHTML = htmlCargando(`Mudando ${etiqueta}…`);
+    this.mapaDestino.innerHTML = htmlCargando(
+      enTransito ? `Enviando ${etiqueta} a «En Tránsito»…` : `Mudando ${etiqueta}…`,
+    );
 
-    const body: Record<string, unknown> = {
-      estok_destino_id: this.destinoId,
-      ubicacion_destino_id: ubicacionId,
-    };
+    const body: Record<string, unknown> = { estok_destino_id: this.destinoId };
+    if (enTransito) body.en_transito = true; // limbo: sin ubicación física en el destino
+    else body.ubicacion_destino_id = ubicacionId;
     if (item.origen === 'contenedor') body.contenedor_id = item.id;
     else body.objeto_id = item.id;
 

@@ -1,18 +1,23 @@
 /* =============================================================================
    ESTADOS DE ARRASTRE DE LA MUDANZA INTER-ESTOK (src/pages/mudanza.astro)
    -----------------------------------------------------------------------------
-   Solo los estados que Tailwind no expresa (drag & drop nativo HTML5).
-   El layout, las tarjetas, los placeholders y las transiciones de carga se
-   resuelven con utilidades Tailwind en src/lib/mudanzaInventario.ts.
+   Solo los estados que Tailwind no expresa (drag & drop nativo HTML5 y el
+   flujo táctil de "tocá la tarjeta + tocá el destino").
+   El layout de dos columnas, la ALTURA FIJA de cada columna, los paddings, las
+   tarjetas y los placeholders se resuelven con utilidades Tailwind
+   (mudanza.astro + lib/mudanzaInventario.ts).
    ============================================================================= */
 
+/* --- Paneles con SCROLL INDEPENDIENTE (una columna cada uno) ---
+   La altura la impone Tailwind (`flex-1` dentro de la columna de altura fija):
+   acá solo cosmética + barra fina, sin max-height para no recortar la grilla. */
 .mudanza-panel {
-  max-height: 62vh;
-  overflow-y: auto;
-  padding: 12px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
 
@@ -28,7 +33,8 @@
 /* --- Tarjetas arrastrables del Estok ORIGEN --- */
 .mudanza-drag-item {
   cursor: grab;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  touch-action: manipulation;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .mudanza-drag-item:hover {
@@ -42,6 +48,13 @@
 
 .mudanza-dragging {
   opacity: 0.4;
+}
+
+/* Tarjeta elegida por TOQUE (móvil), a la espera de destino. */
+.mudanza-drag-item.mudanza-seleccionado {
+  border-color: #ea580c;
+  background-color: #fff7ed;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.25);
 }
 
 /* --- Botón de intercambio rápido Origen ⇄ Destino --- */
@@ -76,5 +89,29 @@
 }
 
 .mudanza-drop-zone.mudanza-drop-hover .mudanza-drop-hint {
+  opacity: 1;
+}
+
+/* --- Zona estática «EN TRÁNSITO» (limbo del inquilinato destino) --- */
+.mudanza-transito {
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mudanza-transito.mudanza-drop-hover {
+  border-style: solid;
+  border-color: #d97706;
+  background-color: #fef3c7;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.18);
+}
+
+.mudanza-transito .mudanza-drop-hint {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Feedback táctil: con una tarjeta SELECCIONADA se revelan las pistas de
+   suelta de todas las receptoras (habitaciones y «En Tránsito»). */
+.mudanza-transito.mudanza-drop-hover .mudanza-drop-hint,
+.mudanza-con-seleccion .mudanza-drop-hint {
   opacity: 1;
 }

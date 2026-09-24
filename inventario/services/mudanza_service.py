@@ -7,6 +7,13 @@ QUÉ SE MUEVE
   espacios fijos (muebles inmuebles, `es_inmueble=True`) NO son mudables: son
   parte estructural de la habitación y nunca entran en la operación.
 
+ZONA «EN TRÁNSITO» (`en_transito=True`)
+  El elemento también puede soltarse en el limbo del inquilinato destino: viaja
+  al nuevo Estok SIN ubicación física. Los objetos quedan huérfanos
+  (`ubicacion=None`, `contenedor=None`) y se resuelven desde la bandeja de
+  elementos por ubicar del visor ordinario; los contenedores aterrizan en la
+  habitación limbo «En Tránsito» porque `Contenedor.ubicacion` es NOT NULL.
+
 MUTACIÓN ATÓMICA (PostgreSQL)
   La API pública corre dentro de un único `transaction.atomic`: si algo falla
   a mitad de camino, PostgreSQL revierte el bloque completo y ningún Estok
@@ -98,20 +105,28 @@ def _mover_contenedor_recursivo(contenedor, estok_destino, ubicacion_destino, nu
     return objetos_movidos
 
 
-def _mover_objeto_recursivo(objeto, estok_destino, ubicacion_destino, contenedor_destino, *, es_raiz=False):
+def _mover_objeto_recursivo(
+    objeto, estok_destino, ubicacion_destino, contenedor_destino, *,
+    es_raiz=False, en_transito=False,
+):
     """
     Mueve un Objeto y sus objetos contenidos (`objeto_padre`) al Estok destino.
 
     Solo el nodo RAÍZ re-ancla su contenedor/ubicación y resetea sus
     coordenadas de casillero; los hijos conservan su vínculo de contención.
 
+    Con `en_transito=True` (suelta en la zona «En Tránsito») NINGÚN nodo
+    conserva ubicación física: `ubicacion=None` y `contenedor=None`. El objeto
+    entra al limbo del inquilinato destino (bandeja «A primera vista · sin
+    ubicación» del visor ordinario) hasta que el usuario decida dónde encajarlo.
+
     Devuelve la cantidad de Objetos transferidos (raíz incluida).
     """
     objeto.estok = estok_destino
-    objeto.ubicacion = ubicacion_destino
+    objeto.ubicacion = None if en_transito else ubicacion_destino
     campos = ['estok', 'ubicacion', 'updated_at']
     if es_raiz:
-        objeto.contenedor = contenedor_destino
+        objeto.contenedor = None if en_transito else contenedor_destino
         objeto.parent_grid_row = None
         objeto.parent_grid_col = None
         campos += ['contenedor', 'parent_grid_row', 'parent_grid_col']
@@ -120,7 +135,8 @@ def _mover_objeto_recursivo(objeto, estok_destino, ubicacion_destino, contenedor
     total = 1
     for hijo in objeto.objetos_contenidos.filter(deleted_at__isnull=True):
         total += _mover_objeto_recursivo(
-            hijo, estok_destino, ubicacion_destino, None, es_raiz=False,
+            hijo, estok_destino, ubicacion_destino, None,
+            es_raiz=False, en_transito=en_transito,
         )
     return total
 
@@ -130,13 +146,22 @@ class MudanzaService:
 
     @staticmethod
     @transaction.atomic
-    def transferir_contenedor(contenedor, estok_destino, ubicacion_destino, contenedor_destino=None):
+    def transferir_contenedor(
+        contenedor, estok_destino, ubicacion_destino, contenedor_destino=None,
+        *, en_transito=False,
+    ):
         """
         Transfiere un elemento móvil de tipo contenedor (mueble grande,
         archivador o caja) junto con TODO su contenido, en cascada y dentro de
         una sola transacción. La habitación destino reemplaza al espacio de
         origen como nodo padre (`ubicacion`) y el `parent_contenedor` se
         re-ancla al contenedor destino cuando se suelta dentro de otro mueble.
+
+        Con `en_transito=True` el contenedor queda en el limbo del Estok
+        destino: `parent_contenedor=None` (raíz suelta) dentro de la habitación
+        limbo «En Tránsito» recibida como `ubicacion_destino`, porque
+        `Contenedor.ubicacion` es NOT NULL (un contenedor SIEMPRE pertenece a un
+        espacio del inquilinato). Su contenido interno viaja intacto.
         """
         estok_origen = _estok_de_contenedor(contenedor)
         if str(estok_origen.id) == str(estok_destino.id):
@@ -152,8 +177,16 @@ class MudanzaService:
             contenedor_destino, es_raiz=True,
         )
 
+        if en_transito:
+            mensaje = (
+                f'«{contenedor.nombre}» quedó EN TRÁNSITO en «{estok_destino.nombre}» '
+                f'(habitación limbo «{ubicacion_destino.nombre}»): su contenido viaja intacto.'
+            )
+        else:
+            mensaje = f'«{contenedor.nombre}» y su contenido migraron a «{estok_destino.nombre}».'
+
         return {
-            'mensaje': f'«{contenedor.nombre}» y su contenido migraron a «{estok_destino.nombre}».',
+            'mensaje': mensaje,
             'tipo': 'contenedor',
             'contenedor_id': str(contenedor.id),
             'contenedor_nombre': contenedor.nombre,
@@ -161,30 +194,48 @@ class MudanzaService:
             'estok_destino_id': str(estok_destino.id),
             'estok_destino_nombre': estok_destino.nombre,
             'objetos_movidos': objetos_movidos,
+            'en_transito': bool(en_transito),
         }
 
     @staticmethod
     @transaction.atomic
-    def transferir_objeto(objeto, estok_destino, ubicacion_destino, contenedor_destino=None):
+    def transferir_objeto(
+        objeto, estok_destino, ubicacion_destino=None, contenedor_destino=None,
+        *, en_transito=False,
+    ):
         """
         Transfiere un objeto móvil (suelto o con objetos dentro) al Estok
         destino, re-anclando su ubicación/contenedor a la habitación elegida.
+
+        Con `en_transito=True` el objeto viaja al Estok destino SIN ubicación
+        física (`ubicacion=None`, `contenedor=None`): queda huérfano en el limbo
+        del nuevo inquilinato y se gestiona desde la bandeja de elementos por
+        ubicar del visor ordinario.
         """
         if objeto.estok_id and str(objeto.estok_id) == str(estok_destino.id):
             raise ValidationError("El objeto ya pertenece al Estok destino.")
 
         total_movidos = _mover_objeto_recursivo(
             objeto, estok_destino, ubicacion_destino,
-            contenedor_destino, es_raiz=True,
+            contenedor_destino, es_raiz=True, en_transito=en_transito,
         )
 
+        if en_transito:
+            mensaje = (
+                f'«{objeto.nombre}» quedó EN TRÁNSITO dentro de «{estok_destino.nombre}»: '
+                'sin ubicación física, listo para ubicar desde Almacenamiento.'
+            )
+        else:
+            mensaje = f'«{objeto.nombre}» migró a «{estok_destino.nombre}».'
+
         return {
-            'mensaje': f'«{objeto.nombre}» migró a «{estok_destino.nombre}».',
+            'mensaje': mensaje,
             'tipo': 'objeto',
             'objeto_id': str(objeto.id),
             'objeto_nombre': objeto.nombre,
             'estok_destino_id': str(estok_destino.id),
             'estok_destino_nombre': estok_destino.nombre,
             'objetos_movidos': total_movidos,
+            'en_transito': bool(en_transito),
         }
 

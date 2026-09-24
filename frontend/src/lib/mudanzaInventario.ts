@@ -5,9 +5,12 @@
 //   - CAJAS móviles reales        → Contenedor tipo='CAJA'   y es_inmueble=false
 //   - MUEBLES grandes del usuario → Contenedor tipo='MUEBLE' y es_inmueble=false
 //   - OBJETOS individuales sueltos→ Objeto sin contenedor ni objeto padre
+//     (incluye los HUÉRFANOS sin ubicación física, que se marcan "sin ubicación").
 // Los espacios FIJOS (muebles inmuebles) y los estantes internos (tipo
 // 'ESTANTE') no son elementos mudables: viajan en cascada con su mueble.
 // Render puro (sin estado ni fetch): la orquestación vive en mudanzaBoard.ts.
+// Este módulo también dibuja la zona estática «En Tránsito» del destino
+// (htmlZonaTransito), receptora de sueltas sin ubicación física.
 // =============================================================================
 
 import { escapeHtml } from './mapaEstokWizard';
@@ -123,13 +126,20 @@ function _desdeContenedor(c: ContenedorDto): ElementoMudable {
 }
 
 function _desdeObjeto(o: ObjetoDto): ElementoMudable {
+  // Procedencia real del ítem suelto: caja/contenedor si lo tiene, si no la
+  // habitación. Sin ninguna de las dos es un HUÉRFANO (limbo del inquilinato).
+  const procedencia = o.contenedor_nombre
+    ? o.contenedor_nombre
+    : o.ubicacion_nombre || 'sin ubicación (limbo)';
   return {
     id: o.id,
     origen: 'objeto',
     clase: 'OBJETO',
     nombre: o.nombre,
-    procedencia: o.ubicacion_nombre || 'Sin ubicación',
-    detalle: o.categoria_nombre || (o.es_contenedor ? 'Ítem con contenido' : 'Ítem suelto'),
+    procedencia,
+    detalle: [o.categoria_nombre, o.es_contenedor ? 'con contenido' : 'suelto']
+      .filter((parte) => Boolean(parte))
+      .join(' · '),
     foto: o.foto_principal || null,
   };
 }
@@ -142,6 +152,10 @@ function _desdeObjeto(o: ObjetoDto): ElementoMudable {
  *   - `tipo='ESTANTE'`   → sub-división interna, viaja con su mueble.
  *   - Objetos dentro de un contenedor o de otro objeto (incluido el ESPEJO de
  *     dualidad Contenedor+Objeto) no se listan dos veces: viajan en cascada.
+ *
+ * Los objetos individuales sueltos (`contenedor` y `objeto_padre` nulos) se
+ * listan SIEMPRE, incluidos los huérfanos sin ubicación física (limbo del
+ * inquilinato): el endpoint los devuelve con `?incluir_sin_estok=true`.
  */
 export function agruparMoviles(
   contenedores: ContenedorDto[],
@@ -157,9 +171,9 @@ export function agruparMoviles(
     .map(_desdeObjeto);
 
   const grupos: GrupoMoviles[] = [
-    { clase: 'CAJA', titulo: 'Cajas móviles', elementos: cajas },
-    { clase: 'MUEBLE', titulo: 'Muebles y estructuras móviles', elementos: muebles },
-    { clase: 'OBJETO', titulo: 'Objetos individuales sueltos', elementos: sueltos },
+    { clase: 'CAJA', titulo: 'Cajas móviles (tipo CAJA)', elementos: cajas },
+    { clase: 'MUEBLE', titulo: 'Muebles móviles (tipo MUEBLE)', elementos: muebles },
+    { clase: 'OBJETO', titulo: 'Objetos sueltos (fuera de cajas)', elementos: sueltos },
   ];
   return grupos.filter((g) => g.elementos.length > 0);
 }
@@ -170,34 +184,35 @@ export function agruparMoviles(
 
 export function htmlCargando(texto: string): string {
   return `
-    <div class="py-10 flex flex-col items-center gap-3">
+    <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
       <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-orange-500 animate-spin"></span>
-      <p class="text-xs font-medium text-gray-400">${escapeHtml(texto)}</p>
+      <p class="text-[11px] font-medium text-gray-400 sm:text-xs">${escapeHtml(texto)}</p>
     </div>`;
 }
 
 export function htmlVacio(titulo: string, detalle: string): string {
   return `
-    <div class="rounded-xl border border-dashed border-gray-200 bg-white px-4 py-8 text-center">
-      <p class="text-2xl mb-1.5">🗃️</p>
-      <p class="text-[13px] font-semibold text-gray-700">${escapeHtml(titulo)}</p>
-      <p class="mt-1 text-[11px] leading-relaxed text-gray-400">${escapeHtml(detalle)}</p>
+    <div class="rounded-xl border border-dashed border-gray-200 bg-white px-3 py-6 text-center sm:px-4 sm:py-8">
+      <p class="text-xl mb-1.5 sm:text-2xl">🗃️</p>
+      <p class="text-[11px] font-semibold text-gray-700 sm:text-[13px]">${escapeHtml(titulo)}</p>
+      <p class="mt-1 text-[10px] leading-relaxed text-gray-400 sm:text-[11px]">${escapeHtml(detalle)}</p>
     </div>`;
 }
 
 function htmlElemento(el: ElementoMudable, indice: number): string {
   const foto = escapeHtml(el.foto || IMG_FALLBACK[el.clase]);
+  const nombre = escapeHtml(el.nombre);
   return `
-    <div class="mudanza-drag-item flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white p-2"
-      draggable="true" data-drag="${el.origen}" data-drag-id="${el.id}" data-drag-nombre="${escapeHtml(el.nombre)}"
-      title="Arrastrá «${escapeHtml(el.nombre)}» hacia una habitación del Estok destino">
-      <span class="w-6 h-6 shrink-0 rounded-lg border border-gray-200 bg-gray-50 text-[11px] font-bold text-gray-500 flex items-center justify-center">${indice}</span>
-      <img src="${foto}" alt="${el.clase}" class="w-8 h-8 shrink-0 rounded-lg border border-gray-100 object-cover" />
+    <div class="mudanza-drag-item flex items-center gap-2 rounded-xl border border-gray-200 bg-white p-1.5 sm:gap-2.5 sm:p-2"
+      draggable="true" data-drag="${el.origen}" data-drag-id="${el.id}" data-drag-nombre="${nombre}"
+      title="Arrastrá «${nombre}» hacia una habitación del destino (en móvil: tocá la tarjeta y luego la habitación)">
+      <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-[10px] font-bold text-gray-500 sm:h-6 sm:w-6 sm:text-[11px]">${indice}</span>
+      <img src="${foto}" alt="${el.clase}" class="h-7 w-7 shrink-0 rounded-lg border border-gray-100 object-cover sm:h-8 sm:w-8" />
       <span class="min-w-0 flex-1">
-        <span class="block text-[13px] font-semibold text-gray-800 truncate">${escapeHtml(el.nombre)}</span>
-        <span class="block text-[11px] text-gray-400 truncate">📍 ${escapeHtml(el.procedencia)} · ${escapeHtml(el.detalle)}</span>
+        <span class="block truncate text-[11px] font-semibold text-gray-800 sm:text-[13px]">${nombre}</span>
+        <span class="block truncate text-[10px] text-gray-400 sm:text-[11px]">📍 ${escapeHtml(el.procedencia)} · ${escapeHtml(el.detalle)}</span>
       </span>
-      <span class="shrink-0 text-sm leading-none text-gray-300" aria-hidden="true">⠿</span>
+      <span class="hidden shrink-0 text-sm leading-none text-gray-300 sm:block" aria-hidden="true">⠿</span>
     </div>`;
 }
 
@@ -228,32 +243,32 @@ export function htmlInventarioMovil(
         })
         .join('');
       return `
-        <section class="mb-4 last:mb-0">
-          <div class="flex items-center gap-2 mb-2">
-            <h3 class="text-[13px] font-semibold text-gray-700">${escapeHtml(g.titulo)}</h3>
-            <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">${g.elementos.length}</span>
+        <section class="mb-3 last:mb-0 sm:mb-4">
+          <div class="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+            <h3 class="truncate text-[11px] font-semibold text-gray-700 sm:text-[13px]">${escapeHtml(g.titulo)}</h3>
+            <span class="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-400 sm:px-2 sm:text-[10px]">${g.elementos.length}</span>
           </div>
-          <div class="flex flex-col gap-2">${tarjetas}</div>
+          <div class="flex flex-col gap-1.5 sm:gap-2">${tarjetas}</div>
         </section>`;
     })
     .join('');
 }
 
 function htmlHabitacion(h: UbicacionDto): string {
-  const piso = h.piso === 'PRIMER_PISO' ? '1er piso' : 'Planta baja';
+  const piso = h.piso === 'PRIMER_PISO' ? '1er piso' : 'PB';
   const muebles = Number(h.contenedores_count) || 0;
   const objetos = Number(h.objetos_count) || 0;
   return `
-    <div class="mudanza-drop-zone rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-3"
-      data-drop-ubicacion="${h.id}" title="Soltá acá el elemento arrastrado">
-      <div class="flex items-start gap-2">
-        <span class="text-lg leading-none">${iconoDeHabitacion(h.nombre)}</span>
+    <div class="mudanza-drop-zone rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-2 sm:p-3"
+      data-drop-ubicacion="${h.id}" title="Soltá (o tocá) acá el elemento arrastrado">
+      <div class="flex items-start gap-1.5 sm:gap-2">
+        <span class="text-base leading-none sm:text-lg">${iconoDeHabitacion(h.nombre)}</span>
         <div class="min-w-0 flex-1">
-          <p class="text-[13px] font-semibold text-gray-800 truncate">${escapeHtml(h.nombre)}</p>
-          <p class="text-[11px] text-gray-500 truncate">${piso} · ${muebles} mueble(s) · ${objetos} objeto(s)</p>
+          <p class="truncate text-[11px] font-semibold text-gray-800 sm:text-[13px]">${escapeHtml(h.nombre)}</p>
+          <p class="truncate text-[10px] text-gray-500 sm:text-[11px]">${piso} · ${muebles} mueb · ${objetos} obj</p>
         </div>
       </div>
-      <p class="mudanza-drop-hint mt-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700">soltar acá</p>
+      <p class="mudanza-drop-hint mt-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">soltar acá</p>
     </div>`;
 }
 
@@ -301,14 +316,46 @@ export function htmlPlanoDestino(ubicaciones: UbicacionDto[]): string {
   return bloques
     .map(
       (b) => `
-      <section class="mb-4 last:mb-0">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="text-sm">${b.icono}</span>
-          <h3 class="text-[13px] font-semibold text-gray-700 truncate">${escapeHtml(b.titulo)}</h3>
-          <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">${b.habitaciones.length} ${b.habitaciones.length === 1 ? 'habitación' : 'habitaciones'}</span>
+      <section class="mb-3 last:mb-0 sm:mb-4">
+        <div class="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+          <span class="text-xs sm:text-sm">${b.icono}</span>
+          <h3 class="truncate text-[11px] font-semibold text-gray-700 sm:text-[13px]">${escapeHtml(b.titulo)}</h3>
+          <span class="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-gray-400 sm:px-2 sm:text-[10px]">${b.habitaciones.length}</span>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">${b.habitaciones.map(htmlHabitacion).join('')}</div>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5">${b.habitaciones.map(htmlHabitacion).join('')}</div>
       </section>`,
     )
     .join('');
+}
+
+// =============================================================================
+// ZONA ESTÁTICA «EN TRÁNSITO» (columna DESTINO)
+// =============================================================================
+
+/**
+ * Receptora estática y destacada del limbo del Estok destino.
+ *
+ * Se dibuja ARRIBA del plano de habitaciones y fuera del scroll del panel:
+ * siempre visible para poder soltar (o tocar) un elemento que debe viajar al
+ * nuevo inquilinato SIN ubicación física asignada. El tablero la enlaza como
+ * zona de suelta legítima (`data-drop-transito`) y envía `en_transito: true` al
+ * backend, que deja los objetos huérfanos (`ubicacion=None`) y los
+ * contenedores en la habitación limbo del destino.
+ */
+export function htmlZonaTransito(): string {
+  return `
+    <div class="mudanza-transito rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/70 p-2 sm:p-3"
+      data-drop-transito="1"
+      title="Soltá (o tocá) acá para mudar el elemento al Estok destino SIN ubicación física">
+      <div class="flex items-center gap-2">
+        <span class="text-lg leading-none sm:text-xl" aria-hidden="true">🚚</span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold uppercase tracking-wide text-amber-800 sm:text-xs">En Tránsito</p>
+          <p class="truncate text-[10px] leading-snug text-amber-700/90 sm:text-[11px]">
+            Limbo del destino: viaja sin ubicación física
+          </p>
+        </div>
+      </div>
+      <p class="mudanza-drop-hint mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">soltar acá</p>
+    </div>`;
 }
