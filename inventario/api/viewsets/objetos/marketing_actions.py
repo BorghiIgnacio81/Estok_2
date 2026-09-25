@@ -173,10 +173,20 @@ class MarketingActionsMixin:
             logger.error("Error al generar anuncios: %s", e)
             paquete = None
 
-        # Precio de referencia
+        # Precio de referencia (MLA validado, siempre en ARS)
+        from ....services.mercadolibre_oauth import get_valid_access_token
         from ....services.precio_referencia_service import buscar_precio_referencia
         try:
-            precio_ref = buscar_precio_referencia(objeto.nombre, estado=objeto.estado_conservacion)
+            access_token = get_valid_access_token(request.user)
+        except Exception as e:  # noqa: BLE001 - la referencia es opcional
+            logger.warning("Sin token de ML para %s: %s", request.user, e)
+            access_token = None
+        try:
+            precio_ref = buscar_precio_referencia(
+                objeto.nombre,
+                estado=objeto.estado_conservacion,
+                access_token=access_token,
+            )
         except Exception:
             precio_ref = None
 
@@ -199,6 +209,7 @@ class MarketingActionsMixin:
             data["precio_referencia"] = {
                 "precio_original": precio_ref.get("precio_original"),
                 "precio_ajustado": precio_ref.get("precio_ajustado"),
+                "moneda": precio_ref.get("moneda") or "ARS",
                 "fuente": precio_ref.get("fuente"),
                 "link": precio_ref.get("link"),
             }

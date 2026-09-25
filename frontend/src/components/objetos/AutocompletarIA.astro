@@ -1,32 +1,25 @@
 ---
 // =============================================================================
-// BLOQUE "AUTOCOMPLETAR CON IA" (fusionado dentro de Datos Básicos)
+// BLOQUE DE PROGRESO / RESULTADO DE IA (dentro de "Datos Básicos")
 // -----------------------------------------------------------------------------
-// Antes esta función vivía en una TARJETA INDEPENDIENTE con su propio selector
-// de motor (Gemini / IA local). La IA local ya no existe: ahora hay un ÚNICO
-// motor en la nube y el botón vive DENTRO de "Datos Básicos", arriba de los
-// campos que completa, en un solo bloque limpio.
+// El BOTÓN "Autocompletar con IA" YA NO vive acá: su única ubicación es la
+// botonera de "Fotos del Objeto" (CapturaFotosCompacta.astro). Este componente
+// conserva lo que sí pertenece al formulario:
+//   - la barra de progreso del análisis (indicador indeterminado),
+//   - la sección de SEGUNDA FOTO para libros (ISBN de la parte trasera),
+//   - el bloque de estado / errores (#iaStatus).
 //
-// El botón en sí vive en BotonAutocompletarIA.astro: el MISMO componente se
-// monta también en la botonera de "Fotos del Objeto", y su estado compartido
-// (inactivo / listo / analizando) lo maneja lib/botonAutocompletarIA.ts.
-//
-// Este archivo conserva los ids canónicos que consume nuevo.astro:
+// Estos ids canónicos los consume nuevo.astro:
 //   iaProgressContainer, iaProgressText, iaProgressSubtext, iaProgressBar,
 //   iaProgressPercent, iaStatus, segundaFotoSection, segundaFotoMotivo,
 //   segundaFotoInput, saltarSegundaFotoBtn
 // =============================================================================
-
-import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
 ---
 
 <div class="sm:col-span-2 rounded-xl border border-purple-200 bg-purple-50/60 p-3">
-  <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-    <BotonAutocompletarIA contexto="datos" idBoton="analizarIaBtn" />
-    <p class="text-xs text-purple-700 flex-1">
-      Tomá o arrastrá una foto y presioná el botón: la IA completa <strong>nombre, descripción, categoría, estado, color y valor</strong> por vos. Podés corregir cualquier campo.
-    </p>
-  </div>
+  <p class="text-xs text-purple-700">
+    Cargá una foto del objeto y presioná <strong>«Autocompletar con IA»</strong> (está en <strong>Fotos del Objeto</strong>, al lado de «Otra foto»): la IA completa <strong>nombre, descripción, categoría, estado, color y valor</strong> por vos. Podés corregir cualquier campo.
+  </p>
 
   <!-- Progreso (indicador indeterminado, sin porcentaje falso) -->
   <div id="iaProgressContainer" class="hidden mt-3 p-3 bg-white border border-purple-200 rounded-lg">

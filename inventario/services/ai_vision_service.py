@@ -165,7 +165,7 @@ PROMPT_SISTEMA_CATALOGACION = (
     '  "isbn_issn": "ISBN o ISSN si visible",\n'
     '  "edicion": "Edición",\n'
     '  "estado_conservacion": "excelente|bueno|regular|malo|muy_malo",\n'
-    '  "precio_estimado_mercado": 150.00,\n'
+    '  "precio_estimado_mercado": 150000.00,\n'
     '  "descripcion": "Descripción breve del objeto",\n'
     '  "color": "Color predominante",\n'
     '  "categoria": "libro|tecnologia|mueble|ropa|arte|computacion|otro",\n'
@@ -197,6 +197,8 @@ PROMPT_SISTEMA_CATALOGACION = (
     "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
     "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
     "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia' o 'computacion'.\n"
+    "- 'precio_estimado_mercado' SIEMPRE en pesos argentinos (ARS) del mercado "
+    "local actual, como número sin símbolo ni separadores (ej: 150000.00).\n"
     "- Si no puedes determinar un campo, déjalo vacío o null.\n"
     "- confianza_general: 0-1. Sé conservador.\n"
     "- Lee el texto visible en la imagen (títulos, autores).\n"

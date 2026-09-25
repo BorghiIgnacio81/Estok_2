@@ -18,9 +18,10 @@
 // nativo «Subir foto del objeto» (`#mobileFotoInput`, accept="image/*"), que
 // abre la cámara o la galería del teléfono. nuevo.astro enlaza ese input al
 // MISMO handleFileSelected() de la cámara y la galería: cero lógica duplicada.
-// MISMO botón "Autocompletar con IA" que el de la sección "Datos Básicos": el
-// componente se reutiliza y el estado compartido (disabled / "Analizando...")
-// lo pinta lib/botonAutocompletarIA.ts en ambos a la vez.
+// Botón "Autocompletar con IA": vive ÚNICAMENTE en esta botonera (celda
+// contigua a "Otra foto", debajo de "Galería") con la misma geometría que sus
+// vecinos. Su estado (disabled / "Analizando...") lo pinta
+// lib/botonAutocompletarIA.ts; la sección "Datos Básicos" ya NO lo monta.
 // =============================================================================
 
 import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
@@ -91,11 +92,11 @@ import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
         Otra foto
       </button>
 
-      <!-- MISMO botón "Autocompletar con IA" que el de Datos Básicos: comparte
-           estado (disabled / "Analizando...") vía lib/botonAutocompletarIA.ts,
-           para que el flujo de IA quede a un toque de distancia tras cargar la
-           foto. Se usa el componente único, sin markup duplicado. -->
-      <BotonAutocompletarIA contexto="fotos" idBoton="analizarIaFotosBtn" anchoCompleto claseExtra="col-span-2" />
+      <!-- ÚNICO botón "Autocompletar con IA" del formulario: cierra la grilla
+           2×2 en la celda contigua a "Otra foto" (y por debajo de "Galería").
+           Su estado (disabled / "Analizando...") lo pinta
+           lib/botonAutocompletarIA.ts, sin lógica duplicada en la página. -->
+      <BotonAutocompletarIA idBoton="analizarIaFotosBtn" />
 
       <button type="button" id="editPhotoBtn"
         class="hidden flex items-center justify-center gap-1.5 px-2 h-11 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">

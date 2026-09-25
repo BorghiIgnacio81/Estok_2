@@ -1,16 +1,21 @@
 ---
 // =============================================================================
-// BOTÓN "AUTOCOMPLETAR CON IA" (reutilizable: Fotos del Objeto + Datos Básicos)
+// BOTÓN "AUTOCOMPLETAR CON IA" (única ubicación: botonera de "Fotos del Objeto")
 // -----------------------------------------------------------------------------
-// El mismo control se monta DOS veces en /objetos/nuevo. Su estado (inactivo /
-// listo / analizando) vive centralizado en lib/botonAutocompletarIA.ts, que
-// localiza ambos botones por `[data-ia-boton]` y los pinta de forma síncrona:
-// la página nunca sincroniza uno contra el otro a mano.
+// Vive en UN solo lugar: la grilla de acciones de Fotos del Objeto
+// (CapturaFotosCompacta.astro), en la celda contigua a "Otra foto" y debajo de
+// "Galería". Su estado (inactivo / listo / analizando) se centraliza en
+// lib/botonAutocompletarIA.ts, que lo localiza por `[data-ia-boton]`: la página
+// nunca sincroniza `disabled` ni clases a mano.
 //
 //   - Nace con el texto fijo "Autocompletar con IA" y muestra la ruedita
-//     "Analizando..." solo cuando el usuario hace clic con una foto cargada.
+//     "Analizando..." SOLO tras un clic real del usuario con foto cargada.
 //   - Sin foto (o sin motor de IA) queda `disabled` + `opacity-50
 //     cursor-not-allowed` (clases `disabled:*` de Tailwind).
+//
+// GEOMETRÍA: usa las MISMAS clases que sus botones vecinos de la grilla 2×2
+// (h-11, px-2, text-xs, rounded-lg) para que la botonera quede perfectamente
+// encuadrada y alineada con los márgenes del bloque, con o sin foto cargada.
 //
 // IMPORTANTE: `data-ia-texto` / `data-ia-spinner` se ocultan con el ATRIBUTO
 // `hidden`, NO con la clase `.hidden`. En Tailwind v4 el CSS emitido ordena
@@ -20,39 +25,33 @@
 // =============================================================================
 
 interface Props {
-  /** Ubicación lógica del botón dentro del formulario (trazabilidad/estado). */
-  contexto: 'datos' | 'fotos';
   /** id del nodo <button> (compatibilidad con scripts de diagnóstico). */
   idBoton: string;
-  /** true → ancho completo (botonera de fotos); false → `w-full sm:w-auto`. */
-  anchoCompleto?: boolean;
-  /** Clases extra del contenedor que lo invoca (grillas, col-span, etc.). */
-  claseExtra?: string;
 }
 
-const { contexto, idBoton, anchoCompleto = false, claseExtra = '' } = Astro.props;
-const ancho = anchoCompleto ? 'w-full' : 'w-full sm:w-auto';
+const { idBoton } = Astro.props;
 ---
 
 <button
   type="button"
   id={idBoton}
-  data-ia-boton={contexto}
+  data-ia-boton="fotos"
   disabled
   aria-busy="false"
-  class={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-purple-700 text-white text-sm font-semibold rounded-lg hover:bg-purple-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${ancho} ${claseExtra}`}
+  class="flex items-center justify-center gap-1.5 px-2 h-11 w-full bg-purple-700 text-white text-xs leading-tight font-medium text-center rounded-lg hover:bg-purple-800 transition-base cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
 >
-  <span data-ia-texto class="inline-flex items-center gap-2">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <span data-ia-texto class="inline-flex items-center gap-1.5">
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
     </svg>
     Autocompletar con IA
   </span>
-  <span data-ia-spinner hidden class="inline-flex items-center gap-2">
-    <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+  <span data-ia-spinner hidden class="inline-flex items-center gap-1.5">
+    <svg class="animate-spin h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
       <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
     Analizando...
   </span>
 </button>
+

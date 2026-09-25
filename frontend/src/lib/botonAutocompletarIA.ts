@@ -1,17 +1,18 @@
 // =============================================================================
-// ESTADO COMPARTIDO DE LOS BOTONES "AUTOCOMPLETAR CON IA" (Alta de Objetos)
+// ESTADO DEL BOTÓN "AUTOCOMPLETAR CON IA" (Alta de Objetos)
 // -----------------------------------------------------------------------------
-// En /objetos/nuevo el control "Autocompletar con IA" aparece DOS veces: en la
-// botonera de "Fotos del Objeto" y dentro de "Datos Básicos". Son el MISMO
-// control, así que su estado se pinta SIEMPRE desde acá (fuente única de
-// verdad): nuevo.astro nunca vuelve a tocar `disabled` ni las clases a mano.
+// En /objetos/nuevo hay UN ÚNICO control "Autocompletar con IA": el de la
+// botonera de "Fotos del Objeto" (celda contigua a "Otra foto"). Su estado se
+// pinta SIEMPRE desde acá (fuente única de verdad): nuevo.astro nunca vuelve a
+// tocar `disabled` ni las clases a mano.
 //
 //   inactivo   → sin foto cargada o sin motor de IA: disabled + aspecto opaco.
 //   listo      → texto fijo "Autocompletar con IA", listo para hacer clic.
 //   analizando → spinner + "Analizando..." SOLO tras un clic real del usuario.
 //
-// El estado se refleja de forma SÍNCRONA en los dos botones porque `pintar()`
-// recorre todos los nodos `[data-ia-boton]` en una sola pasada.
+// El estado se aplica a TODOS los nodos `[data-ia-boton]` de la página en una
+// sola pasada (`pintar()`), así el módulo sigue valiendo si el botón se monta
+// en otra sección más adelante.
 //
 // OJO (bug histórico del botón trabado): los nodos de texto/spinner se ocultan
 // con el ATRIBUTO `hidden`, NO con la clase `.hidden`. En Tailwind v4 el CSS
@@ -24,7 +25,7 @@
 
 export type EstadoBotonIA = 'inactivo' | 'listo' | 'analizando';
 
-/** Todos los botones IA del formulario (sección Fotos + sección Datos Básicos). */
+/** Botones IA del formulario (hoy: la botonera de "Fotos del Objeto"). */
 const SELECTOR_BOTONES = '[data-ia-boton]';
 /** Input oculto que guarda la foto Base64 del objeto en curso. */
 const ID_INPUT_FOTO = 'imagenBase64';
@@ -74,27 +75,27 @@ export function refrescarBotonesIA(): void {
   botones().forEach((boton) => pintar(boton, estado));
 }
 
-/** Registra si el motor de IA responde y repinta ambos botones. */
+/** Registra si el motor de IA responde y repinta el botón. */
 export function establecerIaDisponible(disponible: boolean): void {
   iaDisponible = disponible;
   refrescarBotonesIA();
 }
 
-/** Pone AMBOS botones en "Analizando..." (llamar SOLO tras un clic real). */
+/** Pone el botón en "Analizando..." (llamar SOLO tras un clic real). */
 export function marcarAnalizandoIA(): void {
   analizando = true;
   refrescarBotonesIA();
 }
 
-/** Libera el modo "Analizando..." y devuelve ambos botones a su estado natural. */
+/** Libera el modo "Analizando..." y devuelve el botón a su estado natural. */
 export function liberarAnalizandoIA(): void {
   analizando = false;
   refrescarBotonesIA();
 }
 
 /**
- * Vincula el MISMO handler de clic a TODOS los botones IA: los dos disparan el
- * mismo análisis, sin listeners duplicados ni lógica paralela.
+ * Vincula el MISMO handler de clic a TODOS los botones IA (hoy uno solo), sin
+ * listeners duplicados ni lógica paralela.
  */
 export function vincularBotonesIA(handler: () => void | Promise<void>): void {
   botones().forEach((boton) => {

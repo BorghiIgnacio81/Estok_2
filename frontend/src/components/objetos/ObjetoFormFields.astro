@@ -7,7 +7,8 @@
 // líneas por archivo de UI).
 //
 //   1. CapturaFotosCompacta   → drag & drop compacto y simétrico + cámara/galería
-//   2. Datos Básicos          → incluye el botón "Autocompletar con IA" fusionado
+//                               (incluye el ÚNICO botón "Autocompletar con IA")
+//   2. Datos Básicos          → campos + progreso/resultado del análisis con IA
 //   3. Ubicación              → SELECTOR DE MINIMAPAS INTERACTIVOS (siluetas
 //                               elásticas de plantas, habitaciones y muebles)
 //   4. LegadoTrazabilidad     → dueño original (con alta de dueño EXTERNO "+")
@@ -37,12 +38,12 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
       <CapturaFotosCompacta />
 
       <!-- ============================================================================== -->
-      <!-- SECCION: DATOS BASICOS (con "Autocompletar con IA" fusionado adentro) -->
+      <!-- SECCION: DATOS BASICOS (progreso/resultado de IA; el botón IA está en Fotos) -->
       <!-- ============================================================================== -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4">Datos Básicos</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <!-- Análisis con IA: mismo bloque limpio, campos que completa justo debajo -->
+          <!-- Progreso/resultado de la IA (el botón vive en Fotos del Objeto) -->
           <AutocompletarIA />
 
           <div class="sm:col-span-2">

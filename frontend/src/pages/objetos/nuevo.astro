@@ -2,12 +2,12 @@
 // =============================================================================
 // PÁGINA DE CARGA MANUAL DE OBJETO (Mobile-First)
 // Formulario de carga manual completa con captura de foto + editor de imagen.
-// El botón "Autocompletar con IA" se monta DOS veces (botonera de "Fotos del
-// Objeto" y sección "Datos Básicos") con estado compartido en
+// El botón "Autocompletar con IA" vive en UN solo lugar: la botonera de "Fotos
+// del Objeto" (celda contigua a "Otra foto"), con su estado centralizado en
 // lib/botonAutocompletarIA.ts; la ubicación se elige con MINIMAPAS INTERACTIVOS
 // (siluetas elásticas de plantas, habitaciones y muebles) y el dueño puede ser
 // un usuario del Estok o un DUEÑO EXTERNO registrado como texto plano.
-// Build: 2026-09-25 — Botón IA duplicado con estado compartido
+// Build: 2026-09-25 — Botón IA movido a "Fotos del Objeto" (grilla 2×2)
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -57,7 +57,7 @@ import '../../styles/almacenamiento-portales.css';
       <!-- ================================================================ -->
       <!-- CAMPOS DEL FORMULARIO: componentes atomicos                  -->
       <!-- CapturaFotosCompacta : drag & drop compacto + camara/galeria  -->
-      <!-- AutocompletarIA      : boton "Autocompletar con IA"           -->
+      <!-- AutocompletarIA      : progreso/resultado IA (sin boton)     -->
       <!-- SelectorMinimapa     : ubicacion por minimapas interactivos   -->
       <!-- LegadoTrazabilidad   : dueno original (+ externo) / beneficiario -->
       <!-- ObjetoFormActions    : boton submit + cancelar                -->
@@ -136,9 +136,9 @@ import '../../styles/almacenamiento-portales.css';
     refrescarSelectorMinimapaUbicacion,
     seleccionarEspacioMinimapa,
   } from '../../lib/selectorMinimapaNuevoObjeto';
-  // Estado COMPARTIDO de los dos botones "Autocompletar con IA" (sección Fotos
-  // + sección Datos Básicos): único lugar que decide `disabled` y el modo
-  // "Analizando...". La página nunca manipula esos botones a mano.
+  // Estado del botón "Autocompletar con IA" (botonera de "Fotos del Objeto"):
+  // único lugar que decide `disabled` y el modo "Analizando...". La página nunca
+  // manipula ese botón a mano.
   import {
     vincularBotonesIA,
     marcarAnalizandoIA,
@@ -191,7 +191,7 @@ import '../../styles/almacenamiento-portales.css';
   const aiStatusDot = $id<HTMLElement>('aiStatusDot')!;
   const aiStatusText = $id<HTMLElement>('aiStatusText')!;
   const iaStatus = $id<HTMLElement>('iaStatus')!;
-  // Los botones "Autocompletar con IA" (secciones Fotos y Datos Básicos) y su
+  // El botón "Autocompletar con IA" (botonera de Fotos del Objeto) y su
   // disponibilidad NO se manejan acá: los gobierna lib/botonAutocompletarIA.ts.
 
   /** Health-check del motor de IA (Gemini) contra el backend. */
@@ -214,8 +214,8 @@ import '../../styles/almacenamiento-portales.css';
 
   async function updateAIStatus() {
     const connected = await checkAIAvailability();
-    // Guarda la disponibilidad y repinta AMBOS botones IA (foto cargada +
-    // motor disponible = habilitados; sin alguno de los dos = opacos).
+    // Guarda la disponibilidad y repinta el botón IA (foto cargada + motor
+    // disponible = habilitado; si falta alguno de los dos = opaco).
     establecerIaDisponible(connected);
     if (connected) {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
@@ -328,7 +328,7 @@ import '../../styles/almacenamiento-portales.css';
     imagenBase64.value = foto.base64;
     editPhotoBtn.classList.remove('hidden');
     clearPhotoBtn.classList.remove('hidden');
-    // Hay foto: los DOS botones IA se habilitan si el motor está disponible.
+    // Hay foto: el botón IA se habilita si el motor está disponible.
     refrescarBotonesIA();
     iaStatus.classList.add('hidden');
     if (abrirEditor) {
@@ -354,7 +354,7 @@ import '../../styles/almacenamiento-portales.css';
         imagenBase64.value = '';
         editPhotoBtn.classList.add('hidden');
         clearPhotoBtn.classList.add('hidden');
-        // Se quedó sin fotos: los DOS botones IA vuelven a estado inactivo.
+        // Se quedó sin fotos: el botón IA vuelve a estado inactivo.
         refrescarBotonesIA();
         iaStatus.classList.add('hidden');
         try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
@@ -510,7 +510,7 @@ import '../../styles/almacenamiento-portales.css';
       imagenBase64.value = compressed;
       editPhotoBtn.classList.remove('hidden');
       clearPhotoBtn.classList.remove('hidden');
-      // Foto nueva cargada: los DOS botones IA se habilitan (si hay motor).
+      // Foto nueva cargada: el botón IA se habilita (si hay motor).
       refrescarBotonesIA();
       iaStatus.classList.add('hidden');
       renderFotosThumbnails();
@@ -1120,11 +1120,11 @@ import '../../styles/almacenamiento-portales.css';
   const iaProgressBar = $id<HTMLElement>('iaProgressBar')!;
   const iaProgressPercent = $id<HTMLElement>('iaProgressPercent')!;
 
-  // Estado inicial de los DOS botones IA: texto fijo "Autocompletar con IA" y
-  // deshabilitados mientras no haya foto cargada (obligatorio al nacer).
+  // Estado inicial del botón IA: texto fijo "Autocompletar con IA" y
+  // deshabilitado mientras no haya foto cargada (obligatorio al nacer).
   refrescarBotonesIA();
 
-  // El MISMO handler se vincula a los DOS botones (Fotos + Datos Básicos).
+  // El handler se vincula al botón IA de la botonera de Fotos del Objeto.
   vincularBotonesIA(async () => {
     // =====================================================================
     // FIX: Todo el handler envuelto en try/catch desde la primera línea
@@ -1154,7 +1154,7 @@ import '../../styles/almacenamiento-portales.css';
       }
 
       // Mostrar progreso (indicador indeterminado - sin porcentaje falso).
-      // `marcarAnalizandoIA` pasa los DOS botones a ruedita + "Analizando...".
+      // `marcarAnalizandoIA` pasa el botón a ruedita + "Analizando...".
       marcarAnalizandoIA();
       iaProgressContainer.classList.remove('hidden');
       iaProgressText.textContent = '🤖 Analizando imagen con IA...';
@@ -1382,8 +1382,8 @@ import '../../styles/almacenamiento-portales.css';
     } finally {
       setTimeout(() => {
         if (iaProgressContainer) iaProgressContainer.classList.add('hidden');
-        // Los DOS botones IA vuelven a su estado natural (texto fijo, y
-        // deshabilitados si ya no hay foto o el motor no está disponible).
+        // El botón IA vuelve a su estado natural (texto fijo, y deshabilitado
+        // si ya no hay foto o el motor no está disponible).
         liberarAnalizandoIA();
       }, 3000);
     }
@@ -1400,7 +1400,7 @@ import '../../styles/almacenamiento-portales.css';
     const file = inputTarget(e)?.files?.[0];
     if (!file) return;
 
-    // Mostrar progreso en los DOS botones IA (ruedita + "Analizando...").
+    // Mostrar progreso en el botón IA (ruedita + "Analizando...").
     marcarAnalizandoIA();
     iaProgressContainer.classList.remove('hidden');
     iaProgressText.textContent = '📖 Analizando parte trasera del libro...';
@@ -1568,7 +1568,7 @@ import '../../styles/almacenamiento-portales.css';
     }
 
     // 5) Estado de IA y precio de referencia
-    // Sin foto tras el reset: los DOS botones IA vuelven a estado inactivo.
+    // Sin foto tras el reset: el botón IA vuelve a estado inactivo.
     refrescarBotonesIA();
     if (iaStatus) iaStatus.classList.add('hidden');
     const iaProgressCont = $id<HTMLElement>('iaProgressContainer');

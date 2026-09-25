@@ -1,7 +1,7 @@
 """
 Mixins de utilidades varias para ObjetoViewSet.
 Contiene: exportar_csv, estadisticas, owner_action, clear_owner_action,
-subir_foto, buscar_precio_referencia (con caché + scraping + Gemini fallback).
+subir_foto, buscar_precio_referencia (con caché + MLA validado + Gemini fallback).
 """
 
 import logging
@@ -17,6 +17,7 @@ from django.core.cache import cache
 
 from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto
 from ...serializers import FotoObjetoUploadSerializer
+from ....services.mercadolibre_oauth import get_valid_access_token
 from ....services.precio_referencia_service import buscar_precio_referencia
 
 
@@ -475,10 +476,10 @@ class UtilsActionsMixin:
     @action(detail=False, methods=['get'])
     def buscar_precio_referencia(self, request):
         """
-        Busca precio de referencia para un objeto.
-        Primero consulta caché en memoria (TTL 2h).
-        Si no hay caché, intenta scraping de listado.mercadolibre.com.ar.
-        Si falla, usa Gemini como fallback.
+        Busca precio de referencia para un objeto (SIEMPRE en pesos argentinos).
+        Primero consulta MercadoLibre ARGENTINA (site MLA) con validación de
+        coincidencia de título y moneda ARS; si no hay match confiable, estima
+        con Gemini. Los resultados se cachean (2h si hay precio, 5min si no).
 
         GET /api/objetos/buscar_precio_referencia/?q=iphone+14&estado=bueno
         """
@@ -500,8 +501,16 @@ class UtilsActionsMixin:
             logger.info("Cache hit para '%s' (%s)", q, estado)
             return Response(resultado_cache)
 
+        # Token OAuth de ML del usuario (si lo tiene): habilita la API oficial
+        # pineada a MLA en vez del scraping. Sin token se sigue con scraping.
         try:
-            resultado = buscar_precio_referencia(q, estado=estado)
+            access_token = get_valid_access_token(request.user)
+        except Exception as e:  # noqa: BLE001 - nunca debe romper la búsqueda
+            logger.warning("Sin token de ML para %s: %s", request.user, e)
+            access_token = None
+
+        try:
+            resultado = buscar_precio_referencia(q, estado=estado, access_token=access_token)
 
             # Si se encontró precio, guardar en caché 2 horas
             if resultado.get("encontrado"):
@@ -528,6 +537,7 @@ class UtilsActionsMixin:
                 "titulo": None,
                 "precio_original": None,
                 "precio_ajustado": None,
+                "moneda": None,
                 "link": None,
                 "estado_aplicado": estado,
                 "porcentaje_aplicado": None,
