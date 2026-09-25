@@ -2,11 +2,12 @@
 // =============================================================================
 // PÁGINA DE CARGA MANUAL DE OBJETO (Mobile-First)
 // Formulario de carga manual completa con captura de foto + editor de imagen.
-// El análisis con IA (botón "Autocompletar con IA") vive DENTRO de la sección
-// "Datos Básicos"; la ubicación se elige con MINIMAPAS INTERACTIVOS (siluetas
-// elásticas de plantas, habitaciones y muebles) y el dueño puede ser un usuario
-// del Estok o un DUEÑO EXTERNO registrado como texto plano.
-// Build: 2026-09-25 — Rediseño completo del alta de objetos
+// El botón "Autocompletar con IA" se monta DOS veces (botonera de "Fotos del
+// Objeto" y sección "Datos Básicos") con estado compartido en
+// lib/botonAutocompletarIA.ts; la ubicación se elige con MINIMAPAS INTERACTIVOS
+// (siluetas elásticas de plantas, habitaciones y muebles) y el dueño puede ser
+// un usuario del Estok o un DUEÑO EXTERNO registrado como texto plano.
+// Build: 2026-09-25 — Botón IA duplicado con estado compartido
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -135,6 +136,17 @@ import '../../styles/almacenamiento-portales.css';
     refrescarSelectorMinimapaUbicacion,
     seleccionarEspacioMinimapa,
   } from '../../lib/selectorMinimapaNuevoObjeto';
+  // Estado COMPARTIDO de los dos botones "Autocompletar con IA" (sección Fotos
+  // + sección Datos Básicos): único lugar que decide `disabled` y el modo
+  // "Analizando...". La página nunca manipula esos botones a mano.
+  import {
+    vincularBotonesIA,
+    marcarAnalizandoIA,
+    liberarAnalizandoIA,
+    refrescarBotonesIA,
+    establecerIaDisponible,
+    esIaDisponible,
+  } from '../../lib/botonAutocompletarIA';
 
   // ===========================================================================
   // HELPERS DE TIPADO (eliminan ~240 errores TS de null/type)
@@ -178,10 +190,9 @@ import '../../styles/almacenamiento-portales.css';
   const aiStatusBadge = $id<HTMLElement>('aiStatusBadge')!;
   const aiStatusDot = $id<HTMLElement>('aiStatusDot')!;
   const aiStatusText = $id<HTMLElement>('aiStatusText')!;
-  const analizarIaBtn = $id<HTMLButtonElement>('analizarIaBtn')!;
   const iaStatus = $id<HTMLElement>('iaStatus')!;
-
-  let iaAvailable = false;
+  // Los botones "Autocompletar con IA" (secciones Fotos y Datos Básicos) y su
+  // disponibilidad NO se manejan acá: los gobierna lib/botonAutocompletarIA.ts.
 
   /** Health-check del motor de IA (Gemini) contra el backend. */
   async function checkAIAvailability() {
@@ -203,22 +214,20 @@ import '../../styles/almacenamiento-portales.css';
 
   async function updateAIStatus() {
     const connected = await checkAIAvailability();
-    iaAvailable = connected;
+    // Guarda la disponibilidad y repinta AMBOS botones IA (foto cargada +
+    // motor disponible = habilitados; sin alguno de los dos = opacos).
+    establecerIaDisponible(connected);
     if (connected) {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
       aiStatusText.textContent = '☁️ Gemini conectado';
       iaStatus.classList.add('hidden');
-      if (imagenBase64 && imagenBase64.value) {
-        analizarIaBtn.disabled = false;
-      }
     } else {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
       aiStatusText.textContent = '☁️ Gemini no disponible';
       iaStatus.className = 'mt-2 text-xs text-amber-600';
       iaStatus.textContent = '💡 El motor de IA no está disponible. Verificá que la API key esté configurada en el servidor.';
-      analizarIaBtn.disabled = true;
       iaStatus.classList.remove('hidden');
     }
   }
@@ -226,16 +235,15 @@ import '../../styles/almacenamiento-portales.css';
   updateAIStatus();
   // Polling: verificar cada 30s si hay conexión, cada 120s si no.
   setInterval(async () => {
-    if (!iaAvailable) {
+    if (!esIaDisponible()) {
       const connected = await checkAIAvailability();
       if (connected) {
-        iaAvailable = true;
         updateAIStatus();
       }
     } else {
       updateAIStatus();
     }
-  }, iaAvailable ? 30000 : 120000);
+  }, esIaDisponible() ? 30000 : 120000);
 
   // ===========================================================================
   // MANEJO DE CAPTURA DE FOTO + Editor de imagen
@@ -251,8 +259,6 @@ import '../../styles/almacenamiento-portales.css';
   const imagenBase64 = $id<HTMLInputElement>('imagenBase64')!;
   const editPhotoBtn = $id<HTMLButtonElement>('editPhotoBtn')!;
   const clearPhotoBtn = $id<HTMLButtonElement>('clearPhotoBtn')!;
-  const iaBtnText = $id<HTMLElement>('iaBtnText')!;
-  const iaBtnSpinner = $id<HTMLElement>('iaBtnSpinner')!;
 
   // ===========================================================================
   // GALERÍA MULTI-FOTO
@@ -322,7 +328,8 @@ import '../../styles/almacenamiento-portales.css';
     imagenBase64.value = foto.base64;
     editPhotoBtn.classList.remove('hidden');
     clearPhotoBtn.classList.remove('hidden');
-    if (iaAvailable) analizarIaBtn.disabled = false;
+    // Hay foto: los DOS botones IA se habilitan si el motor está disponible.
+    refrescarBotonesIA();
     iaStatus.classList.add('hidden');
     if (abrirEditor) {
       void openEditor();
@@ -347,7 +354,8 @@ import '../../styles/almacenamiento-portales.css';
         imagenBase64.value = '';
         editPhotoBtn.classList.add('hidden');
         clearPhotoBtn.classList.add('hidden');
-        analizarIaBtn.disabled = true;
+        // Se quedó sin fotos: los DOS botones IA vuelven a estado inactivo.
+        refrescarBotonesIA();
         iaStatus.classList.add('hidden');
         try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
       }
@@ -395,9 +403,7 @@ import '../../styles/almacenamiento-portales.css';
             imagenBase64.value = ultima.base64;
             editPhotoBtn.classList.remove('hidden');
             clearPhotoBtn.classList.remove('hidden');
-            if (iaAvailable) {
-              analizarIaBtn.disabled = false;
-            }
+            refrescarBotonesIA();
           }
         }
       } catch (e) { /* JSON corrupto: ignorar */ }
@@ -414,9 +420,7 @@ import '../../styles/almacenamiento-portales.css';
         imagenBase64.value = fotoGuardada;
         editPhotoBtn.classList.remove('hidden');
         clearPhotoBtn.classList.remove('hidden');
-        if (iaAvailable) {
-          analizarIaBtn.disabled = false;
-        }
+        refrescarBotonesIA();
         renderFotosThumbnails();
         try { sessionStorage.removeItem('nuevo_objeto_foto'); } catch (e) {}
       }
@@ -506,7 +510,8 @@ import '../../styles/almacenamiento-portales.css';
       imagenBase64.value = compressed;
       editPhotoBtn.classList.remove('hidden');
       clearPhotoBtn.classList.remove('hidden');
-      if (iaAvailable) analizarIaBtn.disabled = false;
+      // Foto nueva cargada: los DOS botones IA se habilitan (si hay motor).
+      refrescarBotonesIA();
       iaStatus.classList.add('hidden');
       renderFotosThumbnails();
       persistirFotos();
@@ -1115,7 +1120,12 @@ import '../../styles/almacenamiento-portales.css';
   const iaProgressBar = $id<HTMLElement>('iaProgressBar')!;
   const iaProgressPercent = $id<HTMLElement>('iaProgressPercent')!;
 
-  analizarIaBtn.addEventListener('click', async () => {
+  // Estado inicial de los DOS botones IA: texto fijo "Autocompletar con IA" y
+  // deshabilitados mientras no haya foto cargada (obligatorio al nacer).
+  refrescarBotonesIA();
+
+  // El MISMO handler se vincula a los DOS botones (Fotos + Datos Básicos).
+  vincularBotonesIA(async () => {
     // =====================================================================
     // FIX: Todo el handler envuelto en try/catch desde la primera línea
     // para evitar errores silenciosos antes del fetch.
@@ -1124,10 +1134,7 @@ import '../../styles/almacenamiento-portales.css';
       console.log('[IA] Click en Analizar IA detectado');
 
       // Guard clauses: verificar que todos los elementos del DOM existan
-      if (!analizarIaBtn) { console.error('[IA] analizarIaBtn no encontrado en el DOM'); return; }
       if (!imagenBase64) { console.error('[IA] elemento imagenBase64 no encontrado en el DOM'); return; }
-      if (!iaBtnText) { console.error('[IA] iaBtnText no encontrado en el DOM'); return; }
-      if (!iaBtnSpinner) { console.error('[IA] iaBtnSpinner no encontrado en el DOM'); return; }
       if (!iaProgressContainer) { console.error('[IA] iaProgressContainer no encontrado en el DOM'); return; }
       if (!iaProgressText) { console.error('[IA] iaProgressText no encontrado en el DOM'); return; }
       if (!iaProgressSubtext) { console.error('[IA] iaProgressSubtext no encontrado en el DOM'); return; }
@@ -1141,15 +1148,14 @@ import '../../styles/almacenamiento-portales.css';
       }
 
       // Validar que la IA esté disponible (por si el botón se habilitó incorrectamente)
-      if (!iaAvailable) {
+      if (!esIaDisponible()) {
         showToast('❌ El motor de IA no está disponible. Verificá que la API key esté configurada en el servidor.', 'error');
         return;
       }
 
-      // Mostrar progreso (indicador indeterminado - sin porcentaje falso)
-      analizarIaBtn.disabled = true;
-      iaBtnText.classList.add('hidden');
-      iaBtnSpinner.classList.remove('hidden');
+      // Mostrar progreso (indicador indeterminado - sin porcentaje falso).
+      // `marcarAnalizandoIA` pasa los DOS botones a ruedita + "Analizando...".
+      marcarAnalizandoIA();
       iaProgressContainer.classList.remove('hidden');
       iaProgressText.textContent = '🤖 Analizando imagen con IA...';
       iaProgressSubtext.textContent = '☁️ Procesando en Google Gemini (nube)';
@@ -1376,9 +1382,9 @@ import '../../styles/almacenamiento-portales.css';
     } finally {
       setTimeout(() => {
         if (iaProgressContainer) iaProgressContainer.classList.add('hidden');
-        if (analizarIaBtn) analizarIaBtn.disabled = false;
-        if (iaBtnText) iaBtnText.classList.remove('hidden');
-        if (iaBtnSpinner) iaBtnSpinner.classList.add('hidden');
+        // Los DOS botones IA vuelven a su estado natural (texto fijo, y
+        // deshabilitados si ya no hay foto o el motor no está disponible).
+        liberarAnalizandoIA();
       }, 3000);
     }
   });
@@ -1394,10 +1400,8 @@ import '../../styles/almacenamiento-portales.css';
     const file = inputTarget(e)?.files?.[0];
     if (!file) return;
 
-    // Mostrar progreso
-    analizarIaBtn.disabled = true;
-    iaBtnText.classList.add('hidden');
-    iaBtnSpinner.classList.remove('hidden');
+    // Mostrar progreso en los DOS botones IA (ruedita + "Analizando...").
+    marcarAnalizandoIA();
     iaProgressContainer.classList.remove('hidden');
     iaProgressText.textContent = '📖 Analizando parte trasera del libro...';
     iaProgressSubtext.textContent = 'Buscando código ISBN...';
@@ -1497,9 +1501,7 @@ import '../../styles/almacenamiento-portales.css';
     } finally {
       setTimeout(() => {
         iaProgressContainer.classList.add('hidden');
-        analizarIaBtn.disabled = false;
-        iaBtnText.classList.remove('hidden');
-        iaBtnSpinner.classList.add('hidden');
+        liberarAnalizandoIA();
       }, 3000);
     }
 
@@ -1566,7 +1568,8 @@ import '../../styles/almacenamiento-portales.css';
     }
 
     // 5) Estado de IA y precio de referencia
-    if (analizarIaBtn) analizarIaBtn.disabled = true;
+    // Sin foto tras el reset: los DOS botones IA vuelven a estado inactivo.
+    refrescarBotonesIA();
     if (iaStatus) iaStatus.classList.add('hidden');
     const iaProgressCont = $id<HTMLElement>('iaProgressContainer');
     if (iaProgressCont) iaProgressCont.classList.add('hidden');
