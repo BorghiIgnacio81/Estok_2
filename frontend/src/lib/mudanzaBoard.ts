@@ -12,10 +12,11 @@
 // los grupos desde el estado en memoria, sin nuevas peticiones al servidor.
 //
 // Responsabilidades delegadas (archivos chicos y testeables):
-//   mudanzaApi.ts        → DTOs, fetch paginado COMPLETO y POST transaccional.
-//   mudanzaInventario.ts → clasificación y render de la columna Origen.
-//   mudanzaDestino.ts    → render jerárquico de zonas receptoras.
-//   mudanzaFiltros.ts    → definición y markup de las barras de checkboxes.
+//   mudanzaApi.ts              → DTOs, fetch paginado COMPLETO y POST.
+//   mudanzaInventario.ts       → clasificación y render de la columna Origen.
+//   mudanzaMapaDestino.ts      → MINIMAPAS INTERACTIVOS del Destino (vista).
+//   mudanzaMapaDestinoRender.ts→ render puro del plano (siluetas + zonas).
+//   mudanzaFiltros.ts          → definición y markup de las barras de checkboxes.
 // =============================================================================
 
 import { getEstokActivoId } from '../services/auth';
@@ -32,7 +33,13 @@ import {
   htmlVacio,
   htmlZonaTransito,
 } from './mudanzaInventario';
-import { contarDestino, htmlPlanoDestino } from './mudanzaDestino';
+import {
+  contarDestino,
+  htmlMapaDestino,
+  pintarRutaDestino,
+  reiniciarVistaDestino,
+  resolverClickMapaDestino,
+} from './mudanzaMapaDestino';
 import {
   FILTROS_DESTINO,
   FILTROS_ORIGEN,
@@ -54,6 +61,8 @@ export interface NodosMudanza {
   filtrosOrigen: HTMLElement;
   /** Cabezal donde se inyecta la barra de filtros del Destino. */
   filtrosDestino: HTMLElement;
+  /** Host del componente global MinimapaRuta.astro (migaja del mapa destino). */
+  rutaDestino: HTMLElement;
 }
 
 /** Devuelve una copia del set con `valor` agregado o quitado según `activo`. */
@@ -68,6 +77,8 @@ export class MudanzaBoard {
   private estoks: EstokInfo[] = [];
   private origenId: string | null = null;
   private destinoId: string | null = null;
+  /** Estok destino del último render del mapa (detecta el cambio de destino). */
+  private destinoVisto: string | null = null;
   private contenedoresOrigen: ContenedorDto[] = [];
   private objetosOrigen: ObjetoDto[] = [];
   private ubicacionesDestino: UbicacionDto[] = [];
@@ -90,6 +101,19 @@ export class MudanzaBoard {
       estaMudando: () => this.mudando,
       alSoltar: (item, zona) => void this.mover(item, zona),
     });
+    // Navegación del mapa del destino: se registra UNA sola vez y en FASE DE
+    // CAPTURA para resolver la navegación ANTES que la suelta por toque del
+    // motor de arrastre (el DOM del panel se reemplaza en cada repintado).
+    ui.mapaDestino.addEventListener(
+      'click',
+      (e) =>
+        resolverClickMapaDestino(e, {
+          haySeleccion: () => this.dnd.haySeleccion(),
+          limpiarSeleccion: () => this.dnd.limpiarSeleccion(),
+          repintar: () => this.render(),
+        }),
+      true,
+    );
   }
 
   /** Inicializa selectores, filtros y carga el inventario móvil + el plano destino. */
@@ -247,6 +271,13 @@ export class MudanzaBoard {
 
   private async recargarTodo(): Promise<void> {
     if (!this.origenId || !this.destinoId) return;
+    // El mapa del destino arranca SIEMPRE en el plano general cuando cambia el
+    // Estok destino (carga inicial, cambio de selector o intercambio), pero se
+    // conserva el nivel abierto en los refrescos posteriores a una mudanza.
+    if (this.destinoVisto !== this.destinoId) {
+      reiniciarVistaDestino();
+      this.destinoVisto = this.destinoId;
+    }
     // Transición de carga limpia (Tailwind) en ambos paneles.
     this.ui.mapaOrigen.innerHTML = htmlCargando('Cargando inventario móvil…');
     this.ui.mapaDestino.innerHTML = htmlCargando('Cargando plano del destino…');
@@ -290,7 +321,12 @@ export class MudanzaBoard {
       : htmlInventarioMovil(this.contenedoresOrigen, this.objetosOrigen, this.filtrosOrigen);
     this.ui.mapaDestino.innerHTML = this.errorDestino
       ? htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino)
-      : htmlPlanoDestino(this.ubicacionesDestino, this.contenedoresDestino, this.filtrosDestino);
+      : htmlMapaDestino(this.ubicacionesDestino, this.contenedoresDestino, this.filtrosDestino);
+    pintarRutaDestino(
+      this.ui.rutaDestino,
+      this.estoks.find((e) => e.id === this.destinoId)?.nombre || 'Estok destino',
+      this.ubicacionesDestino,
+    );
     this.renderBarras();
     this.enlazarDnD();
   }

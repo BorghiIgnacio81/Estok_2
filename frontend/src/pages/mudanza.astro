@@ -5,20 +5,30 @@
 // gap ampliado desde sm) — nunca se apila en vertical:
 //   - Columna IZQUIERDA: Estok Origen → índice de inventario móvil arrastrable
 //     (cajas tipo='CAJA', muebles móviles y objetos individuales sueltos).
-//   - Columna DERECHA : Estok Destino → zona estática «En Tránsito» (limbo sin
-//     ubicación física) + plano de habitaciones (zonas de suelta).
+//   - Columna DERECHA : Estok Destino → MINIMAPAS INTERACTIVOS del plano real
+//     (siluetas proporcionales de habitaciones, muebles y estantes con su
+//     geometría ui_* persistida) + zona estática «En Tránsito» (limbo sin
+//     ubicación física). Cada silueta es una zona de suelta: el ítem se arrastra
+//     desde el Origen y se suelta ENCIMA del ambiente o del mueble.
 // Cada columna tiene ALTURA FIJA (h-[calc(100vh-190px)]) y su propio scroll
 // independiente (overflow-y-auto en el panel), tanto en móvil como en desktop.
-// La lógica vive en src/lib/mudanzaBoard.ts (orquestación de DnD + toque) y en
-// src/lib/mudanzaInventario.ts (clasificación + render), para mantener la
-// página liviana.
+// La lógica vive en src/lib/mudanzaBoard.ts (orquestación de DnD + toque),
+// src/lib/mudanzaInventario.ts (columna Origen) y src/lib/mudanzaMapaDestino.ts
+// + mudanzaMapaDestinoRender.ts (mapa de minimapas del Destino), para mantener
+// la página liviana.
 // =============================================================================
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
+// Componente GLOBAL de minimapas: host de la migaja de procedencia del Estok
+// destino. mudanzaBoard.ts lo rellena en caliente con el MISMO motor
+// (lib/minimapasAnidados.ts) que Almacenamiento y Objetos.
+import MinimapaRuta from '../components/MinimapaRuta.astro';
 import '../styles/mudanza.css';
+// Estilos del mapa de minimapas del Destino (siluetas + chips de navegación).
+import '../styles/mudanza-mapa.css';
 ---
 
 <AuthGuard />
@@ -106,12 +116,17 @@ import '../styles/mudanza.css';
             <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500"></span>
             <h2 class="truncate text-[13px] font-semibold text-gray-900 sm:text-lg">Estok Destino</h2>
           </div>
-          <p class="mb-2 hidden text-xs text-gray-400 sm:block">Habitaciones receptoras del arrastre</p>
+          <p class="mb-2 hidden text-xs text-gray-400 sm:block">
+            Plano real del Estok: soltá sobre la silueta de la habitación o del mueble
+          </p>
           <label for="mudanzaDestinoSel" class="sr-only">Estok de destino</label>
           <select id="mudanzaDestinoSel"
             class="w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px] outline-none transition-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:px-3 sm:py-2 sm:text-sm"></select>
           <!-- Filtros reactivos del DESTINO: escala de la suelta (gruesa/fina) -->
           <div id="mudanzaFiltrosDestino" class="mt-1.5"></div>
+          <!-- MINIMAPAS INTERACTIVOS: migaja de procedencia (componente global).
+               El tablero lo rellena en caliente en cada repintado del mapa. -->
+          <MinimapaRuta id="mudanzaDestinoRuta" class="mt-1.5" />
         </div>
 
         <!-- ZONA ESTÁTICA «EN TRÁNSITO»: receptora de sueltas SIN ubicación
@@ -133,12 +148,14 @@ import '../styles/mudanza.css';
       <span class="font-semibold text-gray-700">Cómo funciona:</span>
       el índice del <b>Origen</b> lista inventario móvil (cajas tipo CAJA, muebles móviles e ítems
       sueltos —incluso los que no tienen ubicación—); los muebles inmuebles fijos no se mudan.
-      Arrastrá una tarjeta (en móvil: tocá la tarjeta y luego el destino) y soltala sobre la habitación
-      del <b>Destino</b>: el backend re-ancla el elemento y su contenido completo al Estok destino en
-      una sola transacción. Si la soltás en <b>«En Tránsito»</b>, viaja igual al Estok destino pero
-      SIN ubicación física: queda en el limbo del nuevo inquilinato para ubicarlo luego desde
-      Almacenamiento. Usá las barras de <b>filtros</b> para acotar qué querés mudar (objetos sueltos,
-      muebles, cajas) y a qué escala querés soltarlo (habitación completa, un mueble o un estante).
+      Arrastrá una tarjeta (en móvil: tocá la tarjeta y luego el destino) y soltala sobre la
+      <b>silueta</b> de la habitación del <b>Destino</b> en el plano de minimapas: el backend re-ancla
+      el elemento y su contenido completo al Estok destino en una sola transacción. Entrá a un
+      ambiente desde los chips «Abrir un ambiente» para ver el plano interior y soltar dentro de un
+      <b>mueble o estante</b> concreto. Si la soltás en <b>«En Tránsito»</b>, viaja igual al Estok
+      destino pero SIN ubicación física: queda en el limbo del nuevo inquilinato para ubicarlo luego
+      desde Almacenamiento. Usá las barras de <b>filtros</b> para acotar qué querés mudar (objetos
+      sueltos, muebles, cajas) y a qué escala querés soltarlo (habitación completa, un mueble o un estante).
     </div>
   </div>
 
@@ -158,6 +175,7 @@ import '../styles/mudanza.css';
     const transito = document.getElementById('mudanzaTransito')!;
     const filtrosOrigen = document.getElementById('mudanzaFiltrosOrigen')!;
     const filtrosDestino = document.getElementById('mudanzaFiltrosDestino')!;
+    const rutaDestino = document.getElementById('mudanzaDestinoRuta')!;
     const paginaMudanza = document.getElementById('mudanzaPage')!;
     const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
 
@@ -219,6 +237,7 @@ import '../styles/mudanza.css';
           transito,
           filtrosOrigen,
           filtrosDestino,
+          rutaDestino,
         });
         await board.init(user.estoks);
       } catch (err: any) {

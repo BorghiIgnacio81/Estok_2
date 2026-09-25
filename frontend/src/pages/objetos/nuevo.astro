@@ -242,6 +242,9 @@ import '../../styles/almacenamiento-portales.css';
   // ===========================================================================
   const cameraInput = $id<HTMLInputElement>('cameraInput')!;
   const galleryInput = $id<HTMLInputElement>('galleryInput')!;
+  // Botón nativo de MÓVIL («Subir foto del objeto»): mismo flujo que cámara y
+  // galería. Puede no existir si el componente no está montado.
+  const mobileFotoInput = $id<HTMLInputElement>('mobileFotoInput');
   const photoPreview = $id<HTMLElement>('photoPreview')!;
   const photoPlaceholder = $id<HTMLElement>('photoPlaceholder')!;
   const photoImage = $id<HTMLImageElement>('photoImage')!;
@@ -526,6 +529,15 @@ import '../../styles/almacenamiento-portales.css';
     const file = inputTarget(e)?.files?.[0];
     if (file) handleFileSelected(file);
     e.target.value = '';
+  });
+
+  // MÓVIL: el botón nativo «Subir foto del objeto» alimenta el MISMO flujo de
+  // compresión + galería multi-foto (handleFileSelected), sin lógica duplicada.
+  mobileFotoInput?.addEventListener('change', (e) => {
+    const input = inputTarget(e);
+    const file = input?.files?.[0];
+    if (file) handleFileSelected(file);
+    if (input) input.value = '';
   });
 
   photoPreview.addEventListener('click', () => {
@@ -1529,9 +1541,10 @@ import '../../styles/almacenamiento-portales.css';
       stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       (videoCamara as any).srcObject = null;
     }
-    // Limpiar los inputs file de cámara/galería
+    // Limpiar los inputs file de cámara/galería (incluido el botón móvil)
     cameraInput.value = '';
     galleryInput.value = '';
+    if (mobileFotoInput) mobileFotoInput.value = '';
 
     // 4) Vaciar inputs de texto y desmarcar selectores/checkboxes del formulario
     const formulario = $id<HTMLFormElement>('objetoForm');

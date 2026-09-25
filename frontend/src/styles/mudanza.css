@@ -6,6 +6,7 @@
    El layout de dos columnas, la ALTURA FIJA de cada columna, los paddings, las
    tarjetas y los placeholders se resuelven con utilidades Tailwind
    (mudanza.astro + lib/mudanzaInventario.ts).
+   Los estilos del MAPA DE MINIMAPAS del Destino viven en mudanza-mapa.css.
    ============================================================================= */
 
 /* --- Paneles con SCROLL INDEPENDIENTE (una columna cada uno) ---

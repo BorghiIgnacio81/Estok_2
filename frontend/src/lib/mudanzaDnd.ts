@@ -127,6 +127,17 @@ export class MudanzaDndTactil {
     this.marcarDestinos(false);
   }
 
+  /**
+   * ¿Hay una tarjeta elegida por TOQUE esperando destino?
+   *
+   * Lo consulta el tablero en la FASE DE CAPTURA del clic sobre el mapa del
+   * destino: con selección, tocar una silueta es una SUELTA (la resuelve este
+   * motor); sin selección, tocar la silueta NAVEGA dentro de la habitación.
+   */
+  haySeleccion(): boolean {
+    return this.seleccion !== null;
+  }
+
   /** Resalta las zonas receptoras mientras hay un elemento seleccionado. */
   private marcarDestinos(activa: boolean): void {
     this.opciones.mapaDestino.classList.toggle('mudanza-con-seleccion', activa);

@@ -28,6 +28,11 @@ export interface UbicacionDto {
   objetos_count?: number;
   contenedores_count?: number;
   sububicaciones_count?: number;
+  /** Geometría real persistida (% del lienzo): silueta proporcional del plano. */
+  ui_left?: string | null;
+  ui_top?: string | null;
+  ui_width?: string | null;
+  ui_height?: string | null;
 }
 
 export interface ContenedorDto {
@@ -41,6 +46,11 @@ export interface ContenedorDto {
   objetos_count?: number;
   subcontenedores_count?: number;
   foto?: string | null;
+  /** Geometría real persistida (% del lienzo del ambiente que lo contiene). */
+  ui_left?: string | null;
+  ui_top?: string | null;
+  ui_width?: string | null;
+  ui_height?: string | null;
 }
 
 export interface ObjetoDto {

@@ -54,7 +54,7 @@ const IMG_FALLBACK: Record<ClaseElemento, string> = {
 };
 
 // =============================================================================
-// CLASIFICACIÓN ESPACIAL (compartida con mudanzaDestino.ts)
+// CLASIFICACIÓN ESPACIAL (compartida con mudanzaMapaDestinoRender.ts)
 // =============================================================================
 
 /**

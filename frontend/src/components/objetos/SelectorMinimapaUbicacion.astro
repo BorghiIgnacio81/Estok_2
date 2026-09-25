@@ -18,6 +18,12 @@
 // (único punto compartido por Almacenamiento y Objetos). No duplicar reglas acá.
 // =============================================================================
 
+// COMPONENTE GLOBAL de minimapas (barra analítica de siluetas proporcionales con
+// el sector activo en naranja). Se inyecta como HOST de la migaja de
+// procedencia: el selector lo rellena en caliente con el MISMO motor
+// (lib/minimapasAnidados.ts) en cada cambio de nivel, sin markup duplicado.
+import MinimapaRuta from '../MinimapaRuta.astro';
+
 interface Props {
   ubicacionSeleccionada?: string;
   contenedorSeleccionado?: string;
@@ -28,7 +34,7 @@ const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
 
 <div class="space-y-3">
   <!-- Barra de minimapas anidados: migaja de procedencia (nodo activo naranja) -->
-  <div id="minimapaNiveles" class="minimapa-ruta-host" aria-label="Ruta de almacenamiento"></div>
+  <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-host" />
 
   <!-- Lienzo interactivo: siluetas elásticas clicables del nivel actual -->
   <div

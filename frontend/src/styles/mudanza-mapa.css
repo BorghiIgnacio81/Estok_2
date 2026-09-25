@@ -1,0 +1,282 @@
+/* =============================================================================
+   MAPA DE MINIMAPAS INTERACTIVOS DEL ESTOK DESTINO (mudanza.astro)
+   -----------------------------------------------------------------------------
+   Se importa únicamente en la página de Mudanza. Cada silueta recibe su
+   posición/tamaño REAL en % por estilo inline desde
+   lib/mudanzaMapaDestinoRender.ts (geometría ui_* de PostgreSQL) y hereda el
+   feedback de suelta del bloque «.mudanza-drop-zone» de mudanza.css. Acá viven
+   la física táctil del lienzo y la estética de las siluetas y de los chips de
+   navegación (planta, abrir ambientes, guardar dentro de un mueble).
+   ============================================================================= */
+
+.mudanza-mapa {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mudanza-mapa-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mudanza-mapa-titulo {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+.mudanza-mapa-volver {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.mudanza-mapa-volver:hover {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.mudanza-mapa-aviso {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px dashed #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* --- Lienzo: perímetro continuo del plano ----------------------------------
+   `touch-action: pan-y` deja el gesto vertical al panel con scroll: el mapa
+   nunca captura el desplazamiento táctil de la columna. */
+.mudanza-mapa-lienzo {
+  position: relative;
+  width: 100%;
+  min-height: 190px;
+  border: 2px solid #d1d5db;
+  border-radius: 14px;
+  overflow: hidden;
+  touch-action: pan-y;
+  background:
+    repeating-linear-gradient(0deg, rgba(107, 114, 128, 0.06) 0 1px, transparent 1px 24px),
+    linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+}
+
+/* --- Silueta de un espacio (habitación, mueble o estante) ------------------ */
+.mudanza-sector {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px;
+  overflow: hidden;
+  border: 2px solid;
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mudanza-sector-ico {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mudanza-sector-nombre {
+  max-width: 100%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mudanza-sector-meta {
+  max-width: 100%;
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mudanza-sector-hab {
+  border-color: #a7f3d0;
+  background: rgba(209, 250, 229, 0.6);
+  color: #065f46;
+}
+
+.mudanza-sector-mueble {
+  border-color: #bae6fd;
+  background: rgba(224, 242, 254, 0.65);
+  color: #075985;
+}
+
+.mudanza-sector-espacio {
+  border-color: #ddd6fe;
+  background: rgba(237, 233, 254, 0.65);
+  color: #5b21b6;
+}
+
+/* Silueta sin zona de suelta (filtro apagado): sólo contexto visual. */
+.mudanza-sector-bloqueado {
+  border-style: dashed;
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Resalte de suelta sobre una silueta (mismo verde que el resto del Destino). */
+.mudanza-sector.mudanza-drop-hover {
+  border-style: solid;
+  border-color: #059669;
+  background: #a7f3d0;
+  color: #064e3b;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.25);
+}
+
+/* --- Suelta gruesa dentro del nivel fino (habitación completa) ------------- */
+.mudanza-suelta-gruesa {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 2px dashed #a7f3d0;
+  border-radius: 10px;
+  background: rgba(209, 250, 229, 0.45);
+  color: #065f46;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* --- Chips de navegación y de suelta fina --------------------------------- */
+.mudanza-mapa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.mudanza-mapa-chips-titulo {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.mudanza-mapa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.mudanza-mapa-chip:hover {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.mudanza-mapa-chip-texto {
+  max-width: 92px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mudanza-mapa-chip-conteo {
+  font-size: 9px;
+  font-weight: 700;
+  color: #9ca3af;
+}
+
+.mudanza-mapa-chip-activo {
+  border-color: #f97316;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+/* Chip de planta: silueta de la casita (mismo motor que Almacenamiento). */
+.mudanza-mapa-chip-planta {
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  padding: 4px 6px;
+}
+
+.mudanza-mapa-chip-casita {
+  display: block;
+  width: 38px;
+  line-height: 0;
+}
+
+.mudanza-mapa-chip-casita svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* La pista «soltar» dentro de un chip sólo ocupa lugar con una tarjeta
+   seleccionada (evita saltos de layout en reposo). */
+.mudanza-mapa-chip .mudanza-drop-hint {
+  display: none;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.mudanza-con-seleccion .mudanza-mapa-chip .mudanza-drop-hint {
+  display: inline;
+}
+
+@media (min-width: 640px) {
+  .mudanza-mapa-titulo {
+    font-size: 12.5px;
+  }
+
+  .mudanza-sector-nombre {
+    font-size: 11.5px;
+  }
+
+  .mudanza-sector-meta {
+    font-size: 10px;
+  }
+
+  .mudanza-mapa-chip {
+    font-size: 11.5px;
+  }
+
+  .mudanza-mapa-chip-texto {
+    max-width: 120px;
+  }
+}

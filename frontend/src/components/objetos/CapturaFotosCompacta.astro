@@ -12,10 +12,16 @@
 //
 // Multi-foto: `fotosThumbnails` sigue acumulando las capturas del objeto.
 // Los ids son los canónicos que ya consume el orquestador (nuevo.astro).
+//
+// MÓVIL: la zona de arrastre se oculta por completo (`hidden md:flex`, con el
+// visor limpio de la foto cuando ya hay captura) y en su lugar aparece el botón
+// nativo «Subir foto del objeto» (`#mobileFotoInput`, accept="image/*"), que
+// abre la cámara o la galería del teléfono. nuevo.astro enlaza ese input al
+// MISMO handleFileSelected() de la cámara y la galería: cero lógica duplicada.
 // =============================================================================
 ---
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4" data-captura-fotos>
   <h2 class="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
     <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -26,10 +32,11 @@
   </h2>
 
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
-    <!-- ZONA DE DRAG & DROP (compacta y simétrica) -->
+    <!-- ZONA DE ARRASTRE (compacta y simétrica). MÓVIL: se oculta por completo
+         (`hidden md:flex`); vuelve como VISOR limpio de la foto capturada. -->
     <div
       id="photoPreview"
-      class="relative w-full h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer transition-base hover:border-blue-400 hover:bg-blue-50/40"
+      class="relative hidden w-full h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 overflow-hidden md:flex md:items-center md:justify-center md:cursor-pointer transition-base md:hover:border-blue-400 md:hover:bg-blue-50/40"
       title="Arrastrá una imagen acá o hacé clic para tomar una foto"
     >
       <div id="photoPlaceholder" class="text-center text-gray-400 px-3 pointer-events-none">
@@ -44,6 +51,17 @@
 
     <!-- ACCIONES EN GRILLA SIMÉTRICA 2×2 -->
     <div class="grid grid-cols-2 gap-2 content-start">
+      <!-- MÓVIL: botón nativo y limpio que abre la cámara o la galería del
+           teléfono (accept="image/*"). Reemplaza al rectángulo de arrastre,
+           que en móvil no existe. -->
+      <label class="md:hidden col-span-2 flex items-center justify-center gap-2 px-3 h-12 bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Subir foto del objeto
+        <input id="mobileFotoInput" type="file" accept="image/*" class="hidden" />
+      </label>
+
       <label class="flex items-center justify-center gap-1.5 px-2 h-11 bg-blue-700 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -95,3 +113,30 @@
     aria-label="Fotos capturadas del objeto"
   ></div>
 </div>
+
+<style is:global>
+  /* ===========================================================================
+     MÓVIL: el rectángulo de ARRASTRE no existe (el contenedor se declara
+     `hidden md:flex`). Cuando hay una foto capturada, el MISMO bloque reaparece
+     como VISOR limpio de la imagen (sin borde punteado ni pistas de arrastre),
+     de modo que el operador ve siempre lo que cargó. El alta de fotos en móvil
+     la hace el botón nativo «Subir foto del objeto».
+     =========================================================================== */
+  @media (max-width: 767px) {
+    [data-captura-fotos] #photoPreview {
+      display: none;
+      border: 0;
+      background: transparent;
+    }
+
+    [data-captura-fotos] #photoPreview:has(#photoImage:not(.hidden)) {
+      display: block;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+    }
+
+    [data-captura-fotos] #photoPlaceholder {
+      display: none;
+    }
+  }
+</style>
