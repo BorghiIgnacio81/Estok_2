@@ -631,23 +631,16 @@ class AIVisionService:
 
     def procesar_imagen_desde_base64_con_motor(self, image_base64: str, motor: str = 'gemini') -> VisionResult:
         """
-        Procesa una imagen desde una cadena Base64 usando el motor especificado.
+        Procesa una imagen desde una cadena Base64 usando el motor de visión.
 
         Args:
             image_base64: Imagen codificada en Base64.
-            motor: 'gemini' para Google Gemini 2.5 Flash-Lite.
-                   'local' retorna un mensaje de "próximamente".
+            motor: 'gemini' (único motor). Cualquier otro valor se resuelve
+                   igualmente con Gemini: no existe integración de IA local.
 
         Returns:
             VisionResult con los datos extraídos y campos pendientes.
         """
-        if motor == 'local':
-            logger.info("Motor 'local' (LM Studio) solicitado pero no disponible")
-            return self._vision_result_no_disponible(
-                "El motor de IA local (LM Studio) no está disponible en esta versión. "
-                "Estará disponible próximamente. Por ahora, usa el motor 'gemini'."
-            )
-
         # Buscar objetos similares ya catalogados (RAG) para mejorar precisión
         rag_context = self._buscar_objetos_similares()
         if rag_context:

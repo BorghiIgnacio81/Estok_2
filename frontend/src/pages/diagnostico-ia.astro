@@ -1,7 +1,7 @@
 ---
 // =============================================================================
 // PÁGINA DE DIAGNÓSTICO DE IA
-// Permite probar la conexión con LM Studio y ver la respuesta cruda
+// Permite probar la conexión con el motor de IA y ver la respuesta cruda
 // =============================================================================
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
@@ -21,7 +21,7 @@ import AuthGuard from '../components/AuthGuard.astro';
       </a>
       <h1 class="text-3xl font-bold text-gray-900">🔍 Diagnóstico de IA</h1>
       <p class="mt-1 text-gray-500">
-        Verificá la conexión con LM Studio y probá el análisis de imágenes.
+        Verificá la conexión con el motor de IA y probá el análisis de imágenes.
       </p>
     </div>
 
@@ -158,7 +158,7 @@ import AuthGuard from '../components/AuthGuard.astro';
 
     async function checkConnection() {
       statusDot.className = 'w-4 h-4 rounded-full bg-yellow-400 animate-pulse';
-      statusText.textContent = 'Verificando conexión con LM Studio...';
+      statusText.textContent = 'Verificando conexión con el motor de IA...';
       
       try {
         const token = getToken();

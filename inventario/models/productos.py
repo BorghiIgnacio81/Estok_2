@@ -222,6 +222,21 @@ class Objeto(models.Model):
     # =====================================================================
     # Trazabilidad y legado
     # =====================================================================
+    # Dueño original EXTERNO (no usuario de la plataforma): se guarda como
+    # metadata plana (texto) porque no existe una cuenta que lo represente.
+    # Si tiene valor y `beneficiario` queda vacío, el backend abre
+    # automáticamente una VOTACIÓN PENDIENTE en el módulo de Decisiones
+    # (ver services/decisiones_service.py).
+    dueno_externo_nombre = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Dueño original externo (sin cuenta)",
+        help_text=(
+            "Nombre plano de un dueño que NO es usuario de la plataforma. "
+            "Convive con la FK dueno_original: alcanza uno de los dos para "
+            "que el objeto tenga dueño."
+        )
+    )
     dueno_original = models.ForeignKey(
         'inventario.CustomUser',
         on_delete=models.SET_NULL,

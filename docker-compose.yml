@@ -54,11 +54,6 @@ services:
       # El valor NUNCA vive en el repositorio (ver settings.py).
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
 
-      # IA
-      - AI_API_ENDPOINT=${AI_API_ENDPOINT:-http://192.168.0.101:1234/v1}
-      - AI_API_TIMEOUT=${AI_API_TIMEOUT:-180}
-      - AI_HIGH_RES_TIMEOUT=${AI_HIGH_RES_TIMEOUT:-240}
-
       # Media
       - MEDIA_URL=/media/
       - MEDIA_ROOT=/app/media

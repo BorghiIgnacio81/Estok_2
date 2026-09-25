@@ -21,6 +21,9 @@ from .chat import MensajeSerializer, MensajeCreateSerializer
 from .categorias import CategoriaSerializer
 from .mapa_estok import MapaEstokSerializer, CeldaMapaSerializer
 from .mudanza import MudanzaSerializer
+from .decisiones import (
+    DecisionVotacionSerializer, VotoDecisionSerializer, VotoCreateSerializer,
+)
 from .super_admin import (
     SuperAdminUserSerializer,
     SuperAdminUserCreateSerializer,
@@ -39,6 +42,7 @@ __all__ = [
     'MensajeSerializer', 'MensajeCreateSerializer',
     'CategoriaSerializer',
     'MapaEstokSerializer', 'CeldaMapaSerializer',
+    'DecisionVotacionSerializer', 'VotoDecisionSerializer', 'VotoCreateSerializer',
     'SuperAdminUserSerializer', 'SuperAdminUserCreateSerializer',
     'SuperAdminEstokSerializer',
 ]

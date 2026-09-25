@@ -1,0 +1,57 @@
+---
+// =============================================================================
+// SELECTOR DE UBICACIÓN POR MINIMAPAS INTERACTIVOS (Nuevo Objeto)
+// -----------------------------------------------------------------------------
+// ÚNICA cara Astro de la navegación espacial del alta de objetos: reemplaza a la
+// vieja nav en árbol estilo carpetas. El usuario recorre el Estok con SILUETAS
+// ELÁSTICAS proporcionales (planta → habitación → mueble → caja) y el sector
+// elegido se resalta en NARANJA (#f97316).
+//
+// NO dibuja: delega 100% en el motor global lib/minimapa.ts a través de
+// src/lib/selectorMinimapaNuevoObjeto.ts (el MISMO motor que usan Almacenamiento
+// y Objetos), y en la barra de migajas lib/minimapasAnidados.ts.
+//
+// Los inputs ocultos conservan los nombres canónicos (`ubicacion` y
+// `contenedor`): el POST multipart a /api/objetos/ no cambia en absoluto.
+//
+// Estilos: las clases `.mini-anidado-*` viven en styles/almacenamiento-portales.css
+// (único punto compartido por Almacenamiento y Objetos). No duplicar reglas acá.
+// =============================================================================
+
+interface Props {
+  ubicacionSeleccionada?: string;
+  contenedorSeleccionado?: string;
+}
+
+const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
+---
+
+<div class="space-y-3">
+  <!-- Barra de minimapas anidados: migaja de procedencia (nodo activo naranja) -->
+  <div id="minimapaNiveles" class="minimapa-ruta-host" aria-label="Ruta de almacenamiento"></div>
+
+  <!-- Lienzo interactivo: siluetas elásticas clicables del nivel actual -->
+  <div
+    id="minimapaLienzo"
+    class="bg-gray-50 border border-gray-200 rounded-xl p-3 min-h-[150px]"
+    role="group"
+    aria-label="Navegación visual de la ubicación del objeto"
+  ></div>
+
+  <!-- Texto vivo de la selección que viajará al backend -->
+  <p id="minimapaRutaTexto" class="text-xs text-gray-500 text-center"></p>
+
+  <!-- Inputs ocultos canónicos: viajan idénticos a Django (sin cambios de API) -->
+  <input type="hidden" name="ubicacion" id="ubicacionSeleccionada" value={ubicacionSeleccionada} />
+  <input type="hidden" name="contenedor" id="contenedorSeleccionado" value={contenedorSeleccionado} />
+</div>
+
+<script>
+  import { iniciarSelectorMinimapaUbicacion } from '../../lib/selectorMinimapaNuevoObjeto';
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => iniciarSelectorMinimapaUbicacion());
+  } else {
+    iniciarSelectorMinimapaUbicacion();
+  }
+</script>

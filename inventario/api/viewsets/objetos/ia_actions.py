@@ -33,7 +33,7 @@ class IAActionsMixin:
     # =========================================================================
     @action(detail=True, methods=['post'])
     def analizar_con_ia(self, request, pk=None):
-        """Analiza un objeto usando IA local (LM Studio)."""
+        """Analiza un objeto con el motor de visión en la NUBE (Gemini)."""
         objeto = self.get_object()
         foto_principal = objeto.fotos.filter(es_principal=True).first()
         if not foto_principal:
@@ -150,8 +150,8 @@ class IAActionsMixin:
     @action(detail=False, methods=['post'])
     def analizar_imagen(self, request):
         """
-        Analiza una imagen recibida en Base64 usando IA.
-        Soporta motores: 'local' (LM Studio) y 'gemini' (Google Gemini 2.5 Flash-Lite).
+        Analiza una imagen recibida en Base64 usando IA (Gemini, motor único
+        de visión; el failover automático vive en AIVisionService).
         Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
         Si se envía `crear_objeto: true`, también crea el objeto en BD.
         """
@@ -178,14 +178,10 @@ class IAActionsMixin:
         if isinstance(es_segunda_foto, str):
             es_segunda_foto = es_segunda_foto.lower() == 'true'
 
-        # El motor por defecto es 'gemini' (capa gratuita de Google). La
-        # segunda foto (parte trasera para ISBN) SIEMPRE usa Gemini.
-        motor = 'gemini' if es_segunda_foto else request.data.get('motor', 'gemini')
-        if motor not in ('local', 'gemini'):
-            return Response(
-                {"error": "El motor debe ser 'local' o 'gemini'"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # El motor de análisis es SIEMPRE 'gemini' (capa gratuita de Google):
+        # no existe motor local. La segunda foto (parte trasera para ISBN)
+        # también usa Gemini.
+        motor = 'gemini'
 
         solo_analisis = request.data.get('solo_analisis', True)
         if isinstance(solo_analisis, str):
@@ -329,36 +325,20 @@ class IAActionsMixin:
     @action(detail=False, methods=['get'])
     def test_ia_stress(self, request):
         """
-        Endpoint de test de estrés para el servicio de IA.
-        Soporta parámetro ?motor=local|gemini para verificar disponibilidad
-        del motor seleccionado.
+        Endpoint de health-check del servicio de IA (motor 'gemini').
+
+        Se conserva la firma original con `?motor=` por compatibilidad de los
+        clientes ya desplegados, pero el ÚNICO motor válido es 'gemini': no
+        existe integración de IA local.
         """
-        motor = request.query_params.get('motor', 'local')
-        if motor not in ('local', 'gemini'):
+        motor = (request.query_params.get('motor') or 'gemini').strip().lower()
+        if motor != 'gemini':
             return Response(
-                {"error": "El motor debe ser 'local' o 'gemini'"},
+                {"error": "El único motor disponible es 'gemini'"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        start = time.time()
-
-        if motor == 'gemini':
-            return self._check_gemini_health(start)
-        else:
-            return self._check_lmstudio_health(start)
-
-    def _check_lmstudio_health(self, start):
-        """Verifica disponibilidad de LM Studio (postergado)."""
-        latency = int((time.time() - start) * 1000)
-        return Response({
-            "status": "no_disponible",
-            "latency_ms": latency,
-            "model": None,
-            "message": (
-                "El motor de IA local (LM Studio) no está disponible en esta versión. "
-                "Estará disponible próximamente. Usa el motor 'gemini' mientras tanto."
-            ),
-        })
+        return self._check_gemini_health(time.time())
 
     def _check_gemini_health(self, start):
         """Verifica disponibilidad de Gemini (API key configurada)."""

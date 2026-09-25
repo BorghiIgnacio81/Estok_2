@@ -107,6 +107,9 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
             if oculto:
                 return oculto
             return str(obj.dueno_original)
+        # Dueño EXTERNO (no usuario de la plataforma): metadata plana en texto.
+        if (obj.dueno_externo_nombre or '').strip():
+            return obj.dueno_externo_nombre.strip()
         return None
 
     def get_beneficiario_nombre(self, obj):
@@ -219,7 +222,7 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             'parent_grid_row', 'parent_grid_col',
             'categoria', 'es_contenedor', 'objeto_padre',
             'estado_conservacion', 'valor_estimado', 'color',
-            'dueno_original', 'beneficiario',
+            'dueno_original', 'dueno_externo_nombre', 'beneficiario',
             'autor', 'edicion', 'anio', 'isbn_issn',
             'nombre_serie', 'titulo_tomo', 'numero_tomo', 'editorial', 'idioma',
             'marca', 'modelo', 'numero_serie', 'peso', 'especificaciones',

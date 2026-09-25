@@ -157,7 +157,7 @@ Debe mostrar tanto `coolify` como `default` en la lista de redes.
 | `DB_PASSWORD` | (requerido) | Conexión a PostgreSQL |
 | `DJANGO_SECRET_KEY` | (requerido) | Firma de sesiones y tokens |
 | `JWT_SECRET` | (requerido) | Firma de tokens JWT |
-| `AI_API_ENDPOINT` | `http://192.168.0.101:1234/v1` | Conexión a LM Studio (IA local) |
+| `GEMINI_API_KEY` | (opcional) | Motor de visión en la nube (Gemini). Sin clave, la IA queda no disponible |
 
 ### Puertos internos (no expuestos al exterior)
 

@@ -1,9 +1,12 @@
 ---
 // =============================================================================
 // PÁGINA DE CARGA MANUAL DE OBJETO (Mobile-First)
-// Formulario de emergencia para carga manual completa con captura de foto
-// Incluye: Editor de imagen (rotar, recortar, brillo) + Botón "Autocompletar con IA"
-// Build: 2026-07-01 — Forzar rebuild de bundle Astro
+// Formulario de carga manual completa con captura de foto + editor de imagen.
+// El análisis con IA (botón "Autocompletar con IA") vive DENTRO de la sección
+// "Datos Básicos"; la ubicación se elige con MINIMAPAS INTERACTIVOS (siluetas
+// elásticas de plantas, habitaciones y muebles) y el dueño puede ser un usuario
+// del Estok o un DUEÑO EXTERNO registrado como texto plano.
+// Build: 2026-09-25 — Rediseño completo del alta de objetos
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -11,15 +14,13 @@ import ObjetoFormFields from '../../components/objetos/ObjetoFormFields.astro';
 import ObjetoFormActions from '../../components/objetos/ObjetoFormActions.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
 import ImageEditor from '../../components/ImageEditor.astro';
+// Estilos compartidos de los minimapas anidados (.mini-anidado-*): único punto
+// que ya cubre Almacenamiento y Objetos. No se duplican reglas en esta página.
+import '../../styles/almacenamiento-portales.css';
 
-// Nodos del selector jerárquico de ubicación/contenedor.
-// Se construyen en el cliente tras el fetch de ubicaciones y contenedores
-// y se sincronizan con el componente via CustomEvent 'estok:actualizarNodosArbol'.
-const nodosArbol: {
-  id: string;
-  nombre: string;
-  contenedores: { id: string; nombre: string }[];
-}[] = [];
+// La ubicación se resuelve en el cliente con el selector de minimapas
+// (src/lib/selectorMinimapaNuevoObjeto.ts), que escribe los inputs ocultos
+// `ubicacion` / `contenedor` del formulario. Ya NO hay árbol de carpetas.
 ---
 
 <AuthGuard />
@@ -54,11 +55,13 @@ const nodosArbol: {
     <form id="objetoForm" class="space-y-6">
       <!-- ================================================================ -->
       <!-- CAMPOS DEL FORMULARIO: componentes atomicos                  -->
-      <!-- ObjetoFormFields : foto, IA, datos basicos, categoria,       -->
-      <!--                    ubicacion, legado                         -->
-      <!-- ObjetoFormActions: boton submit + cancelar                   -->
+      <!-- CapturaFotosCompacta : drag & drop compacto + camara/galeria  -->
+      <!-- AutocompletarIA      : boton "Autocompletar con IA"           -->
+      <!-- SelectorMinimapa     : ubicacion por minimapas interactivos   -->
+      <!-- LegadoTrazabilidad   : dueno original (+ externo) / beneficiario -->
+      <!-- ObjetoFormActions    : boton submit + cancelar                -->
       <!-- ================================================================ -->
-      <ObjetoFormFields nodosArbol={nodosArbol} />
+      <ObjetoFormFields />
       <ObjetoFormActions />
     </form>
   </div>
@@ -127,6 +130,11 @@ const nodosArbol: {
   // ===========================================================================
   import {getAuthHeaders, getToken, getEstokActivoId, API_BASE_URL} from '../../services/auth';
   import {comprimirImagenBase64, base64ToBlob} from '../../services/image';
+  // Selector de ubicación por minimapas interactivos (motor global de la app).
+  import {
+    refrescarSelectorMinimapaUbicacion,
+    seleccionarEspacioMinimapa,
+  } from '../../lib/selectorMinimapaNuevoObjeto';
 
   // ===========================================================================
   // HELPERS DE TIPADO (eliminan ~240 errores TS de null/type)
@@ -136,19 +144,20 @@ const nodosArbol: {
     return document.getElementById(id) as T | null;
   }
 
-  /** Tipa querySelector con el tipo de elemento HTML específico */
-  function $qs<T extends HTMLElement>(selector: string): T | null {
-    return document.querySelector(selector) as T | null;
-  }
-
-  /** showToast tipado para window */
+  /**
+   * showToast: delega en el toast global expuesto por BaseLayout
+   * (window.showToast). Antes la función se llamaba a sí misma (recursión
+   * infinita), lo que rompía cualquier mensaje de error del formulario.
+   */
   function showToast(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    showToast(msg, type);
+    const fn = (window as any).showToast;
+    if (fn) fn(msg, type);
+    else alert(msg);
   }
 
-  /** Extrae mensaje de error de un catch */
+  /** Extrae el mensaje legible de un error capturado en un catch. */
   function getErrorMessage(err: unknown): string {
-    if (err instanceof Error) return getErrorMessage(err);
+    if (err instanceof Error) return err.message || 'Error desconocido';
     if (typeof err === 'string') return err;
     return 'Error desconocido';
   }
@@ -158,56 +167,36 @@ const nodosArbol: {
     return e.target as HTMLInputElement | null;
   }
 
-  /** Tipa e.target como HTMLFormElement en eventos submit */
-  function formTarget(e: Event): HTMLFormElement | null {
-    return e.target as HTMLFormElement | null;
-  }
-
   // ===========================================================================
   // CONSTANTES
   // ===========================================================================
   
 
   // ===========================================================================
-  // SELECTOR DE MOTOR IA (Gemini únicamente - Local próximamente)
-  // ===========================================================================
-  const motorLocalBtn = $id<HTMLButtonElement>('motorLocalBtn');
-  const motorGeminiBtn = $id<HTMLButtonElement>('motorGeminiBtn');
-  const motorSeleccionado = $id<HTMLInputElement>('motorSeleccionado');
-
-  let motorActual = 'gemini';
-  // IA Local deshabilitada - próximamente disponible
-  if (motorLocalBtn) {
-    motorLocalBtn.style.pointerEvents = 'none';
-  }
-
-  // ===========================================================================
-  // AI HEARTBEAT - Verificar disponibilidad del motor IA seleccionado
+  // IA EN LA NUBE (motor ÚNICO: Gemini). No existe motor local ni selector.
   // ===========================================================================
   const aiStatusBadge = $id<HTMLElement>('aiStatusBadge')!;
   const aiStatusDot = $id<HTMLElement>('aiStatusDot')!;
   const aiStatusText = $id<HTMLElement>('aiStatusText')!;
-  const iaSection = $id<HTMLElement>('iaSection')!;
   const analizarIaBtn = $id<HTMLButtonElement>('analizarIaBtn')!;
   const iaStatus = $id<HTMLElement>('iaStatus')!;
 
   let iaAvailable = false;
 
-  async function checkAIAvailability(motor?: string) {
-    const motorAUsar = motor || motorActual;
+  /** Health-check del motor de IA (Gemini) contra el backend. */
+  async function checkAIAvailability() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${API_BASE_URL}/objetos/test_ia_stress/?motor=${motorAUsar}`, {
+      const response = await fetch(`${API_BASE_URL}/objetos/test_ia_stress/?motor=gemini`, {
         method: 'GET',
         headers: getAuthHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-      console.log(`[IA] Heartbeat result for motor="${motorAUsar}":`, response.ok);
       return response.ok;
     } catch (err) {
-      console.warn(`[IA] Heartbeat error for motor="${motorAUsar}":`, err);
+      console.warn('[IA] Heartbeat error:', err);
       return false;
     }
   }
@@ -215,12 +204,10 @@ const nodosArbol: {
   async function updateAIStatus() {
     const connected = await checkAIAvailability();
     iaAvailable = connected;
-    console.log('[IA] updateAIStatus: motorActual =', motorActual, '| iaAvailable =', iaAvailable, '| imagenBase64.value =', imagenBase64 ? '(existe)' : 'null', imagenBase64?.value ? '(tiene foto)' : '(sin foto)');
     if (connected) {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-green-500';
-      aiStatusText.textContent = motorActual === 'gemini' ? '☁️ Gemini Conectado' : '🖥️ IA Local Conectada';
-      iaSection.classList.remove('hidden');
+      aiStatusText.textContent = '☁️ Gemini conectado';
       iaStatus.classList.add('hidden');
       if (imagenBase64 && imagenBase64.value) {
         analizarIaBtn.disabled = false;
@@ -228,41 +215,16 @@ const nodosArbol: {
     } else {
       aiStatusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500';
       aiStatusDot.className = 'w-2 h-2 rounded-full bg-gray-400';
-      if (motorActual === 'gemini') {
-        aiStatusText.textContent = '☁️ Gemini no disponible';
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.textContent = '💡 Gemini no está disponible. Verificá que la API key esté configurada en el servidor.';
-      } else {
-        aiStatusText.textContent = '🖥️ IA Local no disponible';
-        iaStatus.className = 'mt-3 text-sm text-amber-600';
-        iaStatus.textContent = '💡 La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
-      }
-      iaSection.classList.remove('hidden');
+      aiStatusText.textContent = '☁️ Gemini no disponible';
+      iaStatus.className = 'mt-2 text-xs text-amber-600';
+      iaStatus.textContent = '💡 El motor de IA no está disponible. Verificá que la API key esté configurada en el servidor.';
       analizarIaBtn.disabled = true;
       iaStatus.classList.remove('hidden');
     }
   }
 
-  // Re-evaluar disponibilidad cuando el usuario cambia de motor
-  function seleccionarMotor(motor: string) {
-    motorActual = motor;
-    motorSeleccionado.value = motor;
-    if (motor === 'local') {
-      motorLocalBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-purple-700 bg-purple-50 text-purple-800';
-      motorGeminiBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-gray-200 bg-white text-gray-600 hover:border-gray-300';
-    } else {
-      motorGeminiBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-blue-500 bg-blue-50 text-blue-800';
-      motorLocalBtn.className = 'flex-1 px-3 py-2.5 text-sm font-medium rounded-lg border-2 transition-all text-left border-gray-200 bg-white text-gray-600 hover:border-gray-300';
-    }
-    // Re-evaluar disponibilidad para el motor recién seleccionado
-    updateAIStatus();
-  }
-
-  motorLocalBtn?.addEventListener('click', () => seleccionarMotor('local'));
-  motorGeminiBtn?.addEventListener('click', () => seleccionarMotor('gemini'));
-
   updateAIStatus();
-  // Polling: verificar cada 30s si hay conexión, cada 120s si no
+  // Polling: verificar cada 30s si hay conexión, cada 120s si no.
   setInterval(async () => {
     if (!iaAvailable) {
       const connected = await checkAIAvailability();
@@ -576,6 +538,46 @@ const nodosArbol: {
   });
 
   // ===========================================================================
+  // DRAG & DROP DE FOTOS sobre la zona compacta (#photoPreview)
+  // Reutiliza handleFileSelected(): mismas reglas de compresión, galería
+  // multi-foto y persistencia que la cámara y la galería (sin lógica duplicada).
+  // ===========================================================================
+  const dropZone = photoPreview;
+  const resaltarDrop = (activo: boolean) => {
+    dropZone.classList.toggle('border-blue-500', activo);
+    dropZone.classList.toggle('bg-blue-50', activo);
+  };
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    resaltarDrop(true);
+  });
+  dropZone.addEventListener('dragleave', () => resaltarDrop(false));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    resaltarDrop(false);
+
+    const archivos = Array.from(e.dataTransfer?.files || []).filter((archivo) =>
+      archivo.type.startsWith('image/'),
+    );
+    if (!archivos.length) {
+      showToast('❌ Soltá un archivo de imagen (JPG, PNG o WEBP).', 'error');
+      return;
+    }
+
+    // Se procesa UNA imagen por drop para respetar el flujo del editor y de la
+    // galería multi-foto; el resto se avisa para usar «Otra foto».
+    const [primera, ...restantes] = archivos;
+    handleFileSelected(primera);
+    if (restantes.length) {
+      showToast(
+        `🖼️ Se agregó 1 foto. Usá «Otra foto» para las ${restantes.length} restantes.`,
+        'info',
+      );
+    }
+  });
+
+  // ===========================================================================
   // EDITOR DE IMAGEN
   // ===========================================================================
   async function openEditor() {
@@ -729,14 +731,13 @@ const nodosArbol: {
   });
 
   // ===========================================================================
-  // CARGAR DATOS INICIALES (Ubicaciones, Contenedores, Usuarios)
+  // CARGAR DATOS INICIALES (Ubicaciones / Usuarios / Categorías)
   // ===========================================================================
-  // Nodos del selector jerárquico: ubicaciones padre + contenedores agrupados
-  let nodosArbol: {
-    id: string;
-    nombre: string;
-    contenedores: { id: string; nombre: string }[];
-  }[] = [];
+  // Lista plana de ubicaciones del Estok: alimenta el select del modal de alta
+  // rápida de contenedores. La navegación visual del almacenamiento la resuelve
+  // el selector de minimapas (src/lib/selectorMinimapaNuevoObjeto.ts), que hace
+  // sus propios fetch contra los mismos endpoints.
+  let ubicacionesPlano: { id: string; nombre: string }[] = [];
 
   async function cargarUbicaciones() {
     try {
@@ -746,51 +747,14 @@ const nodosArbol: {
       if (response.ok) {
         const data = await response.json();
         const ubicaciones = data.results || data;
-        // Cada ubicación es un nodo padre; sus contenedores se agrupan dentro
-        nodosArbol = (ubicaciones || []).map((u: any) => ({
+        ubicacionesPlano = (ubicaciones || []).map((u: any) => ({
           id: String(u.id),
           nombre: u.nombre,
-          contenedores: [],
         }));
       }
     } catch (err) {
       console.error('Error cargando ubicaciones:', err);
     }
-  }
-
-  async function cargarContenedores() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/contenedores/`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const contenedores = data.results || data;
-        (contenedores || []).forEach((c: any) => {
-          const padre = nodosArbol.find((n) => n.id === String(c.ubicacion));
-          if (padre) {
-            padre.contenedores.push({ id: String(c.id), nombre: c.nombre });
-          } else {
-            // Contenedor sin ubicación asignada: agrupar en un nodo especial
-            let nodoGlobal = nodosArbol.find((n) => n.id === '');
-            if (!nodoGlobal) {
-              nodoGlobal = { id: '', nombre: '📦 Sin ubicación', contenedores: [] };
-              nodosArbol.unshift(nodoGlobal);
-            }
-            nodoGlobal.contenedores.push({ id: String(c.id), nombre: c.nombre });
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Error cargando contenedores:', err);
-    }
-  }
-
-  /** Notifica al SelectorArbolEspacios para reconstruir el árbol en el cliente */
-  function actualizarArbolNodos() {
-    window.dispatchEvent(new CustomEvent('estok:actualizarNodosArbol', {
-      detail: { nodos: nodosArbol },
-    }));
   }
 
   async function cargarUsuarios() {
@@ -816,6 +780,10 @@ const nodosArbol: {
       }
     } catch (err) {
       console.error('Error cargando usuarios:', err);
+    } finally {
+      // El widget de Legado recalcula su aviso de votación cuando el padrón
+      // del Estok ya está cargado en los comboboxes.
+      window.dispatchEvent(new CustomEvent('estok:usuariosCargados'));
     }
   }
 
@@ -846,10 +814,9 @@ const nodosArbol: {
     }
   }
 
-  // Cargar ubicaciones primero, luego agrupar contenedores y notificar al árbol jerárquico
-  cargarUbicaciones()
-    .then(() => cargarContenedores())
-    .finally(() => actualizarArbolNodos());
+  // Cargar espacios del Estok (para el modal de contenedores), usuarios y
+  // categorías. El selector de minimapas se autoinicializa con el componente.
+  cargarUbicaciones();
   cargarUsuarios();
   cargarCategorias();
 
@@ -861,18 +828,17 @@ const nodosArbol: {
   // ===========================================================================
   // CREACIÓN RÁPIDA DE UBICACIONES Y CONTENEDORES (In-place, sin recargar)
   // Modales que POSTean a /api/ubicaciones/ y /api/contenedores/ usando
-  // getAuthHeaders() (Authorization JWT + X-Estok-Id multi-tenant) y actualizan
-  // en vivo el selector jerárquico vía 'estok:actualizarNodosArbol'.
+  // getAuthHeaders() (Authorization JWT + X-Estok-Id multi-tenant) y refrescan
+  // en vivo el SELECTOR DE MINIMAPAS (refrescarYSeleccionar → lib/selectorMinimapaNuevoObjeto).
   // NO se usa window.location.reload() para no perder la foto analizada por IA
   // ni los textos ya escritos en el formulario.
   // ===========================================================================
 
-  /** Notificación vía toast global expuesto por BaseLayout (window.showToast). */
-  function notify(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    const fn = (window as any).showToast;
-    if (fn) fn(msg, type);
-    else alert(msg);
-  }
+  /**
+   * Notificación vía toast global (window.showToast de BaseLayout).
+   * Alias de showToast(): una sola implementación para toda la página.
+   */
+  const notify = showToast;
 
   /** Convierte el payload de error del backend en un mensaje legible. */
   async function leerErrorApi(res: Response, fallback: string): Promise<string> {
@@ -888,36 +854,18 @@ const nodosArbol: {
     }
   }
 
-  /** Re-renderiza el árbol y selecciona el nodo recién creado. */
-  function refrescarYSeleccionar(tipo: 'ubicacion' | 'contenedor', id: string, ubicacionPadreId?: string) {
-    window.dispatchEvent(new CustomEvent('estok:actualizarNodosArbol', {
-      detail: { nodos: nodosArbol },
-    }));
+  /**
+   * Recarga los espacios del Estok y deja SELECCIONADO el espacio recién creado
+   * en el selector de minimapas (alta rápida in-place desde los modales).
+   */
+  async function refrescarYSeleccionar(tipo: 'ubicacion' | 'contenedor', id: string) {
+    await refrescarSelectorMinimapaUbicacion();
+    if (seleccionarEspacioMinimapa(tipo, id)) return;
+
+    // El listado puede llegar con un frame de retraso: se reintenta una vez.
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => seleccionarNodoArbol(tipo, id, ubicacionPadreId));
+      void refrescarSelectorMinimapaUbicacion().then(() => seleccionarEspacioMinimapa(tipo, id));
     });
-  }
-
-  /** Hace click en el nodo del árbol para disparar la selección del componente. */
-  function seleccionarNodoArbol(tipo: 'ubicacion' | 'contenedor', id: string, ubicacionPadreId?: string) {
-    const selector = tipo === 'ubicacion'
-      ? `#arbolEspacios .nodo-opcion[data-tipo="ubicacion"][data-id="${id}"]`
-      : `#arbolEspacios .nodo-opcion[data-tipo="contenedor"][data-id="${id}"]`;
-    const btn = document.querySelector<HTMLButtonElement>(selector);
-    if (!btn) return;
-
-    // Expandir el grupo de contenedores del padre para que el nodo quede visible
-    if (tipo === 'contenedor' && ubicacionPadreId) {
-      const listaHijos = document.getElementById(`hijos-${ubicacionPadreId}`);
-      const toggle = document.querySelector<HTMLButtonElement>(
-        `#arbolEspacios .btn-toggle[data-target="hijos-${ubicacionPadreId}"]`
-      );
-      if (listaHijos && listaHijos.classList.contains('hidden') && toggle) {
-        toggle.click();
-      }
-    }
-
-    btn.click();
   }
 
   /** Elimina un modal del DOM por id. */
@@ -1004,8 +952,9 @@ const nodosArbol: {
         }
         const data = await response.json();
         const nuevoId = String(data.id);
-        // Actualizar el árbol en memoria y notificar al selector sin recargar
-        nodosArbol.push({ id: nuevoId, nombre: data.nombre, contenedores: [] });
+        // Actualizar la lista en memoria y seleccionar el espacio nuevo en el
+        // selector de minimapas (sin recargar la página ni perder la foto).
+        ubicacionesPlano.push({ id: nuevoId, nombre: data.nombre });
         refrescarYSeleccionar('ubicacion', nuevoId);
         notify(`📁 Ubicación "${data.nombre}" creada y seleccionada`, 'success');
         cerrarModal(modalId);
@@ -1025,11 +974,10 @@ const nodosArbol: {
     const modalId = 'modalNuevoContenedor';
     if (document.getElementById(modalId)) return;
 
-    // Ubicación padre: la seleccionada en el árbol o un select con todas.
-    const ubicacionInput = document.getElementById('arbolUbicacionId') as HTMLInputElement | null;
+    // Ubicación padre: la seleccionada en el selector de minimapas o un select con todas.
+    const ubicacionInput = document.getElementById('ubicacionSeleccionada') as HTMLInputElement | null;
     const ubicacionActual = ubicacionInput?.value || '';
-    const opcionesUbicaciones = nodosArbol
-      .filter((n) => n.id !== '')
+    const opcionesUbicaciones = ubicacionesPlano
       .map((n) => `<option value="${n.id}"${n.id === ubicacionActual ? ' selected' : ''}>📁 ${n.nombre}</option>`)
       .join('');
     const sinUbicaciones = opcionesUbicaciones === '';
@@ -1120,13 +1068,9 @@ const nodosArbol: {
         }
         const data = await response.json();
         const nuevoId = String(data.id);
-        const padreId = String(data.ubicacion || ubicacionId);
-        // Insertar el contenedor dentro de su ubicación en el árbol en memoria
-        const nodoPadre = nodosArbol.find((n) => n.id === padreId);
-        if (nodoPadre) {
-          nodoPadre.contenedores.push({ id: nuevoId, nombre: data.nombre });
-        }
-        refrescarYSeleccionar('contenedor', nuevoId, padreId);
+        // El contenedor nuevo se refleja al recargar el selector de minimapas:
+        // refrescarYSeleccionar() pide los espacios y lo deja seleccionado.
+        refrescarYSeleccionar('contenedor', nuevoId);
         notify(`📦 Contenedor "${data.nombre}" creado y seleccionado`, 'success');
         cerrarModal(modalId);
       } catch (err) {
@@ -1186,10 +1130,7 @@ const nodosArbol: {
 
       // Validar que la IA esté disponible (por si el botón se habilitó incorrectamente)
       if (!iaAvailable) {
-        const msg = motorActual === 'gemini'
-          ? '❌ Gemini no está disponible. Verificá que la API key esté configurada en el servidor.'
-          : '❌ La IA local (LM Studio) no está disponible. Verificá que LM Studio esté corriendo.';
-        showToast(msg, 'error');
+        showToast('❌ El motor de IA no está disponible. Verificá que la API key esté configurada en el servidor.', 'error');
         return;
       }
 
@@ -1199,7 +1140,7 @@ const nodosArbol: {
       iaBtnSpinner.classList.remove('hidden');
       iaProgressContainer.classList.remove('hidden');
       iaProgressText.textContent = '🤖 Analizando imagen con IA...';
-      iaProgressSubtext.textContent = motorActual === 'gemini' ? '☁️ Procesando en Google Gemini (nube)' : '🖥️ Procesando en LM Studio (local)';
+      iaProgressSubtext.textContent = '☁️ Procesando en Google Gemini (nube)';
       iaStatus.classList.add('hidden');
 
       // AbortController con timeout de 250s (mayor que Gunicorn 240s y Nginx 200s)
@@ -1229,7 +1170,7 @@ const nodosArbol: {
         body: JSON.stringify({
           imagen_base64: base64Image,
           solo_analisis: true,
-          motor: motorActual,
+          motor: 'gemini',
         }),
         signal: controller.signal,
       });
@@ -1704,6 +1645,8 @@ const nodosArbol: {
       agregarSi('ubicacion', formOriginal.get('ubicacion'));
       agregarSi('contenedor', formOriginal.get('contenedor'));
       agregarSi('dueno_original', formOriginal.get('dueno_original'));
+      // Dueño EXTERNO (no usuario de la plataforma): string plano de metadata.
+      agregarSi('dueno_externo_nombre', formOriginal.get('dueno_externo_nombre'));
       agregarSi('beneficiario', formOriginal.get('beneficiario'));
 
       // Adjuntar TODAS las fotos acumuladas bajo la clave 'fotos' (multi-foto).

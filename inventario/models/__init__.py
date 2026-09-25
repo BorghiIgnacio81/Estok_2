@@ -14,6 +14,7 @@ from .multimedia import FotoObjeto
 from .notificaciones import AlertaStock
 from .integraciones import MercadoLibreToken
 from .chat import Mensaje
+from .decisiones import DecisionVotacion, VotoDecision
 
 __all__ = [
     'Role',
@@ -31,4 +32,6 @@ __all__ = [
     'AlertaStock',
     'MercadoLibreToken',
     'Mensaje',
+    'DecisionVotacion',
+    'VotoDecision',
 ]

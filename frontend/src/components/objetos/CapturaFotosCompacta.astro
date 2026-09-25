@@ -1,0 +1,97 @@
+---
+// =============================================================================
+// CAPTURA DE FOTOS COMPACTA (Drag & Drop + Cámara + Galería)
+// -----------------------------------------------------------------------------
+// Área SIMÉTRICA y compacta (h-32) que reemplaza a la vieja zona gigante: la
+// mitad izquierda es la ZONA DE ARRASTRE (drag & drop de archivos o clic para
+// tomar foto) y la derecha son los botones de acción en una grilla 2×2 pareja.
+//
+// Drag & drop: la lectura de archivos (compresión + galería multi-foto +
+// sessionStorage) vive en la página (nuevo.astro), que escucha los eventos
+// 'dragover'/'drop' sobre este mismo host. Acá NO se duplica esa lógica.
+//
+// Multi-foto: `fotosThumbnails` sigue acumulando las capturas del objeto.
+// Los ids son los canónicos que ya consume el orquestador (nuevo.astro).
+// =============================================================================
+---
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+  <h2 class="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2">
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+    Fotos del Objeto
+    <span class="text-xs text-gray-400 font-normal">(arrastrá o tocá para editar)</span>
+  </h2>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch">
+    <!-- ZONA DE DRAG & DROP (compacta y simétrica) -->
+    <div
+      id="photoPreview"
+      class="relative w-full h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer transition-base hover:border-blue-400 hover:bg-blue-50/40"
+      title="Arrastrá una imagen acá o hacé clic para tomar una foto"
+    >
+      <div id="photoPlaceholder" class="text-center text-gray-400 px-3 pointer-events-none">
+        <svg class="w-8 h-8 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p class="text-xs font-medium">Arrastrá una foto acá</p>
+        <p class="text-[10px]">o tocá para capturarla</p>
+      </div>
+      <img id="photoImage" class="hidden w-full h-full object-cover" alt="Preview" />
+    </div>
+
+    <!-- ACCIONES EN GRILLA SIMÉTRICA 2×2 -->
+    <div class="grid grid-cols-2 gap-2 content-start">
+      <label class="flex items-center justify-center gap-1.5 px-2 h-11 bg-blue-700 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+        </svg>
+        Cámara
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+      </label>
+
+      <label class="flex items-center justify-center gap-1.5 px-2 h-11 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        Galería
+        <input id="galleryInput" type="file" accept="image/*" class="hidden" />
+      </label>
+
+      <button type="button" id="tomarOtraFotoBtn"
+        class="flex items-center justify-center gap-1.5 px-2 h-11 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-base cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Otra foto
+      </button>
+
+      <button type="button" id="editPhotoBtn"
+        class="hidden flex items-center justify-center gap-1.5 px-2 h-11 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+        Editar
+      </button>
+
+      <button type="button" id="clearPhotoBtn"
+        class="hidden col-span-2 flex items-center justify-center gap-1.5 px-2 h-9 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition-base cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        Quitar foto actual
+      </button>
+
+      <input type="hidden" name="imagen_base64" id="imagenBase64" />
+    </div>
+  </div>
+
+  <!-- Galería de miniaturas: fotos acumuladas del objeto actual (multi-foto) -->
+  <div
+    id="fotosThumbnails"
+    class="hidden gap-2 overflow-x-auto pt-3 mt-1"
+    aria-label="Fotos capturadas del objeto"
+  ></div>
+</div>

@@ -1,0 +1,31 @@
+---
+// =============================================================================
+// PANEL DE VOTACIONES PENDIENTES (pestaña "Decisiones")
+// -----------------------------------------------------------------------------
+// Muestra las votaciones que el backend abre AUTOMÁTICAMENTE cuando un objeto
+// queda con Dueño original y sin Beneficiario, y permite votar en ellas
+// (democracia 1-usuario-1-voto dentro del Estok activo).
+//
+// Toda la lógica vive en src/lib/votacionesDecisiones.ts (render + endpoints);
+// este componente es solo el host y el arranque.
+// =============================================================================
+---
+
+<section class="mb-6">
+  <div class="flex items-center gap-2 mb-3">
+    <h2 class="text-lg font-semibold text-gray-900">🗳️ Votaciones pendientes del Estok</h2>
+    <span id="votacionesCount"
+      class="hidden px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 text-xs font-bold">0</span>
+  </div>
+  <div id="votacionesPendientes" class="space-y-3"></div>
+</section>
+
+<script>
+  import { iniciarVotacionesPendientes } from '../lib/votacionesDecisiones';
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => iniciarVotacionesPendientes());
+  } else {
+    iniciarVotacionesPendientes();
+  }
+</script>

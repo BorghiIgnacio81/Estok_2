@@ -9,6 +9,7 @@ import AuthGuard from '../../components/AuthGuard.astro';
 import LoadingState from '../../components/LoadingState.astro';
 import ErrorState from '../../components/ErrorState.astro';
 import EmptyState from '../../components/EmptyState.astro';
+import VotacionesPendientes from '../../components/VotacionesPendientes.astro';
 
 export const prerender = false;
 ---
@@ -36,6 +37,14 @@ export const prerender = false;
 
     <LoadingState mensaje="Cargando decisiones..." />
     <ErrorState mensaje="Error al cargar decisiones." />
+
+    <!-- ============================================================== -->
+    <!-- VOTACIONES PENDIENTES DEL ESTOK                                -->
+    <!-- Se abren solas cuando un objeto tiene Dueño original sin       -->
+    <!-- Beneficiario: todo el Estok vota el destino del objeto.        -->
+    <!-- ============================================================== -->
+    <VotacionesPendientes />
+
     <EmptyState
       titulo="No hay decisiones tomadas"
       descripcion="Acá aparecerán los objetos cuando el dueño original decida si vender, conservar o tirar cada objeto."

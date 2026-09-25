@@ -16,6 +16,7 @@ from .viewsets import (
     FotoObjetoViewSet,
     HistorialPrecioViewSet,
     AlertaStockViewSet,
+    DecisionVotacionViewSet,
     EstokViewSet,
     CodigoInvitacionViewSet,
     CambiarEstokActivoView,
@@ -47,6 +48,7 @@ router.register(r'objetos', ObjetoViewSet, basename='objeto')
 router.register(r'fotos', FotoObjetoViewSet, basename='foto')
 router.register(r'historial-precios', HistorialPrecioViewSet, basename='historialprecio')
 router.register(r'alertas-stock', AlertaStockViewSet, basename='alertastock')
+router.register(r'decisiones', DecisionVotacionViewSet, basename='decision')
 router.register(r'estoks', EstokViewSet, basename='estok')
 router.register(r'codigos-invitacion', CodigoInvitacionViewSet, basename='codigo-invitacion')
 router.register(r'cambiar-estok-activo', CambiarEstokActivoView, basename='cambiar-estok-activo')
@@ -68,8 +70,8 @@ router.register(r'admin/estoks', SuperAdminEstokViewSet, basename='admin-estok')
 # =============================================================================
 urlpatterns = [
     path('', include(router.urls)),
-    # Catálogo simulado de modelos de IA (evita 404 de /api/ai/models/
-    # cuando el servicio local LM Studio no está activo)
+    # Catálogo simulado de modelos de IA (evita 404 de /api/ai/models/ cuando
+    # no hay motor de visión configurado en el servidor)
     path('ai/models/', AiModelsView.as_view(), name='ai-models'),
     # Mudanza Inter-Estok (transferencia hermética de contenedores/objetos)
     path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),

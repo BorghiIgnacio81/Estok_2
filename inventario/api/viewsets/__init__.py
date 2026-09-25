@@ -9,6 +9,7 @@ from .organizacion import UbicacionViewSet, ContenedorViewSet
 from .objetos import ObjetoViewSet
 from .multimedia import FotoObjetoViewSet
 from .historial import HistorialPrecioViewSet, AlertaStockViewSet
+from .decisiones import DecisionVotacionViewSet
 from .estok import EstokViewSet, CodigoInvitacionViewSet, CambiarEstokActivoView
 from .chat import MensajeViewSet
 from .version import VersionViewSet
@@ -32,6 +33,7 @@ __all__ = [
     'FotoObjetoViewSet',
     'HistorialPrecioViewSet',
     'AlertaStockViewSet',
+    'DecisionVotacionViewSet',
     'EstokViewSet',
     'CodigoInvitacionViewSet',
     'CambiarEstokActivoView',

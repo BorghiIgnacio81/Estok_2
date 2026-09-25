@@ -227,17 +227,8 @@ MEDIA_ROOT = os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media'))
 SITE_URL = os.environ.get('SITE_URL', 'https://eeestok.duckdns.org')
 
 # =============================================================================
-# IA HÍBRIDA - Configuración para LM Studio (RX 9060 XT local)
-# =============================================================================
-AI_API_ENDPOINT = os.environ.get(
-    'AI_API_ENDPOINT',
-    'http://localhost:1234/v1'
-)
-AI_API_TIMEOUT = int(os.environ.get('AI_API_TIMEOUT', '180'))
-AI_HIGH_RES_TIMEOUT = int(os.environ.get('AI_HIGH_RES_TIMEOUT', '240'))
-
-# =============================================================================
 # IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER)
+# El análisis de imágenes es 100% en la NUBE (no hay motor local).
 # Motor primario : Gemini (GEMINI_API_KEY) aprovechando su capa gratuita.
 # Motor de respaldo: cliente OpenAI-compatible (OpenRouter, DeepSeek u otro
 # proveedor con /v1/chat/completions + soporte de imágenes). Se activa de forma

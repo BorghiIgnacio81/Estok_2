@@ -576,9 +576,9 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
   // ===========================================================================
   // AI HEARTBEAT (PROTEGIDO)
   // ---------------------------------------------------------------------------
-  // El navegador NO puede (ni debe) hablar directo con LM Studio: ese servidor
-  // corre en localhost del backend (http://localhost:1234/v1) y un fetch desde
-  // el cliente en producción dispara net::ERR_CONNECTION_REFUSED en bucle.
+  // El navegador NO debe hablar directo con el motor de IA: la llamada sale
+  // SIEMPRE por el backend (endpoint /objetos/test_ia_stress/) para no exponer
+  // credenciales en el cliente ni disparar errores de conexión en bucle.
   //
   // El chequeo se deriva EXCLUSIVAMENTE de la variable de entorno PUBLIC_API_URL
   // (la misma que alimenta API_BASE_URL). Si NO está definida explícitamente en

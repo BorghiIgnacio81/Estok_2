@@ -63,6 +63,12 @@ class HasRolePermission(permissions.BasePermission):
             'update': 'can_edit',
             'partial_update': 'can_edit',
             'destroy': 'can_delete',
+            # Módulo de Decisiones: votar y ver las votaciones pendientes del
+            # Estok es un derecho de LECTURA de cualquier miembro (democracia
+            # 1-usuario-1-voto). El cierre manual exige capacidad de edición.
+            'votar': 'can_read',
+            'pendientes': 'can_read',
+            'cerrar': 'can_edit',
             # Motor de fusión de espacios en "L": es una edición estructural
             # (une dos Ubicaciones bajo un mismo fusion_grupo), por eso exige
             # capacidad de edición y no el can_read por defecto.
