@@ -236,3 +236,43 @@ export function seleccionarEspacioMinimapa(
   return true;
 }
 
+// =============================================================================
+// SELECCIÓN INICIAL DESDE EL BACKEND (formulario de EDICIÓN de objeto)
+// =============================================================================
+
+/** Escribe un valor crudo en un input oculto del selector (red de seguridad). */
+function escribirInput(id: string, valor: string): void {
+  const input = el(id) as HTMLInputElement | null;
+  if (input) input.value = valor;
+}
+
+/**
+ * Fija el estado inicial activo del mapa con la ubicación YA persistida del
+ * objeto (`ubicacion` + `contenedor`, cuyo `parent_contenedor` reconstruye la
+ * cadena habitación → mueble → caja y deja el sector en NARANJA #f97316).
+ *
+ * La usa el formulario de edición: los datos del objeto llegan por fetch (no se
+ * conocen en el render del servidor), así que la selección se aplica después de
+ * cargar los espacios reales del Estok.
+ */
+export async function fijarSeleccionMinimapa(
+  ubicacionId?: string | null,
+  contenedorId?: string | null,
+): Promise<void> {
+  await cargarDatos();
+
+  const ubicacionOk = ubicacionId
+    ? seleccionarEspacioMinimapa('ubicacion', String(ubicacionId))
+    : false;
+  const contenedorOk = contenedorId
+    ? seleccionarEspacioMinimapa('contenedor', String(contenedorId))
+    : false;
+
+  // Red de seguridad: si el espacio persistido ya no es navegable en el mapa,
+  // los IDs que devolvió el backend igual viajan en el payload del formulario.
+  if (ubicacionId && !ubicacionOk) escribirInput(IDS.inputUbicacion, String(ubicacionId));
+  if (contenedorId && !contenedorOk) escribirInput(IDS.inputContenedor, String(contenedorId));
+
+  render();
+}
+

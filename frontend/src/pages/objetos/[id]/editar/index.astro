@@ -3,12 +3,21 @@
 // PÁGINA DE EDICIÓN DE OBJETO (Mobile-First)
 // Formulario unificado: el único selector de clasificación es "Categoría"
 // (las 11 categorías oficiales de Mercado Libre vía /api/categorias/).
-// Build: 2026-07-01 — Forzar rebuild de bundle Astro
+// La ubicación se elige con MINIMAPAS INTERACTIVOS (siluetas elásticas de
+// plantas, habitaciones y muebles): MISMO componente global que el alta de
+// objeto, src/components/objetos/SelectorMinimapaUbicacion.astro, que a su vez
+// inyecta el componente global MinimapaRuta.astro. Ya NO hay cascadas rígidas
+// de selects Ubicación → Contenedor.
+// Build: 2026-09-27 — Ubicación por minimapas interactivos (sin árbol de texto)
 // =============================================================================
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
 import ImageEditor from '../../../../components/ImageEditor.astro';
+import SelectorMinimapaUbicacion from '../../../../components/objetos/SelectorMinimapaUbicacion.astro';
+// Estilos compartidos de los minimapas anidados (.mini-anidado-*): único punto
+// que ya cubre Almacenamiento y Objetos. No se duplican reglas en esta página.
+import '../../../../styles/almacenamiento-portales.css';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -146,33 +155,21 @@ export const prerender = false;
       </div>
 
       <!-- ================================================================ -->
-      <!-- SECCIÓN: UBICACIÓN Y CONTENEDOR -->
+      <!-- SECCIÓN: UBICACIÓN DE ALMACENAMIENTO (MINIMAPAS INTERACTIVOS)     -->
+      <!-- El usuario navega las siluetas elásticas del Estok (planta →      -->
+      <!-- habitación → mueble → caja) y el sector activo se pinta en        -->
+      <!-- NARANJA (#f97316). Los inputs ocultos `ubicacion` / `contenedor`  -->
+      <!-- del componente viajan en el PUT sin cambios de API.               -->
       <!-- ================================================================ -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Ubicación
-        </h2>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label for="ubicacion" class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
-            <select id="ubicacion" name="ubicacion"
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
-              <option value="">Sin ubicación</option>
-            </select>
-          </div>
-          <div>
-            <label for="contenedor" class="block text-sm font-medium text-gray-700 mb-1">Contenedor</label>
-            <select id="contenedor" name="contenedor"
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base bg-white">
-              <option value="">Sin contenedor</option>
-            </select>
-          </div>
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Ubicación de Almacenamiento</h2>
+          <p class="text-xs text-gray-500 mt-1">
+            Navegá las siluetas del Estok: planta → habitación → mueble → caja. El sector en
+            naranja es donde queda guardado el objeto.
+          </p>
         </div>
+        <SelectorMinimapaUbicacion />
       </div>
 
       <!-- ================================================================ -->
@@ -295,6 +292,10 @@ export const prerender = false;
 
   import { getAuthHeaders, getToken, API_BASE_URL } from '../../../../services/auth';
   import { comprimirImagenBase64 } from '../../../../services/image';
+  // Selector de ubicación por minimapas interactivos (motor global de la app):
+  // fija el estado inicial desde la ubicación persistida del objeto y escribe
+  // los inputs ocultos `ubicacion` / `contenedor` que viajan en el PUT.
+  import { fijarSeleccionMinimapa } from '../../../../lib/selectorMinimapaNuevoObjeto';
   // Interpretación del campo `fuente` del precio de referencia (ML MLA vs IA):
   // módulo compartido, la página NO compara literales de fuente a mano.
   import { esFuenteMercadoLibre, mensajeSinPrecio } from '../../../../lib/precioReferencia';
@@ -337,9 +338,11 @@ export const prerender = false;
         });
       }
 
-      // === Cargar ubicaciones y contenedores, luego seleccionar valores ===
-      await cargarUbicaciones(obj.ubicacion);
-      await cargarContenedores(obj.ubicacion, obj.contenedor);
+      // === Ubicación inicial del mapa analítico (sector activo en NARANJA) ===
+      // El mapa reconstruye la cadena habitación → mueble → caja con el
+      // `parent_contenedor` persistido del contenedor del objeto y escribe la
+      // selección en los inputs ocultos `ubicacion` / `contenedor` del form.
+      await fijarSeleccionMinimapa(obj.ubicacion, obj.contenedor);
 
       // === Cargar usuarios y seleccionar dueño/beneficiario ===
       await cargarUsuarios(obj.dueno_original, obj.beneficiario);
@@ -372,50 +375,13 @@ export const prerender = false;
   }
 
   // ===========================================================================
-  // CARGA DE UBICACIONES, CONTENEDORES Y USUARIOS
+  // CARGA DE USUARIOS (legado: dueño original / beneficiario)
   // ===========================================================================
+  // La ubicación NO se carga por <select>: la resuelve el selector de minimapas
+  // (lib/selectorMinimapaNuevoObjeto.ts) al abrir la página.
 
-  const ubicacionSelect = document.getElementById('ubicacion') as HTMLSelectElement;
-  const contenedorSelect = document.getElementById('contenedor') as HTMLSelectElement;
   const duenoSelect = document.getElementById('dueno_original') as HTMLSelectElement;
   const beneficiarioSelect = document.getElementById('beneficiario') as HTMLSelectElement;
-
-  async function cargarUbicaciones(selectedId?: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/ubicaciones/`, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const ubicaciones = data.results || data;
-        ubicaciones.forEach((u: any) => {
-          const opt = document.createElement('option');
-          opt.value = u.id;
-          opt.textContent = u.nombre;
-          if (selectedId && u.id === selectedId) opt.selected = true;
-          ubicacionSelect.appendChild(opt);
-        });
-      }
-    } catch { /* ignore */ }
-  }
-
-  async function cargarContenedores(ubicacionId?: string, selectedId?: string) {
-    contenedorSelect.innerHTML = '<option value="">Sin contenedor</option>';
-    try {
-      let url = `${API_BASE_URL}/contenedores/`;
-      if (ubicacionId) url += `?ubicacion=${ubicacionId}`;
-      const res = await fetch(url, { headers: getAuthHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        const contenedores = data.results || data;
-        contenedores.forEach((c: any) => {
-          const opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = `${c.nombre} (${c.ubicacion_nombre || 'Sin ubicación'})`;
-          if (selectedId && c.id === selectedId) opt.selected = true;
-          contenedorSelect.appendChild(opt);
-        });
-      }
-    } catch { /* ignore */ }
-  }
 
   async function cargarUsuarios(duenoId?: string, beneficiarioId?: string) {
     try {
@@ -443,11 +409,6 @@ export const prerender = false;
       }
     } catch { /* ignore */ }
   }
-
-  // Cuando cambia la ubicación, recargar contenedores
-  ubicacionSelect?.addEventListener('change', () => {
-    cargarContenedores(ubicacionSelect.value);
-  });
 
   // ===========================================================================
   // CARGA DE CATEGORÍAS (11 oficiales de Mercado Libre)
