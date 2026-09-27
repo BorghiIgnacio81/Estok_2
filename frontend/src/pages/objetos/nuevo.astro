@@ -147,6 +147,9 @@ import '../../styles/almacenamiento-portales.css';
     establecerIaDisponible,
     esIaDisponible,
   } from '../../lib/botonAutocompletarIA';
+  // Interpretación del campo `fuente` del precio de referencia (ML MLA vs IA):
+  // módulo compartido, la página NO compara literales de fuente a mano.
+  import { esFuenteMercadoLibre, mensajeSinPrecio } from '../../lib/precioReferencia';
 
   // ===========================================================================
   // HELPERS DE TIPADO (eliminan ~240 errores TS de null/type)
@@ -689,7 +692,7 @@ import '../../styles/almacenamiento-portales.css';
         }
 
         // Mostrar tarjeta con el resultado
-        const esML = data.fuente === 'mercadolibre_scraping';
+        const esML = esFuenteMercadoLibre(data.fuente);
         const tieneLink = data.link && data.link.length > 0;
         precioReferencia.className = 'mt-2';
         precioReferencia.innerHTML = `
@@ -729,11 +732,13 @@ import '../../styles/almacenamiento-portales.css';
 
         showToast(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
       } else {
-        // No se encontró precio de referencia
+        // Error CONTROLADO del backend (sin_coincidencia / error_red): nunca se
+        // inyecta el precio de un producto que no coincide con la búsqueda.
+        const motivo = mensajeSinPrecio(data.fuente_error);
         precioReferencia.className = 'mt-2 text-xs text-amber-600';
-        precioReferencia.textContent = '💡 No se encontró precio de referencia para este objeto.';
+        precioReferencia.textContent = motivo;
         precioReferencia.classList.remove('hidden');
-        showToast('No se encontró precio de referencia.', 'info');
+        showToast(motivo, 'info');
       }
     } catch (err) {
       console.error('Error al buscar precio de referencia:', err);
