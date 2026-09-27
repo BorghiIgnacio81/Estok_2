@@ -188,11 +188,19 @@ export async function refrescarSelectorMinimapaUbicacion(): Promise<void> {
   render();
 }
 
-/** Selección vigente (diagnóstico y payload del formulario). */
+/**
+ * Selección vigente del mapa: los MISMOS valores que viajan en el formulario
+ * (los inputs ocultos `ubicacion` / `contenedor` que escribe cada click), con
+ * `null` explícito cuando el usuario quitó la ubicación. Así el payload puede
+ * desasignar el objeto (los FK del modelo son null=True) en vez de omitir el
+ * campo y dejar la ubicación vieja.
+ */
 export function obtenerSeleccionMinimapa(): { ubicacion: string | null; contenedor: string | null } {
+  const valor = (id: string): string | null =>
+    (el(id) as HTMLInputElement | null)?.value || null;
   return {
-    ubicacion: estado.habitacionId,
-    contenedor: estado.cajaId || estado.muebleId || null,
+    ubicacion: valor(IDS.inputUbicacion),
+    contenedor: valor(IDS.inputContenedor),
   };
 }
 

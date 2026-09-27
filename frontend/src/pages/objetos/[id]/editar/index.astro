@@ -293,9 +293,12 @@ export const prerender = false;
   import { getAuthHeaders, getToken, API_BASE_URL } from '../../../../services/auth';
   import { comprimirImagenBase64 } from '../../../../services/image';
   // Selector de ubicación por minimapas interactivos (motor global de la app):
-  // fija el estado inicial desde la ubicación persistida del objeto y escribe
-  // los inputs ocultos `ubicacion` / `contenedor` que viajan en el PUT.
-  import { fijarSeleccionMinimapa } from '../../../../lib/selectorMinimapaNuevoObjeto';
+  // fija el estado inicial desde la ubicación persistida del objeto y entrega la
+  // selección vigente que viaja en el PUT (`ubicacion` / `contenedor`).
+  import {
+    fijarSeleccionMinimapa,
+    obtenerSeleccionMinimapa,
+  } from '../../../../lib/selectorMinimapaNuevoObjeto';
   // Interpretación del campo `fuente` del precio de referencia (ML MLA vs IA):
   // módulo compartido, la página NO compara literales de fuente a mano.
   import { esFuenteMercadoLibre, mensajeSinPrecio } from '../../../../lib/precioReferencia';
@@ -610,6 +613,13 @@ export const prerender = false;
           payload[key] = value;
         }
       });
+
+      // Sincronía mapa → payload: la ubicación sale SIEMPRE del selector de
+      // minimapas. Con la selección vacía ("Quitar ubicación") viaja null
+      // explícito para desasignar el objeto; si no, los IDs que escribió el mapa.
+      const seleccionUbicacion = obtenerSeleccionMinimapa();
+      payload['ubicacion'] = seleccionUbicacion.ubicacion;
+      payload['contenedor'] = seleccionUbicacion.contenedor;
 
       // Enviar PUT a la API
       const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
