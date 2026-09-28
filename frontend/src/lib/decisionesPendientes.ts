@@ -1,5 +1,5 @@
 // =============================================================================
-// OBJETOS PENDIENTES DE DECISIÓN (pestaña "Decisiones" del Estok)
+// BLOQUE 1 · OBJETOS PENDIENTES DE DECISIÓN (pestaña "Decisiones" del Estok)
 // -----------------------------------------------------------------------------
 // Grilla simétrica con los objetos del Estok activo que TODAVÍA no tienen
 // decisión (`owner_action` nulo) y NO están en votación democrática: cada
@@ -7,11 +7,17 @@
 // motor que alimenta el componente global components/MinimapaRuta.astro) y la
 // botonera in-place 💰 Vender / 📦 Conservar / 🗑️ Tirar.
 //
+// El markup de la tarjeta NO se define acá: vive en lib/decisionesTarjeta.ts y
+// lo comparten todos los bloques de la pestaña.
+//
 // Cómo se fija la decisión en el backend:
-//   - `es_decision_propia` (el usuario es el dueño original o el beneficiario) →
-//     POST /api/objetos/{id}/owner_action/ {action}  (regla del dueño original)
-//   - cualquier otro miembro con permiso de edición →
-//     PUT  /api/objetos/{id}/ {owner_action}         (vía genérica del CRUD)
+//   - 💰 Vender / 📦 Conservar:
+//       · `es_decision_propia` (el usuario es el dueño original o el
+//         beneficiario) → POST /api/objetos/{id}/owner_action/ {action}
+//       · cualquier otro miembro con permiso de edición → PUT del objeto
+//   - 🗑️ Tirar: POST /api/objetos/{id}/ordenar_descarte/ (lib/descarteModales.ts),
+//     que abre el período de gracia obligatorio cuando el Estok tiene más de un
+//     usuario activo. El objeto pasa al Bloque 4 (lib/decisionesGrupos.ts).
 //
 // Datos: GET /api/objetos/pendientes_decision/ (DecisionesActionsMixin), que ya
 // excluye los objetos en votación: esos se resuelven votando en "Votaciones
@@ -20,33 +26,18 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
-import { cargarContextoRutaCaja, rutaMinimapasHtml } from './rutaCajaMinimapas';
+import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { abrirPublicarObjeto } from './publicarObjeto';
+import { tarjetaObjetoHtml } from './decisionesTarjeta';
+import type { ObjetoDecision } from './decisionesTarjeta';
+import { solicitarDescarte } from './descarteModales';
 
 // -----------------------------------------------------------------------------
 // Tipos
 // -----------------------------------------------------------------------------
 
-export interface ObjetoPendiente {
-  id: string;
-  nombre: string;
-  foto_principal: string | null;
-  estado_conservacion: string;
-  valor_estimado: string | null;
-  categoria_nombre: string | null;
-  plataformas_publicadas: string[];
-  dueno_original: string | null;
-  dueno_original_nombre: string | null;
-  dueno_externo_nombre: string | null;
-  beneficiario: string | null;
-  beneficiario_nombre: string | null;
-  /** True si el objeto espera la decisión de ESTE usuario (dueño/beneficiario). */
-  es_decision_propia: boolean;
-  ubicacion: string | null;
-  ubicacion_nombre: string | null;
-  contenedor: string | null;
-  contenedor_nombre: string | null;
-}
+/** Objeto pendiente de decisión (mismo payload del tablero de Decisiones). */
+export type ObjetoPendiente = ObjetoDecision;
 
 interface EstadoPendientes {
   objetos: ObjetoPendiente[];
@@ -56,39 +47,12 @@ interface EstadoPendientes {
 
 const estado: EstadoPendientes = { objetos: [], cargando: true, error: null };
 
-/** Foto de reemplazo cuando el objeto no tiene imágenes (asset público del proyecto). */
-const FOTO_PLACEHOLDER = '/fluffy_plush_ball.jpg';
-
-const ESTADO_COLORS: Record<string, string> = {
-  excelente: 'bg-green-100 text-green-700',
-  bueno: 'bg-blue-100 text-blue-700',
-  regular: 'bg-yellow-100 text-yellow-700',
-  malo: 'bg-orange-100 text-orange-700',
-  muy_malo: 'bg-red-100 text-red-700',
-};
-
 // -----------------------------------------------------------------------------
 // Helpers puros
 // -----------------------------------------------------------------------------
 
 function el<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
-}
-
-function escapar(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function formatUSD(val: string | null): string {
-  if (!val) return '—';
-  const num = parseFloat(val);
-  if (Number.isNaN(num)) return '—';
-  return `$${num.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
 }
 
 /** Paginación robusta reutilizando la normalización anti Mixed Content. */
@@ -179,52 +143,10 @@ function decididoHtml(obj: ObjetoPendiente, accion: string): string {
 }
 
 function tarjetaHtml(obj: ObjetoPendiente): string {
-  const foto = obj.foto_principal ? escapar(obj.foto_principal) : FOTO_PLACEHOLDER;
-  const estadoClase = ESTADO_COLORS[obj.estado_conservacion] || 'bg-gray-100 text-gray-700';
-  const ubicacion = [obj.ubicacion_nombre, obj.contenedor_nombre].filter(Boolean).join(' · ');
-  const publicadoML = obj.plataformas_publicadas.includes('mercadolibre');
-  const publicadoFB = obj.plataformas_publicadas.includes('facebook');
-  const dueno = obj.dueno_original_nombre || obj.dueno_externo_nombre
-    || obj.beneficiario_nombre;
-  // Ubicación actual: MISMO motor que el componente global MinimapaRuta.astro
-  // (plano proporcional real + sector activo en naranja).
-  const minimapa = obj.ubicacion
-    ? rutaMinimapasHtml({ ubicacion: obj.ubicacion, parent_contenedor: obj.contenedor })
-    : '<p class="text-xs text-gray-400">📍 Sin ubicación asignada</p>';
-
-  return `
-    <article data-objeto-card="${obj.id}"
-      class="decision-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-      <div class="relative">
-        <img src="${foto}" alt="" class="h-40 w-full object-cover bg-slate-100" loading="lazy" />
-        <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-semibold ${estadoClase}">
-          ${escapar(obj.estado_conservacion || 'sin estado')}
-        </span>
-        <span class="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/90 text-gray-800 text-[11px] font-bold shadow-sm">
-          ${formatUSD(obj.valor_estimado)}
-        </span>
-      </div>
-      <div class="p-3 flex flex-col gap-2 flex-1">
-        <div class="min-w-0">
-          <a href="/objetos/${obj.id}"
-            class="block font-semibold text-gray-900 hover:text-blue-700 hover:underline truncate"
-            title="${escapar(obj.nombre)}">${escapar(obj.nombre)}</a>
-          <p class="text-xs text-gray-500 truncate">
-            ${ubicacion ? `📍 ${escapar(ubicacion)}` : '📍 Sin ubicación'}
-            ${obj.categoria_nombre ? ` · 🏷️ ${escapar(obj.categoria_nombre)}` : ''}
-          </p>
-          ${dueno ? `<p class="text-[11px] text-gray-400 truncate">👤 ${escapar(dueno)}</p>` : ''}
-        </div>
-        <div class="decision-minimapa">${minimapa}</div>
-        ${(publicadoML || publicadoFB)
-          ? `<div class="flex gap-1">
-              ${publicadoML ? '<span class="px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-[10px] font-semibold">ML</span>' : ''}
-              ${publicadoFB ? '<span class="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">FB</span>' : ''}
-            </div>`
-          : ''}
-        ${botoneraHtml(obj)}
-      </div>
-    </article>`;
+  return tarjetaObjetoHtml(obj, {
+    acciones: botoneraHtml(obj),
+    atributos: 'data-bloque="pendientes"',
+  });
 }
 
 function actualizarContador(): void {
@@ -336,15 +258,30 @@ async function tirarTarjeta(obj: ObjetoPendiente): Promise<void> {
 
 async function decidir(obj: ObjetoPendiente, accion: string): Promise<void> {
   bloquearBotones(obj.id, true);
+
+  // 🗑️ Tirar: no se fija como las otras decisiones. Si el Estok tiene más de un
+  // usuario activo se abre el selector OBLIGATORIO de tiempo de gracia
+  // (lib/descarteModales.ts) y el objeto pasa al Bloque 4 con su plazo de
+  // reclamo; si no, el descarte queda listo para la ejecución física.
+  if (accion === 'tirar') {
+    await solicitarDescarte(
+      { id: obj.id, nombre: obj.nombre },
+      {
+        alConfirmar: async (mensaje) => {
+          await tirarTarjeta(obj);
+          mostrarAviso(mensaje);
+        },
+        alAbortar: (mensaje) => {
+          bloquearBotones(obj.id, false);
+          if (mensaje) mostrarAviso(mensaje, false);
+        },
+      },
+    );
+    return;
+  }
+
   try {
     await guardarDecision(obj, accion);
-
-    if (accion === 'tirar') {
-      await tirarTarjeta(obj);
-      mostrarAviso(`🗑️ "${obj.nombre}" quedó descartado y salió del listado.`);
-      return;
-    }
-
     marcarTarjetaDecidida(obj, accion);
 
     if (accion === 'vender') {

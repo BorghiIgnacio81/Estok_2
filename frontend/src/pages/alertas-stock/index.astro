@@ -1,24 +1,31 @@
 ---
 // =============================================================================
-// PÁGINA DE DECISIONES (pestaña del menú)
+// PÁGINA DE DECISIONES (pestaña del menú) · ORDEN ESTRICTO DE BLOQUES
 // -----------------------------------------------------------------------------
-// Centraliza la resolución de los objetos del Estok activo en DOS secciones:
+// Todo el tablero se lee de ARRIBA hacia ABAJO en 5 bloques secuenciales:
 //
-//   1. 🗳️ Votaciones pendientes del Estok — objetos con Dueño (original o
-//      EXTERNO) y Beneficiario VACÍO: los resuelve la democracia del Estok,
-//      1 usuario = 1 voto (components/VotacionesPendientes.astro).
+//   BLOQUE 1 · 🧭 Objetos pendientes de decisión (sin decisión tomada y sin
+//              votación abierta) → lib/decisionesPendientes.ts
+//   BLOQUE 2 · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
+//              contador Días:Horas:Minutos de los objetos que serán tirados a
+//              la basura (período de gracia vigente) y el enlace para
+//              reclamarlos → components/VotacionesPendientes.astro +
+//              lib/descarteGracia.ts
+//   BLOQUE 3 · 💰 Con decisión de Vender: arriba los SIN PUBLICAR (botón para
+//              armar el formulario de Mercado Libre), abajo los YA PUBLICADOS
+//              (con su link 🔗)
+//   BLOQUE 4 · 🗑️ Con decisión de Tirar (en espera de la ejecución física o del
+//              fin del tiempo de reclamo; el descarte final solo lo confirma el
+//              Administrador Físico)
+//   BLOQUE 5 · 📦 Con decisión de Conservar (lista de protección)
 //
-//   2. 🧭 Objetos pendientes de decisión — cuadrícula simétrica de tarjetas con
-//      foto, título, ubicación actual (mini-guía analítica del motor compartido
-//      minimapasAnidados.ts, el MISMO del componente MinimapaRuta.astro) y la
-//      botonera in-place 💰 Vender / 📦 Conservar / 🗑️ Tirar.
+// Los Bloques 3, 4 y 5 los renderiza src/lib/decisionesGrupos.ts con el
+// endpoint único GET /api/objetos/panel_decisiones/; los modales del descarte
+// (tiempo de gracia) y del reclamo viven en components/ModalDescarteGracia.astro
+// + src/lib/descarteModales.ts. Esta página es únicamente el host y el arranque
+// (disciplina de modularidad: ningún archivo de UI supera las 400 líneas).
 //
-// Toda la lógica vive en src/lib (decisionesPendientes.ts y publicarObjeto.ts):
-// esta página es únicamente el host y el arranque, para no superar las 400
-// líneas (disciplina de modularidad del proyecto).
-//
-// Datos: GET /api/objetos/pendientes_decision/ y GET /api/decisiones/pendientes/
-// con la auth centralizada (JWT + X-Estok-Id) de services/auth.
+// Auth 100% centralizada (services/auth): nunca se arma el header a mano.
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -28,6 +35,7 @@ import ErrorState from '../../components/ErrorState.astro';
 import EmptyState from '../../components/EmptyState.astro';
 import VotacionesPendientes from '../../components/VotacionesPendientes.astro';
 import PublicarObjetoModal from '../../components/PublicarObjetoModal.astro';
+import ModalDescarteGracia from '../../components/ModalDescarteGracia.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas:
 // único archivo compartido con Almacenamiento y Objetos, no se duplican reglas.
 import '../../styles/almacenamiento-portales.css';
@@ -57,18 +65,11 @@ export const prerender = false;
     </div>
 
     <!-- ============================================================== -->
-    <!-- SECCIÓN 1 · VOTACIONES PENDIENTES DEL ESTOK                     -->
-    <!-- Se abren solas cuando un objeto tiene Dueño y Beneficiario      -->
-    <!-- vacío: todo el Estok vota el destino del objeto.                -->
-    <!-- ============================================================== -->
-    <VotacionesPendientes />
-
-    <!-- ============================================================== -->
-    <!-- SECCIÓN 2 · OBJETOS PENDIENTES DE DECISIÓN                      -->
+    <!-- BLOQUE 1 · 🧭 OBJETOS PENDIENTES DE DECISIÓN                    -->
     <!-- Grilla simétrica: foto, título, ubicación actual y botonera     -->
     <!-- in-place Vender / Conservar / Tirar por tarjeta.                -->
     <!-- ============================================================== -->
-    <section class="mt-8">
+    <section class="mb-10">
       <div class="flex flex-wrap items-center gap-2 mb-3">
         <h2 class="text-lg font-semibold text-gray-900">🧭 Objetos pendientes de decisión</h2>
         <span id="pendientesCount"
@@ -91,17 +92,114 @@ export const prerender = false;
 
       <div id="pendientesGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
     </section>
+
+    <!-- ============================================================== -->
+    <!-- BLOQUE 2 · 🗳️ VOTACIONES PENDIENTES DEL ESTOK                   -->
+    <!-- Se abren solas cuando un objeto tiene Dueño y Beneficiario      -->
+    <!-- vacío: todo el Estok vota el destino del objeto. A la derecha   -->
+    <!-- del cabezal vive el 🚨 ALERTA ROJO con el contador regresivo de -->
+    <!-- los descartes en período de gracia (reclamar → Conservar/Mudar). -->
+    <!-- ============================================================== -->
+    <section class="mb-10">
+      <VotacionesPendientes />
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- BLOQUES 3, 4 y 5 · OBJETOS YA DECIDIDOS                        -->
+    <!-- Renderizados por src/lib/decisionesGrupos.ts desde el endpoint  -->
+    <!-- GET /api/objetos/panel_decisiones/.                             -->
+    <!-- ============================================================== -->
+    <div id="panelDecisiones">
+      <div id="panelDecisionesAviso" class="hidden"></div>
+      <p id="panelDecisionesCargando" class="text-sm text-gray-500">Cargando decisiones tomadas...</p>
+      <div id="panelDecisionesError" class="hidden mb-4 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
+        ⚠️ No se pudo cargar el tablero de decisiones tomadas.
+      </div>
+
+      <section id="seccionDecisionesTomadas" class="hidden">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">📋 Decisiones tomadas</h2>
+          <button id="btnRefrescarPanel" type="button"
+            class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
+            ↻ Actualizar
+          </button>
+        </div>
+
+        <!-- BLOQUE 3 · 💰 Con decisión de Vender -->
+        <div class="mb-10">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <h3 class="text-base font-semibold text-gray-900">💰 Con decisión de Vender</h3>
+            <span id="venderCount"
+              class="hidden px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-bold">0</span>
+          </div>
+
+          <div id="venderSinPublicarBloque" class="mb-4">
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">📢 Sin publicar</h4>
+            <div id="venderSinPublicarGrid"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+          </div>
+
+          <div id="venderPublicadosBloque">
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">🔗 Ya publicados</h4>
+            <div id="venderPublicadosGrid"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+          </div>
+        </div>
+
+        <!-- BLOQUE 4 · 🗑️ Con decisión de Tirar -->
+        <div class="mb-10">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h3 class="text-base font-semibold text-gray-900">🗑️ Con decisión de Tirar</h3>
+            <span id="tirarCount"
+              class="hidden px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold">0</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-2">
+            En espera de la ejecución física o del fin del tiempo de reclamo. El descarte
+            definitivo solo lo confirma el Administrador Físico del almacén.
+          </p>
+          <div id="tirarGrid"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+          <p id="tirarVacio" class="hidden text-sm text-gray-400">
+            No hay objetos esperando el descarte físico.
+          </p>
+        </div>
+
+        <!-- BLOQUE 5 · 📦 Con decisión de Conservar -->
+        <div>
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h3 class="text-base font-semibold text-gray-900">📦 Con decisión de Conservar</h3>
+            <span id="conservarCount"
+              class="hidden px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">0</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-2">
+            Lista de protección: objetos que el Estok decidió guardar (incluye los
+            reclamados para mudanza antes de que venciera el descarte).
+          </p>
+          <div id="conservarGrid"
+            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+          <p id="conservarVacio" class="hidden text-sm text-gray-400">
+            Todavía no hay objetos protegidos.
+          </p>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- Modal de publicación (Mercado Libre / Facebook Marketplace) -->
   <PublicarObjetoModal />
+  <!-- Modales del descarte: tiempo de gracia + reclamo del Alerta Rojo -->
+  <ModalDescarteGracia />
 
   <script>
     import { iniciarDecisionesPendientes } from '../../lib/decisionesPendientes';
     import { iniciarModalPublicar } from '../../lib/publicarObjeto';
+    import { iniciarPanelDecisiones } from '../../lib/decisionesGrupos';
+    import { iniciarModalesDescarte } from '../../lib/descarteModales';
 
     iniciarDecisionesPendientes();
+    iniciarPanelDecisiones();
     iniciarModalPublicar();
+    iniciarModalesDescarte();
   </script>
 
   <style is:global>

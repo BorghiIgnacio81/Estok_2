@@ -28,6 +28,20 @@ class Role(models.Model):
     can_edit = models.BooleanField(default=False, verbose_name="Puede editar")
     can_delete = models.BooleanField(default=False, verbose_name="Puede eliminar")
 
+    # Capacidad FÍSICA sobre el espacio real (almacén / galpón).
+    # Habilita las acciones que exigen presencia física: confirmar el descarte
+    # final de un objeto (cuando venció el período de gracia) y despachar los
+    # envíos de objetos vendidos. Evita que familiares remotos confirmen
+    # acciones que no pueden ejecutar. Ver services/descarte_service.py.
+    es_administrador_fisico = models.BooleanField(
+        default=False,
+        verbose_name="Administrador Físico (almacén)",
+        help_text=(
+            "Encargado de Almacén / Gestor del espacio físico. Solo este rol (o "
+            "un superusuario) puede confirmar el descarte final y despachar envíos."
+        )
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última actualización")
 

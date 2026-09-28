@@ -14,8 +14,10 @@ from .models import (
 # =============================================================================
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
-    list_display = ['name', 'can_read', 'can_write', 'can_edit', 'can_delete']
-    list_filter = ['can_read', 'can_write', 'can_edit', 'can_delete']
+    list_display = ['name', 'can_read', 'can_write', 'can_edit', 'can_delete',
+                    'es_administrador_fisico']
+    list_filter = ['can_read', 'can_write', 'can_edit', 'can_delete',
+                   'es_administrador_fisico']
     search_fields = ['name', 'description']
 
 

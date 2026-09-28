@@ -54,6 +54,19 @@ class Command(BaseCommand):
                 'can_edit': False,
                 'can_delete': False,
             },
+            {
+                'name': 'Administrador Físico',
+                'description': (
+                    'Encargado de Almacén / Gestor del espacio físico: además de '
+                    'editar, es el único rol que puede confirmar el descarte final '
+                    'de objetos y despachar los envíos vendidos.'
+                ),
+                'can_read': True,
+                'can_write': True,
+                'can_edit': True,
+                'can_delete': False,
+                'es_administrador_fisico': True,
+            },
         ]
 
         created_roles = []

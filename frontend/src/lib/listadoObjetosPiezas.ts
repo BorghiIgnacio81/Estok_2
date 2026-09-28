@@ -40,6 +40,7 @@ const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {
   vender: { texto: 'Vender', clase: 'bg-green-100 text-green-800' },
   conservar: { texto: 'Conservar', clase: 'bg-blue-100 text-blue-800' },
   tirar: { texto: 'Tirar', clase: 'bg-red-100 text-red-800' },
+  mudar: { texto: 'Mudar', clase: 'bg-purple-100 text-purple-800' },
 };
 
 const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {

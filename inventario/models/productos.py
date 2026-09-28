@@ -274,11 +274,14 @@ class Objeto(models.Model):
         help_text="Lista de campos que la IA no pudo determinar y requiere input del usuario"
     )
 
-    # Acción del dueño original (Vender / Recuperar / Tirar)
+    # Acción del dueño original (Vender / Conservar / Tirar / Mudar)
+    # 'mudar' = el dueño RECLAMA el objeto antes de que venza el período de
+    # gracia del descarte para trasladarlo a otro Estok (Mudanza Inter-Estok).
     OWNER_ACTION_CHOICES = [
         ('vender', 'Vender'),
         ('conservar', 'Conservar'),
         ('tirar', 'Tirar / Desechar'),
+        ('mudar', 'Mudar / Reclamar para mudanza'),
     ]
     owner_action = models.CharField(
         max_length=20,
@@ -287,6 +290,48 @@ class Objeto(models.Model):
         blank=True,
         verbose_name="Acción del dueño original",
         help_text="Decisión del dueño original sobre qué hacer con el objeto: Vender, Conservar o Tirar"
+    )
+
+    # ------------------------------------------------------------------
+    # DESCARTE CON PERÍODO DE GRACIA (Bloque 4 de la pestaña Decisiones)
+    # ------------------------------------------------------------------
+    # Cuando se ordena tirar un objeto y en el Estok hay MÁS DE UN usuario
+    # activo, el descarte NO es inmediato: se abre un período de gracia en el
+    # que cualquier miembro puede reclamar el objeto (Conservar / Mudar). La
+    # fecha límite exacta se persiste acá y alimenta el contador regresivo del
+    # Alerta Rojo del frontend. Ver inventario/services/descarte_service.py.
+    descartado_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Orden de descarte emitida",
+        help_text="Momento exacto en que se ordenó tirar el objeto (inicio del período de gracia)."
+    )
+    fecha_limite_descarte = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fin del período de gracia",
+        help_text=(
+            "Fecha y hora EXACTA en que vence el período de gracia del descarte. "
+            "Mientras no venza, el objeto sigue visible y puede ser reclamado."
+        )
+    )
+
+    # ------------------------------------------------------------------
+    # DESPACHO FÍSICO DE ENVÍOS VENDIDOS (solo Administrador Físico)
+    # ------------------------------------------------------------------
+    despachado_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Envío despachado",
+        help_text="Momento en que el Administrador Físico despachó el envío del objeto vendido."
+    )
+    despachado_por = models.ForeignKey(
+        'inventario.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='objetos_despachados',
+        verbose_name="Despachado por"
     )
 
     # Publicación en marketplaces
@@ -315,6 +360,47 @@ class Objeto(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    # ------------------------------------------------------------------
+    # CONSULTAS DE DESCARTE (derivadas, sin duplicar la lógica del service)
+    # ------------------------------------------------------------------
+    @property
+    def en_periodo_gracia(self):
+        """
+        True si hay orden de tirar y el plazo de reclamo TODAVÍA NO venció.
+
+        Es la condición que mantiene el objeto visible en el Bloque 4 y activa
+        el contador regresivo del Alerta Rojo del Bloque 2 del frontend.
+        """
+        if self.owner_action != 'tirar' or self.fecha_limite_descarte is None:
+            return False
+        return timezone.now() < self.fecha_limite_descarte
+
+    @property
+    def descarte_listo_para_ejecutar(self):
+        """
+        True si hay orden de tirar y ya se puede ejecutar el descarte FÍSICO.
+
+        Ocurre cuando no se fijó período de gracia (Estok de un solo usuario) o
+        cuando la fecha límite almacenada ya venció.
+        """
+        if self.owner_action != 'tirar':
+            return False
+        if self.fecha_limite_descarte is None:
+            return True
+        return timezone.now() >= self.fecha_limite_descarte
+
+    @property
+    def segundos_para_descarte(self):
+        """
+        Segundos restantes del período de gracia (None si no hay plazo activo).
+
+        El frontend lo usa como respaldo del contador regresivo cuando el reloj
+        del navegador está desfasado del servidor.
+        """
+        if not self.en_periodo_gracia:
+            return None
+        return int((self.fecha_limite_descarte - timezone.now()).total_seconds())
 
     def delete(self, using=None, keep_parents=False):
         """Soft delete: marca como eliminado en lugar de borrar."""

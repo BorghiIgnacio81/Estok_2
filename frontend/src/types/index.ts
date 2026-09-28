@@ -13,7 +13,7 @@ export type EstadoConservacion = 'excelente' | 'bueno' | 'regular' | 'malo' | 'm
 
 export type EstadoCarga = 'completo' | 'incompleto' | 'pendiente_ia';
 
-export type OwnerAction = 'vender' | 'recuperar' | 'tirar' | null;
+export type OwnerAction = 'vender' | 'conservar' | 'tirar' | 'mudar' | 'recuperar' | null;
 
 export type PlataformaPublicacion = 'facebook' | 'instagram' | 'mercadolibre';
 
@@ -29,6 +29,12 @@ export interface Role {
   can_write: boolean;
   can_edit: boolean;
   can_delete: boolean;
+  /**
+   * Administrador Físico (Encargado de Almacén / Gestor del espacio físico):
+   * único rol que puede confirmar el descarte final de objetos y despachar los
+   * envíos vendidos (ver inventario/services/descarte_service.py).
+   */
+  es_administrador_fisico?: boolean;
   created_at: string;
   updated_at: string;
 }

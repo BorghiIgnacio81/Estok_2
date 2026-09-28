@@ -1,0 +1,74 @@
+---
+// =============================================================================
+// MODALES DEL DESCARTE (pestaña "Decisiones")
+// -----------------------------------------------------------------------------
+// Dos modales, ambos manejados por src/lib/descarteModales.ts:
+//
+//   1. #modalDescarteGracia   → selector OBLIGATORIO de tiempo de gracia
+//      (24 Horas / 3 Días / 1 Semana) cuando el Estok tiene más de un usuario
+//      activo. Las opciones las envía el backend (GET /api/objetos/contexto_descarte/).
+//   2. #modalReclamoDescarte  → detalle del propietario físico actual de cada
+//      objeto en período de gracia + botones para reclamarlo (Conservar / Mudar),
+//      que cancela la orden de descarte.
+//
+// El markup de las tarjetas del reclamo lo genera lib/decisionesTarjeta.ts
+// (misma tarjeta que los Bloques 1, 3, 4 y 5).
+// =============================================================================
+---
+
+<!-- MODAL 1 · Tiempo de gracia obligatorio -->
+<div id="modalDescarteGracia"
+  class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col">
+    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <h3 class="text-lg font-bold text-gray-900">🗑️ Tirar / Desechar</h3>
+      <button type="button" id="cerrarModalGraciaBtn" aria-label="Cerrar"
+        class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+    </header>
+    <div class="p-4 flex flex-col gap-3">
+      <p class="text-sm text-gray-700">
+        Vas a ordenar el descarte de <strong id="graciaObjetoNombre" class="text-gray-900">el objeto</strong>.
+      </p>
+      <p id="graciaAviso" class="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2"></p>
+      <div>
+        <p class="text-sm font-semibold text-gray-800 mb-2">
+          Tiempo de gracia (obligatorio): ¿cuánto pueden reclamarlo?
+        </p>
+        <div id="graciaOpciones" class="flex flex-wrap gap-2"></div>
+      </div>
+      <p class="text-[11px] text-gray-500">
+        Durante ese plazo el objeto sigue visible en el bloque de descarte y cualquiera
+        puede reclamarlo para conservarlo o mudarlo. Al vencer, solo el
+        Administrador Físico del almacén puede confirmar el descarte definitivo.
+      </p>
+      <p id="graciaError" class="hidden text-sm text-red-700"></p>
+    </div>
+    <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200">
+      <button type="button" id="btnConfirmarGracia"
+        class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-base disabled:opacity-40">
+        🗑️ Ordenar descarte
+      </button>
+    </footer>
+  </div>
+</div>
+
+<!-- MODAL 2 · Reclamo de objetos en período de gracia -->
+<div id="modalReclamoDescarte"
+  class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+    <header class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <div>
+        <h3 class="text-lg font-bold text-red-700">🚨 Objetos en período de reclamo</h3>
+        <p class="text-xs text-gray-500">
+          Si alguno es tuyo, reclamalo antes del vencimiento: la orden de descarte se
+          cancela mutando el estado a Conservar o Mudar.
+        </p>
+      </div>
+      <button type="button" id="cerrarModalReclamoBtn" aria-label="Cerrar"
+        class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+    </header>
+    <p id="reclamoAviso" class="hidden"></p>
+    <div id="listaReclamos"
+      class="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+</div>
