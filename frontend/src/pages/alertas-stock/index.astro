@@ -2,15 +2,15 @@
 // =============================================================================
 // PÁGINA DE DECISIONES (pestaña del menú) · ORDEN ESTRICTO DE BLOQUES
 // -----------------------------------------------------------------------------
-// Todo el tablero se lee de ARRIBA hacia ABAJO en 5 bloques secuenciales:
+// Todo el tablero se lee de ARRIBA hacia ABAJO priorizando LO URGENTE primero:
 //
-//   BLOQUE 1 · 🧭 Objetos pendientes de decisión (sin decisión tomada y sin
-//              votación abierta) → lib/decisionesPendientes.ts
-//   BLOQUE 2 · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
-//              contador Días:Horas:Minutos de los objetos que serán tirados a
-//              la basura (período de gracia vigente) y el enlace para
+//   BLOQUE 1 (cima) · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
+//              contador Días:Horas:Minutos:Segundos de los objetos que serán
+//              tirados a la basura (período de gracia vigente) y el enlace para
 //              reclamarlos → components/VotacionesPendientes.astro +
 //              lib/descarteGracia.ts
+//   BLOQUE 2 · 🧭 Objetos pendientes de decisión (sin decisión tomada y sin
+//              votación abierta) → lib/decisionesPendientes.ts
 //   BLOQUE 3 · 💰 Con decisión de Vender: arriba los SIN PUBLICAR (botón para
 //              armar el formulario de Mercado Libre), abajo los YA PUBLICADOS
 //              (con su link 🔗)
@@ -65,7 +65,19 @@ export const prerender = false;
     </div>
 
     <!-- ============================================================== -->
-    <!-- BLOQUE 1 · 🧭 OBJETOS PENDIENTES DE DECISIÓN                    -->
+    <!-- BLOQUE 1 (CIMA) · 🗳️ VOTACIONES PENDIENTES DEL ESTOK            -->
+    <!-- Lo URGENTE primero: se abren solas cuando un objeto tiene Dueño -->
+    <!-- y Beneficiario vacío (todo el Estok vota el destino). A la      -->
+    <!-- derecha del cabezal vive el 🚨 ALERTA ROJO con el contador      -->
+    <!-- regresivo Días:Horas:Minutos:Segundos de los descartes en       -->
+    <!-- período de gracia (reclamar → Conservar / Mudar).               -->
+    <!-- ============================================================== -->
+    <section class="mb-10">
+      <VotacionesPendientes />
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- BLOQUE 2 · 🧭 OBJETOS PENDIENTES DE DECISIÓN                    -->
     <!-- Grilla simétrica: foto, título, ubicación actual y botonera     -->
     <!-- in-place Vender / Conservar / Tirar por tarjeta.                -->
     <!-- ============================================================== -->
@@ -91,17 +103,6 @@ export const prerender = false;
       />
 
       <div id="pendientesGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-    </section>
-
-    <!-- ============================================================== -->
-    <!-- BLOQUE 2 · 🗳️ VOTACIONES PENDIENTES DEL ESTOK                   -->
-    <!-- Se abren solas cuando un objeto tiene Dueño y Beneficiario      -->
-    <!-- vacío: todo el Estok vota el destino del objeto. A la derecha   -->
-    <!-- del cabezal vive el 🚨 ALERTA ROJO con el contador regresivo de -->
-    <!-- los descartes en período de gracia (reclamar → Conservar/Mudar). -->
-    <!-- ============================================================== -->
-    <section class="mb-10">
-      <VotacionesPendientes />
     </section>
 
     <!-- ============================================================== -->

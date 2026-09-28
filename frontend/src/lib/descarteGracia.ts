@@ -6,7 +6,7 @@
 // de gracia (24 Horas / 3 Días / 1 Semana) durante el cual el objeto sigue
 // visible en el Bloque 4 y cualquier miembro puede RECLAMARLO (Conservar /
 // Mudar) desde el Alerta Rojo del Bloque 2, que muestra el contador regresivo
-// Días:Horas:Minutos.
+// Días:Horas:Minutos:Segundos refrescado cada 1000 ms.
 //
 // Endpoints (inventario/api/viewsets/objetos/descarte_actions.py):
 //   GET  /api/objetos/contexto_descarte/         → tiempos + permisos + padrón
@@ -116,14 +116,21 @@ export function milisegundosRestantes(fechaLimite: string | null): number {
   return Math.max(0, objetivo - Date.now());
 }
 
-/** Formatea un saldo de milisegundos como Días:Horas:Minutos (o "Vencido"). */
+/**
+ * Formatea un saldo de milisegundos como Días:Horas:Minutos:Segundos.
+ *
+ * El segundero es obligatorio: el Alerta Rojo lo refresca cada 1000 ms (ver
+ * programarTick) para que la cuenta baje en vivo y transmita urgencia real.
+ * Devuelve "⏰ Vencido" cuando el plazo ya se agotó.
+ */
 export function formatearRestante(ms: number): string {
   if (ms <= 0) return '⏰ Vencido';
-  const totalMinutos = Math.floor(ms / 60000);
-  const dias = Math.floor(totalMinutos / 1440);
-  const horas = Math.floor((totalMinutos % 1440) / 60);
-  const minutos = totalMinutos % 60;
-  return `${dias}d ${String(horas).padStart(2, '0')}h ${String(minutos).padStart(2, '0')}m`;
+  const totalSegundos = Math.floor(ms / 1000);
+  const dias = Math.floor(totalSegundos / 86400);
+  const horas = Math.floor((totalSegundos % 86400) / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const segundos = totalSegundos % 60;
+  return `${dias}d ${horas}h ${minutos}m ${segundos}s`;
 }
 
 /** Cuenta regresiva más urgente del listado (la que muestra el Alerta Rojo). */
@@ -190,7 +197,14 @@ function actualizarTextoAlerta(): void {
   } que serán tirados a la basura en: ${restante}. Si querés reclamarlo`;
 }
 
-/** Refresca el contador cada segundo y avisa cuando un plazo vence. */
+/**
+ * Refresca la cuenta regresiva cada 1 segundo exacto (1000 ms) y avisa cuando
+ * un plazo vence.
+ *
+ * El saldo NO se acumula por ticks: cada pasada recalcula los milisegundos
+ * restantes contra `fecha_limite_descarte`, así el segundero se mueve fluido y
+ * sin deriva aunque el navegador retrase algún intervalo.
+ */
 function programarTick(): void {
   if (temporizador !== null) {
     window.clearInterval(temporizador);
