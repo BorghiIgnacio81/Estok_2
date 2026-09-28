@@ -10,14 +10,18 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import redirect
-from django.conf import settings
 
 from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
-    get_auth_url, has_valid_token, delete_token,
+    get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
 from ...services.mercadolibre_api import (
     create_item, construir_attributes_desde_objeto,
+)
+from ...services.mercadolibre_imagenes import construir_pictures
+from ...services.categorias_meli import (
+    normalizar_id_ml,
+    resolver_category_id_ml,
 )
 from ...models import Objeto
 from .base import HasRolePermission
@@ -69,7 +73,6 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         Llama a /users/me para obtener nombre y email reales del usuario ML.
         """
         from ...services.mercadolibre_api import _api_request
-        from ...services.mercadolibre_oauth import get_valid_access_token
 
         access_token = get_valid_access_token(request.user)
         if not access_token:
@@ -122,17 +125,27 @@ class MercadoLibreViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def publicar_item(self, request):
         """
-        Publica un objeto en MercadoLibre usando la API real.
+        Publica un objeto en Mercado Libre usando la API real.
         POST /api/mercadolibre/publicar_item/
         Body: {
             objeto_id: "<uuid>",
             title: "iPhone 14 Pro Max 256GB",  (se trunca a 60 caracteres)
             price: 850.00,                     (float, debe ser mayor a 0)
             description: "...",
-            foto_url: "https://...",           (opcional, URL pública de la foto)
-            category_id: "MLA1648",            (opcional, se predice desde el título si falta)
+            foto_url: "https://...",           (opcional, foto elegida en el modal)
             condition: "used"                  (opcional: "new" | "used", default "used")
         }
+
+        CATEGORÍA: manda la categoría del objeto
+        (`Categoria.mercadolibre_category_id`); si no tiene mapeo se predice con
+        el NOMBRE de la categoría y se persiste en la BD. Nunca se predice con el
+        título del ítem (desviaba publicaciones a categorías absurdas). El
+        `category_id` del body solo se acepta si el objeto no tiene categoría.
+
+        FOTOS: "pictures" se arma como [{"source": "https://url-publica"}] con
+        las fotos reales del objeto (settings.SITE_URL + /media/...), que es lo
+        que Mercado Libre exige para descargar la imagen.
+
         Nota: currency_id se fuerza a "ARS" y listing_type_id a "bronze".
         """
         if not has_valid_token(request.user):
@@ -149,10 +162,6 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         price = request.data.get('price')
         description = request.data.get('description', '').strip()
         foto_url = request.data.get('foto_url') or ''
-        # Asegurar que la URL de la foto sea HTTPS pública accesible para ML
-        if foto_url:
-            foto_url = foto_url.replace('http://', 'https://', 1)
-        category_id = request.data.get('category_id', 'MLA1747')
         # Moneda: MLA Argentina opera estrictamente en ARS (se ignora cualquier otro valor)
         currency_id = "ARS"
         # Condición: solo valores nativos aceptados por MLA (default "used": inventario usado)
@@ -194,49 +203,40 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Imágenes en formato oficial de ML: [{"source": url}]
-        # (ML descarga y procesa la imagen; evita el 400 "pictures are mandatory").
-        # Fuentes: foto_url externa del request + foto(s) reales del objeto con
-        # URL absoluta pública (settings.SITE_URL + ruta de media).
-        fuentes_foto: list = []
-        if foto_url:
-            es_url_interna = (
-                'eeestok.duckdns.org' in foto_url or
-                '/api/' in foto_url or
-                not foto_url.startswith('http')
+        # ── Fotos en el formato oficial de ML ────────────────────────────────
+        # ML descarga la imagen: se arman URLs absolutas y públicas
+        # (SITE_URL + /media/...) y se descartan rutas relativas o localhost,
+        # que eran la causa de las publicaciones SIN foto.
+        pictures = construir_pictures(objeto, foto_url)
+        if not pictures:
+            return Response(
+                {
+                    "error": "Este objeto no tiene fotos públicas. Subí al menos "
+                             "una foto antes de publicar en Mercado Libre."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            if es_url_interna:
-                logger.info(
-                    "foto_url del request es interna; se usará la foto del objeto. URL: %s",
-                    foto_url[:200]
-                )
-            else:
-                fuentes_foto.append(foto_url)
 
-        foto_objeto = (
-            objeto.fotos.filter(es_principal=True).first()
-            or objeto.fotos.first()
+        # ── Categoría de Mercado Libre (mapeo dinámico y estricto) ───────────
+        # 1) Se usa `Categoria.mercadolibre_category_id` tal cual.
+        # 2) Sin mapeo: se predice con el NOMBRE de la categoría y se persiste.
+        # 3) Nunca se predice desde el título del ítem.
+        access_token = get_valid_access_token(request.user)
+        category_id = resolver_category_id_ml(
+            objeto.categoria,
+            texto_fallback=title,
+            access_token=access_token or "",
         )
-        if foto_objeto and foto_objeto.imagen:
-            fuentes_foto.append(
-                f"{settings.SITE_URL}{foto_objeto.imagen.url}"
-            )
-
-        # Deduplicar preservando orden y armar el formato estricto de MLA
-        pictures = [{"source": url} for url in dict.fromkeys(fuentes_foto)]
-
-        # Predecir categoría hoja desde el título si no se especificó una válida
-        if not request.data.get('category_id') or category_id == 'MLA1747':
-            from ...services.mercadolibre_api import predict_category
-            predicted = predict_category(title)
-            if predicted:
-                category_id = predicted
+        if objeto.categoria is None:
+            # Solo si el objeto no tiene categoría se acepta un ID del request.
+            category_id = normalizar_id_ml(request.data.get('category_id')) or category_id
 
         # Crear ítem en ML con payload blindado (title ≤ 60 chars, moneda ARS,
         # condition nativa, attributes dinámicos de categoría y modo de compra fijo)
         item_data = {
             "title": title,
             "category_id": category_id,
+            "categoria_nombre": objeto.categoria.nombre if objeto.categoria else "",
             "price": price,
             "currency_id": currency_id,
             "description": description,
@@ -270,6 +270,11 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "ml_item_id": result["id"],
                 "permalink": result.get("permalink", ""),
                 "status": result.get("status", ""),
+                # Categoría realmente usada: permite auditar que la publicación
+                # cayó en la categoría mapeada y no en una predicha al azar.
+                "category_id": category_id,
+                "categoria_estok": objeto.categoria.nombre if objeto.categoria else "",
+                "fotos_enviadas": len(pictures),
             })
 
         # Error de ML

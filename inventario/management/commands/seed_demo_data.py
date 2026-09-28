@@ -103,7 +103,7 @@ class Command(BaseCommand):
         )
         for cat in CATEGORIAS_OFICIALES:
             Categoria.objects.update_or_create(
-                meli_category_id=cat["meli_category_id"],
+                mercadolibre_category_id=cat["mercadolibre_category_id"],
                 estok=estok_demo,
                 defaults={
                     "nombre": cat["nombre"],

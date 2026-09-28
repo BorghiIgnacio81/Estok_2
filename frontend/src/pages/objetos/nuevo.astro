@@ -824,9 +824,9 @@ import '../../styles/almacenamiento-portales.css';
         categorias.forEach((c: any) => {
           const opt = document.createElement('option');
           opt.value = c.id;
-          // Guarda el meli_category_id para que el autocompletado de IA pueda
-          // seleccionar la categoría por su ID oficial (MLAxxxxx).
-          opt.dataset.meliId = c.meli_category_id ? String(c.meli_category_id) : '';
+          // Guarda el ID de Mercado Libre de la categoría para que el
+          // autocompletado de IA pueda seleccionarla por su ID oficial (MLAxxxxx).
+          opt.dataset.meliId = c.mercadolibre_category_id ? String(c.mercadolibre_category_id) : '';
           opt.textContent = `${c.icono || '🏷️'} ${c.nombre}`;
           select.appendChild(opt);
         });

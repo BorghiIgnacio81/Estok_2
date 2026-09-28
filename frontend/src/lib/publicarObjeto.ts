@@ -271,9 +271,17 @@ async function publicarAhora(): Promise<void> {
       descripcion,
       fotoUrl: fotoSeleccionadaUrl || undefined,
     });
+    // Se muestra la categoría REAL con la que se publicó (mapeo de la BD o
+    // predicción por nombre de categoría) y cuántas fotos se enviaron, para
+    // detectar de inmediato cualquier desvío de categoría o foto faltante.
+    const detalle = result.category_id
+      ? `<br><span class="text-xs">Categoría ML: ${result.category_id}` +
+        `${result.categoria_estok ? ` (${result.categoria_estok})` : ''}` +
+        ` · Fotos enviadas: ${result.fotos_enviadas ?? 0}</span>`
+      : '';
     mostrarStatus(
       'success',
-      `✅ ¡Publicado en Mercado Libre!<br><a href="${result.permalink}" target="_blank" class="underline text-blue-700">Ver publicación →</a>`,
+      `✅ ¡Publicado en Mercado Libre!${detalle}<br><a href="${result.permalink}" target="_blank" class="underline text-blue-700">Ver publicación →</a>`,
     );
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : 'Error al publicar en Mercado Libre';

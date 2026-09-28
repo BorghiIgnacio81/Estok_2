@@ -31,12 +31,19 @@ class Categoria(models.Model):
         verbose_name="Es contenedor",
         help_text="Si está marcado, esta categoría puede contener subcategorías.",
     )
-    # NUEVO CAMPO: Guardará el ID de Mercado Libre (ej: MLA412111)
-    meli_category_id = models.CharField(
-        max_length=50, 
-        blank=True, 
-        null=True, 
-        verbose_name="ID Categoría Mercado Libre"
+    # ID real de la categoría en Mercado Libre Argentina (ej: "MLA412445").
+    # Es la ÚNICA fuente de verdad al publicar: el servicio de publicación lee
+    # este campo y lo usa de forma ESTRICTA como `category_id` del POST /items.
+    # Si está vacío, se predice con el NOMBRE de la categoría (jamás con el
+    # título del objeto, que provocaba desvíos absurdos) y se persiste acá.
+    # Aplica a TODAS las categorías (las 11 del sistema y las que crea el
+    # usuario), por lo que el catálogo NO está limitado a una lista fija.
+    mercadolibre_category_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name="ID Categoría Mercado Libre",
+        help_text="ID de categoría de Mercado Libre en formato MLAxxxxx (ej: MLA412445).",
     )
     # Distingue las 11 categorías macro del sistema (es_sistema=True) de las
     # creadas dinámicamente por usuarios (es_sistema=False). La limpieza
@@ -65,6 +72,16 @@ class Categoria(models.Model):
         verbose_name_plural = "Categorías"
         ordering = ['nombre']
         unique_together = [('nombre', 'estok')]
+
+    def save(self, *args, **kwargs):
+        """Normaliza el ID de Mercado Libre (sin espacios, en mayúsculas).
+
+        Evita que un "mla412445" o " MLA412445 " guardado desde el API quede
+        como un mapeo inválido y termine desviando la publicación.
+        """
+        if self.mercadolibre_category_id:
+            self.mercadolibre_category_id = self.mercadolibre_category_id.strip().upper()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.nombre

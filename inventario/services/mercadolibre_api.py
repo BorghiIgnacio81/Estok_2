@@ -11,10 +11,10 @@ import urllib.parse
 from typing import Optional, Dict, Any
 
 from .mercadolibre_oauth import get_valid_access_token
+from .mercadolibre_imagenes import normalizar_pictures
+from .mercadolibre_prediccion import ML_API_BASE, predict_category
 
 logger = logging.getLogger(__name__)
-
-ML_API_BASE = "https://api.mercadolibre.com"
 
 # =============================================================================
 # Categoría general por defecto de Mercado Libre Argentina (MLA) para cuando la
@@ -84,32 +84,6 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
-def predict_category(title: str, site: str = "MLA", timeout: int = 10) -> Optional[str]:
-    """
-    Predice la categoría de MercadoLibre más adecuada según el título del producto.
-    Usa la API pública de ML (no requiere autenticación).
-    Retorna el category_id de una categoría hoja, o None si no puede predecir.
-    """
-    try:
-        q = urllib.parse.quote(title[:200])
-        url = f"https://api.mercadolibre.com/sites/{site}/domain_discovery/search?q={q}&limit=1"
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        
-        if data and isinstance(data, list):
-            for item in data:
-                cat_id = item.get("category_id")
-                if cat_id:
-                    logger.info("Categoría predicha para '%s': %s (%s)", 
-                                title[:50], cat_id, item.get("category_name", ""))
-                    return cat_id
-    except Exception as e:
-        logger.warning("No se pudo predecir categoría: %s", e)
-    
-    return None
-
-
 def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     """
     Construye la lista "attributes" de la API de MercadoLibre a partir de un
@@ -139,7 +113,7 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     meli_id = ''
     if objeto.categoria:
         nombre = (objeto.categoria.nombre or '').strip().lower()
-        meli_id = (objeto.categoria.meli_category_id or '').strip().upper()
+        meli_id = (objeto.categoria.mercadolibre_category_id or '').strip().upper()
     cid = str(category_id or '').strip().upper()
 
     es_tecnologia = (
@@ -194,43 +168,6 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     return attributes
 
 
-def _normalizar_pictures(pictures) -> list:
-    """
-    Normaliza la lista de imágenes al formato oficial de la API de ML:
-    [{"source": "url"}] o [{"id": "picture_id"}].
-
-    Acepta entradas planas (listas de strings URL) y dicts con claves
-    "source", "id" o "url", descartando valores vacíos.
-    """
-    normalizadas: list = []
-    if not pictures:
-        return normalizadas
-
-    vistos: set = set()
-    for pic in pictures:
-        url = None
-        if isinstance(pic, str):
-            url = pic.strip()
-        elif isinstance(pic, dict):
-            if pic.get("source"):
-                url = str(pic["source"]).strip()
-            elif pic.get("id"):
-                url = str(pic["id"]).strip()
-            elif pic.get("url"):
-                url = str(pic["url"]).strip()
-        if not url:
-            continue
-        if url in vistos:
-            continue
-        vistos.add(url)
-        if isinstance(pic, dict) and pic.get("id"):
-            normalizadas.append({"id": url})
-        else:
-            normalizadas.append({"source": url})
-
-    return normalizadas
-
-
 def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     """
     Crea una publicación en MercadoLibre.
@@ -246,6 +183,10 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             - description (str): Descripción en texto plano
             - pictures (list): Lista de dicts {"source": "url"} (formato único
               que acepta MLA; este servicio lo normaliza y deduplica)
+            - categoria_nombre (str, opcional): nombre de la categoría del
+              objeto, usado SOLO para el reintento cuando MLA rechaza el
+              category_id (se predice desde el nombre de la categoría, jamás
+              desde el título del ítem).
             - video_id (str, opcional)
             - warranty (str, opcional)
             - attributes (list, opcional): Atributos de categoría
@@ -317,7 +258,7 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         # Pictures: ÚNICA clave de imágenes en la raíz, normalizada
         # estrictamente al formato [{"source": url}] que exige MLA.
         # Cualquier formato plano o clave alternativa se descarta aquí.
-        pictures = _normalizar_pictures(item_data["pictures"])
+        pictures = normalizar_pictures(item_data["pictures"])
         if pictures:
             body["pictures"] = pictures
 
@@ -343,13 +284,15 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         
         causes = result.get("cause", []) if result else []
         
-        # Intento 1: predecir categoría hoja desde el título
+        # Intento 1: predecir la categoría hoja con el NOMBRE DE LA CATEGORÍA
+        # del objeto (nunca con el título: predecir con el título desviaba la
+        # publicación a categorías absurdas).
         is_category_error = any(
             c.get("code") == "item.category_id.invalid" for c in causes
         )
         if is_category_error:
-            title = item_data.get("title", "")
-            predicted = predict_category(title) if title else None
+            texto_categoria = item_data.get("categoria_nombre") or ""
+            predicted = predict_category(texto_categoria) if texto_categoria else None
             if predicted and predicted != body.get("category_id"):
                 logger.info("Reintento %d: categoría predicha %s → %s", 
                             retry_count, body.get("category_id"), predicted)

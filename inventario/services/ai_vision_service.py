@@ -777,17 +777,20 @@ class AIVisionService:
                 if vision_result.campos_pendientes:
                     estado_carga = 'incompleto'
 
-                # Resolver la categoría oficial de las 11 Meli
+                # Resolver la categoría oficial de las 11 Meli.
+                # OJO: `vision_result.meli_category_id` es la key del contrato
+                # JSON que devuelve el motor de IA; el campo del modelo es
+                # `mercadolibre_category_id`.
                 categoria = None
                 if vision_result.meli_category_id:
                     if estok is not None:
                         categoria = Categoria.objects.filter(
-                            meli_category_id=vision_result.meli_category_id,
+                            mercadolibre_category_id=vision_result.meli_category_id,
                             estok=estok,
                         ).first()
                     if categoria is None:
                         categoria = Categoria.objects.filter(
-                            meli_category_id=vision_result.meli_category_id,
+                            mercadolibre_category_id=vision_result.meli_category_id,
                         ).first()
 
                 objeto = Objeto.objects.create(

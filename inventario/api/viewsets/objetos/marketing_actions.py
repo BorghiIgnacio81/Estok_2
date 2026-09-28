@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from ....services.marketing_service import MarketingService
+from ....services.mercadolibre_imagenes import url_media_publica
 
 
 logger = logging.getLogger(__name__)
@@ -118,12 +119,12 @@ class MarketingActionsMixin:
         """
         objeto = self.get_object()
 
-        # Fotos - usar URL pública del frontend (ML necesita HTTPS público)
-        frontend_base = 'https://eeestok.duckdns.org'
+        # Fotos - URL pública absoluta (ML necesita HTTPS público para poder
+        # descargar la imagen). Se usa el helper central del servicio de ML.
         fotos = [
             {
                 "id": str(f.id),
-                "url": f"{frontend_base}{f.imagen.url}" if f.imagen else None,
+                "url": url_media_publica(f.imagen),
                 "es_principal": f.es_principal,
                 "descripcion": f.descripcion,
             }

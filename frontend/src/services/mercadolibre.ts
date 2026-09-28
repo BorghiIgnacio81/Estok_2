@@ -5,35 +5,25 @@ export interface PublicarMLParams {
   titulo: string;
   precio: number;
   descripcion: string;
+  /**
+   * Foto elegida en el modal. Debe ser una URL pública absoluta
+   * (https://eeestok.duckdns.org/media/...): Mercado Libre descarga la imagen.
+   * Si se omite, el backend usa las fotos guardadas del objeto.
+   */
   fotoUrl?: string;
-  categoryId?: string; // Permitir pasar la categoría real seleccionada desde la BD
 }
 
-export async function predecirCategoriaML(titulo: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://api.mercadolibre.com/sites/MLA/domain_discovery/search?q=${encodeURIComponent(titulo)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.[0]?.category_id || null;
-  } catch (e) {
-    console.warn("Error al predecir categoría en Mercado Libre:", e);
-    return null;
-  }
-}
-
+/**
+ * Publica un objeto en Mercado Libre.
+ *
+ * La CATEGORÍA NO se resuelve acá: el backend es la única autoridad y usa el
+ * mapeo real `Categoria.mercadolibre_category_id` (prediciendo con el NOMBRE de
+ * la categoría si falta y persistiéndolo). Antes se predecía en el navegador con
+ * el TÍTULO del anuncio, lo que desviaba publicaciones a categorías absurdas.
+ */
 export async function publicarEnMercadoLibre(params: PublicarMLParams) {
   const token = getToken();
   if (!token) throw new Error("No hay sesión activa.");
-
-  // Si no viene categoría asignada, intentamos predecir o requerir una al usuario
-  let categoriaFinal = params.categoryId;
-  if (!categoriaFinal) {
-    categoriaFinal = (await predecirCategoriaML(params.titulo)) || undefined;
-  }
-
-  if (!categoriaFinal) {
-    throw new Error("No se pudo determinar una categoría válida de Mercado Libre para este producto.");
-  }
 
   const body = {
     objeto_id: params.objetoId,
@@ -41,7 +31,6 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
     price: params.precio,
     description: params.descripcion,
     currency_id: 'ARS',
-    category_id: categoriaFinal,
     ...(params.fotoUrl && { foto_url: params.fotoUrl }),
   };
 

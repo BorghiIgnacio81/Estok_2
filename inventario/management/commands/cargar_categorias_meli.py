@@ -9,12 +9,12 @@ Reglas de este comando:
    ej: categorías combinadas tipo "Muebles y Arte").
    Queda ESTRICTAMENTE PROHIBIDO eliminar categorías creadas dinámicamente por
    usuarios (es_sistema=False) dentro de sus Estoks privados: se preservan
-   SIEMPRE, aunque no tengan meli_category_id.
+   SIEMPRE, aunque no tengan mercadolibre_category_id.
 3. Aislamiento multi-tenant: las 11 oficiales se aplican a TODOS los Estok.
 4. Objeto.categoria usa on_delete=SET_NULL, por lo que los objetos cuyas
    categorías se eliminen quedan con categoria=NULL (no se pierden objetos).
 5. Autocuración anti unique_together(nombre, estok): si un usuario creó una
-   categoría con el MISMO nombre de una oficial y sin meli_category_id, el
+   categoría con el MISMO nombre de una oficial y sin mercadolibre_category_id, el
    comando la adopta asignándole el ID oficial en vez de duplicar o borrar.
 
 Para evitar reintroducir el bug de "categorías combinadas", este comando NO
@@ -28,20 +28,20 @@ from inventario.models.nucleo import Estok
 # LISTA OFICIAL DE LAS 11 CATEGORÍAS ATÓMICAS (no tocar sin aprobación)
 # ---------------------------------------------------------------------------
 CATEGORIAS_OFICIALES = [
-    {"nombre": "Muebles", "meli_category_id": "MLA1574", "icono": "🪑"},
-    {"nombre": "Arte", "meli_category_id": "MLA1798", "icono": "🎨"},
-    {"nombre": "Coleccionables", "meli_category_id": "MLA1367", "icono": "🏆"},
-    {"nombre": "Antigüedades", "meli_category_id": "MLA1368", "icono": "⏳"},
-    {"nombre": "Jardín", "meli_category_id": "MLA1592", "icono": "🌿"},
-    {"nombre": "Computación", "meli_category_id": "MLA1648", "icono": "💻"},
-    {"nombre": "Electrónica", "meli_category_id": "MLA1051", "icono": "🔌"},
-    {"nombre": "Cocina", "meli_category_id": "MLA1403", "icono": "🍳"},
-    {"nombre": "Hogar", "meli_category_id": "MLA1577", "icono": "🏠"},
-    {"nombre": "Herramientas", "meli_category_id": "MLA1500", "icono": "🔧"},
-    {"nombre": "Materiales", "meli_category_id": "MLA1506", "icono": "🧱"},
+    {"nombre": "Muebles", "mercadolibre_category_id": "MLA1574", "icono": "🪑"},
+    {"nombre": "Arte", "mercadolibre_category_id": "MLA1798", "icono": "🎨"},
+    {"nombre": "Coleccionables", "mercadolibre_category_id": "MLA1367", "icono": "🏆"},
+    {"nombre": "Antigüedades", "mercadolibre_category_id": "MLA1368", "icono": "⏳"},
+    {"nombre": "Jardín", "mercadolibre_category_id": "MLA1592", "icono": "🌿"},
+    {"nombre": "Computación", "mercadolibre_category_id": "MLA1648", "icono": "💻"},
+    {"nombre": "Electrónica", "mercadolibre_category_id": "MLA1051", "icono": "🔌"},
+    {"nombre": "Cocina", "mercadolibre_category_id": "MLA1403", "icono": "🍳"},
+    {"nombre": "Hogar", "mercadolibre_category_id": "MLA1577", "icono": "🏠"},
+    {"nombre": "Herramientas", "mercadolibre_category_id": "MLA1500", "icono": "🔧"},
+    {"nombre": "Materiales", "mercadolibre_category_id": "MLA1506", "icono": "🧱"},
 ]
 
-IDS_OFICIALES = {c["meli_category_id"] for c in CATEGORIAS_OFICIALES}
+IDS_OFICIALES = {c["mercadolibre_category_id"] for c in CATEGORIAS_OFICIALES}
 
 
 class Command(BaseCommand):
@@ -96,7 +96,7 @@ class Command(BaseCommand):
         # porque su preservación es intencional (bug de pérdida de datos).
         sobrantes = Categoria.objects.filter(
             es_sistema=True
-        ).exclude(meli_category_id__in=IDS_OFICIALES).count()
+        ).exclude(mercadolibre_category_id__in=IDS_OFICIALES).count()
         if sobrantes:
             self.stdout.write(self.style.ERROR(
                 f'⚠️  Quedaron {sobrantes} categorías de SISTEMA fuera de la '
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                 actualizadas += 1
                 continue
             _, created = Categoria.objects.update_or_create(
-                meli_category_id=cat["meli_category_id"],
+                mercadolibre_category_id=cat["mercadolibre_category_id"],
                 estok=estok,
                 defaults={
                     "nombre": cat["nombre"],
@@ -144,7 +144,7 @@ class Command(BaseCommand):
         """
         Autocuración anti unique_together(nombre, estok):
         si existe una categoría de usuario (es_sistema=False) con el MISMO
-        nombre de una oficial y aún sin meli_category_id oficial, se la adopta
+        nombre de una oficial y aún sin mercadolibre_category_id oficial, se la adopta
         asignándole el ID oficial. Así el seeding no intenta crear un duplicado
         (IntegrityError) ni borra la categoría del usuario.
         """
@@ -154,22 +154,22 @@ class Command(BaseCommand):
                 nombre__iexact=cat["nombre"],
                 es_sistema=False,
             )
-            .exclude(meli_category_id__in=IDS_OFICIALES)
+            .exclude(mercadolibre_category_id__in=IDS_OFICIALES)
             .first()
         )
         if fila is None:
             return False
-        fila.meli_category_id = cat["meli_category_id"]
+        fila.mercadolibre_category_id = cat["mercadolibre_category_id"]
         fila.nombre = cat["nombre"]
         fila.icono = cat["icono"]
         fila.es_contenedor = True
         fila.es_sistema = True
         fila.save(update_fields=[
-            "meli_category_id", "nombre", "icono", "es_contenedor", "es_sistema",
+            "mercadolibre_category_id", "nombre", "icono", "es_contenedor", "es_sistema",
         ])
         self.stdout.write(self.style.WARNING(
             f'🔄 Categoría de usuario "{cat["nombre"]}" adoptada como oficial '
-            f'({cat["meli_category_id"]}) en Estok {estok.id}.'
+            f'({cat["mercadolibre_category_id"]}) en Estok {estok.id}.'
         ))
         return True
 
@@ -184,7 +184,7 @@ class Command(BaseCommand):
         residuales = Categoria.objects.filter(
             estok=estok,
             es_sistema=True,
-        ).exclude(meli_category_id__in=IDS_OFICIALES)
+        ).exclude(mercadolibre_category_id__in=IDS_OFICIALES)
         cantidad = residuales.count()
         if cantidad:
             nombres = list(residuales.values_list('nombre', flat=True))
