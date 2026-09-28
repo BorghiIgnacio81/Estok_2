@@ -15,13 +15,14 @@
 // en una sola dirección, sin ciclos).
 // =============================================================================
 
-import { minimapaCasitaSvg, minimapaSectoresSvg, ASPECTO_LIENZO } from './minimapa';
+import { minimapaSectoresSvg, ASPECTO_LIENZO } from './minimapa';
 import { sectoresDeItems } from './sectoresMinimapa';
 import type { ItemGeometria } from './sectoresMinimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
 import { escapeHtml } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+import { iconoDeHabitacion } from './planoHabitaciones';
 
 // =============================================================================
 // TIPOS Y ESTADO
@@ -111,11 +112,16 @@ export function plantasDisponibles(): Array<{ valor: string; etiqueta: string }>
   return lista;
 }
 
+/** Habitaciones (Ubicaciones raíz) de un piso concreto del inmueble. */
+export function habitacionesDePiso(piso: string): UbicacionPlano[] {
+  return estado.ubicaciones.filter(
+    (u) => String(u.piso || 'PRIMER_PISO') === piso && !u.parent_ubicacion,
+  );
+}
+
 /** Habitaciones (Ubicaciones raíz) de la planta activa. */
 export function habitacionesDePlanta(): UbicacionPlano[] {
-  return estado.ubicaciones.filter(
-    (u) => String(u.piso || 'PRIMER_PISO') === estado.planta && !u.parent_ubicacion,
-  );
+  return habitacionesDePiso(estado.planta);
 }
 
 /** Muebles/estantes contenidos en una habitación (contenedores raíz del espacio). */
@@ -261,28 +267,53 @@ function cardSectorHtml(
     </button>`;
 }
 
-/** Nivel 0: plantas del inmueble como siluetas de la casita a dos aguas. */
+/**
+ * Nivel 0: plantas del inmueble como MINIATURAS UNIFICADAS.
+ *
+ * REGLA ÚNICA DE DIBUJO: se eliminó de raíz el plano propio de líneas tenues
+ * (minimapaCasitaSvg). Cada planta la dibuja el MISMO motor que alimenta al
+ * componente global <MinimapaRuta /> (renderMinimapasAnidados): siluetas REALES
+ * de sus habitaciones (ui_left/ui_top/ui_width/ui_height), los trazos negros
+ * nítidos de `.mini-anidados-barra` y las fusiones («Pasillo Escalera») como UN
+ * solo ambiente continuo, sin línea divisoria interna. `hermanas: true` porque
+ * las plantas son niveles PARALELOS: no hay resalte naranja de procedencia.
+ *
+ * El botón conserva `data-nivel="planta"` + `data-id`, así el click sigue
+ * mutando la selección del formulario (planta → habitación → contenedor).
+ */
 function lienzoPlantasHtml(): string {
   const plantas = plantasDisponibles();
   const filaActiva = Math.max(1, plantas.findIndex((p) => p.valor === estado.planta) + 1);
-  const total = plantas.length;
 
   const cards = plantas
     .map((planta, i) => {
-      const svg = minimapaCasitaSvg({ filas: total, filaActiva: i + 1 });
       const activa = i + 1 === filaActiva;
+      const miniatura = renderMinimapasAnidados(
+        [
+          {
+            tipo: 'planta',
+            nombre: planta.etiqueta,
+            id: planta.valor,
+            sectores: sectoresDeItems(habitacionesDePiso(planta.valor), null, (h) =>
+              iconoDeHabitacion(String(h.nombre ?? '')),
+            ),
+            aspecto: ASPECTO_LIENZO,
+          },
+        ],
+        { hermanas: true },
+      );
       return `
         <button type="button" data-nivel="planta" data-id="${escapeHtml(planta.valor)}"
-          class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 ${
+          class="minimapa-plantas-card flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 ${
             activa ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-400'
           } hover:shadow-md transition-base cursor-pointer w-full">
-          ${svg}
+          ${miniatura}
           <span class="text-xs font-semibold text-gray-800">${escapeHtml(planta.etiqueta)}</span>
         </button>`;
     })
     .join('');
 
-  return `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${cards}</div>`;
+  return `<div class="minimapa-plantas-cards grid grid-cols-1 sm:grid-cols-2 gap-3">${cards}</div>`;
 }
 
 function lienzoHabitacionesHtml(): string {

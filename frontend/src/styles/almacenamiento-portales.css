@@ -133,6 +133,42 @@
   stroke: #0a0a0a;
   stroke-width: 1.5;
 }
+/* ---------------------------------------------------------------------------
+   2.2 MINIATURAS UNIFICADAS DE PLANTA DEL SELECTOR DE UBICACIÓN (Objetos)
+   ---------------------------------------------------------------------------
+   Las tarjetas de planta del selector (alta y edición de objetos) ya no dibujan
+   un plano propio con líneas tenues: adentro va el MISMO markup del componente
+   global (renderMinimapasAnidados → `.mini-anidados-barra` + `.mini-anidado`),
+   así que heredan los trazos negros nítidos de 2.1 y las fusiones («Pasillo
+   Escalera») como un único ambiente continuo.
+   Acá solo se neutraliza el marco punteado del bar —la tarjeta ya es el marco—,
+   se anula la atenuación de los nodos de procedencia y el lienzo se estira al
+   ancho real de la tarjeta (sin deformar la silueta, que conserva su aspecto).
+   --------------------------------------------------------------------------- */
+.minimapa-plantas-cards .mini-anidados-barra {
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+.minimapa-plantas-cards .mini-anidado {
+  width: 100%;
+  max-width: none;
+  opacity: 1;
+  filter: none;
+}
+.minimapa-plantas-cards .mini-anidado-lienzo {
+  width: 100%;
+}
+.minimapa-plantas-cards .mini-anidado-ico {
+  font-size: 12px;
+}
+.minimapa-plantas-cards .mini-anidado-nombre {
+  font-size: 10px;
+  white-space: normal;
+}
 .mini-anidado-nombre {
   max-width: 100%;
   font-size: 8px;

@@ -32,14 +32,21 @@ interface Props {
 const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
 ---
 
-<div class="space-y-3">
-  <!-- Barra de minimapas anidados: migaja de procedencia (nodo activo naranja) -->
-  <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-host" />
+<!-- Columna vertical natural del formulario: `w-full min-w-0` impide que un mapa
+     ancho empuje el layout hacia los costados (no hay doble columna lateral). -->
+<div class="w-full min-w-0 space-y-3">
+  <!-- Barra de minimapas anidados: migaja de procedencia (nodo activo naranja).
+       La INYECCIÓN del componente global <MinimapaRuta.astro /> va dentro de un
+       contenedor elástico, AUTOCONTENIDO y de ancho máximo controlado: no hereda
+       las barras flotantes de Almacenamiento ni desborda el formulario. -->
+  <div class="max-w-xl md:max-w-2xl mx-auto block relative mb-6">
+    <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-host" />
+  </div>
 
   <!-- Lienzo interactivo: siluetas elásticas clicables del nivel actual -->
   <div
     id="minimapaLienzo"
-    class="bg-gray-50 border border-gray-200 rounded-xl p-3 min-h-[150px]"
+    class="bg-gray-50 border border-gray-200 rounded-xl p-3 min-h-[150px] overflow-hidden"
     role="group"
     aria-label="Navegación visual de la ubicación del objeto"
   ></div>
