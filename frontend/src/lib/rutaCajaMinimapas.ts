@@ -192,6 +192,18 @@ export function cargarContextoRutaCaja(): Promise<void> {
 // =============================================================================
 
 /**
+ * Datos mínimos que necesita la ruta para ubicar geográficamente CUALQUIER
+ * entidad del inventario (una caja del listado o un objeto suelto de la
+ * pestaña Decisiones): el ambiente y el contenedor que lo contienen.
+ * `NodoCaja` lo satisface estructuralmente, así que los llamados existentes no
+ * cambian; la pestaña Decisiones pasa únicamente estos dos campos.
+ */
+export interface UbicacionDeRuta {
+  ubicacion: string | null;
+  parent_contenedor: string | null;
+}
+
+/**
  * Ambientes HERMANOS de una habitación (los que comparten su misma división de
  * planta): son los sectores REALES que dibuja el plano proporcional. Sin
  * división padre (modelo legacy) la propia habitación es el único sector.
@@ -230,7 +242,7 @@ function nombreDePlanta(fila: number, division?: UbicacionPlano): string {
  * componente global components/MinimapaRuta.astro y la mini-guía analítica
  * superior de Almacenamiento, así las dos pantallas se ven idénticas.
  */
-export function rutaMinimapasHtml(nodo: NodoCaja): string {
+export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
   const totalPlantas = Math.max(1, Math.round(Number(estokCfg?.grid_filas) || 3));
   const habitacion = nodo.ubicacion ? ubicacionesPorId.get(nodo.ubicacion) : undefined;
   const division = habitacion?.parent_ubicacion

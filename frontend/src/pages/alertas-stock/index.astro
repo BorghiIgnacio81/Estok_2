@@ -1,7 +1,24 @@
 ---
 // =============================================================================
-// PÁGINA DE DECISIONES (owner_action)
-// Muestra objetos agrupados por decisión del dueño: Vender, Conservar, Tirar
+// PÁGINA DE DECISIONES (pestaña del menú)
+// -----------------------------------------------------------------------------
+// Centraliza la resolución de los objetos del Estok activo en DOS secciones:
+//
+//   1. 🗳️ Votaciones pendientes del Estok — objetos con Dueño (original o
+//      EXTERNO) y Beneficiario VACÍO: los resuelve la democracia del Estok,
+//      1 usuario = 1 voto (components/VotacionesPendientes.astro).
+//
+//   2. 🧭 Objetos pendientes de decisión — cuadrícula simétrica de tarjetas con
+//      foto, título, ubicación actual (mini-guía analítica del motor compartido
+//      minimapasAnidados.ts, el MISMO del componente MinimapaRuta.astro) y la
+//      botonera in-place 💰 Vender / 📦 Conservar / 🗑️ Tirar.
+//
+// Toda la lógica vive en src/lib (decisionesPendientes.ts y publicarObjeto.ts):
+// esta página es únicamente el host y el arranque, para no superar las 400
+// líneas (disciplina de modularidad del proyecto).
+//
+// Datos: GET /api/objetos/pendientes_decision/ y GET /api/decisiones/pendientes/
+// con la auth centralizada (JWT + X-Estok-Id) de services/auth.
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -10,6 +27,10 @@ import LoadingState from '../../components/LoadingState.astro';
 import ErrorState from '../../components/ErrorState.astro';
 import EmptyState from '../../components/EmptyState.astro';
 import VotacionesPendientes from '../../components/VotacionesPendientes.astro';
+import PublicarObjetoModal from '../../components/PublicarObjetoModal.astro';
+// Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas:
+// único archivo compartido con Almacenamiento y Objetos, no se duplican reglas.
+import '../../styles/almacenamiento-portales.css';
 
 export const prerender = false;
 ---
@@ -17,12 +38,12 @@ export const prerender = false;
 <AuthGuard />
 
 <BaseLayout title="Estok - Decisiones de Objetos | Inventario">
-  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Encabezado -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
       <div>
         <h1 class="text-3xl font-bold text-gray-900">Decisiones de Objetos</h1>
-        <p class="mt-1 text-gray-500">Objetos con decisión del dueño: Vender, Conservar o Tirar</p>
+        <p class="mt-1 text-gray-500">Objetos del Estok que esperan decisión: Vender, Conservar o Tirar</p>
       </div>
       <a
         href="/objetos"
@@ -35,643 +56,65 @@ export const prerender = false;
       </a>
     </div>
 
-    <LoadingState mensaje="Cargando decisiones..." />
-    <ErrorState mensaje="Error al cargar decisiones." />
-
     <!-- ============================================================== -->
-    <!-- VOTACIONES PENDIENTES DEL ESTOK                                -->
-    <!-- Se abren solas cuando un objeto tiene Dueño original sin       -->
-    <!-- Beneficiario: todo el Estok vota el destino del objeto.        -->
+    <!-- SECCIÓN 1 · VOTACIONES PENDIENTES DEL ESTOK                     -->
+    <!-- Se abren solas cuando un objeto tiene Dueño y Beneficiario      -->
+    <!-- vacío: todo el Estok vota el destino del objeto.                -->
     <!-- ============================================================== -->
     <VotacionesPendientes />
 
-    <EmptyState
-      titulo="No hay decisiones tomadas"
-      descripcion="Acá aparecerán los objetos cuando el dueño original decida si vender, conservar o tirar cada objeto."
-      icono="📋"
-    />
-
-    <!-- KPI Cards de resumen -->
-    <div id="resumenCards" class="hidden grid grid-cols-3 gap-4 mb-6">
-      <div id="cardVender" class="bg-red-50 border border-red-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
-        <div class="text-2xl mb-1">💰</div>
-        <div id="countVender" class="text-2xl font-bold text-red-700">0</div>
-        <div class="text-xs text-red-500 mt-1">Para Vender</div>
-        <div id="valorVender" class="text-xs font-medium text-red-600 mt-0.5">—</div>
-      </div>
-      <div id="cardConservar" class="bg-green-50 border border-green-200 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
-        <div class="text-2xl mb-1">📦</div>
-        <div id="countConservar" class="text-2xl font-bold text-green-700">0</div>
-        <div class="text-xs text-green-500 mt-1">Conservar</div>
-        <div id="valorConservar" class="text-xs font-medium text-green-600 mt-0.5">—</div>
-      </div>
-      <div id="cardTirar" class="bg-gray-100 border border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:shadow-md transition-base">
-        <div class="text-2xl mb-1">🗑️</div>
-        <div id="countTirar" class="text-2xl font-bold text-gray-700">0</div>
-        <div class="text-xs text-gray-500 mt-1">Tirar / Desechar</div>
-        <div id="valorTirar" class="text-xs font-medium text-gray-600 mt-0.5">—</div>
-      </div>
-    </div>
-
-    <!-- Contenido agrupado por decisión -->
-    <div id="decisionesContainer" class="hidden space-y-6">
-      <!-- Se llena dinámicamente -->
-    </div>
-  </div>
-
-  <!-- Modal de Publicación (2 pasos: elegir plataforma → formulario) -->
-  <div id="publicarModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto py-8">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden transform transition-all my-auto">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <h3 id="modalTitulo" class="text-lg font-bold text-gray-900">📢 Publicar objeto</h3>
-        <button id="cerrarPublicarModalBtn" class="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-base">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+    <!-- ============================================================== -->
+    <!-- SECCIÓN 2 · OBJETOS PENDIENTES DE DECISIÓN                      -->
+    <!-- Grilla simétrica: foto, título, ubicación actual y botonera     -->
+    <!-- in-place Vender / Conservar / Tirar por tarjeta.                -->
+    <!-- ============================================================== -->
+    <section class="mt-8">
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <h2 class="text-lg font-semibold text-gray-900">🧭 Objetos pendientes de decisión</h2>
+        <span id="pendientesCount"
+          class="hidden px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">0</span>
+        <button id="btnRefrescarPendientes" type="button"
+          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
+          ↻ Actualizar
         </button>
       </div>
 
-      <!-- Paso 1: Elegir plataforma -->
-      <div id="modalPaso1" class="p-6">
-        <p id="publicarObjetoNombre" class="text-sm font-medium text-gray-900 mb-1"></p>
-        <p id="publicarObjetoValor" class="text-xs text-gray-500 mb-4"></p>
-        <p class="text-sm font-semibold text-gray-700 mb-3">¿Dónde querés publicarlo?</p>
-        <div class="space-y-3">
-          <button id="btnElegirML" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 transition-base text-left">
-            <div class="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">🛒</div>
-            <div><p class="text-sm font-semibold text-gray-900">Mercado Libre</p><p class="text-xs text-gray-500">Mayor visibilidad, gestión de envíos integrada</p></div>
-          </button>
-          <button id="btnElegirFB" class="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-base text-left">
-            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl">📘</div>
-            <div><p class="text-sm font-semibold text-gray-900">Facebook Marketplace</p><p class="text-xs text-gray-500">Venta local, sin comisiones, contacto directo</p></div>
-          </button>
-        </div>
-      </div>
+      <div id="pendientesAviso" class="hidden"></div>
 
-      <!-- Paso 2: Formulario de publicación -->
-      <div id="modalPaso2" class="hidden p-6">
-        <!-- Loading del preview -->
-        <div id="previewLoading" class="text-center py-8">
-          <svg class="animate-spin h-8 w-8 mx-auto text-blue-600 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-          <p class="text-sm text-gray-500">Generando vista previa...</p>
-        </div>
+      <LoadingState mensaje="Cargando objetos pendientes..." />
+      <ErrorState mensaje="Error al cargar los objetos pendientes." />
+      <EmptyState
+        titulo="No hay objetos pendientes de decisión"
+        descripcion="Acá se listan los objetos del Estok activo que todavía no tienen decisión. Salen de la lista cuando el Estok los vende, los conserva o los descarta."
+        icono="✅"
+      />
 
-        <!-- Formulario -->
-        <div id="previewForm" class="hidden space-y-4">
-          <!-- Foto -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Foto principal</label>
-            <div id="fotoSelector" class="flex gap-2 overflow-x-auto pb-1"></div>
-          </div>
-
-          <!-- Título -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Título</label>
-            <input id="inputTitulo" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-          </div>
-
-          <!-- Precio -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Precio (USD)</label>
-            <input id="inputPrecio" type="number" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-            <p id="precioRefInfo" class="text-xs text-gray-400 mt-0.5"></p>
-          </div>
-
-          <!-- Descripción -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-            <textarea id="inputDescripcion" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"></textarea>
-          </div>
-
-          <!-- Mensaje de estado / error -->
-          <div id="publicarStatus" class="hidden p-3 rounded-lg text-sm"></div>
-
-          <!-- Botón de acción -->
-          <button id="btnPublicarAhora" class="w-full px-4 py-2.5 text-sm font-semibold text-white rounded-lg transition-base shadow-sm">
-            Publicar ahora
-          </button>
-
-          <!-- Volver -->
-          <button id="btnVolverPaso1" class="w-full px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-base">
-            ← Elegir otra plataforma
-          </button>
-        </div>
-      </div>
-    </div>
+      <div id="pendientesGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+    </section>
   </div>
+
+  <!-- Modal de publicación (Mercado Libre / Facebook Marketplace) -->
+  <PublicarObjetoModal />
+
+  <script>
+    import { iniciarDecisionesPendientes } from '../../lib/decisionesPendientes';
+    import { iniciarModalPublicar } from '../../lib/publicarObjeto';
+
+    iniciarDecisionesPendientes();
+    iniciarModalPublicar();
+  </script>
+
+  <style is:global>
+    /* Salida suave de la tarjeta descartada (🗑️ Tirar). El HTML de las tarjetas
+       se inyecta desde src/lib/decisionesPendientes.ts, por eso la regla es
+       global (no aplica el scoping de estilos de Astro). */
+    .decision-card {
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .decision-card-saliendo {
+      opacity: 0;
+      transform: scale(0.94) translateY(-6px);
+      pointer-events: none;
+    }
+  </style>
 </BaseLayout>
-
-<script>
-  // ===========================================================================
-  // DECISIONES DE OBJETOS (owner_action)
-  // ===========================================================================
-
-  import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
-  import { publicarEnMercadoLibre } from '../../services/mercadolibre';
-
-  const loadingState = document.getElementById('loadingState')!;
-  const emptyState = document.getElementById('emptyState')!;
-  const errorState = document.getElementById('errorState')!;
-  const errorMessage = document.getElementById('errorMessage')!;
-  const retryBtn = document.getElementById('retryBtn')!;
-  const resumenCards = document.getElementById('resumenCards')!;
-  const decisionesContainer = document.getElementById('decisionesContainer')!;
-
-  // Elementos KPI
-  const cardVender = document.getElementById('cardVender')!;
-  const cardConservar = document.getElementById('cardConservar')!;
-  const cardTirar = document.getElementById('cardTirar')!;
-
-  const countVender = document.getElementById('countVender')!;
-  const countConservar = document.getElementById('countConservar')!;
-  const countTirar = document.getElementById('countTirar')!;
-  const valorVender = document.getElementById('valorVender')!;
-  const valorConservar = document.getElementById('valorConservar')!;
-  const valorTirar = document.getElementById('valorTirar')!;
-
-  function showLoading() {
-    loadingState.classList.remove('hidden');
-    emptyState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    resumenCards.classList.add('hidden');
-    decisionesContainer.classList.add('hidden');
-  }
-
-  function showError(msg: string) {
-    loadingState.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    errorState.classList.remove('hidden');
-    resumenCards.classList.add('hidden');
-    decisionesContainer.classList.add('hidden');
-    errorMessage.textContent = msg;
-  }
-
-  function showEmpty() {
-    loadingState.classList.add('hidden');
-    emptyState.classList.remove('hidden');
-    errorState.classList.add('hidden');
-    resumenCards.classList.add('hidden');
-    decisionesContainer.classList.add('hidden');
-  }
-
-  // Visualización delegada al nombre único de la categoría (categoria_nombre).
-
-  const ESTADO_COLORS: Record<string, string> = {
-    excelente: 'bg-green-100 text-green-700',
-    bueno: 'bg-blue-100 text-blue-700',
-    regular: 'bg-yellow-100 text-yellow-700',
-    malo: 'bg-orange-100 text-orange-700',
-    muy_malo: 'bg-red-100 text-red-700',
-  };
-
-  function formatUSD(val: string | null): string {
-    if (!val) return '—';
-    const num = parseFloat(val);
-    return `$${num.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
-  }
-
-  function renderObjetoCard(obj: any): string {
-
-    const estadoColor = ESTADO_COLORS[obj.estado_conservacion] || 'bg-gray-100 text-gray-700';
-    const plataformas = obj.plataformas_publicadas || [];
-    const publicadoML = plataformas.includes('mercadolibre');
-    const publicadoFB = plataformas.includes('facebook');
-
-    // REGLA ESTRICTA DE PUBLICACIÓN:
-    // El botón "Publicar" SOLO se inserta en el DOM si la decisión del dueño
-    // es EXACTAMENTE 'vender' y el objeto aún NO fue publicado en Mercado Libre.
-    // Conservar, Tirar o sin decisión NUNCA pueden tener el botón (ni el envío).
-    const puedePublicar = obj.owner_action === 'vender' && !publicadoML;
-
-    const botonPublicar = puedePublicar
-      ? `
-          <button
-            data-objeto-id="${obj.id}"
-            data-objeto-nombre="${obj.nombre}"
-            data-objeto-valor="${obj.valor_estimado || ''}"
-            data-objeto-accion="${obj.owner_action || ''}"
-            class="publicarBtn px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-base shadow-sm flex items-center gap-1"
-            title="Publicar este objeto"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Publicar
-          </button>
-        `
-      : '';
-
-    return `
-      <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-base">
-        <div class="flex-1 min-w-0">
-          <a href="/objetos/${obj.id}" class="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline truncate block">
-            ${obj.nombre}
-          </a>
-          <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-            ${obj.ubicacion ? `<span class="text-xs text-gray-400">📍 ${obj.ubicacion}</span>` : ''}
-            ${obj.categoria_nombre ? `<span class="text-xs text-gray-400">🏷️ ${obj.categoria_nombre}</span>` : ''}
-            <span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium ${estadoColor}">
-              ${obj.estado_conservacion}
-            </span>
-            ${publicadoML ? '<span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">ML</span>' : ''}
-            ${publicadoFB ? '<span class="inline-block px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">FB</span>' : ''}
-          </div>
-        </div>
-        <div class="flex items-center gap-2 flex-shrink-0">
-          <div class="text-right">
-            <div class="text-sm font-semibold text-gray-800">${formatUSD(obj.valor_estimado)}</div>
-            ${obj.dueno_original_nombre ? `<div class="text-xs text-gray-400">👤 ${obj.dueno_original_nombre}</div>` : ''}
-          </div>
-          ${botonPublicar}
-        </div>
-      </div>
-    `;
-  }
-
-  function renderGrupo(label: string, icono: string, colorClass: string, objetos: any[]): string {
-    if (objetos.length === 0) {
-      return `
-        <div class="bg-gray-50 rounded-xl border border-gray-200 p-6 text-center">
-          <p class="text-gray-400 text-sm">No hay objetos en esta categoría</p>
-        </div>
-      `;
-    }
-
-    const valorTotal = objetos.reduce((sum, o) => sum + (parseFloat(o.valor_estimado) || 0), 0);
-
-    return `
-      <div>
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <span>${icono}</span>
-            <span>${label}</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-sm font-semibold ${colorClass}">
-              ${objetos.length}
-            </span>
-          </h2>
-          <span class="text-sm font-medium text-gray-600">
-            Valor total: ${formatUSD(valorTotal.toFixed(2))}
-          </span>
-        </div>
-        <div class="space-y-2">
-          ${objetos.map(renderObjetoCard).join('')}
-        </div>
-      </div>
-    `;
-  }
-
-  function renderDecisiones(data: any) {
-    const grupos = data.grupos || { vender: [], conservar: [], tirar: [] };
-    const resumen = data.resumen || {};
-    const totalObjetos = (grupos.vender.length + grupos.conservar.length + grupos.tirar.length);
-
-    if (totalObjetos === 0) {
-      showEmpty();
-      return;
-    }
-
-    loadingState.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    errorState.classList.add('hidden');
-    resumenCards.classList.remove('hidden');
-    decisionesContainer.classList.remove('hidden');
-
-    // Actualizar KPIs
-    const rVender = resumen.vender || { count: 0, valor_total: 0 };
-    const rConservar = resumen.conservar || { count: 0, valor_total: 0 };
-    const rTirar = resumen.tirar || { count: 0, valor_total: 0 };
-
-    countVender.textContent = String(rVender.count);
-    countConservar.textContent = String(rConservar.count);
-    countTirar.textContent = String(rTirar.count);
-    valorVender.textContent = formatUSD(String(rVender.valor_total));
-    valorConservar.textContent = formatUSD(String(rConservar.valor_total));
-    valorTirar.textContent = formatUSD(String(rTirar.valor_total));
-
-    // Render grupos
-    decisionesContainer.innerHTML = `
-      ${renderGrupo('Para Vender', '💰', 'bg-red-100 text-red-700', grupos.vender)}
-      ${renderGrupo('Conservar', '📦', 'bg-green-100 text-green-700', grupos.conservar)}
-      ${renderGrupo('Tirar / Desechar', '🗑️', 'bg-gray-200 text-gray-700', grupos.tirar)}
-    `;
-
-    // Scroll al tocar una KPI card
-    cardVender.onclick = () => {
-      document.getElementById('grupo-vender')?.scrollIntoView({ behavior: 'smooth' });
-    };
-    cardConservar.onclick = () => {
-      document.getElementById('grupo-conservar')?.scrollIntoView({ behavior: 'smooth' });
-    };
-    cardTirar.onclick = () => {
-      document.getElementById('grupo-tirar')?.scrollIntoView({ behavior: 'smooth' });
-    };
-  }
-
-  async function cargarDecisiones() {
-    showLoading();
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/objetos/owner_actions/`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        showError(`Error del servidor (${response.status})`);
-        return;
-      }
-
-      const data = await response.json();
-      renderDecisiones(data);
-    } catch (err) {
-      console.error('Error al cargar decisiones:', err);
-      showError('Error de conexión. Verifica que el servidor esté corriendo.');
-    }
-  }
-
-  // Retry
-  retryBtn?.addEventListener('click', () => cargarDecisiones());
-
-  // =========================================================================
-  // MODAL DE PUBLICACIÓN (2 pasos: elegir plataforma → formulario preview)
-  // =========================================================================
-  const publicarModal = document.getElementById('publicarModal')!;
-  const modalPaso1 = document.getElementById('modalPaso1')!;
-  const modalPaso2 = document.getElementById('modalPaso2')!;
-  const modalTitulo = document.getElementById('modalTitulo')!;
-  const previewLoading = document.getElementById('previewLoading')!;
-  const previewForm = document.getElementById('previewForm')!;
-  const publicarStatusEl = document.getElementById('publicarStatus')!;
-  const cerrarPublicarModalBtn = document.getElementById('cerrarPublicarModalBtn')!;
-
-  let publicarObjetoId: string | null = null;
-  let publicarPlataforma: 'mercadolibre' | 'facebook' | null = null;
-
-  function resetModal() {
-    modalPaso1.classList.remove('hidden');
-    modalPaso2.classList.add('hidden');
-    previewLoading.classList.add('hidden');
-    previewForm.classList.add('hidden');
-    publicarStatusEl.classList.add('hidden');
-    publicarStatusEl.textContent = '';
-    modalTitulo.textContent = '📢 Publicar objeto';
-  }
-
-  function cerrarModalPublicar() {
-    publicarModal.classList.add('hidden');
-    publicarObjetoId = null;
-    publicarPlataforma = null;
-    resetModal();
-    cargarDecisiones();
-  }
-
-  cerrarPublicarModalBtn.addEventListener('click', cerrarModalPublicar);
-  publicarModal.addEventListener('click', (e) => {
-    if (e.target === publicarModal) cerrarModalPublicar();
-  });
-
-  // Abrir modal paso 1 desde botones "Publicar"
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    const btn = target.closest('.publicarBtn') as HTMLElement | null;
-    if (!btn) return;
-
-    // Defensa en profundidad: aunque el botón ya no se dibuja para objetos sin
-    // decisión 'vender', se bloquea la apertura del modal ante cualquier vía.
-    if (btn.dataset.objetoAccion !== 'vender') return;
-
-    const objId = btn.dataset.objetoId!;
-    const nombre = btn.dataset.objetoNombre!;
-    const valor = btn.dataset.objetoValor!;
-
-    publicarObjetoId = objId;
-    resetModal();
-    document.getElementById('publicarObjetoNombre')!.textContent = nombre;
-    document.getElementById('publicarObjetoValor')!.textContent = valor ? `Valor estimado: ${formatUSD(valor)}` : '';
-    publicarModal.classList.remove('hidden');
-  });
-
-  // Elegir plataforma → paso 2
-  document.getElementById('btnElegirML')!.addEventListener('click', () => irAPaso2('mercadolibre'));
-  document.getElementById('btnElegirFB')!.addEventListener('click', () => irAPaso2('facebook'));
-  document.getElementById('btnVolverPaso1')!.addEventListener('click', () => resetModal());
-
-  async function irAPaso2(plataforma: 'mercadolibre' | 'facebook') {
-    if (!publicarObjetoId) return;
-    publicarPlataforma = plataforma;
-    modalTitulo.textContent = plataforma === 'mercadolibre' ? '🛒 Publicar en Mercado Libre' : '📘 Publicar en Facebook Marketplace';
-
-    modalPaso1.classList.add('hidden');
-    modalPaso2.classList.remove('hidden');
-    previewLoading.classList.remove('hidden');
-    previewForm.classList.add('hidden');
-    publicarStatusEl.classList.add('hidden');
-
-    try {
-      // Verificar conexión ML si es necesario
-      if (plataforma === 'mercadolibre') {
-        const token = localStorage.getItem('estok_access_token');
-        const respAuth = await fetch(`${API_BASE_URL}/mercadolibre/auth-status/`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (respAuth.ok) {
-          const authData = await respAuth.json();
-          if (!authData.conectado) {
-            previewLoading.classList.add('hidden');
-            publicarStatusEl.classList.remove('hidden');
-            publicarStatusEl.className = 'p-3 rounded-lg text-sm bg-amber-50 text-amber-700';
-            publicarStatusEl.innerHTML = `
-              <p class="font-semibold mb-2">⚠️ No tenés tu cuenta de Mercado Libre conectada.</p>
-              <p class="text-xs mb-3">Para publicar directamente necesitás vincular tu cuenta.</p>
-              <button id="btnConectarML" class="px-4 py-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-base shadow-sm w-full">
-                🔗 Conectar cuenta de Mercado Libre
-              </button>
-            `;
-            document.getElementById('btnConectarML')?.addEventListener('click', async () => {
-              const respUrl = await fetch(`${API_BASE_URL}/mercadolibre/auth-url/`, {
-                headers: { 'Authorization': `Bearer ${token}` },
-              });
-              if (respUrl.ok) {
-                const data = await respUrl.json();
-                window.open(data.auth_url, 'ml_oauth_popup');
-              }
-            });
-            return;
-          }
-        }
-      }
-
-      // Cargar preview
-      const respPreview = await fetch(`${API_BASE_URL}/objetos/${publicarObjetoId}/preview_publicacion/`, {
-        headers: getAuthHeaders(),
-      });
-      if (!respPreview.ok) throw new Error(`Error ${respPreview.status}`);
-
-      const preview = await respPreview.json();
-      llenarFormulario(preview, plataforma);
-    } catch (err: any) {
-      previewLoading.classList.add('hidden');
-      mostrarStatus('error', `❌ ${err.message || 'Error al cargar vista previa'}`);
-    }
-  }
-
-  let fotoSeleccionadaUrl: string | null = null;
-
-  function llenarFormulario(preview: any, plataforma: string) {
-    previewLoading.classList.add('hidden');
-    previewForm.classList.remove('hidden');
-
-    // Fotos
-    const fotoSelector = document.getElementById('fotoSelector')!;
-    if (preview.fotos && preview.fotos.length > 0) {
-      fotoSeleccionadaUrl = preview.fotos[0].url;
-      fotoSelector.innerHTML = preview.fotos.map((f: any, i: number) => `
-        <div class="foto-thumb flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden cursor-pointer ${i === 0 ? 'border-blue-500' : 'border-gray-200 hover:border-gray-400'}" data-url="${f.url || ''}">
-          ${f.url ? `<img src="${f.url}" alt="Foto ${i+1}" class="w-full h-full object-cover" />` : '<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">Sin foto</div>'}
-        </div>
-      `).join('');
-
-      // Selección de foto
-      fotoSelector.querySelectorAll('.foto-thumb').forEach((thumb) => {
-        thumb.addEventListener('click', () => {
-          fotoSelector.querySelectorAll('.foto-thumb').forEach(t => {
-            t.classList.remove('border-blue-500');
-            t.classList.add('border-gray-200');
-          });
-          thumb.classList.add('border-blue-500');
-          thumb.classList.remove('border-gray-200');
-          fotoSeleccionadaUrl = (thumb as HTMLElement).dataset.url || null;
-        });
-      });
-    } else {
-      fotoSelector.innerHTML = '<p class="text-xs text-gray-400">Sin fotos disponibles</p>';
-    }
-
-    // Título y descripción desde IA
-    const anuncio = preview.anuncios?.[plataforma];
-    const inputTitulo = document.getElementById('inputTitulo') as HTMLInputElement;
-    const inputDescripcion = document.getElementById('inputDescripcion') as HTMLTextAreaElement;
-    inputTitulo.value = anuncio?.titulo || preview.objeto.nombre;
-    inputDescripcion.value = anuncio?.descripcion || preview.objeto.descripcion || '';
-
-    // Precio
-    const inputPrecio = document.getElementById('inputPrecio') as HTMLInputElement;
-    const precioRefInfo = document.getElementById('precioRefInfo')!;
-    if (preview.precio_referencia?.precio_ajustado) {
-      inputPrecio.value = String(preview.precio_referencia.precio_ajustado);
-      precioRefInfo.textContent = `Precio de referencia ajustado por estado (${preview.precio_referencia.fuente || 'ML'})`;
-    } else {
-      inputPrecio.value = preview.objeto.valor_estimado || '';
-      precioRefInfo.textContent = 'Precio estimado del inventario';
-    }
-
-    // Botón publicar
-    const btnPublicar = document.getElementById('btnPublicarAhora')!;
-    btnPublicar.className = plataforma === 'mercadolibre'
-      ? 'w-full px-4 py-2.5 text-sm font-semibold text-white bg-yellow-500 hover:bg-yellow-600 rounded-lg transition-base shadow-sm'
-      : 'w-full px-4 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-base shadow-sm';
-    btnPublicar.textContent = plataforma === 'mercadolibre' ? '🛒 Publicar en Mercado Libre' : '📘 Marcar como publicado en Facebook';
-    btnPublicar.onclick = () => publicarAhora();
-  }
-
-  function mostrarStatus(tipo: 'success' | 'error' | 'info', msg: string) {
-    publicarStatusEl.classList.remove('hidden');
-    publicarStatusEl.className = `p-3 rounded-lg text-sm ${
-      tipo === 'success' ? 'bg-green-50 text-green-700' :
-      tipo === 'error' ? 'bg-red-50 text-red-700' :
-      'bg-blue-50 text-blue-700'
-    }`;
-    publicarStatusEl.innerHTML = msg;
-  }
-
-  async function publicarAhora() {
-    if (!publicarObjetoId || !publicarPlataforma) return;
-
-    if (publicarPlataforma === 'facebook') {
-      // Facebook: copiar al portapapeles y marcar
-      const titulo = (document.getElementById('inputTitulo') as HTMLInputElement).value;
-      const precio = (document.getElementById('inputPrecio') as HTMLInputElement).value;
-      const descripcion = (document.getElementById('inputDescripcion') as HTMLTextAreaElement).value;
-
-      const texto = `${titulo}\n\n💰 $${precio} USD\n\n${descripcion}\n\n📸 ${fotoSeleccionadaUrl || 'Sin foto'}`;
-      try {
-        await navigator.clipboard.writeText(texto);
-        mostrarStatus('success', '✅ Texto copiado al portapapeles. Ahora pegalo en Facebook Marketplace.');
-      } catch {
-        mostrarStatus('info', '📋 No se pudo copiar automáticamente. Seleccioná el texto manualmente.');
-      }
-
-      // Marcar como publicado localmente
-      await marcarPublicado('facebook');
-      return;
-    }
-
-    // Mercado Libre: publicar vía API real
-    await publicarEnMLReal();
-  }
-
-  async function marcarPublicado(plataforma: 'mercadolibre' | 'facebook') {
-    if (!publicarObjetoId) return;
-    try {
-      const token = localStorage.getItem('estok_access_token');
-      await fetch(`${API_BASE_URL}/objetos/${publicarObjetoId}/publicar_en/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ plataforma }),
-      });
-    } catch {
-      // Silencioso, no crítico
-    }
-  }
-
-    async function publicarEnMLReal() {
-    if (!publicarObjetoId) return;
-    mostrarStatus('info', '⏳ Analizando categoría y publicando en Mercado Libre...');
-
-    const titulo = (document.getElementById('inputTitulo') as HTMLInputElement).value;
-    const precio = (document.getElementById('inputPrecio') as HTMLInputElement).value;
-    const descripcion = (document.getElementById('inputDescripcion') as HTMLTextAreaElement).value;
-
-    try {
-      const result = await publicarEnMercadoLibre({
-        objetoId: publicarObjetoId,
-        titulo,
-        precio: parseFloat(precio),
-        descripcion,
-        fotoUrl: fotoSeleccionadaUrl || undefined,
-      });
-
-      mostrarStatus(
-        'success',
-        `✅ ¡Publicado en Mercado Libre!<br><a href="${result.permalink}" target="_blank" class="underline text-blue-700">Ver publicación →</a>`
-      );
-    } catch (err: any) {
-      mostrarStatus('error', `❌ ${err.message || 'Error al publicar en Mercado Libre'}`);
-    }
-  }
-
-
-  // Cargar al inicio
-  cargarDecisiones();
-
-  // Escuchar notificación postMessage desde el popup/callback de OAuth de ML
-  // Si se conectó la cuenta exitosamente, refrescar el modal automáticamente
-  window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'ml_connected' && event.data.success) {
-      // Si el modal está abierto y estamos en ML, refrescar el paso 2
-      if (!publicarModal.classList.contains('hidden') && publicarPlataforma === 'mercadolibre') {
-        irAPaso2('mercadolibre');
-      }
-    }
-  });
-</script>
