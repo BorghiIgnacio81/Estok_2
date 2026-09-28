@@ -10,7 +10,9 @@
 // que sirve tanto para Ubicación como para Contenedor. Los ítems se agrupan por
 // `fusion_grupo` para renderizar los espacios en "L" como UN rectángulo continuo
 // (un único contenedor div con la MISMA superficie nativa de un espacio común
-// —mismo fondo, mismo contorno ámbar y misma sombra, sin tramas—). El bloque
+// —mismo fondo, mismo contorno ámbar y misma sombra, sin tramas— y SIN bordes
+// internos entre sus celdas: la adyacencia de hermanas se resuelve en
+// ./plantaFusionSilueta.ts). El bloque
 // fusionado conserva TODAS las capacidades de un espacio ordinario: checkbox de
 // fusión encadenada, tirador elástico de esquina, renombrado y ÚNICAMENTE su
 // propio 🗑️ (que borra la macro-estructura completa, sin partes huérfanas).
@@ -21,6 +23,7 @@
 
 import { escapeHtml } from './mapaJerarquico';
 import { estiloPerimetro, tiradoresPerimetro } from './perimetroElastico';
+import { siluetaContinua, unirCeldasAdyacentes } from './plantaFusionSilueta';
 import type { ItemElastico } from './lienzoElastico';
 
 // =============================================================================
@@ -124,33 +127,62 @@ const SUPERFICIE_NATIVA = 'rgba(255, 255, 255, 0.96)';
 /**
  * SUPERFICIE CONTINUA del espacio fusionado (macro-estructura en "L").
  *
- * REGLA GRÁFICA ESTRICTA: se emite UN ÚNICO contenedor con UN ÚNICO SVG cuyas
- * partes comparten el mismo espacio de usuario y se rellenan con la superficie
- * NATIVA de un espacio común (blanco plano, sin tramas ni tonos alternos), por
- * lo que el bloque se lee como UNA sola pieza: cero líneas divisorias internas
- * y la identidad cromática de un espacio sin fusionar al 100%.
+ * REGLA GRÁFICA ESTRICTA: se emite UN ÚNICO contenedor con UN ÚNICO SVG cuya
+ * superficie se dibuja con UN SOLO `<path>` (un subcamino rectangular por celda)
+ * rellenado con la superficie NATIVA de un espacio común (blanco plano, sin
+ * tramas ni tonos alternos).
  *
- * `shape-rendering="crispEdges"` es obligatorio: sin él, el antialias de las
- * fronteras entre partes contiguas delata una costura translúcida de 1px (cada
- * parte rasteriza su borde al 50% de cobertura).
+ * BORDES INTERNOS REMOVIDOS POR ADYACENCIA: antes de pintar, las celdas
+ * hermanas del mismo `fusion_grupo` se evalúan por vecindad en
+ * ./plantaFusionSilueta.ts — la hermana de la fila de abajo funde el borde
+ * inferior (`border-b-0`), la de arriba el superior (`border-t-0`), la de la
+ * derecha el derecho (`border-r-0`) y la de la izquierda el izquierdo
+ * (`border-l-0`). Al compartir EXACTAMENTE la misma arista y pertenecer a una
+ * única forma, esa arista deja de ser frontera: cero líneas divisorias internas,
+ * cero costuras de antialias y cero doble alpha en los solapes. El bloque se lee
+ * como UNA sola pieza, con su título y su 🗑️ únicos y centralizados.
+ *
+ * `shape-rendering="crispEdges"` es obligatorio: sin él, el antialias del
+ * contorno de la silueta delata una costura translúcida de 1px.
  *
  * El contorno ámbar y la sombra que abrazan la silueta de la unión los aporta el
  * `drop-shadow` de `.pu-grupo-malla`, nunca un stroke interno.
  */
 function superficieDeGrupo(g: GrupoFusion): string {
-  const partes = g.miembros
-    .map((m) => {
-      const geo = geoDe(m);
-      const relLeft = ((geo.left - g.caja.left) / g.caja.width) * 100;
-      const relTop = ((geo.top - g.caja.top) / g.caja.height) * 100;
-      const relW = (geo.width / g.caja.width) * 100;
-      const relH = (geo.height / g.caja.height) * 100;
-      // Sin stroke y con el MISMO relleno nativo: la unión es un rectángulo continuo.
-      return `<rect x="${relLeft.toFixed(2)}" y="${relTop.toFixed(2)}" width="${relW.toFixed(2)}" height="${relH.toFixed(2)}" fill="${SUPERFICIE_NATIVA}"
-        data-tile-id="${m.id}" data-tile-left="${geo.left}" data-tile-top="${geo.top}" data-tile-width="${geo.width}" data-tile-height="${geo.height}" />`;
+  // Geometría NATIVA de cada celda + su caja relativa (% del bbox del bloque).
+  const partes = g.miembros.map((m) => {
+    const geo = geoDe(m);
+    return {
+      miembro: m,
+      geo,
+      relativa: {
+        left: ((geo.left - g.caja.left) / g.caja.width) * 100,
+        top: ((geo.top - g.caja.top) / g.caja.height) * 100,
+        width: (geo.width / g.caja.width) * 100,
+        height: (geo.height / g.caja.height) * 100,
+      },
+    };
+  });
+
+  // 1) Bordes internos removidos por vecindad (aristas fundidas entre hermanas).
+  const celdas = unirCeldasAdyacentes(partes.map((p) => p.relativa));
+
+  // 2) PORTADORES táctiles: NO pintan nada (la superficie la aporta el <path>
+  //    continuo, así no pueden generar costuras) pero conservan el área de
+  //    agarre de cada celda y la geometría REAL persistida (data-tile-*) que
+  //    consumen el arrastre del bloque y el guardado consolidado del grupo.
+  const portadores = partes
+    .map((p, i) => {
+      const c = celdas[i];
+      return `<rect x="${c.left.toFixed(2)}" y="${c.top.toFixed(2)}" width="${c.width.toFixed(2)}" height="${c.height.toFixed(2)}" fill="transparent"
+        data-tile-id="${p.miembro.id}" data-tile-left="${p.geo.left}" data-tile-top="${p.geo.top}" data-tile-width="${p.geo.width}" data-tile-height="${p.geo.height}" />`;
     })
     .join('');
-  return `<svg class="pu-grupo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges" aria-hidden="true" focusable="false">${partes}</svg>`;
+
+  return `<svg class="pu-grupo-svg" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+      <path class="pu-grupo-silueta" d="${siluetaContinua(celdas)}" fill="${SUPERFICIE_NATIVA}" />
+      ${portadores}
+    </svg>`;
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {

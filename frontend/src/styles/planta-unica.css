@@ -249,9 +249,12 @@
   pointer-events: none;
 }
 
-/* Cuerpo físico (tiles texturados) + controles del bloque: checkbox de fusión
-   encadenada, nombre, 🗑️ y tirador elástico. */
-.pu-grupo-svg rect,
+/* Cuerpo físico del bloque + controles: checkbox de fusión encadenada, nombre,
+   🗑️ y tirador elástico. Los <rect> del SVG son PORTADORES táctiles (no pintan
+   nada): la superficie continua la aporta el <path> .pu-grupo-silueta, y el
+   área de agarre de cada celda se conserva con `pointer-events: all` (con la
+   pintura transparente, `auto` los volvería inalcanzables y el gesto sobre
+   cualquier celda debe mover el bloque completo). */
 .pu-grupo .pu-check,
 .pu-grupo .pu-grupo-nombre,
 .pu-grupo .pu-grupo-eliminar,
@@ -259,11 +262,15 @@
   pointer-events: auto;
 }
 
+.pu-grupo-svg rect {
+  pointer-events: all;
+}
+
 /* Superficie CONTINUA del espacio fusionado: el contorno ámbar y la sombra
    abrazan SOLO la silueta de la unión (idénticos al espacio común .pu-celda).
-   El fondo es el MISMO blanco nativo de .pu-celda (relleno plano del SVG
-   interno), por lo que las sub-celdas NO tienen fronteras: cero líneas
-   divisorias internas ni tramas alternas. */
+   El fondo es el MISMO blanco nativo de .pu-celda, aportado por UNA única forma
+   (.pu-grupo-silueta) cuyas celdas hermanas ya tienen sus aristas internas
+   fundidas: cero líneas divisorias internas ni tramas alternas. */
 .pu-grupo-malla {
   position: absolute;
   inset: 0;
