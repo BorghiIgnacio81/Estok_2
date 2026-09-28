@@ -78,6 +78,20 @@ import '../styles/almacenamiento-portales.css';
         <input id="searchInput" type="search" placeholder="Buscar por nombre o descripción…"
           class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
       </div>
+      <!-- Blanqueo reactivo: resetea búsqueda + los tres selects y repinta todo el
+           inventario del Estok activo (lógica en lib/listadoJerarquicoObjetos.ts). -->
+      <div class="flex items-end w-full sm:w-auto">
+        <button id="btnLimpiarFiltros" type="button"
+          class="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-3 py-2.5 rounded-lg text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 active:scale-95 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer"
+          title="Restablecer la búsqueda y todos los filtros a sus valores por defecto"
+          aria-label="Limpiar Filtros">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+          <span class="whitespace-nowrap">Limpiar Filtros</span>
+        </button>
+      </div>
     </div>
     <!-- Estados: carga · error · vacío -->
     <LoadingState mensaje="Cargando inventario jerárquico…" />

@@ -57,6 +57,7 @@ let filtroDecision: HTMLSelectElement | null = null;
 let filtroCategoria: HTMLSelectElement | null = null;
 let filtroPublicado: HTMLSelectElement | null = null;
 let searchInput: HTMLInputElement | null = null;
+let btnLimpiarFiltros: HTMLElement | null = null;
 
 const filtros: Filtros = { decision: '', categoria: '', publicado_ml: '' };
 
@@ -177,6 +178,23 @@ function aplicarFiltros(): void {
   void cargar();
 }
 
+/**
+ * Blanqueo reactivo de la botonera: devuelve TODOS los controles de filtrado a su
+ * valor inicial ('Todas' en los tres selects, búsqueda vacía), espeja ese estado en
+ * el objeto `filtros` y reevalúa el listado en el acto para que vuelvan a verse las
+ * Cajas, Objetos Sueltos y Muebles del Estok activo (barriendo el aviso de lista vacía).
+ */
+function limpiarFiltros(): void {
+  if (filtroDecision) filtroDecision.value = '';
+  if (filtroCategoria) filtroCategoria.value = '';
+  if (filtroPublicado) filtroPublicado.value = '';
+  if (searchInput) searchInput.value = '';
+  filtros.decision = '';
+  filtros.categoria = '';
+  filtros.publicado_ml = '';
+  void cargar();
+}
+
 async function cargarCategoriasFiltros(): Promise<void> {
   if (!filtroCategoria) return;
   try {
@@ -240,6 +258,7 @@ function enlazarEventos(): void {
   }
 
   if (retryBtn) retryBtn.addEventListener('click', () => void cargar());
+  if (btnLimpiarFiltros) btnLimpiarFiltros.addEventListener('click', limpiarFiltros);
 
   // Delegación global para botones "Eliminar" dentro de viñetas y tarjetas.
   document.addEventListener('click', (event) => {
@@ -280,6 +299,7 @@ export function initListadoJerarquicoObjetos(): void {
   filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
   filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
   searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+  btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
   mostrar(sinResultadosEl, false);
   mostrar(seccionesWrap, false);
