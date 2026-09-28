@@ -57,7 +57,6 @@ let filtroDecision: HTMLSelectElement | null = null;
 let filtroCategoria: HTMLSelectElement | null = null;
 let filtroPublicado: HTMLSelectElement | null = null;
 let searchInput: HTMLInputElement | null = null;
-let exportCsvBtn: HTMLElement | null = null;
 
 const filtros: Filtros = { decision: '', categoria: '', publicado_ml: '' };
 
@@ -224,36 +223,6 @@ async function eliminarObjeto(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Exportar CSV (acción del encabezado)
-// ---------------------------------------------------------------------------
-
-function enlazarExportarCsv(): void {
-  if (!exportCsvBtn) return;
-  exportCsvBtn.addEventListener('click', async () => {
-    const win = window as any;
-    try {
-      const res = await fetch(API_BASE_URL + '/objetos/exportar_csv/', { headers: getAuthHeaders() });
-      if (!res.ok) {
-        if (win.showError) win.showError('Error al exportar CSV');
-        return;
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'inventario_estok_' + new Date().toISOString().split('T')[0] + '.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      if (win.showSuccess) win.showSuccess('✅ CSV exportado correctamente');
-    } catch {
-      if (win.showError) win.showError('Error de conexión al exportar CSV');
-    }
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Enlace de eventos con delegación (auth centralizada en src/services/auth)
 // ---------------------------------------------------------------------------
 
@@ -271,7 +240,6 @@ function enlazarEventos(): void {
   }
 
   if (retryBtn) retryBtn.addEventListener('click', () => void cargar());
-  enlazarExportarCsv();
 
   // Delegación global para botones "Eliminar" dentro de viñetas y tarjetas.
   document.addEventListener('click', (event) => {
@@ -312,7 +280,6 @@ export function initListadoJerarquicoObjetos(): void {
   filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
   filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
   searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
-  exportCsvBtn = document.getElementById('exportCsvBtn');
 
   mostrar(sinResultadosEl, false);
   mostrar(seccionesWrap, false);

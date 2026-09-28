@@ -15,6 +15,9 @@ import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 import EmptyState from '../components/EmptyState.astro';
 import CategoriaCreator from '../components/CategoriaCreator.astro';
+// Modal unificado de exportación (CSV parametrizado + informe PDF con formato).
+// Su lógica vive en src/lib/exportarDatos.ts (auth centralizada en services/auth).
+import ModalExportarDatos from '../components/objetos/ModalExportarDatos.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas de
 // caja de la SECCIÓN 1 y el componente global components/MinimapaRuta.astro.
 // No se duplican: viven en un único archivo compartido por Almacenamiento.
@@ -33,13 +36,7 @@ import '../styles/almacenamiento-portales.css';
       </div>
       <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-        <button id="exportCsvBtn"
-          class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Exportar CSV
-        </button>
+        <ModalExportarDatos />
         <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
           <img src="/nuevo objeto.png" alt="Nuevo Objeto"
             class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
@@ -145,7 +142,9 @@ import '../styles/almacenamiento-portales.css';
 
   <script>
     import { initListadoJerarquicoObjetos } from '../lib/listadoJerarquicoObjetos';
+    import { initModalExportarDatos } from '../lib/exportarDatos';
     initListadoJerarquicoObjetos();
+    initModalExportarDatos();
   </script>
 
   <style is:global>

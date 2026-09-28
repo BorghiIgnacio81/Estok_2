@@ -1,17 +1,17 @@
 """
-Mixins de utilidades varias para ObjetoViewSet.
-Contiene: exportar_csv, estadisticas, owner_action, clear_owner_action,
+Mixin de utilidades varias para ObjetoViewSet.
+Contiene: estadisticas, owner_action, clear_owner_action,
 subir_foto, buscar_precio_referencia (con caché + MLA validado + Gemini fallback).
+
+Las exportaciones (CSV + informe PDF) viven en export_actions.py.
 """
 
 import logging
-import csv
 import os
 
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from django.http import HttpResponse
 from django.db.models import Sum
 from django.core.cache import cache
 
@@ -191,45 +191,6 @@ class UtilsActionsMixin:
             "grupos": grupos,
             "objetos": objetos,  # lista plana también
         })
-
-    @action(detail=False, methods=['get'])
-    def exportar_csv(self, request):
-        """Exporta el inventario completo a CSV."""
-        objetos = self.get_queryset().select_related(
-            'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
-        )
-
-        response = HttpResponse(content_type='text/csv; charset=utf-8')
-        response['Content-Disposition'] = (
-            'attachment; filename="inventario_estok.csv"'
-        )
-        response.write('\ufeff')
-
-        writer = csv.writer(response)
-        writer.writerow([
-            'ID', 'Nombre', 'Tipo', 'Descripción', 'Estado Conservación',
-            'Valor Estimado (USD)', 'Color', 'Ubicación', 'Contenedor',
-            'Dueño Original', 'Beneficiario', 'Estado Carga',
-            'Fecha Registro', 'Fecha Actualización',
-        ])
-
-        for obj in objetos:
-            tipo = self._get_tipo(obj)
-            writer.writerow([
-                str(obj.id), obj.nombre, tipo, obj.descripcion,
-                obj.estado_conservacion,
-                float(obj.valor_estimado) if obj.valor_estimado else '',
-                obj.color,
-                obj.ubicacion.nombre if obj.ubicacion else '',
-                obj.contenedor.nombre if obj.contenedor else '',
-                str(obj.dueno_original) if obj.dueno_original else '',
-                str(obj.beneficiario) if obj.beneficiario else '',
-                obj.estado_carga,
-                obj.fecha_registro.isoformat() if obj.fecha_registro else '',
-                obj.updated_at.isoformat() if obj.updated_at else '',
-            ])
-
-        return response
 
     # ------------------------------------------------------------------
     # Helpers del gráfico de decisiones (barras apiladas del dashboard)

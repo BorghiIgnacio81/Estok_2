@@ -1,0 +1,149 @@
+---
+// =============================================================================
+// MODAL UNIFICADO DE EXPORTACIÓN · pestaña Objetos
+// -----------------------------------------------------------------------------
+// Reemplaza los botones de exportación directos por UN único acceso
+// («Exportar Datos / Informe») que abre un modal simétrico y centrado de
+// doble columna:
+//
+//   COLUMNA 1 · Configuración CSV → alcance de las filas
+//     (Estok Completo / Solo Objetos / Solo Contenedores) → viaja como
+//     ?alcance=... al endpoint /api/objetos/exportar_csv/
+//   COLUMNA 2 · Formato de Informe PDF → checkboxes estilizados
+//     (incluir_mapas / mostrar_precios / ahorro_tinta) → viajan como
+//     booleanos al endpoint /api/objetos/exportar_pdf/
+//
+// El comportamiento (descarga con JWT + X-Estok-Id vía getAuthHeaders) vive en
+// src/lib/exportarDatos.ts: este componente solo aporta el markup Tailwind.
+//
+// Clases conmutadas por exportarDatos.ts al cambiar el alcance (declaradas acá
+// para que Tailwind las incluya en el bundle): border-green-500 bg-green-50
+// =============================================================================
+---
+
+<!-- `contents` (display: contents) evita que este bloque genere una caja propia:
+     el botón queda como hijo directo del encabezado flex y el modal (fixed) sale
+     del flujo. Se inyecta en pages/objetos.astro junto a CategoriaCreator. -->
+<div class="contents">
+  <!-- Trigger único: reemplaza al antiguo botón "Exportar CSV" -->
+  <button type="button" id="btnExportarDatos"
+    class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
+    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    Exportar Datos / Informe
+  </button>
+
+  <!-- Modal paramétrico (doble columna simétrica) -->
+  <div id="modalExportarDatos" role="dialog" aria-modal="true"
+    aria-labelledby="tituloExportarDatos"
+    class="hidden fixed inset-0 z-50 bg-black/60 items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+
+      <header class="flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50">
+        <div>
+          <h3 id="tituloExportarDatos" class="text-lg font-bold text-gray-900">Exportar Datos / Informe</h3>
+          <p class="text-xs text-gray-500">Elegí el alcance de las filas del CSV y el formato del informe PDF.</p>
+        </div>
+        <button type="button" id="cerrarModalExportarDatos" aria-label="Cerrar"
+          class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 overflow-y-auto">
+
+        <!-- COLUMNA 1 · CONFIGURACIÓN CSV -->
+        <section class="p-5 flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-green-100 text-green-700 flex items-center justify-center text-lg shrink-0">📄</span>
+            <div>
+              <h4 class="text-sm font-bold text-gray-900">Configuración CSV</h4>
+              <p class="text-[11px] text-gray-500">Alcance de las filas a descargar</p>
+            </div>
+          </div>
+
+          <div id="alcanceCsv" role="radiogroup" aria-label="Alcance del CSV" class="flex flex-col gap-2">
+            <label data-alcance="completo"
+              class="js-alcance flex items-start gap-3 p-3 rounded-xl border border-green-500 bg-green-50 cursor-pointer hover:border-green-400 transition-base">
+              <input type="radio" name="alcanceCsv" value="completo" class="mt-0.5 h-4 w-4 accent-green-600 shrink-0" checked />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Estok Completo</span>
+                <span class="block text-[11px] text-gray-500">Objetos y contenedores del Estok activo</span>
+              </span>
+            </label>
+
+            <label data-alcance="objetos"
+              class="js-alcance flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white cursor-pointer hover:border-green-400 transition-base">
+              <input type="radio" name="alcanceCsv" value="objetos" class="mt-0.5 h-4 w-4 accent-green-600 shrink-0" />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Solo Objetos</span>
+                <span class="block text-[11px] text-gray-500">Únicamente las filas de objetos del inventario</span>
+              </span>
+            </label>
+
+            <label data-alcance="contenedores"
+              class="js-alcance flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white cursor-pointer hover:border-green-400 transition-base">
+              <input type="radio" name="alcanceCsv" value="contenedores" class="mt-0.5 h-4 w-4 accent-green-600 shrink-0" />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Solo Contenedores</span>
+                <span class="block text-[11px] text-gray-500">Cajas y muebles (excluye estantes internos)</span>
+              </span>
+            </label>
+          </div>
+
+          <p class="text-[11px] text-gray-500">Se descarga un archivo <strong>.csv</strong> (UTF-8, apto Excel) con las filas del alcance elegido.</p>
+
+          <button type="button" id="btnDescargarCsv"
+            class="mt-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-base shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+            ⬇ Descargar CSV
+          </button>
+        </section>
+
+        <!-- COLUMNA 2 · FORMATO DEL INFORME PDF -->
+        <section class="p-5 flex flex-col gap-4 bg-amber-50/50">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg shrink-0">🖨️</span>
+            <div>
+              <h4 class="text-sm font-bold text-gray-900">Formato de Informe PDF</h4>
+              <p class="text-[11px] text-gray-500">Cómo se imprime el reporte</p>
+            </div>
+          </div>
+
+          <div id="formatoPdf" class="flex flex-col gap-2">
+            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white cursor-pointer hover:border-amber-400 transition-base">
+              <input type="checkbox" id="chkIncluirMapas" class="mt-0.5 h-4 w-4 accent-amber-600 shrink-0" checked />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Incluir mapas analíticos de ruta</span>
+                <span class="block text-[11px] text-gray-500">Bloques geométricos Piso → Habitación → Mueble por objeto</span>
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white cursor-pointer hover:border-amber-400 transition-base">
+              <input type="checkbox" id="chkMostrarPrecios" class="mt-0.5 h-4 w-4 accent-amber-600 shrink-0" checked />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Mostrar precios y valoración</span>
+                <span class="block text-[11px] text-gray-500">Columna de valor estimado (USD) y total del resumen</span>
+              </span>
+            </label>
+
+            <label class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white cursor-pointer hover:border-amber-400 transition-base">
+              <input type="checkbox" id="chkAhorroTinta" class="mt-0.5 h-4 w-4 accent-amber-600 shrink-0" />
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-800">Modo blanco y negro (Ahorro de tinta)</span>
+                <span class="block text-[11px] text-gray-500">Bordes negros limpios, sin fondos amarillos ni naranjas</span>
+              </span>
+            </label>
+          </div>
+
+          <p class="text-[11px] text-gray-500">Se descarga un informe <strong>.pdf</strong> del inventario del Estok activo.</p>
+
+          <button type="button" id="btnDescargarPdf"
+            class="mt-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-base shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+            ⬇ Descargar Informe PDF
+          </button>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
