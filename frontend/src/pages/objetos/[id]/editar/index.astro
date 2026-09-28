@@ -169,14 +169,11 @@ export const prerender = false;
             naranja es donde queda guardado el objeto.
           </p>
         </div>
-        <!-- Bloque ELASTICO y AUTOCONTENIDO del mapa: vive en la columna vertical
-             natural del formulario (sin doble columna lateral ni barras flotantes
-             heredadas de Almacenamiento) y con ancho maximo controlado para que
-             la inyeccion del componente global <MinimapaRuta /> (via el selector
-             de ubicacion) no desborde la cuadricula del formulario. -->
-        <div class="max-w-xl md:max-w-2xl mx-auto block relative mb-6">
-          <SelectorMinimapaUbicacion />
-        </div>
+        <!-- El COMPONENTE GLOBAL <MinimapaRuta /> (via el selector de ubicacion)
+             es el UNICO mapa del formulario y ya es elastico y autocontenido:
+             ocupa el ancho real de esta tarjeta, sin contenedor extra ni doble
+             columna lateral. -->
+        <SelectorMinimapaUbicacion />
       </div>
 
       <!-- ================================================================ -->

@@ -16,6 +16,7 @@
 // =============================================================================
 
 import { minimapaSectoresSvg, ASPECTO_LIENZO } from './minimapa';
+import type { SectorMinimapa } from './minimapa';
 import { sectoresDeItems } from './sectoresMinimapa';
 import type { ItemGeometria } from './sectoresMinimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
@@ -67,7 +68,6 @@ export const estado: EstadoSelector = {
 export const IDS = {
   niveles: 'minimapaNiveles',
   lienzo: 'minimapaLienzo',
-  ruta: 'minimapaRutaTexto',
   inputUbicacion: 'ubicacionSeleccionada',
   inputContenedor: 'contenedorSeleccionado',
 };
@@ -215,23 +215,31 @@ function renderNiveles(): void {
   host.innerHTML = renderMinimapasAnidados(nodosDeRuta(), { todosActivos: true });
 }
 
-/** Texto vivo de la selección que viajará al backend. */
-function renderRutaTexto(): void {
-  const host = document.getElementById(IDS.ruta);
-  if (!host) return;
-
-  const partes: string[] = [`🏠 ${estado.estok?.nombre || 'Mi Estok'}`];
-  const plantas = plantasDisponibles();
-  partes.push(plantas.find((p) => p.valor === estado.planta)?.etiqueta || 'Planta 1');
-  const habitacion = habitacionActual();
-  if (habitacion) partes.push(`🚪 ${habitacion.nombre}`);
-  const mueble = muebleActual();
-  if (mueble) partes.push(`🗄️ ${mueble.nombre}`);
-  const caja = cajaActual();
-  if (caja) partes.push(`📦 ${caja.nombre}`);
-  if (!habitacion) partes.push('Almacenamiento global');
-
-  host.textContent = partes.join(' › ');
+/**
+ * PLANO A ESCALA (formato elástico del componente global).
+ *
+ * Monta el MISMO markup de `MinimapaRuta.astro` en su variante `plano`: un
+ * `<div class="minimapa-ruta minimapa-ruta-plano">` que se amolda al ancho real
+ * de la tarjeta «Ubicación de Almacenamiento» y adentro el SVG ELÁSTICO del
+ * motor global (`responsive: true` → `width="100%"`, `viewBox`), donde cada
+ * sector conserva su `ui_*` real y el guardado actual va en NARANJA (#f97316).
+ * Con `clicable` cada silueta viaja en un `<g data-sector-id>`: el clic se
+ * resuelve en selectorMinimapaNuevoObjeto.ts y hace descender un nivel.
+ */
+function planoEscalaHtml(
+  sectores: SectorMinimapa[],
+  activoId: string | null,
+  clicable: boolean,
+): string {
+  const svg = minimapaSectoresSvg({
+    sectores,
+    aspecto: ASPECTO_LIENZO,
+    activoId: activoId || undefined,
+    responsive: true,
+    clicable,
+  });
+  if (!svg) return '';
+  return `<div class="minimapa-ruta minimapa-ruta-plano w-full">${svg}</div>`;
 }
 
 
@@ -240,43 +248,14 @@ function renderRutaTexto(): void {
 // =============================================================================
 
 /**
- * Tarjeta clicable de un espacio: dibuja la silueta elástica completa del nivel
- * (con la geometría REAL ui_* de cada hermano) y resalta el sector propio en
- * NARANJA mediante el motor global de minimapas.
- */
-function cardSectorHtml(
-  hermanos: ItemGeometria[],
-  item: ItemGeometria,
-  icono: string,
-  subtitulo: string,
-  atributos: string,
-): string {
-  const svg = minimapaSectoresSvg({
-    sectores: sectoresDeItems(hermanos, String(item.id)),
-    aspecto: ASPECTO_LIENZO,
-    ancho: 120,
-  });
-  const nombre = escapeHtml(item.nombre || 'Sin nombre');
-  return `
-    <button type="button" ${atributos}
-      class="flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 border-gray-200 bg-white hover:border-orange-400 hover:shadow-md transition-base cursor-pointer w-full">
-      <span class="text-base leading-none" aria-hidden="true">${icono}</span>
-      ${svg || '<span class="text-[10px] text-gray-400">Sin geometría</span>'}
-      <span class="text-xs font-semibold text-gray-800 text-center leading-tight truncate max-w-full">${nombre}</span>
-      <span class="text-[10px] text-gray-500">${escapeHtml(subtitulo)}</span>
-    </button>`;
-}
-
-/**
- * Nivel 0: plantas del inmueble como MINIATURAS UNIFICADAS.
+ * Nivel 0: plantas del inmueble como PLANOS A ESCALA (una tarjeta por planta).
  *
- * REGLA ÚNICA DE DIBUJO: se eliminó de raíz el plano propio de líneas tenues
- * (minimapaCasitaSvg). Cada planta la dibuja el MISMO motor que alimenta al
- * componente global <MinimapaRuta /> (renderMinimapasAnidados): siluetas REALES
- * de sus habitaciones (ui_left/ui_top/ui_width/ui_height), los trazos negros
- * nítidos de `.mini-anidados-barra` y las fusiones («Pasillo Escalera») como UN
- * solo ambiente continuo, sin línea divisoria interna. `hermanas: true` porque
- * las plantas son niveles PARALELOS: no hay resalte naranja de procedencia.
+ * REGLA ÚNICA DE DIBUJO: la silueta de cada planta la aporta el MISMO motor que
+ * alimenta al componente global <MinimapaRuta /> (lib/minimapa.ts →
+ * minimapaSectoresSvg con `responsive: true`): cada ambiente viaja con su
+ * geometría REAL (ui_left/ui_top/ui_width/ui_height persistidos en PostgreSQL),
+ * los trazos negros nítidos del formato `plano` y las fusiones («Pasillo
+ * Escalera») como UN solo ambiente continuo, sin línea divisoria interna.
  *
  * El botón conserva `data-nivel="planta"` + `data-id`, así el click sigue
  * mutando la selección del formulario (planta → habitación → contenedor).
@@ -288,26 +267,19 @@ function lienzoPlantasHtml(): string {
   const cards = plantas
     .map((planta, i) => {
       const activa = i + 1 === filaActiva;
-      const miniatura = renderMinimapasAnidados(
-        [
-          {
-            tipo: 'planta',
-            nombre: planta.etiqueta,
-            id: planta.valor,
-            sectores: sectoresDeItems(habitacionesDePiso(planta.valor), null, (h) =>
-              iconoDeHabitacion(String(h.nombre ?? '')),
-            ),
-            aspecto: ASPECTO_LIENZO,
-          },
-        ],
-        { hermanas: true },
+      const plano = planoEscalaHtml(
+        sectoresDeItems(habitacionesDePiso(planta.valor), null, (h) =>
+          iconoDeHabitacion(String(h.nombre ?? '')),
+        ),
+        null,
+        false,
       );
       return `
         <button type="button" data-nivel="planta" data-id="${escapeHtml(planta.valor)}"
           class="minimapa-plantas-card flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 ${
             activa ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-orange-400'
           } hover:shadow-md transition-base cursor-pointer w-full">
-          ${miniatura}
+          ${plano || '<span class="text-[10px] text-gray-400">Sin geometría</span>'}
           <span class="text-xs font-semibold text-gray-800">${escapeHtml(planta.etiqueta)}</span>
         </button>`;
     })
@@ -316,23 +288,26 @@ function lienzoPlantasHtml(): string {
   return `<div class="minimapa-plantas-cards grid grid-cols-1 sm:grid-cols-2 gap-3">${cards}</div>`;
 }
 
+
+
+
+
 function lienzoHabitacionesHtml(): string {
   const habitaciones = habitacionesDePlanta();
   if (!habitaciones.length) {
     return '<p class="text-sm text-gray-500 py-4 text-center">👉 Esta planta todavía no tiene habitaciones. Usá «Nueva Ubicación» para crear una y volvé a elegir.</p>';
   }
-  const cards = habitaciones
-    .map((habitacion) =>
-      cardSectorHtml(
-        habitaciones,
-        habitacion,
-        '🚪',
-        `${mueblesDeHabitacion(String(habitacion.id)).length} mueble(s)`,
-        `data-nivel="habitacion" data-id="${escapeHtml(String(habitacion.id))}"`,
-      ),
-    )
-    .join('');
-  return `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${cards}</div>`;
+  // UN plano a escala del piso completo: el sector NARANJA es la habitación ya
+  // guardada (estado.habitacionId) y cualquiera se toca para entrar.
+  const plano = planoEscalaHtml(
+    sectoresDeItems(habitaciones, estado.habitacionId, (h) =>
+      iconoDeHabitacion(String(h.nombre ?? '')),
+    ),
+    estado.habitacionId,
+    true,
+  );
+  return `${plano}
+    <p class="mt-2 text-[11px] text-gray-500 text-center">Tocá un ambiente del plano para entrar; el sector naranja es la ubicación guardada.</p>`;
 }
 
 function lienzoMueblesHtml(): string {
@@ -343,18 +318,13 @@ function lienzoMueblesHtml(): string {
       habitacion?.nombre || 'La habitación',
     )}» no tiene muebles ni cajas. Podés guardar el objeto en la habitación completa o crear un contenedor con «Nuevo Contenedor».</p>`;
   }
-  const cards = muebles
-    .map((mueble) =>
-      cardSectorHtml(
-        muebles,
-        mueble,
-        iconoContenedor(mueble),
-        `${cajasDeMueble(String(mueble.id)).length} caja(s)`,
-        `data-nivel="mueble" data-id="${escapeHtml(String(mueble.id))}"`,
-      ),
-    )
-    .join('');
-  return `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${cards}</div>`;
+  const plano = planoEscalaHtml(
+    sectoresDeItems(muebles, estado.muebleId, iconoContenedor),
+    estado.muebleId,
+    true,
+  );
+  return `${plano}
+    <p class="mt-2 text-[11px] text-gray-500 text-center">Tocá un mueble del plano para abrir sus cajas, o guardá el objeto en la habitación completa.</p>`;
 }
 
 function lienzoCajasHtml(): string {
@@ -365,20 +335,14 @@ function lienzoCajasHtml(): string {
       mueble?.nombre || 'El mueble',
     )}» no tiene cajas internas. Podés guardar el objeto en el mueble completo o crear una caja con «Nuevo Contenedor».</p>`;
   }
-  const cards = cajas
-    .map((caja) =>
-      cardSectorHtml(
-        cajas,
-        caja,
-        iconoContenedor(caja),
-        'Caja / Estante',
-        `data-nivel="caja" data-id="${escapeHtml(String(caja.id))}"`,
-      ),
-    )
-    .join('');
-  return `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${cards}</div>`;
+  const plano = planoEscalaHtml(
+    sectoresDeItems(cajas, estado.cajaId, iconoContenedor),
+    estado.cajaId,
+    true,
+  );
+  return `${plano}
+    <p class="mt-2 text-[11px] text-gray-500 text-center">Tocá la caja o estante exacto donde vive el objeto; el sector naranja es la ubicación guardada.</p>`;
 }
-
 
 // =============================================================================
 // RENDER - ENSAMBLADO DEL NIVEL VISIBLE
@@ -427,10 +391,9 @@ function renderLienzo(): void {
   host.innerHTML = cabeceraNivelHtml() + cuerpoNivelHtml();
 }
 
-/** Repinta la barra de minimapas, el lienzo interactivo y el texto de ruta. */
+/** Repinta la cadena de orientación y el plano a escala del nivel visible. */
 export function render(): void {
   renderNiveles();
   renderLienzo();
-  renderRutaTexto();
 }
 

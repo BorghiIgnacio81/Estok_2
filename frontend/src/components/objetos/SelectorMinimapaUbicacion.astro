@@ -1,27 +1,32 @@
 ---
 // =============================================================================
-// SELECTOR DE UBICACIÓN POR MINIMAPAS INTERACTIVOS (Nuevo Objeto)
+// SELECTOR DE UBICACIÓN POR MINIMAPAS INTERACTIVOS (Nuevo / Editar Objeto)
 // -----------------------------------------------------------------------------
-// ÚNICA cara Astro de la navegación espacial del alta de objetos: reemplaza a la
-// vieja nav en árbol estilo carpetas. El usuario recorre el Estok con SILUETAS
-// ELÁSTICAS proporcionales (planta → habitación → mueble → caja) y el sector
-// elegido se resalta en NARANJA (#f97316).
+// ÚNICA cara Astro de la navegación espacial de objetos: reemplaza a la vieja
+// nav en árbol estilo carpetas Y al grid de tarjetas de ancho fijo.
 //
-// NO dibuja: delega 100% en el motor global lib/minimapa.ts a través de
-// src/lib/selectorMinimapaNuevoObjeto.ts (el MISMO motor que usan Almacenamiento
-// y Objetos), y en la barra de migajas lib/minimapasAnidados.ts.
+// ESTÁNDAR ÚNICO: este bloque NO dibuja nada por su cuenta. Monta el COMPONENTE
+// GLOBAL `components/MinimapaRuta.astro` en sus dos formatos:
+//
+//   1. CADENA de orientación (#minimapaNiveles): migaja de siluetas asimétricas
+//      (planta → habitación → mueble → caja) con el nivel activo en naranja.
+//   2. PLANO A ESCALA (#minimapaLienzo): UN plano elástico del nivel visible,
+//      amoldado al ancho real de la tarjeta «Ubicación de Almacenamiento». Cada
+//      sector conserva su ui_width/ui_height real (porcentajes del lienzo) y el
+//      sector guardado actual se pinta en NARANJA (#f97316). Tocar un sector
+//      navega al nivel siguiente (data-sector-id → lib/selectorMinimapaNuevoObjeto.ts).
+//
+// Sin doble columna, sin anchos en px y sin listado de texto duplicado: la
+// geometría la aporta 100% el motor global (src/lib/minimapa.ts).
 //
 // Los inputs ocultos conservan los nombres canónicos (`ubicacion` y
 // `contenedor`): el POST multipart a /api/objetos/ no cambia en absoluto.
 //
-// Estilos: las clases `.mini-anidado-*` viven en styles/almacenamiento-portales.css
-// (único punto compartido por Almacenamiento y Objetos). No duplicar reglas acá.
+// Estilos: las clases `.minimapa-ruta*` viven en la hoja propia del componente
+// (styles/minimapa-ruta.css) y las `.mini-anidado-*` en styles/almacenamiento-
+// portales.css. No se duplican reglas acá.
 // =============================================================================
 
-// COMPONENTE GLOBAL de minimapas (barra analítica de siluetas proporcionales con
-// el sector activo en naranja). Se inyecta como HOST de la migaja de
-// procedencia: el selector lo rellena en caliente con el MISMO motor
-// (lib/minimapasAnidados.ts) en cada cambio de nivel, sin markup duplicado.
 import MinimapaRuta from '../MinimapaRuta.astro';
 
 interface Props {
@@ -35,24 +40,18 @@ const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
 <!-- Columna vertical natural del formulario: `w-full min-w-0` impide que un mapa
      ancho empuje el layout hacia los costados (no hay doble columna lateral). -->
 <div class="w-full min-w-0 space-y-3">
-  <!-- Barra de minimapas anidados: migaja de procedencia (nodo activo naranja).
-       La INYECCIÓN del componente global <MinimapaRuta.astro /> va dentro de un
-       contenedor elástico, AUTOCONTENIDO y de ancho máximo controlado: no hereda
-       las barras flotantes de Almacenamiento ni desborda el formulario. -->
-  <div class="max-w-xl md:max-w-2xl mx-auto block relative mb-6">
-    <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-host" />
-  </div>
+  <!-- 1. CADENA DE ORIENTACIÓN (componente global encapsulado). -->
+  <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-cadena" />
 
-  <!-- Lienzo interactivo: siluetas elásticas clicables del nivel actual -->
+  <!-- 2. PLANO A ESCALA (mismo componente, formato elástico): el host se amolda
+       al ancho real de la tarjeta y su contenido lo pinta
+       selectorMinimapaNuevoObjetoRender.ts con el MISMO motor de sectores. -->
   <div
     id="minimapaLienzo"
-    class="bg-gray-50 border border-gray-200 rounded-xl p-3 min-h-[150px] overflow-hidden"
+    class="minimapa-ruta minimapa-ruta-plano w-full bg-gray-50 border border-gray-200 rounded-xl p-2"
     role="group"
     aria-label="Navegación visual de la ubicación del objeto"
   ></div>
-
-  <!-- Texto vivo de la selección que viajará al backend -->
-  <p id="minimapaRutaTexto" class="text-xs text-gray-500 text-center"></p>
 
   <!-- Inputs ocultos canónicos: viajan idénticos a Django (sin cambios de API) -->
   <input type="hidden" name="ubicacion" id="ubicacionSeleccionada" value={ubicacionSeleccionada} />

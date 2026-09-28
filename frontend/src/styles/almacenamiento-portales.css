@@ -134,40 +134,24 @@
   stroke-width: 1.5;
 }
 /* ---------------------------------------------------------------------------
-   2.2 MINIATURAS UNIFICADAS DE PLANTA DEL SELECTOR DE UBICACIÓN (Objetos)
-   ---------------------------------------------------------------------------
-   Las tarjetas de planta del selector (alta y edición de objetos) ya no dibujan
-   un plano propio con líneas tenues: adentro va el MISMO markup del componente
-   global (renderMinimapasAnidados → `.mini-anidados-barra` + `.mini-anidado`),
-   así que heredan los trazos negros nítidos de 2.1 y las fusiones («Pasillo
-   Escalera») como un único ambiente continuo.
-   Acá solo se neutraliza el marco punteado del bar —la tarjeta ya es el marco—,
-   se anula la atenuación de los nodos de procedencia y el lienzo se estira al
-   ancho real de la tarjeta (sin deformar la silueta, que conserva su aspecto).
+   2.2 PLANO ELÁSTICO POR PLANTAS DE LA TARJETA DE PLANTA (Visor / selector)
+   Las tarjetas de planta (`tarjetaPlantaHtml`) y las tarjetas de planta del
+   selector de ubicación montan el MISMO plano a escala del componente global
+   (`minimapaSectoresSvg({ responsive: true })` dentro de `.minimapa-ruta-plano`):
+   heredan de styles/minimapa-ruta.css los trazos negros nítidos y las fusiones
+   («Pasillo Escalera») como un único ambiente continuo. Acá solo se ajusta la
+   caja de la tarjeta para que el plano se amolde a su ancho real.
    --------------------------------------------------------------------------- */
-.minimapa-plantas-cards .mini-anidados-barra {
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  overflow: visible;
-}
-.minimapa-plantas-cards .mini-anidado {
+.minimapa-plantas-cards {
   width: 100%;
-  max-width: none;
-  opacity: 1;
-  filter: none;
+  min-width: 0;
 }
-.minimapa-plantas-cards .mini-anidado-lienzo {
+.minimapa-plantas-card {
+  min-width: 0;
+  overflow: hidden;
+}
+.minimapa-plantas-card .minimapa-ruta-plano {
   width: 100%;
-}
-.minimapa-plantas-cards .mini-anidado-ico {
-  font-size: 12px;
-}
-.minimapa-plantas-cards .mini-anidado-nombre {
-  font-size: 10px;
-  white-space: normal;
 }
 .mini-anidado-nombre {
   max-width: 100%;

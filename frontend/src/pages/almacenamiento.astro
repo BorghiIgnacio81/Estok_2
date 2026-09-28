@@ -112,25 +112,33 @@ import '../styles/almacenamiento-portales.css';
               </button>
             </div>
           </div>
-          <!-- MINI-GUÍA ANALÍTICA SUPERIOR: componente global de minimapas
-               asimétricos proporcionales (casita a dos aguas + ambientes reales
-               + mueble, sector activo en naranja #f97316). El host arranca vacío
-               y portalesAlmacenamiento.ts lo rellena en vivo con el MISMO motor
+          <!-- MINI-GUÍA ANALÍTICA SUPERIOR: componente global autocontenido
+               (cadena de minimapas asimétricos proporcionales + sector activo
+               en naranja #f97316). El host arranca vacío y
+               portalesAlmacenamiento.ts lo rellena en vivo con el MISMO motor
                puro (src/lib/minimapasAnidados.ts) que usa Objetos. -->
           <MinimapaRuta id="minimapasAnidados" class="hidden" />
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
-          <div id="contenidoPanelDerecho" class="mt-1">
-            <div id="visorHabitacion" class="min-h-[180px]">
-              <!-- MINIMAPAS DE LAS PLANTAS: las tarjetas las emite el COMPONENTE
-                   GLOBAL `<MinimapaRuta />` (único render de siluetas asimétricas
-                   proporcionales del proyecto: motor puro lib/minimapasAnidados.ts
-                   + los trazos negros nítidos de .mini-anidados-barra). Acá se
-                   declara su punto de montaje: las plantas del Estok activo son
-                   datos multi-tenant (JWT + X-Estok-Id), así que
-                   visorHabitacion.ts lo regenera en vivo pasándole las
-                   dimensiones (aspecto) y el listado de espacios (sectores) de
-                   cada planta, incluidas sus fusiones ya unificadas. -->
-              <MinimapaRuta id="minimapaPlantasIniciales" />
+          <div id="contenidoPanelDerecho" class="mt-1 min-w-0">
+            <div id="visorHabitacion" class="min-h-[180px] min-w-0">
+              <!-- 🚪 BLOQUE COMPACTO «MINIMAPAS DE LAS PLANTAS» (estándar visual
+                   único del proyecto): una tarjeta por planta del Estok activo,
+                   dibujada por el COMPONENTE GLOBAL <MinimapaRuta /> (motor puro
+                   lib/minimapasAnidados.ts + siluetas REALES con los trazos
+                   negros nítidos). El host del componente queda MONTADO de forma
+                   permanente (no se destruye al re-renderizar) y
+                   visorHabitacion.ts solo rellena su interior: al ser un
+                   contenedor elástico y autocontenido, el bloque no puede
+                   desbordarse de esta barra lateral. -->
+              <div id="visorPlantas" class="visor-default w-full min-w-0">
+                <div class="visor-default-encabezado">
+                  <span class="visor-titulo">🗺️ Minimapas de las plantas</span>
+                  <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
+                </div>
+                <MinimapaRuta id="minimapaPlantasIniciales" class="minimapa-ruta-plantas" />
+              </div>
+              <!-- Visor de la habitación abierta (Nivel 2): montaje en vivo -->
+              <div id="visorRoom" class="hidden w-full min-w-0"></div>
             </div>
             <div id="visorContenedorGrande" class="hidden mt-1"></div>
             <div id="cargaFinaPanel" class="hidden mt-1"></div>

@@ -1,63 +1,75 @@
 ---
 // =============================================================================
-// MINIMAPA RUTA · COMPONENTE GLOBAL DE LA MINI-GUÍA ANALÍTICA SUPERIOR
+// MINIMAPA RUTA · COMPONENTE GLOBAL DE MINIMAPAS (AUTOCONTENIDO Y ELÁSTICO)
 // -----------------------------------------------------------------------------
-// ÚNICA cara Astro del sistema de minimapas analíticos del proyecto: dibuja la
-// cadena horizontal de siluetas PROPORCIONALES (casita con techo a dos aguas,
-// plano real de ambientes, mueble) con la geometría REAL persistida en
-// PostgreSQL (ui_left / ui_top / ui_width / ui_height) y resalta en NARANJA
-// (#f97316) el sector activo.
+// ÚNICA cara Astro del sistema de minimapas del proyecto. Es un contenedor
+// CERRADO: se importa a sí mismo su propia hoja de estilos (styles/minimapa-
+// ruta.css) y se amolda al ancho real de su padre. Quien lo usa NO necesita
+// conocer clases, ni anchos, ni el motor de dibujo.
 //
-// NO duplica lógica de dibujo: delega en el motor puro
-// src/lib/minimapasAnidados.ts → renderMinimapasAnidados(), el MISMO que
-// consumen las pantallas con render en caliente (portalesAlmacenamiento.ts y
-// rutaCajaMinimapas.ts de Objetos). Así Almacenamiento y Objetos muestran
-// exactamente la misma silueta asimétrica y el mismo resalte naranja.
+// DOS FORMATOS (misma fuente de verdad geométrica, cero código duplicado):
 //
-// Props limpias (todas opcionales):
-//   nodos        → cadena de la ruta (cada nodo trae su `tipo` taxonómico:
-//                  'planta' | 'habitacion' | 'mueble' | 'caja' | 'estok').
-//   activoId     → ID del contenedor/ambiente activo en PostgreSQL. Su sector y
-//                  su miniatura se pintan en naranja por identidad.
-//   todosActivos → conserva el resalte naranja en TODA la cadena (ruta
-//                  geográfica de una caja, sin "migajas" atenuadas).
-//   aspecto      → dimensión elástica: relación alto/ancho REAL del lienzo
-//                  medido en vivo, para no deformar las proporciones.
-//   id / class   → passthrough al host (permite hidratar el contenido en
-//                  caliente desde los módulos de src/lib sin cambiar el layout).
+//   1. PLANO A ESCALA (`plano` + `sectores`):
+//      dibuja UN plano elástico del nivel pedido (habitaciones de una planta,
+//      muebles de una habitación, cajas de un mueble, etc.). El SVG se mide en
+//      PORCENTAJE del padre (`width="100%"`, `height="100%"`, `viewBox`),
+//      así que cada sector conserva su `ui_width`/`ui_height` real y el plano
+//      se amolda al ancho del formulario sin anchos fijos ni recortes.
+//      Con `clicable` cada silueta viaja en un `<g data-sector-id>` para que la
+//      pantalla resuelva el clic; el sector activo va en NARANJA (#f97316).
 //
-// Sin `nodos` el componente queda como HOST vacío: la pantalla lo rellena en
-// vivo con el mismo motor (caso de Almacenamiento, que navega por portales).
+//   2. CADENA DE ORIENTACIÓN (`nodos`):
+//      mini-guía analítica superior (planta → habitación → mueble → caja) con
+//      las siluetas asimétricas reales; delega en el motor puro
+//      src/lib/minimapasAnidados.ts → renderMinimapasAnidados(), el MISMO que
+//      consumen las pantallas con render en caliente (portalesAlmacenamiento.ts
+//      y rutaCajaMinimapas.ts de Objetos).
+//
+// ANTI-DESBORDE: NINGÚN ancho fijo. El host es `w-full min-w-0` con
+// `overflow-hidden` y las celdas interiores escalan en porcentaje, de modo que
+// el bloque jamás empuja ni desborda su contenedor lateral.
 //
 // CONTORNOS Y LÍNEAS DIVISORIAS: este componente NO declara bordes. El color y
-// el grosor de los trazos del plano (perímetro + divisorias de cada espacio)
-// viven en el motor de dibujo (lib/minimapa.ts) y se refuerzan a negro nítido
-// zinc-950 #0a0a0a / 1.5px para el bar reducido en styles/almacenamiento-
-// portales.css §2.1 — único punto que cubre a la vez Almacenamiento y Objetos
-// (esta última pantalla no importa el componente, reutiliza las mismas clases
-// `.mini-anidado-*`). No duplicar esos trazos acá.
+// el grosor de los trazos viven en el motor (lib/minimapa.ts) y se refuerzan en
+// styles/minimapa-ruta.css §2 (plano a escala: negro nítido zinc-950 #0a0a0a) y
+// styles/almacenamiento-portales.css §2.1 (cadena: mismo negro a escala
+// reducida). Un espacio FUSIONADO («Pasillo Escalera») se dibuja como UN solo
+// `<path>` de contorno: nunca queda una línea divisoria interna.
 // =============================================================================
 
 import { renderMinimapasAnidados } from '../lib/minimapasAnidados';
 import type { NodoRuta } from '../lib/minimapasAnidados';
+import { ASPECTO_LIENZO, minimapaSectoresSvg } from '../lib/minimapa';
+import type { SectorMinimapa } from '../lib/minimapa';
+// Hoja propia del componente: única fuente de verdad de su tamaño elástico.
+import '../styles/minimapa-ruta.css';
 
 interface Props {
-  /** Nodos de la ruta geográfica (casita → habitación → mueble → caja). */
+  /** Nodos de la cadena de orientación (casita → habitación → mueble → caja). */
   nodos?: NodoRuta[];
+  /** Sectores con geometría REAL: dibuja UN plano a escala del nivel. */
+  sectores?: SectorMinimapa[];
+  /** Formato PLANO a escala (amoldado al ancho del padre, con `aspect-ratio`). */
+  plano?: boolean;
+  /** Plano navegable: cada sector viaja en `<g data-sector-id>`. */
+  clicable?: boolean;
   /** ID del contenedor/ambiente activo: su sector va en NARANJA (#f97316). */
   activoId?: string | null;
   /** Resalta TODA la cadena (ruta geográfica de una caja móvil). */
   todosActivos?: boolean;
-  /** Relación alto/ancho (dimensión elástica) del lienzo real medido en vivo. */
+  /** Relación alto/ancho REAL del lienzo medido en vivo (no deforma el plano). */
   aspecto?: number;
-  /** ID del host (para que los módulos de src/lib inyecten la ruta en caliente). */
+  /** ID del host (para que los módulos de src/lib lo rellenen en caliente). */
   id?: string;
-  /** Clases del host (ej: `hidden` cuando la barra arranca vacía). */
+  /** Clases extra del host (ej: `hidden` cuando la barra arranca vacía). */
   class?: string;
 }
 
 const {
   nodos = [],
+  sectores,
+  plano = false,
+  clicable = false,
   activoId = null,
   todosActivos = false,
   aspecto,
@@ -65,17 +77,42 @@ const {
   class: clase,
 } = Astro.props;
 
+const aspectoFinal = Math.max(0.35, Math.min(1.8, Number(aspecto) || ASPECTO_LIENZO));
+
 // La dimensión elástica recibida por Props se hereda a los nodos que no traen
 // su propia medición en vivo: una sola fuente de verdad para las proporciones.
 const nodosFinales: NodoRuta[] =
   aspecto != null ? nodos.map((nodo) => ({ ...nodo, aspecto: nodo.aspecto ?? aspecto })) : nodos;
 
-const html = nodosFinales.length
+// PLANO a escala: SVG elástico (100% del padre) con los porcentajes reales.
+const htmlPlano =
+  plano && sectores && sectores.length
+    ? minimapaSectoresSvg({ sectores, aspecto: aspectoFinal, activoId, responsive: true, clicable })
+    : '';
+
+// CADENA de orientación (host vacío sin `nodos`: la pantalla la rellena en vivo).
+const htmlCadena = nodosFinales.length
   ? renderMinimapasAnidados(nodosFinales, { activoId, todosActivos })
   : '';
-const clases = ['minimapa-ruta', clase].filter(Boolean).join(' ');
+
+const html = htmlPlano || htmlCadena;
+
+const clases = [
+  'minimapa-ruta',
+  plano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
+  'w-full h-full flex items-center justify-center overflow-hidden',
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+
+// Proporción REAL del lienzo (ancho/alto) para el `aspect-ratio` del host.
+const estilo = plano
+  ? `--minimapa-aspecto-ratio:${(1 / aspectoFinal).toFixed(4)};`
+  : undefined;
 ---
 
-<div id={id} class={clases} data-minimapa-ruta>
+<div id={id} class={clases} style={estilo} data-minimapa-ruta>
   {html ? <Fragment set:html={html} /> : null}
 </div>
+

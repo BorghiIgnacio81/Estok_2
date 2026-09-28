@@ -124,61 +124,6 @@ export function minimapaHtml(cfg: MinimapaConfig = {}): string {
 }
 
 // =============================================================================
-// GENERADOR SVG (standalone, sin dependencia de CSS externa)
-// =============================================================================
-
-export function minimapaSvg(cfg: MinimapaConfig = {}): string {
-  const filas = cfg.filas || DEFAULT_FILAS;
-  const columnas = cfg.columnas || DEFAULT_COLUMNAS;
-  const fila = cfg.fila ?? null;
-  const columna = cfg.columna ?? null;
-  const adicionales = cfg.celdasAdicionales ?? [];
-  const color = cfg.color || '#10b981';
-
-  const esAsimetrico =
-    Array.isArray(cfg.columnasPorFila) &&
-    cfg.columnasPorFila.length >= filas &&
-    cfg.columnasPorFila.every((n) => Number.isFinite(Number(n)));
-  const columnasDeFila = (r: number): number => {
-    if (esAsimetrico) return Math.max(1, Math.floor(Number(cfg.columnasPorFila![r - 1])) || columnas);
-    return columnas;
-  };
-
-  const cell = 9;   // ULTRA-MINI: la celda se reduce 4× (antes 18)
-  const gap = 2;
-  const pad = 3;
-  const maxColumnas = Math.max(...Array.from({ length: filas }, (_, i) => columnasDeFila(i + 1)));
-  const w = pad * 2 + maxColumnas * cell + (maxColumnas - 1) * gap;
-  const h = pad * 2 + filas * cell + (filas - 1) * gap;
-
-  const esAdicional = (r: number, c: number): boolean =>
-    adicionales.some((a) => a.fila === r && a.columna === c);
-
-  let rects = '';
-  for (let r = 0; r < filas; r++) {
-    const cols = columnasDeFila(r + 1);
-    for (let c = 0; c < cols; c++) {
-      const activa = r + 1 === fila && c + 1 === columna;
-      const ocupada = !activa && esAdicional(r + 1, c + 1);
-      const x = pad + c * (cell + gap);
-      const y = pad + r * (cell + gap);
-      const fill = activa ? color : ocupada ? `${color}26` : '#f3f4f6';
-      const stroke = activa ? color : ocupada ? `${color}80` : '#d1d5db';
-      rects += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
-    }
-  }
-
-  const cx = pad + (columna ? (columna - 1) * (cell + gap) + cell / 2 : cell / 2);
-  const cy = pad + (fila ? (fila - 1) * (cell + gap) + cell / 2 : cell / 2);
-
-  return `
-  <svg class="minimapa-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Minimapa de sección">
-    ${rects}
-    ${fila && columna ? `<circle cx="${cx}" cy="${cy}" r="2" fill="#ffffff" />` : ''}
-  </svg>`;
-}
-
-// =============================================================================
 // CSS GLOBAL DEL MINIMAPA (se inyecta una sola vez por documento)
 // =============================================================================
 
@@ -346,10 +291,23 @@ export interface MinimapaSectoresOpts {
   sectores: SectorMinimapa[];
   /** Relación alto/ancho del lienzo real (evita deformar las proporciones). */
   aspecto?: number;
-  /** Ancho del SVG en px (default 62). */
+  /** Ancho del SVG en px (default 62). Se ignora con `responsive`. */
   ancho?: number;
   /** Override global de resalte: el sector con este ID va en COLOR_NARANJA. */
   activoId?: string | null;
+  /**
+   * LIENZO ELÁSTICO: el SVG no se mide en px sino en PORCENTAJE del padre
+   * (`width="100%"` + `height="100%"` + `preserveAspectRatio`), conservando su
+   * `viewBox`. Es el modo que usa el componente global MinimapaRuta.astro para
+   * amoldar el plano al ancho real del contenedor sin anchos fijos ni recortes.
+   */
+  responsive?: boolean;
+  /**
+   * SECTORES NAVEGABLES: cada silueta viaja envuelta en un `<g data-sector-id>`
+   * (con `<title>` accesible) para que la pantalla pueda resolver el clic sobre
+   * el espacio real. Sin esta opción el SVG es idéntico al de siempre.
+   */
+  clicable?: boolean;
 }
 
 /** Aspecto por defecto del lienzo elástico (alto/ancho) cuando no se puede medir. */
@@ -363,12 +321,22 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
   const sectores = sectoresAcotados(opts.sectores, opts.activoId);
   if (!sectores.length) return '';
 
+  const responsive = opts.responsive === true;
+  const clicable = opts.clicable === true;
   const ancho = Math.round(acotar(Number(opts.ancho) || 62, 28, 140));
   const aspecto = acotar(Number(opts.aspecto) || ASPECTO_LIENZO, 0.35, 1.8);
   const alto = Math.max(20, Math.round(ancho * aspecto));
   const pad = 2;
   const sx = (ancho - pad * 2) / 100;
   const sy = (alto - pad * 2) / 100;
+
+  /** Envuelve una silueta en su `<g>` navegable (solo si se pidió `clicable`). */
+  const navegable = (s: SectorMinimapa, silueta: string): string => {
+    if (!clicable) return silueta;
+    const id = escapeHtml(s.id);
+    const nombre = escapeHtml(s.nombre || 'Espacio');
+    return `<g class="minimapa-sector-clicable" data-sector-id="${id}" role="button" aria-label="${nombre}"><title>${nombre}</title>${silueta}</g>`;
+  };
 
   const rects = sectores.map((s) => {
     const x = pad + s.left * sx;
@@ -385,14 +353,26 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
         x: x + (p.x / 100) * w,
         y: y + (p.y / 100) * h,
       }));
-      if (d) return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
+      if (d) {
+        return navegable(s, `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`);
+      }
     }
-    return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
+    return navegable(
+      s,
+      `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`,
+    );
   });
 
   // Marco del perímetro real del lienzo (bounded box 100% × 100%).
   const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="2 1.6" />`;
 
-  return `<svg class="minimapa-rect-svg" width="${ancho}" height="${alto}" viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa proporcional del lienzo (sector activo en naranja)">${marco}${rects.join('')}</svg>`;
+  // Elástico: 100%/100% del padre + `viewBox` (mismas coordenadas internas) y
+  // `preserveAspectRatio` para no deformar la silueta al escalar.
+  const medida = responsive
+    ? 'width="100%" height="100%" preserveAspectRatio="xMidYMid meet"'
+    : `width="${ancho}" height="${alto}"`;
+  const clase = responsive ? 'minimapa-rect-svg minimapa-rect-svg-elastico' : 'minimapa-rect-svg';
+
+  return `<svg class="${clase}" ${medida} viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa proporcional del lienzo (sector activo en naranja)">${marco}${rects.join('')}</svg>`;
 }
 

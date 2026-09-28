@@ -184,36 +184,54 @@ function aplicarMuebleActivo(): void {
 // RENDER
 // =============================================================================
 
-/** Contenido de una celda del Visor (contenedores y objetos con esa coordenada). */
+/**
+ * Rellena el HOST del componente global <MinimapaRuta /> del bloque compacto
+ * «Minimapas de las plantas» (#minimapaPlantasIniciales): una tarjeta por
+ * división (planta) del Estok activo, dibujada con el MISMO motor de siluetas
+ * asimétricas proporcionales (lib/visorHabitacionHtml.ts → tarjetaPlantaHtml).
+ * El host lo declara la página y NO se destruye nunca: solo se rellena.
+ */
+function renderPlantasIniciales(): void {
+  const host = document.getElementById('minimapaPlantasIniciales');
+  if (!host) return;
+  if (!divisionesIniciales.length) {
+    host.innerHTML = `<div class="visor-placeholder">
+      <div class="visor-placeholder-ico">🏠</div>
+      <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
+    </div>`;
+    return;
+  }
+  host.innerHTML = `<div class="visor-default-minimapas w-full">${divisionesIniciales
+    .map((d) => tarjetaPlantaHtml(d, habitacionesDeDivision(d.id)))
+    .join('')}</div>`;
+}
+
+/** Dibuja el Visor: estado inicial (plantas) o la habitación abierta (Nivel 2). */
 function renderVisor(): void {
-  const cont = document.getElementById('visorHabitacion');
-  if (!cont) return;
-  // Purga absoluta del contenedor en caliente: el navegador destruye los
+  const bloquePlantas = document.getElementById('visorPlantas');
+  const montajeRoom = document.getElementById('visorRoom');
+  if (!bloquePlantas || !montajeRoom) return;
+
+  if (!roomActual) {
+    // ESTADO INICIAL: el bloque compacto del COMPONENTE GLOBAL ya está montado
+    // por la página — no se reescribe el contenedor (antes se hacía
+    // `cont.innerHTML = ''`, lo que destruía el host y volvía a inflar el DOM).
+    // Solo se rellena su lienzo y se apaga el montaje de la habitación.
+    bloquePlantas.classList.remove('hidden');
+    montajeRoom.classList.add('hidden');
+    montajeRoom.innerHTML = '';
+    renderPlantasIniciales();
+    return;
+  }
+
+  bloquePlantas.classList.add('hidden');
+  montajeRoom.classList.remove('hidden');
+  // Purga absoluta del montaje en caliente: el navegador destruye los
   // minimapas residuales viejos ANTES de iterar y re-dibujar los actualizados.
   // Esto detiene la acumulación en el DOM (minimapas duplicados en paralelo)
   // al mutar/renombrar una división de primer nivel y re-renderizar el Visor.
-  cont.innerHTML = '';
-  if (!roomActual) {
-    if (!divisionesIniciales.length) {
-      cont.innerHTML = `<div class="visor-placeholder">
-        <div class="visor-placeholder-ico">🏠</div>
-        <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
-      </div>`;
-    } else {
-      // MINIMAPAS DE LAS PLANTAS: una TARJETA unificada por planta (silueta
-      // asimétrica real + bordes negros del componente global MinimapaRuta).
-      cont.innerHTML = `<div class="visor-default">
-        <div class="visor-default-encabezado">
-          <span class="visor-titulo">🗺️ Minimapas de las plantas</span>
-          <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
-        </div>
-        <div class="visor-default-minimapas">
-          ${divisionesIniciales.map((d) => tarjetaPlantaHtml(d, habitacionesDeDivision(d.id))).join('')}
-        </div>
-      </div>`;
-    }
-    return;
-  }
+  montajeRoom.innerHTML = '';
+  const cont = montajeRoom;
 
   const room = roomActual;
   const med = medidasDe(room);

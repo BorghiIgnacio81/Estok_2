@@ -1,0 +1,131 @@
+/* =============================================================================
+   MINIMAPA RUTA - ESTILOS DEL COMPONENTE GLOBAL (autocontenido y elástico)
+   -----------------------------------------------------------------------------
+   ÚNICO punto que gobierna el tamaño del componente
+   components/MinimapaRuta.astro (y de su MISMO markup emitido en caliente por
+   los módulos de src/lib). El componente se importa a sí mismo esta hoja, así
+   quien lo usa no necesita conocer ninguna clase: basta con
+   `<MinimapaRuta />` y el bloque se amolda al ancho real de su padre.
+
+   REGLA ANTI-DESBORDE (de raíz):
+   - Ningún ancho fijo (ni 500px, ni w-[300px], ni SVG de 62/120px rígidos).
+   - El host toma el ancho del padre (`width:100%`, `min-width:0`) y recorta
+     cualquier excedente con `overflow:hidden`: es IMPOSIBLE que empuje al
+     contenedor lateral ni que genere scroll horizontal.
+     `min-width:0` es imprescindible: dentro de un flex/grid el ítem tiene
+     `min-width:auto` por defecto y se niega a encogerse → desborde.
+   - Las celdas y filas interiores escalan en PORCENTAJE: los sectores se
+     dibujan con `ui_left/ui_top/ui_width/ui_height` (ya en % del lienzo) dentro
+     de un `viewBox` que se estira al 100% de la caja (`width="100%"`,
+     `height="100%"`, `preserveAspectRatio="xMidYMid meet"`): la asimetría real
+     del plano se conserva, sin recortes ni escalado forzado a un cuadrado.
+
+   VARIANTES:
+   - `.minimapa-ruta-plano`  → UN plano a escala amoldado al ancho del padre
+     (mide su alto con `--minimapa-aspecto-ratio`, la proporción REAL del
+     lienzo). Es el formato de la tarjeta «Ubicación de Almacenamiento».
+   - `.minimapa-ruta-cadena` → cadena de miniaturas de orientación (barra
+     analítica); cada miniatura se encoge proporcionalmente antes que desbordar.
+   - `.minimapa-ruta-plantas` → tarjetas de planta del Visor/selector.
+
+   CONTORNOS: los trazos negros nítidos (zinc-950 #0a0a0a) del plano a escala
+   se declaran acá para el plano del componente; las divisiones internas de un
+   espacio FUSIONADO («Pasillo Escalera») no existen porque el motor lo dibuja
+   como UN solo `<path>` de contorno (lib/minimapa.ts + lib/plantaFusionSilueta).
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. HOST ELÁSTICO (bloque autocontenido)
+   --------------------------------------------------------------------------- */
+.minimapa-ruta {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+/* Precedencia explícita sobre el `display` del host: el componente se oculta
+   con la utilidad `.hidden` (arranca vacío y lo rellena la pantalla). */
+.minimapa-ruta.hidden {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   2. PLANO A ESCALA (variante elástica: se amolda al ancho del padre)
+   --------------------------------------------------------------------------- */
+.minimapa-ruta-plano {
+  aspect-ratio: var(--minimapa-aspecto-ratio, 4 / 3);
+  height: auto;
+  max-height: 100%;
+}
+.minimapa-ruta-plano svg.minimapa-rect-svg-elastico {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Trazo negro nítido del plano a escala (el motor emite gris tenue de 0.5
+   unidades porque su escala nativa es de 62-140px; acá el mismo trazo se lee
+   sobre el ancho real del formulario). Los sectores fusionados son un único
+   `<path>`: nunca aparece una línea divisoria interna. */
+.minimapa-ruta-plano svg rect,
+.minimapa-ruta-plano svg path {
+  stroke: #0a0a0a;
+  stroke-width: 0.6;
+}
+/* Sector clicable (navegación por el plano): la silueta es el blanco del clic. */
+.minimapa-sector-clicable {
+  cursor: pointer;
+}
+.minimapa-sector-clicable:hover rect,
+.minimapa-sector-clicable:hover path {
+  filter: brightness(0.92);
+}
+
+/* ---------------------------------------------------------------------------
+   3. CADENA DE MINIATURAS (barra analítica de orientación)
+   Nada de anchos fijos: cada nodo se encoge antes que desbordar el padre.
+   ALCANCE ESTRICTO (combinadores `>`): estas reglas gobiernan SOLO la barra
+   propia de la cadena. Las tarjetas de planta (`.visor-default-minimapas`
+   dentro de `.minimapa-ruta-plantas`) conservan sus reglas de
+   styles/almacenamiento-escenas.css: sin colisiones de especificidad.
+   --------------------------------------------------------------------------- */
+.minimapa-ruta-cadena,
+.minimapa-ruta-plantas {
+  width: 100%;
+}
+.minimapa-ruta-cadena > .mini-anidados-barra {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  justify-content: center;
+  overflow: hidden;
+}
+.minimapa-ruta-cadena > .mini-anidados-barra > .mini-anidado {
+  flex: 0 1 84px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Rejilla de tarjetas de planta: nunca excede el ancho del host del componente. */
+.minimapa-ruta-plantas > .visor-default-minimapas {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Celda del lienzo: ocupa el ancho disponible y el SVG la llena al 100%
+   conservando su aspecto (`height:auto`, jamás un ancho en px). */
+.minimapa-ruta .mini-anidado-lienzo {
+  width: 100%;
+  max-width: 100%;
+}
+.minimapa-ruta .mini-anidado-lienzo svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.minimapa-ruta .mini-anidado-proporcional svg {
+  height: 100%;
+}

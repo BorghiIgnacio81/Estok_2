@@ -108,10 +108,43 @@ function irANivel(nivel: 0 | 1 | 2 | 3): void {
 // INTERACCIÓN
 // =============================================================================
 
+/**
+ * Resuelve el clic sobre un SECTOR del plano a escala: el `data-sector-id` es el
+ * ID real del espacio (Ubicación o Contenedor), así que el nivel se ubica por
+ * IDENTIDAD y no por posición. Los espacios FUSIONADOS («Pasillo Escalera»)
+ * viajan con el id de su primer miembro: el ambiente continuo se comporta como
+ * una sola unidad, igual que en el lienzo grande.
+ */
+function manejarClickSector(id: string): void {
+  if (!id) return;
+
+  const habitacion = estado.ubicaciones.find((u) => String(u.id) === String(id));
+  if (habitacion) {
+    estado.planta = String(habitacion.piso || estado.planta);
+    estado.habitacionId = String(habitacion.id);
+    limpiarDescendencia(2);
+    irANivel(2);
+    return;
+  }
+
+  if (estado.contenedores.some((c) => String(c.id) === String(id))) {
+    seleccionarEspacioMinimapa('contenedor', String(id));
+  }
+}
+
 function manejarClick(evento: Event): void {
-  const objetivo = (evento.target as HTMLElement | null)?.closest<HTMLElement>(
-    '[data-accion], [data-nivel]',
-  );
+  const destino = (evento.target as HTMLElement | null) ?? null;
+
+  // CLIC SOBRE EL PLANO A ESCALA: cada silueta del nivel viaja en un
+  // `<g data-sector-id>` (componente global MinimapaRuta formato `plano`), así
+  // que el clic sobre un ambiente real desciende un nivel.
+  const sector = destino?.closest<HTMLElement>('[data-sector-id]');
+  if (sector) {
+    manejarClickSector(sector.dataset.sectorId || '');
+    return;
+  }
+
+  const objetivo = destino?.closest<HTMLElement>('[data-accion], [data-nivel]');
   if (!objetivo) return;
 
   const accion = objetivo.dataset.accion;
