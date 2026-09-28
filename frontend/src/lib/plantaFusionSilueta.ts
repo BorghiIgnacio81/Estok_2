@@ -25,6 +25,12 @@
 //
 // Todas las medidas son % del bounding box del bloque (0..100), igual que el
 // espacio de usuario del SVG del grupo.
+//
+// TERCER CONSUMIDOR: los MINIMAPAS también heredan esta regla. A escala de
+// miniatura no hay portadores táctiles ni celdas HTML: el bloque fusionado se
+// dibuja con el CONTORNO EXTERIOR de su unión (`contornoUnion` + `pathContorno`),
+// de modo que el trazo único rodea todo el bloque y ninguna arista compartida
+// queda como línea divisoria interna.
 // =============================================================================
 
 /** Caja relativa de una celda dentro del bounding box del bloque (0..100 %). */
@@ -143,3 +149,208 @@ export function siluetaContinua(celdas: readonly CajaBloque[]): string {
     )
     .join('');
 }
+
+// =============================================================================
+// CONTORNO EXTERIOR DE LA UNIÓN (minimapas: un solo trazo, sin líneas internas)
+// -----------------------------------------------------------------------------
+// A escala de miniatura no hay celdas HTML con clases de borde: el bloque
+// fusionado se dibuja con UN ÚNICO contorno cerrado. `contornoUnion` recorre la
+// frontera real de la unión de las cajas (grilla comprimida sobre las
+// coordenadas propias de las celdas: exacta, sin muestreo ni aproximación) y
+// devuelve los lazos del contorno; `pathContorno` los serializa como `<path>`,
+// aplicando el mapeo a coordenadas del destino (el viewBox del minimapa).
+//
+// Las aristas compartidas entre celdas hermanas NUNCA forman parte del lazo:
+// sólo sobrevive la frontera exterior (y el borde de un hipotético hueco
+// interno, con el sentido invertido, para que hasta el `fill-rule: nonzero` lo
+// respete). 100% puro: sin DOM, sin estado, sin dependencias.
+// =============================================================================
+
+/** Punto de un contorno de bloque, en % de la caja del bloque (0..100). */
+export interface PuntoBloque {
+  x: number;
+  y: number;
+}
+
+/** Dos medidas son la misma coordenada (absorbe el redondeo de ui_*). */
+function igual(a: number, b: number): boolean {
+  return Math.abs(a - b) <= 1e-6;
+}
+
+/** Coordenadas únicas y ordenadas de un eje (líneas de corte de la grilla). */
+function cortes(valores: number[]): number[] {
+  const ordenados = [...valores].sort((a, b) => a - b);
+  const salida: number[] = [];
+  ordenados.forEach((valor) => {
+    if (!salida.length || !igual(salida[salida.length - 1], valor)) salida.push(valor);
+  });
+  return salida;
+}
+
+/** Índice de una coordenada dentro de sus líneas de corte. */
+function indiceDe(cortesEje: number[], valor: number): number {
+  return cortesEje.findIndex((v) => igual(v, valor));
+}
+
+/** Clave de un punto con el MISMO redondeo que los tokens del path (2 decimales). */
+function clavePunto(x: number, y: number): string {
+  return `${token(x)}|${token(y)}`;
+}
+
+/** Segmento dirigido de la frontera (el interior queda siempre del mismo lado). */
+interface Segmento {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  usado: boolean;
+}
+
+/**
+ * Giro en pantalla (eje Y hacia abajo) con prioridad derecha → recto →
+ * izquierda: mantiene el recorrido abrazado al borde de la unión también en los
+ * vértices ambiguos (dos fronteras que se tocan en un mismo punto).
+ */
+function elegirSegmento(segmentos: Segmento[], candidatos: number[], previo: Segmento): Segmento {
+  const dx = Math.sign(previo.x2 - previo.x1);
+  const dy = Math.sign(previo.y2 - previo.y1);
+  const prioridad: Array<[number, number]> = [
+    [-dy, dx],
+    [dx, dy],
+    [dy, -dx],
+  ];
+  for (const [px, py] of prioridad) {
+    for (const i of candidatos) {
+      const s = segmentos[i];
+      if (Math.sign(s.x2 - s.x1) === px && Math.sign(s.y2 - s.y1) === py) return s;
+    }
+  }
+  return segmentos[candidatos[0]];
+}
+
+/**
+ * CONTORNO EXTERIOR EXACTO de la unión de varias cajas rectangulares.
+ *
+ * Devuelve un lazo cerrado por frontera (el contorno del bloque y, si la unión
+ * encierra un hueco, también el borde interior de ese hueco) en % de la caja que
+ * las cajas ocupan en conjunto (0..100). Las aristas que dos cajas comparten NO
+ * aparecen: son interiores a la unión, que es exactamente el equivalente
+ * vectorial de `border-*-0` entre las celdas hermanas de un espacio fusionado.
+ */
+export function contornoUnion(cajas: readonly CajaBloque[]): PuntoBloque[][] {
+  const validas = cajas.filter((c) => c.width > 0 && c.height > 0);
+  if (!validas.length) return [];
+  if (validas.length === 1) {
+    const c = validas[0];
+    return [
+      [
+        { x: c.left, y: c.top },
+        { x: c.left + c.width, y: c.top },
+        { x: c.left + c.width, y: c.top + c.height },
+        { x: c.left, y: c.top + c.height },
+      ],
+    ];
+  }
+
+  // 1) Grilla comprimida: una celda por rango entre las líneas de corte propias.
+  const xs = cortes(validas.flatMap((c) => [c.left, c.left + c.width]));
+  const ys = cortes(validas.flatMap((c) => [c.top, c.top + c.height]));
+  const columnas = xs.length - 1;
+  const filas = ys.length - 1;
+  const cubierta: boolean[][] = Array.from({ length: columnas }, () =>
+    new Array<boolean>(filas).fill(false),
+  );
+  validas.forEach((c) => {
+    const i0 = indiceDe(xs, c.left);
+    const i1 = indiceDe(xs, c.left + c.width);
+    const j0 = indiceDe(ys, c.top);
+    const j1 = indiceDe(ys, c.top + c.height);
+    for (let i = i0; i < i1; i++) {
+      for (let j = j0; j < j1; j++) cubierta[i][j] = true;
+    }
+  });
+
+  // 2) Aristas de FRONTERA (celda cubierta que da a una descubierta), dirigidas
+  //    de forma consistente: el interior siempre sobre el mismo lado.
+  const segmentos: Segmento[] = [];
+  const salidas = new Map<string, number[]>();
+  const agregar = (x1: number, y1: number, x2: number, y2: number): void => {
+    const i = segmentos.length;
+    segmentos.push({ x1, y1, x2, y2, usado: false });
+    const clave = clavePunto(x1, y1);
+    const lista = salidas.get(clave) ?? [];
+    lista.push(i);
+    salidas.set(clave, lista);
+  };
+  for (let i = 0; i < columnas; i++) {
+    for (let j = 0; j < filas; j++) {
+      if (!cubierta[i][j]) continue;
+      const x0 = xs[i];
+      const x1 = xs[i + 1];
+      const y0 = ys[j];
+      const y1 = ys[j + 1];
+      if (j === 0 || !cubierta[i][j - 1]) agregar(x0, y0, x1, y0);
+      if (j === filas - 1 || !cubierta[i][j + 1]) agregar(x1, y1, x0, y1);
+      if (i === 0 || !cubierta[i - 1][j]) agregar(x0, y1, x0, y0);
+      if (i === columnas - 1 || !cubierta[i + 1][j]) agregar(x1, y0, x1, y1);
+    }
+  }
+
+  // 3) Encadenado de lazos: cada arista se usa UNA vez y la cadena se cierra
+  //    cuando su punto de salida ya no tiene aristas libres (o vuelve al inicio).
+  const lazos: PuntoBloque[][] = [];
+  for (let inicio = 0; inicio < segmentos.length; inicio++) {
+    if (segmentos[inicio].usado) continue;
+    const lazo: PuntoBloque[] = [];
+    let actual: Segmento | undefined = segmentos[inicio];
+    let ultimo: Segmento | null = null;
+    while (actual) {
+      actual.usado = true;
+      lazo.push({ x: actual.x1, y: actual.y1 });
+      ultimo = actual;
+      const clave = clavePunto(actual.x2, actual.y2);
+      const candidatos = (salidas.get(clave) ?? []).filter((i) => !segmentos[i].usado);
+      if (!candidatos.length) break;
+      const elegido = elegirSegmento(segmentos, candidatos, actual);
+      if (igual(elegido.x1, lazo[0].x) && igual(elegido.y1, lazo[0].y)) break;
+      actual = elegido;
+    }
+    // Lazo abierto (cadena que no volvió a su inicio): se cierra con su extremo.
+    if (ultimo && !(igual(ultimo.x2, lazo[0].x) && igual(ultimo.y2, lazo[0].y))) {
+      lazo.push({ x: ultimo.x2, y: ultimo.y2 });
+    }
+    if (lazo.length >= 3) lazos.push(lazo);
+  }
+  return lazos;
+}
+
+/**
+ * Serializa los lazos como `<path>` SVG (`M` + tramos `H` / `V` + `Z` por lazo),
+ * aplicando `mapear` a cada punto. Sin `mapear`, el path queda en el espacio
+ * 0..100 del bloque.
+ */
+export function pathContorno(
+  lazos: readonly PuntoBloque[][],
+  mapear?: (punto: PuntoBloque) => PuntoBloque,
+): string {
+  return lazos
+    .filter((lazo) => lazo.length >= 3)
+    .map((lazo) => {
+      const puntos = (mapear ? lazo.map(mapear) : [...lazo]).map((p) => ({
+        x: Math.round(p.x * 100) / 100,
+        y: Math.round(p.y * 100) / 100,
+      }));
+      let d = `M${token(puntos[0].x)} ${token(puntos[0].y)}`;
+      for (let i = 1; i < puntos.length; i++) {
+        const previo = puntos[i - 1];
+        const punto = puntos[i];
+        if (previo.x === punto.x && previo.y === punto.y) continue;
+        if (previo.y === punto.y) d += `H${token(punto.x)}`;
+        else if (previo.x === punto.x) d += `V${token(punto.y)}`;
+        else d += `L${token(punto.x)} ${token(punto.y)}`;
+      }
+      return `${d}Z`;
+    })
+    .join('');
+}
+

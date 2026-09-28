@@ -41,7 +41,7 @@ import {
   paletaPuertaHtml,
   medidasDe,
   minimapaHabitacionHtml,
-  minimapaDivisionHtml,
+  tarjetaPlantaHtml,
 } from './visorHabitacionHtml';
 
 interface ContenedorVisor {
@@ -200,13 +200,15 @@ function renderVisor(): void {
         <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
       </div>`;
     } else {
+      // MINIMAPAS DE LAS PLANTAS: una TARJETA unificada por planta (silueta
+      // asimétrica real + bordes negros del componente global MinimapaRuta).
       cont.innerHTML = `<div class="visor-default">
         <div class="visor-default-encabezado">
           <span class="visor-titulo">🗺️ Minimapas de las plantas</span>
           <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
         </div>
         <div class="visor-default-minimapas">
-          ${divisionesIniciales.map((d) => minimapaDivisionHtml(d, habitacionesDeDivision(d.id))).join('')}
+          ${divisionesIniciales.map((d) => tarjetaPlantaHtml(d, habitacionesDeDivision(d.id))).join('')}
         </div>
       </div>`;
     }

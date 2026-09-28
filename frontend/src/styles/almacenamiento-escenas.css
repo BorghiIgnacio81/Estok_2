@@ -34,10 +34,11 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Visor de Habitación - estado inicial: planos PROPORCIONALES de las plantas
-   ("Planta Alta" y "Planta Baja") en paralelo. Cada ambiente se dibuja con su
-   silueta real (porcentajes CSS calculados desde ui_left/ui_top/ui_width/
-   ui_height de PostgreSQL) + su icono contextual en miniatura. Sin matriz 2×2.
+   Visor de Habitación - estado inicial: TARJETAS unificadas de las plantas
+   ("Planta Alta" y "Planta Baja") en paralelo. Cada tarjeta la dibuja el
+   COMPONENTE GLOBAL `<MinimapaRuta />` (motor puro lib/minimapasAnidados.ts →
+   `.mini-anidado` + SVG de sectores reales), así que acá no queda ningún estilo
+   de plano: solo la caja de la tarjeta y el escalado del lienzo al panel.
    --------------------------------------------------------------------------- */
 .visor-default {
   display: flex;
@@ -58,7 +59,7 @@
 
 .visor-default-minimapas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -71,59 +72,53 @@
   margin: 0 auto;
 }
 
-/* Plano proporcional de una planta: hereda el color texturizado común de los
-   planos (ámbar con tramas) y aloja cada ambiente como caja absoluta. */
-.minimapa-proporcional {
-  position: relative;
-  display: block;
-  box-sizing: border-box;
+/* Miniatura unificada dentro de la tarjeta: el MISMO markup `.mini-anidado` del
+   bar analítico, agrandado al ancho real de la tarjeta y SIN el marco punteado
+   propio de la barra (la caja ámbar de `.visor-minimapa-planta` ya es el marco).
+   La tarjeta muestra el mapa principal del nivel, no una migaja de la cadena:
+   por eso va a plena opacidad, sin el filtro de atenuación de los nodos previos. */
+.visor-default-minimapas .visor-minimapa-planta {
+  align-items: stretch;
+}
+
+.visor-default-minimapas .mini-anidados-barra {
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.visor-default-minimapas .mini-anidado {
   width: 100%;
-  border: 1.5px solid #b45309;
-  border-radius: 10px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.6) 0 1px, transparent 2px),
-    radial-gradient(circle at 76% 72%, rgba(255, 255, 255, 0.45) 0 1px, transparent 2px),
-    repeating-linear-gradient(0deg, rgba(146, 64, 14, 0.06) 0 1px, transparent 1px 9px),
-    linear-gradient(180deg, #fffbeb 0%, #fde68a 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  max-width: none;
+  opacity: 1;
+  filter: none;
 }
 
-.minimapa-proporcional-vacio {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: #9a3412;
+.visor-default-minimapas .mini-anidado-lienzo {
+  width: 100%;
 }
 
-/* Sector con la silueta REAL del ambiente (left/top/width/height en %). */
-.minimapa-proporcional-sector {
-  position: absolute;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #d1d5db;
-  border-radius: 3px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 32% 32%, rgba(255, 255, 255, 0.55) 0 1px, transparent 2px),
-    #fef3c7;
-}
-
-.minimapa-proporcional-sector-activo {
-  background: #f97316;
-  border-color: #c2410c;
-}
-
-.minimapa-proporcional-ico {
+.visor-default-minimapas .mini-anidado-ico {
   font-size: 12px;
-  line-height: 1;
-  filter: drop-shadow(0 1px 1px rgba(120, 53, 15, 0.28));
+}
+
+.visor-default-minimapas .mini-anidado-nombre {
+  font-size: 11px;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Trazo de la miniatura: el lienzo de la tarjeta es ~6× el del bar analítico
+   (40px), así que el grosor se reescala para conservar el MISMO peso óptico de
+   1px del bar sobre el negro nítido zinc-950 (#0a0a0a) heredado por herencia
+   directa del componente (`.mini-anidados-barra`). El `path` es el contorno de
+   un espacio FUSIONADO: un solo trazo, nunca una línea divisoria interna. */
+.visor-default-minimapas .mini-anidado-lienzo svg rect,
+.visor-default-minimapas .mini-anidado-lienzo svg path {
+  stroke-width: 0.4;
 }
 
 /* ---------------------------------------------------------------------------

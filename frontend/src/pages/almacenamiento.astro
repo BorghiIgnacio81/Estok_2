@@ -121,10 +121,16 @@ import '../styles/almacenamiento-portales.css';
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1">
             <div id="visorHabitacion" class="min-h-[180px]">
-              <div class="visor-placeholder">
-                <div class="visor-placeholder-ico">🏠</div>
-                <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
-              </div>
+              <!-- MINIMAPAS DE LAS PLANTAS: las tarjetas las emite el COMPONENTE
+                   GLOBAL `<MinimapaRuta />` (único render de siluetas asimétricas
+                   proporcionales del proyecto: motor puro lib/minimapasAnidados.ts
+                   + los trazos negros nítidos de .mini-anidados-barra). Acá se
+                   declara su punto de montaje: las plantas del Estok activo son
+                   datos multi-tenant (JWT + X-Estok-Id), así que
+                   visorHabitacion.ts lo regenera en vivo pasándole las
+                   dimensiones (aspecto) y el listado de espacios (sectores) de
+                   cada planta, incluidas sus fusiones ya unificadas. -->
+              <MinimapaRuta id="minimapaPlantasIniciales" />
             </div>
             <div id="visorContenedorGrande" class="hidden mt-1"></div>
             <div id="cargaFinaPanel" class="hidden mt-1"></div>

@@ -5,11 +5,13 @@
 // del lienzo persistidos en PostgreSQL) y la acota al perímetro del lienzo:
 // NINGÚN sector puede desbordar las paredes (borde derecho/inferior).
 //
-// Vive en su propio módulo para que el render SVG (minimapa.ts) y el render HTML
-// por porcentajes CSS (minimapaSectoresHtml.ts) compartan EXACTAMENTE el mismo
-// acotado, sin acoplar un módulo de dibujo con el otro y manteniendo cada
-// archivo bajo el límite de modularidad del proyecto. 100% puro.
+// Vive en su propio módulo para que el render SVG (minimapa.ts) y cualquier
+// otro consumidor de la geometría compartan EXACTAMENTE el mismo acotado, sin
+// acoplar los módulos de dibujo entre sí y manteniendo cada archivo bajo el
+// límite de modularidad del proyecto. 100% puro.
 // =============================================================================
+
+import type { CajaBloque } from './plantaFusionSilueta';
 
 /** Geometría mínima de un sector proporcional (porcentajes 0..100 del lienzo). */
 export interface SectorGeometrico {
@@ -25,6 +27,12 @@ export interface SectorGeometrico {
   icono?: string | null;
   /** Nombre legible del sector (tooltip / descripción accesible). */
   nombre?: string | null;
+  /**
+   * PARTES de un espacio FUSIONADO, en % de la caja del propio sector: cuando
+   * viene, el sector es la UNIÓN de esas cajas y debe dibujarse con su contorno
+   * exterior (un solo trazo, sin aristas internas) en vez de un rectángulo.
+   */
+  partes?: readonly CajaBloque[] | null;
 }
 
 /** Sector ya validado y acotado al perímetro real del lienzo (0..100 %). */
@@ -37,6 +45,8 @@ export interface SectorAcotado {
   activo: boolean;
   icono: string;
   nombre: string;
+  /** Partes del espacio fusionado (se conservan tal cual: son relativas). */
+  partes: readonly CajaBloque[] | null;
 }
 
 function acotar(n: number, min: number, max: number): number {
@@ -72,6 +82,10 @@ export function sectoresAcotados(
         activo: s.activo === true || (Boolean(activoId) && id === activoId),
         icono: s.icono ?? '',
         nombre: s.nombre ?? '',
+        // Las partes del espacio fusionado son RELATIVAS a la caja del sector:
+        // viajan intactas (el acotado ya se aplicó sobre la caja), así el render
+        // puede trazar el contorno de la unión sin recalcular nada.
+        partes: s.partes ?? null,
       };
     });
 }

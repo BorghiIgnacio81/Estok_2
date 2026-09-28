@@ -11,6 +11,8 @@
 // =============================================================================
 
 import { sectoresAcotados } from './sectoresProporcionales';
+import { contornoUnion, pathContorno } from './plantaFusionSilueta';
+import type { CajaBloque, PuntoBloque } from './plantaFusionSilueta';
 
 // =============================================================================
 // TIPOS
@@ -331,6 +333,13 @@ export interface SectorMinimapa {
   icono?: string | null;
   /** Nombre legible del sector (tooltip / descripción accesible). */
   nombre?: string | null;
+  /**
+   * PARTES de un espacio FUSIONADO (0..100 % de la caja del propio sector): las
+   * celdas hermanas del mismo `fusion_grupo` con sus aristas compartidas ya
+   * fundidas (lib/plantaFusionSilueta.ts). Cuando vienen, el sector NO se dibuja
+   * como un rectángulo sino con el CONTORNO de su unión: un solo trazo cerrado,
+   * sin ninguna línea divisoria interna (misma regla que el lienzo grande). */
+  partes?: readonly CajaBloque[] | null;
 }
 
 export interface MinimapaSectoresOpts {
@@ -361,10 +370,25 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
   const sx = (ancho - pad * 2) / 100;
   const sy = (alto - pad * 2) / 100;
 
-  const rects = sectores.map(
-    (s) =>
-      `<rect x="${(pad + s.left * sx).toFixed(2)}" y="${(pad + s.top * sy).toFixed(2)}" width="${Math.max(1.5, s.width * sx).toFixed(2)}" height="${Math.max(1.5, s.height * sy).toFixed(2)}" rx="1" fill="${s.activo ? COLOR_NARANJA : '#fef3c7'}" stroke="${s.activo ? '#c2410c' : '#d1d5db'}" stroke-width="0.5" />`,
-  );
+  const rects = sectores.map((s) => {
+    const x = pad + s.left * sx;
+    const y = pad + s.top * sy;
+    const w = Math.max(1.5, s.width * sx);
+    const h = Math.max(1.5, s.height * sy);
+    const fill = s.activo ? COLOR_NARANJA : '#fef3c7';
+    const stroke = s.activo ? '#c2410c' : '#d1d5db';
+    // Espacio FUSIONADO: UNA sola silueta con el contorno exterior de la unión
+    // (las aristas compartidas quedan interiores → sin línea interna), trazada en
+    // las coordenadas del SVG para conservar el grosor del trazo en cada sector.
+    if (s.partes && s.partes.length > 1) {
+      const d = pathContorno(contornoUnion(s.partes), (p: PuntoBloque) => ({
+        x: x + (p.x / 100) * w,
+        y: y + (p.y / 100) * h,
+      }));
+      if (d) return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
+    }
+    return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`;
+  });
 
   // Marco del perímetro real del lienzo (bounded box 100% × 100%).
   const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="2 1.6" />`;

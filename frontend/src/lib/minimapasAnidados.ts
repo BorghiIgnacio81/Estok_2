@@ -131,6 +131,13 @@ export interface MinimapaRutaOpts {
    * miniatura en NARANJA (#f97316) por identidad, en vez de por posición.
    */
   activoId?: string | null;
+  /**
+   * La barra NO es una cadena de procedencia sino una FILA DE TARJETAS
+   * HERMANAS (las plantas del Estok en el estado inicial del Visor): ningún
+   * nodo lleva el resalte naranja —no hay un nivel "actual" entre hermanos— y
+   * se omiten las flechas `→` de descendencia.
+   */
+  hermanas?: boolean;
 }
 
 /**
@@ -146,16 +153,20 @@ export function renderMinimapasAnidados(
   opts: MinimapaRutaOpts = {},
 ): string {
   if (!nodos.length) return '';
+  const hermanas = opts.hermanas === true;
   const piezas = nodos.map((nodo, i) => {
     const activo =
-      opts.todosActivos === true ||
-      (opts.activoId != null ? nodo.id === opts.activoId : i === nodos.length - 1);
+      !hermanas &&
+      (opts.todosActivos === true ||
+        (opts.activoId != null ? nodo.id === opts.activoId : i === nodos.length - 1));
     const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}" title="${escapeHtml(nodo.nombre)}">
       <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
       ${lienzoHtml(nodo, opts.activoId)}
       <span class="mini-anidado-nombre">${escapeHtml(nodo.nombre)}</span>
     </div>`;
-    return i < nodos.length - 1 ? `${bloque}<span class="mini-anidado-flecha" aria-hidden="true">→</span>` : bloque;
+    return i < nodos.length - 1 && !hermanas
+      ? `${bloque}<span class="mini-anidado-flecha" aria-hidden="true">→</span>`
+      : bloque;
   });
   return `<div class="mini-anidados-barra" aria-label="Historial de niveles (nodo activo en naranja)">${piezas.join('')}</div>`;
 }

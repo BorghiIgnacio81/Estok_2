@@ -11,7 +11,10 @@
 import { escapeHtml, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { ASPECTO_LIENZO, minimapaRectangularSvg } from './minimapa';
-import { minimapaSectoresHtml } from './minimapaSectoresHtml';
+// COMPONENTE GLOBAL: la tarjeta de planta se dibuja con el MISMO motor puro que
+// alimenta a components/MinimapaRuta.astro (siluetas asimétricas reales + trazos
+// negros de .mini-anidados-barra). No se dibuja ningún plano por fuera del motor.
+import { renderMinimapasAnidados } from './minimapasAnidados';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
 
@@ -174,33 +177,54 @@ export function minimapaHabitacionHtml(
   </div>`;
 }
 
-/** Plano PROPORCIONAL de una planta (estado inicial del Visor).
+/** TARJETA de planta del estado inicial del Visor (base del panel derecho).
  *
- *  REGLA GRÁFICA ESTRICTA: se eliminó de raíz la matriz estática de cuadraditos
- *  idénticos. Cada ambiente de la planta se dibuja con su SILUETA REAL mediante
- *  porcentajes CSS calculados desde ui_left/ui_top/ui_width/ui_height (geometría
- *  persistida en PostgreSQL), así un pasillo fino y largo, una suite grande o un
- *  baño compacto se leen tal cual son. Hereda el color texturizado común de los
- *  planos y muestra su icono contextual (🚽 🛏️ 🗄️ 🏠) en miniatura cuando el
- *  sector tiene tamaño suficiente para no ensuciar el plano.
+ *  REGLA DE UNIFICACIÓN: se eliminó de raíz el plano HTML propio con cajas
+ *  absolutas y líneas tenues. La miniatura de cada planta la dibuja el MOTOR
+ *  GLOBAL (el mismo que alimenta a components/MinimapaRuta.astro →
+ *  renderMinimapasAnidados): cada ambiente de la planta se lee con su SILUETA
+ *  REAL (ui_left/ui_top/ui_width/ui_height persistidos en PostgreSQL), con los
+ *  bordes negros bien definidos que el bar analítico impone a escala reducida y
+ *  su icono contextual (🚽 🛏️ 🗄️ 🏠) en miniatura.
  *
- *  Ambos minimapas ("Planta Alta" y "Planta Baja") se renderizan en paralelo
+ *  HERMANAS Y NO CADENA: las plantas son niveles paralelos del Estok, no pasos
+ *  de una descendencia → `hermanas: true` (sin resalte naranja ni flechas `→`).
+ *
+ *  HERENCIA DE LA REGLA DE FUSIONES: los ambientes con el mismo `fusion_grupo`
+ *  (ej. «Pasillo Escalera») viajan como UN ÚNICO sector con la caja de su unión
+ *  y sus partes ya fundidas por adyacencia (lib/sectoresMinimapa.ts →
+ *  lib/plantaFusionSilueta.ts), de modo que acá también se ven como un solo
+ *  ambiente continuo, sin ninguna línea divisoria interna.
+ *
+ *  Ambas plantas ("Planta Alta" y "Planta Baja") se renderizan en paralelo
  *  apenas carga la página para dar feedback analítico inmediato al operador. */
-export function minimapaDivisionHtml(
+export function tarjetaPlantaHtml(
   division: UbicacionPlano | null,
   habitaciones: UbicacionPlano[] | null | undefined,
-  aspecto: number = ASPECTO_LIENZO,
 ): string {
   if (!division) return '';
   const rooms = habitaciones ?? [];
-  // Sectores con geometría real + icono contextual por nombre del espacio.
+  // Sectores con geometría real (y fusiones ya unificadas) + icono contextual.
   const sectores = sectoresDeItems(rooms, null, (item) => iconoDeHabitacion(String(item.nombre ?? '')));
   const detalle = sectores.length
     ? `${sectores.length} ambiente${sectores.length === 1 ? '' : 's'} · silueta real`
-    : 'Sin ambientes persistidos';
+    : 'Sin ambientes todavía';
+  // Dimensión elástica del lienzo (alto/ancho): el mismo aspecto por defecto del
+  // motor, para que la silueta no se deforme en la miniatura.
+  const miniatura = renderMinimapasAnidados(
+    [
+      {
+        tipo: 'planta',
+        nombre: division.nombre,
+        id: String(division.id),
+        sectores,
+        aspecto: ASPECTO_LIENZO,
+      },
+    ],
+    { hermanas: true },
+  );
   return `<div class="visor-minimapa-planta" title="Planta «${escapeHtml(division.nombre)}»: ${detalle} (proporciones reales ui_width × ui_height)">
-    <span class="visor-minimapa-titulo">📍 ${escapeHtml(division.nombre)}</span>
-    ${minimapaSectoresHtml({ sectores, aspecto, textoVacio: 'Sin ambientes todavía' })}
+    ${miniatura}
     <span class="visor-minimapa-detalle">${detalle}</span>
   </div>`;
 }
