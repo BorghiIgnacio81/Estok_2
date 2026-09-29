@@ -20,7 +20,7 @@
 // tablero lo rellena en caliente).
 // =============================================================================
 
-import { ASPECTO_LIENZO, minimapaCasitaSvg, minimapaSectoresSvg } from './minimapa';
+import { ASPECTO_LIENZO, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
@@ -181,11 +181,17 @@ function htmlChips(titulo: string, chips: string[]): string {
 }
 
 /** Chip de navegación hacia un nivel inferior (planta o habitación). */
-function chipNavegacion(atributo: string, icono: string, texto: string, conteo: string): string {
+function chipNavegacion(
+  atributo: string,
+  icono: string,
+  texto: string,
+  conteo: string,
+  extraClases = '',
+): string {
   const contador = conteo
     ? `<span class="mudanza-mapa-chip-conteo">${escapeHtml(conteo)}</span>`
     : '';
-  return `<button type="button" class="mudanza-mapa-chip" ${atributo}>
+  return `<button type="button" class="mudanza-mapa-chip${extraClases}" ${atributo}>
       <span aria-hidden="true">${icono}</span>
       <span class="mudanza-mapa-chip-texto">${escapeHtml(texto)}</span>
       ${contador}
@@ -209,25 +215,35 @@ function chipContenedor(c: ContenedorDto): string {
 // NIVEL 1 · PLANO DE LA PLANTA (habitaciones = suelta GRUESA)
 // =============================================================================
 
-/** Selector de planta (siluetas de la casita). Sólo aparece en Modo Casa. */
+/**
+ * Selector de planta: chips de TEXTO PURO (una migaja por planta, la vigente
+ * resaltada). REGLA ANTI-DUPLICACIÓN: acá NO se dibuja ninguna silueta de la
+ * casa. La casa es SÓLO una por nivel (el macro del Nivel 0 o la miniatura del
+ * cabezal de contexto); repetirla dentro de cada chip apilaba planos idénticos
+ * en vertical y rompía la limpieza de la pantalla.
+ */
 export function htmlPlantaSelector(ubicaciones: UbicacionDto[], plantaActiva: string): string {
   const plantas = plantasDe(ubicaciones);
   if (plantas.length < 2) return '';
   const chips = plantas.map((piso, i) => {
     const activa = piso === plantaActiva;
-    const clases = `mudanza-mapa-chip mudanza-mapa-chip-planta${
-      activa ? ' mudanza-mapa-chip-activo' : ''
-    }`;
-    const etiqueta = etiquetaPlanta(piso, i);
-    const casita = minimapaCasitaSvg({ filas: plantas.length, filaActiva: i + 1 });
-    return `<button type="button" class="${clases}" data-navegar-planta="${escapeHtml(
-      piso,
-    )}" title="Ver el plano de ${escapeHtml(etiqueta)}">
-        <span class="mudanza-mapa-chip-casita">${casita}</span>
-        <span class="mudanza-mapa-chip-texto">${escapeHtml(etiqueta)}</span>
-      </button>`;
+    return chipNavegacion(
+      `data-navegar-planta="${escapeHtml(piso)}"`,
+      activa ? '🏠' : '🏢',
+      etiquetaPlanta(piso, i),
+      activa ? 'actual' : '',
+      activa ? ' mudanza-mapa-chip-activo' : '',
+    );
   });
   return htmlChips('Planta:', chips);
+}
+
+/** Chrome opcional del plano de la planta (título y chips propios del nivel). */
+export interface OpcionesNivelPlanta {
+  /** Línea de título propia del nivel (HTML ya escapado por quien la provee). */
+  titulo?: string;
+  /** Chips que se anteponen a los de «Abrir un ambiente» (ej: el selector de planta). */
+  chipsExtra?: string;
 }
 
 export function htmlNivelHabitaciones(
@@ -235,15 +251,16 @@ export function htmlNivelHabitaciones(
   contenedores: ContenedorDto[],
   planta: string,
   filtros: Set<FiltroDestino>,
+  opts: OpcionesNivelPlanta = {},
 ): NivelMapaDestino {
   const habitaciones = habitacionesDePlanta(ubicaciones, planta);
   if (!habitaciones.length) {
     return {
       plano: '',
-      detalle: htmlVacio(
+      detalle: `${htmlVacio(
         'Esta planta todavía no tiene habitaciones',
         'Modelá el plano del Estok destino desde «Mapa de Estok» en Almacenamiento.',
-      ),
+      )}${opts.chipsExtra || ''}`,
     };
   }
 
@@ -269,11 +286,16 @@ export function htmlNivelHabitaciones(
     );
   });
 
+  const titulo =
+    opts.titulo ??
+    `🏢 Plano real de la planta · <b>Nivel 1</b> · <b>soltá sobre la silueta</b> de la habitación${
+      droppable ? '' : ' (activá el filtro «Habitaciones» para habilitar la suelta)'
+    }`;
   return {
     plano,
-    detalle: `<p class="mudanza-mapa-titulo">🏢 Plano real de la planta · <b>Nivel 2</b> · <b>soltá sobre la silueta</b> de la habitación${
-      droppable ? '' : ' (activá el filtro «Habitaciones» para habilitar la suelta)'
-    }</p>${htmlChips('Abrir un ambiente:', chips)}`,
+    detalle: `<p class="mudanza-mapa-titulo">${titulo}</p>${
+      opts.chipsExtra || ''
+    }${htmlChips('Abrir un ambiente:', chips)}`,
   };
 }
 
@@ -331,7 +353,7 @@ export function htmlNivelMuebles(
     plano,
     detalle: `<p class="mudanza-mapa-titulo">🗄️ «${escapeHtml(
         nombreHab,
-      )}» · <b>Nivel 3</b> · <b>soltá sobre la silueta</b> del mueble o del estante</p>
+      )}» · <b>Nivel 2</b> · <b>soltá sobre la silueta</b> del mueble o del estante</p>
       ${sueltaGruesa}
       ${aviso}
       ${htmlChips('Guardar dentro de:', anidados.map(chipContenedor))}`,

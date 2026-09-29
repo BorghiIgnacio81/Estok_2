@@ -5,14 +5,18 @@
 // gap ampliado desde sm) — nunca se apila en vertical:
 //   - Columna IZQUIERDA: Estok Origen → índice de inventario móvil arrastrable
 //     (cajas tipo='CAJA', muebles móviles y objetos individuales sueltos).
-//   - Columna DERECHA : Estok Destino → JERARQUÍA ELÁSTICA DE MINIMAPAS del
-//     plano real, de la casa al mueble (Nivel 0 Estok entero → 1 Plantas →
-//     2 Habitaciones → 3 Muebles/Contenedores) + zona estática «En Tránsito»
-//     (limbo sin ubicación física). Al avanzar, el plano que se abandona se
-//     ENCOGE y se apila en el cabezal de contexto (minimapas compactados) con
-//     un botón «⬅ Volver» que retrocede UN nivel exacto. Cada silueta es una
-//     zona de suelta: el ítem se arrastra desde el Origen y se suelta ENCIMA del
-//     ambiente o del mueble.
+//   - Columna DERECHA : Estok Destino → JERARQUÍA de MINIMAPAS del plano real,
+//     de la casa al mueble (Nivel 0 «Estok entero» → 1 «Piso elegido» → 2
+//     «Ambiente/Muebles») + zona estática «En Tránsito» (limbo sin ubicación
+//     física). REGLA DE LA CASA ÚNICA: la silueta macro de la casa aparece en el
+//     cuerpo central SÓLO en el Nivel 0; al elegir el piso esa casa sube al
+//     cabezal de contexto como miniatura (miga de pan) y el cuerpo central queda
+//     liberado para el plano REAL de las habitaciones de ese piso, cuyas siluetas
+//     asimétricas son las zonas de suelta. El selector de planta usa chips de
+//     texto (sin casitas: jamás se repite el macro-plano). Los niveles previos se
+//     apilan compactados en el cabezal y el botón «⬅ Volver» retrocede UN nivel.
+//     Cada silueta es una zona de suelta: el ítem se arrastra desde el Origen y se
+//     suelta ENCIMA del ambiente o del mueble.
 // Cada columna tiene ALTURA FIJA (h-[calc(100vh-190px)]) y su propio scroll
 // independiente (overflow-y-auto en el panel), tanto en móvil como en desktop.
 // La lógica vive en src/lib/mudanzaBoard.ts (orquestación de DnD + toque),

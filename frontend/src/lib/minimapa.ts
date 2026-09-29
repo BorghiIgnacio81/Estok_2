@@ -186,9 +186,14 @@ export function minimapaCasitaSvg(opts: { filas: number; filaActiva: number }): 
   }
 
   const mitad = ancho / 2;
+  // TRIÁNGULO LIMPIO (regla global): el techo es SÓLO el path del tejado a dos
+  // aguas. Se eliminó la chimenea —un `<rect>` que se encimaba sobre el
+  // triángulo y rompía la lectura de la silueta—, así que ninguna pantalla que
+  // comparta este motor (Almacenamiento, Objetos —nuevo/editar/lista—, la barra
+  // lateral «Minimapas de las plantas», la mudanza y sus migajas) vuelve a
+  // dibujar un rectángulo superpuesto al techo.
   const techo = `
-    <path d="M2 ${techoAlto} L${mitad} 1 L${ancho - 2} ${techoAlto} Z" fill="#9a3412" stroke="#7c2d12" stroke-width="0.6" stroke-linejoin="round" />
-    <rect x="${ancho - 22}" y="4" width="7" height="10" rx="1.5" fill="#7c2d12" stroke="#5b1f0a" stroke-width="0.5" />`;
+    <path d="M2 ${techoAlto} L${mitad} 1 L${ancho - 2} ${techoAlto} Z" fill="#9a3412" stroke="#7c2d12" stroke-width="0.6" stroke-linejoin="round" />`;
 
   return `<svg class="casita-minimapa-svg" width="${ancho}" height="${h + 2}" viewBox="0 0 ${ancho} ${h + 2}" role="img" aria-label="Minimapa de la casita (sector activo en naranja)">${techo}${celdas}</svg>`;
 }

@@ -153,25 +153,10 @@
   color: #c2410c;
 }
 
-/* Chip de planta: silueta de la casita (mismo motor que Almacenamiento). */
-.mudanza-mapa-chip-planta {
-  flex-direction: column;
-  gap: 2px;
-  border-radius: 12px;
-  padding: 4px 6px;
-}
-
-.mudanza-mapa-chip-casita {
-  display: block;
-  width: 38px;
-  line-height: 0;
-}
-
-.mudanza-mapa-chip-casita svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
+/* Chip de planta del selector: TEXTO PURO (mismo chip canónico de navegación).
+   Las siluetas de la casa que antes viajaban DENTRO de cada chip se eliminaron:
+   repetían el macro-plano y apilaban casitas idénticas en vertical. La casa vive
+   sólo en el Nivel 0 (grande) y en el cabezal de contexto (miniatura). */
 
 /* La pista «soltar» dentro de un chip sólo ocupa lugar con una tarjeta
    seleccionada (evita saltos de layout en reposo). */
@@ -318,11 +303,14 @@
   color: #d1d5db;
 }
 
-/* --- NIVELES 0 y 1: la silueta de la casa dentro del host del plano --------
+/* --- NIVEL 0: la silueta de la casa dentro del host del plano --------------
    `minimapaCasitaSvg` (motor global) devuelve una silueta ALTA; el host del
    componente le da una caja CUADRADA centrada, así la casa se lee grande sin
    estirarse (`preserveAspectRatio` la encaja sola) y conserva el trazo negro
-   nítido que styles/minimapa-ruta.css §2 ya declara para todo SVG del plano. */
+   nítido que styles/minimapa-ruta.css §2 ya declara para todo SVG del plano.
+   Es el ÚNICO nivel con la casa grande en el cuerpo central: al elegir el piso,
+   el host pierde esta clase y pasa a dibujar el plano real de las habitaciones
+   con su propia proporción. */
 .minimapa-ruta-plano.mudanza-plano-casita {
   aspect-ratio: 1 / 1;
   max-width: 260px;

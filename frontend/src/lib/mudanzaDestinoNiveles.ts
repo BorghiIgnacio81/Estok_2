@@ -1,54 +1,58 @@
 // =============================================================================
-// NIVELES SUPERIORES Y CABEZAL EN CASCADA DEL ESTOK DESTINO (render puro)
+// NIVELES DEL ESTOK DESTINO (plano vigente + cabezal de contexto en cascada)
 // -----------------------------------------------------------------------------
-// Dos piezas de la JERARQUÍA ELÁSTICA de la columna derecha de Mudanza:
+// Dos piezas de la JERARQUÍA de la columna derecha de Mudanza:
 //
-//   1. LOS DOS NIVELES DE ARRIBA (plano grande del componente global):
+//   1. EL PLANO VIGENTE (cuerpo central del componente global):
 //      · Nivel 0 «Estok entero» → silueta canónica de la casa del motor único
 //        (lib/minimapa.ts → minimapaCasitaSvg) SIN planta resaltada: el Estok
-//        leído como UNA sola unidad, que al tocarla se abre en sus plantas.
-//      · Nivel 1 «Plantas»      → la MISMA silueta con la planta vigente en
-//        naranja + la tira de chips de plantas (htmlPlantaSelector), que es la
-//        navegación real hacia el nivel 2. Con un Estok de una sola planta el
-//        Nivel 0 entra DIRECTO al plano de sus habitaciones (sin paso muerto).
+//        leído como UNA sola unidad. Es el ÚNICO nivel donde la casa grande vive
+//        en el cuerpo central. Al tocarla (o al tocar un chip de planta) se abre
+//        el piso elegido.
+//      · Nivel 1 «Piso elegido»  → la casa macro DEJA el cuerpo central y sube
+//        al cabezal como migaja reducida; el cuerpo queda LIBERADO para el plano
+//        REAL de la planta (siluetas asimétricas proporcionales de sus
+//        habitaciones, con sus trazos negros) y esas siluetas son las zonas de
+//        suelta legítimas. El chrome del nivel agrega el selector de planta en
+//        chips de TEXTO (sin casitas: la casa nunca se repite).
+//      · Nivel 2 «Ambiente»      → plano real del interior (muebles y estantes).
+//        Lo dibuja mudanzaMapaDestinoRender.ts.
 //
 //   2. EL CABEZAL DE CONTEXTO EN CASCADA (minimapas que se achican al avanzar):
-//      cada nivel ya visitado se re-emite como un `NodoRuta` con su geometría
-//      REAL (sectoresDeItems → ui_left/ui_top/ui_width/ui_height persistidos) y
-//      lo dibuja renderMinimapasAnidados: el MISMO motor puro del componente
-//      global `components/MinimapaRuta.astro`. Al profundizar, el plano que se
-//      abandona se ENCOGE (escala canónica 4× menor del motor) y se apila al
-//      lado del anterior, como guía de contexto ACTIVA del nivel vigente.
-//      Hereda el estándar visual único: siluetas asimétricas reales, contornos
-//      NEGROS nítidos y espacios fusionados («Pasillo Escalera») como UN solo
-//      trazo, sin ninguna línea divisoria interna.
+//      cada nivel ya visitado se re-emite como un `NodoRuta` con su silueta REAL
+//      y lo dibuja renderMinimapasAnidados: el MISMO motor puro del componente
+//      global `components/MinimapaRuta.astro`. Es la miga de pan contextual:
+//      · la casa entera (raíz del recorrido), y
+//      · la MISMA silueta macro de la casa con el piso vigente en naranja, que
+//        es la que baja del cuerpo central al elegir el piso.
+//      Hereda el estándar visual único: contornos NEGROS nítidos y espacios
+//      fusionados («Pasillo Escalera») como UN solo trazo, sin línea divisoria.
 //
 // 100% puro (sin estado, sin fetch, sin DOM): la pila de navegación vive en
 // mudanzaMapaDestino.ts y el volcado en caliente en mudanzaBoard.ts.
 // =============================================================================
 
-import { ASPECTO_LIENZO, minimapaCasitaSvg } from './minimapa';
+import { minimapaCasitaSvg } from './minimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
-import { sectoresDeItems } from './sectoresMinimapa';
-import { iconoDeHabitacion } from './planoHabitaciones';
 import { escapeHtml } from './mapaEstokWizard';
 import {
   PISO_DEFECTO,
   etiquetaPlanta,
-  habitacionesDePlanta,
+  htmlNivelHabitaciones,
   htmlPlantaSelector,
   plantasDe,
 } from './mudanzaMapaDestinoRender';
 import type { NivelMapaDestino } from './mudanzaMapaDestinoRender';
-import type { UbicacionDto } from './mudanzaApi';
+import type { ContenedorDto, UbicacionDto } from './mudanzaApi';
+import type { FiltroDestino } from './mudanzaFiltros';
 
 // =============================================================================
 // ESTADO DEL CAMINO (tipos compartidos con mudanzaMapaDestino.ts)
 // =============================================================================
 
-/** Los cuatro niveles del Estok Destino, de la casa al mueble. */
-export type NivelDestino = 'ESTOK' | 'PLANTAS' | 'HABITACIONES' | 'MUEBLES';
+/** Los tres niveles del Estok Destino: de la casa al mueble. */
+export type NivelDestino = 'ESTOK' | 'PLANTAS' | 'MUEBLES';
 
 /** Un paso visitado de la jerarquía (una entrada de la pila de navegación). */
 export interface PasoDestino {
@@ -66,10 +70,10 @@ export function pasoInicialDestino(): PasoDestino {
 }
 
 /**
- * Aviso de los niveles de CONTEXTO (Nivel 0 y 1): el plano todavía no dibuja
- * zonas de suelta (aparecen en el plano real de la planta y en el interior de la
- * habitación), así que el usuario sabe que debe seguir bajando de nivel o usar
- * la receptora estática «En Tránsito».
+ * Aviso del único nivel de CONTEXTO (Nivel 0 «Estok entero»): el macro de la casa
+ * todavía no dibuja zonas de suelta (aparecen al abrir el piso, en el plano real
+ * de sus habitaciones, y en el interior del ambiente), así que el usuario sabe que
+ * debe seguir bajando de nivel o usar la receptora estática «En Tránsito».
  */
 function avisoSinZonas(): string {
   return `<p class="mudanza-mapa-aviso">Este nivel todavía no tiene zonas de suelta: abrí la planta y después el ambiente, o soltá el elemento en «En Tránsito».</p>`;
@@ -83,7 +87,7 @@ export function htmlNivelEstok(nombreEstok: string, ubicaciones: UbicacionDto[])
   const plantas = plantasDe(ubicaciones);
   const total = Math.max(1, plantas.length);
   // Estok de una sola planta: no hay nada que elegir, el mismo toque entra al
-  // plano real de sus habitaciones (Nivel 2) y evita un paso intermedio vacío.
+  // plano real de sus habitaciones (Nivel 1) y evita un paso intermedio vacío.
   const unica = total === 1 ? plantas[0] : null;
   const accion = unica ? `data-navegar-planta="${escapeHtml(unica)}"` : 'data-navegar-estok="1"';
   const destino = unica ? 'Ver las habitaciones' : 'Elegir la planta';
@@ -113,49 +117,45 @@ export function htmlNivelEstok(nombreEstok: string, ubicaciones: UbicacionDto[])
 }
 
 // =============================================================================
-// NIVEL 1 · PLANTAS (la casa con la planta vigente + chips de plantas)
-// =============================================================================
-
-export function htmlNivelPlantas(
-  ubicaciones: UbicacionDto[],
-  plantaActiva: string,
-): NivelMapaDestino {
-  const plantas = plantasDe(ubicaciones);
-  const total = Math.max(1, plantas.length);
-  const indice = Math.max(0, plantas.indexOf(plantaActiva));
-  const selector = htmlPlantaSelector(ubicaciones, plantaActiva);
-  // Defensa: con una sola planta el selector canónico no se dibuja; un chip
-  // único mantiene la navegación hacia el plano real de las habitaciones.
-  const unico = total === 1 ? plantas[0] : null;
-  const chips = selector
-    ? selector
-    : `<div class="mudanza-mapa-chips">
-        <span class="mudanza-mapa-chips-titulo">Planta</span>
-        <button type="button" class="mudanza-mapa-chip" data-navegar-planta="${escapeHtml(
-          unico || plantaActiva,
-        )}" title="Ver el plano real de la planta">
-          <span aria-hidden="true">🏢</span>
-          <span class="mudanza-mapa-chip-texto">${escapeHtml(
-            etiquetaPlanta(unico || plantaActiva, 0),
-          )}</span>
-          <span class="mudanza-mapa-chip-conteo">›</span>
-        </button>
-      </div>`;
-  return {
-    casita: true,
-    plano: minimapaCasitaSvg({ filas: total, filaActiva: indice + 1 }),
-    detalle: `<p class="mudanza-mapa-titulo">🏢 Plantas · <b>Nivel 1</b> — tocá una planta para ver su <b>plano real</b> de habitaciones</p>${chips}${avisoSinZonas()}`,
-  };
-}
-
-// =============================================================================
-// CABEZAL DE CONTEXTO · MINIMAPAS COMPACTADOS DE LOS NIVELES YA VISITADOS
+// NIVEL 1 · PISO ELEGIDO (plano REAL de la planta: la casa sube al cabezal)
 // =============================================================================
 
 /**
- * Un minimapa compactado por cada nivel YA VISITADO (la pila menos el nivel
- * vigente), en el MISMO orden de profundidad: al avanzar, el plano que se deja
- * atrás se achica y se acomoda al lado de los anteriores.
+ * El cuerpo central deja de dibujar la casa: la silueta macro se re-emite en el
+ * cabezal de contexto (nodosCascadaDestino → migaja con el piso en naranja) y
+ * acá queda SÓLO el plano real asimétrico proporcional de las habitaciones de ese
+ * piso, con sus trazos negros y sus sectores como zonas de suelta legítimas.
+ */
+export function htmlNivelPlantas(
+  ubicaciones: UbicacionDto[],
+  contenedores: ContenedorDto[],
+  plantaActiva: string,
+  filtros: Set<FiltroDestino>,
+): NivelMapaDestino {
+  const plantas = plantasDe(ubicaciones);
+  const indice = Math.max(0, plantas.indexOf(plantaActiva));
+  const etiqueta = etiquetaPlanta(plantaActiva, indice);
+  return htmlNivelHabitaciones(ubicaciones, contenedores, plantaActiva, filtros, {
+    titulo: `🏠 «${escapeHtml(
+      etiqueta,
+    )}» · <b>Nivel 1</b> · tocá otra planta o <b>soltá sobre la silueta</b> de una habitación`,
+    chipsExtra: htmlPlantaSelector(ubicaciones, plantaActiva),
+  });
+}
+
+// =============================================================================
+// CABEZAL DE CONTEXTO · MINIMAPAS COMPACTADOS DE LAS MIGAS DEL RECORRIDO
+// =============================================================================
+
+/**
+ * Migas del cabezal, UNA por paso visitado y en el MISMO orden de profundidad de
+ * la pila: el índice del DOM coincide con el índice de la pila, así el toque
+ * salta exactamente al nivel elegido.
+ *
+ * REGLA DE LA CASA ÚNICA: la silueta macro de la casa no se repite en el cuerpo
+ * central. Por eso, cuando el piso ya está elegido (paso vigente = PLANTAS), el
+ * paso VIGENTE también se emite: es la casa del Nivel 0 reducida al tamaño de la
+ * miniatura, con el piso activo en naranja, como miga de pan contextual.
  */
 export function nodosCascadaDestino(
   pila: PasoDestino[],
@@ -164,11 +164,12 @@ export function nodosCascadaDestino(
 ): NodoRuta[] {
   const plantas = plantasDe(ubicaciones);
   const total = Math.max(1, plantas.length);
-  return pila.slice(0, -1).map((paso) => {
+  const vigente = pila[pila.length - 1];
+  const pasos = vigente?.nivel === 'PLANTAS' ? pila : pila.slice(0, -1);
+  return pasos.map((paso): NodoRuta => {
     const indice = Math.max(0, plantas.indexOf(paso.planta));
-    const etiqueta = etiquetaPlanta(paso.planta, indice);
+    // Casa entera (raíz del recorrido): silueta sin planta resaltada.
     if (paso.nivel === 'ESTOK') {
-      // Casa entera, sin planta resaltada: es el contexto raíz del recorrido.
       return {
         tipo: 'estok',
         nombre: nombreEstok || 'Estok entero',
@@ -176,26 +177,13 @@ export function nodosCascadaDestino(
         totalPlantas: total,
       };
     }
-    if (paso.nivel === 'PLANTAS') {
-      return {
-        tipo: 'planta',
-        nombre: etiqueta,
-        filaActiva: indice + 1,
-        totalPlantas: total,
-      };
-    }
-    // HABITACIONES: plano PROPORCIONAL REAL de la planta, con la habitación que
-    // se abrió en naranja (el minimapa achicado conserva las siluetas
-    // asimétricas verdaderas y las fusiones sin líneas divisorias internas).
-    const hermanas = habitacionesDePlanta(ubicaciones, paso.planta);
+    // Piso elegido: la MISMA silueta macro de la casa, achicada, con la planta
+    // vigente en naranja (es la que acaba de salir del cuerpo central).
     return {
-      tipo: 'habitacion',
-      nombre: etiqueta,
-      id: paso.habitacionId,
-      sectores: sectoresDeItems(hermanas, paso.habitacionId, (h) =>
-        iconoDeHabitacion(String(h.nombre || '')),
-      ),
-      aspecto: ASPECTO_LIENZO,
+      tipo: 'planta',
+      nombre: etiquetaPlanta(paso.planta, indice),
+      filaActiva: indice + 1,
+      totalPlantas: total,
     };
   });
 }

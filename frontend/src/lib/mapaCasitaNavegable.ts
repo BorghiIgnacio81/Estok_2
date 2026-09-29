@@ -232,7 +232,6 @@ function renderCasa(): string {
         </defs>
         <clipPath id="casitaTechoClip"><path d="M4 96 L160 6 L316 96 Z" /></clipPath>
         <path d="M4 96 L160 6 L316 96 Z" fill="url(#casitaTechoGrad)" stroke="#5b1f0a" stroke-width="4" stroke-linejoin="round" />
-        <rect x="216" y="16" width="20" height="34" rx="3" fill="#7c2d12" stroke="#5b1f0a" stroke-width="2" />
         <path d="M160 6 L160 96" stroke="rgba(255,255,255,0.16)" stroke-width="2" />
         <g clip-path="url(#casitaTechoClip)">
           <path d="M0 34 L320 34" stroke="rgba(255,255,255,0.14)" stroke-width="2" />

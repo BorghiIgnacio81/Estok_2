@@ -1,23 +1,28 @@
 // =============================================================================
 // MAPA DE MINIMAPAS JERÁRQUICOS DEL ESTOK DESTINO (navegación elástica)
 // -----------------------------------------------------------------------------
-// La columna derecha de Mudanza es una JERARQUÍA DE CUATRO NIVELES que se
-// recorre hacia adentro y se desarma hacia afuera con UNA sola pila de estado:
+// La columna derecha de Mudanza es una JERARQUÍA DE TRES NIVELES que se recorre
+// hacia adentro y se desarma hacia afuera con UNA sola pila de estado:
 //
-//   Nivel 0 · ESTOK ENTERO  → la casa completa (casita canónica del motor).
-//   Nivel 1 · PLANTAS       → la casa con la planta vigente + chips de plantas.
-//   Nivel 2 · HABITACIONES  → plano REAL de la planta (suelta GRUESA).
-//   Nivel 3 · MUEBLES       → plano REAL de la habitación (suelta FINA).
+//   Nivel 0 · ESTOK ENTERO → la casa completa (casita canónica del motor). Es el
+//                            ÚNICO nivel en el que la casa grande vive en el
+//                            cuerpo central del panel.
+//   Nivel 1 · PISO ELEGIDO → el cuerpo central dibuja el plano REAL de la planta
+//                            (siluetas asimétricas de sus habitaciones = zonas de
+//                            suelta GRUESA) mientras la casa macro sube al
+//                            cabezal de contexto como miniatura (miga de pan).
+//   Nivel 2 · MUEBLES      → plano REAL de la habitación (suelta FINA).
 //
-// Al avanzar, el plano del nivel que se abandona SE ENCOGE (escala canónica 4×
-// menor del motor) y se apila en el cabezal de contexto: la red de minimapas
-// compactados de `nodosCascadaDestino` (mudanzaDestinoNiveles.ts). El botón
-// «⬅ Volver» retrocede EXACTAMENTE un nivel y cada minimapa compactado del
-// cabezal salta a SU nivel (guía de contexto activa).
+// Al avanzar, cada plano abandonado SE ENCOGE (escala canónica 4× menor del
+// motor) y se apila en el cabezal de contexto: la red de minimapas compactados de
+// `nodosCascadaDestino` (mudanzaDestinoNiveles.ts). El botón «⬅ Volver» retrocede
+// EXACTAMENTE un nivel y cada minimapa compactado del cabezal salta a SU nivel
+// (guía de contexto activa).
 //
 // Responsabilidades (dependencia en UNA sola dirección, sin ciclos):
-//   · mudanzaMapaDestinoRender.ts → dibujo puro de los niveles 2 y 3.
-//   · mudanzaDestinoNiveles.ts    → dibujo puro de los niveles 0 y 1 + cabezal.
+//   · mudanzaMapaDestinoRender.ts → dibujo puro del plano real (habitaciones,
+//                                   muebles y estantes).
+//   · mudanzaDestinoNiveles.ts    → Nivel 0 + Nivel 1 + cabezal de contexto.
 //   · ESTE módulo                 → pila de navegación + API pública del mapa.
 //   · mudanzaDnd.ts               → arrastre y suelta (data-drop-*).
 //   · mudanzaBoard.ts             → orquestación y POST transaccional.
@@ -26,11 +31,7 @@
 // components/MinimapaRuta.astro (hosts que inyecta mudanza.astro).
 // =============================================================================
 
-import {
-  htmlNivelHabitaciones,
-  htmlNivelMuebles,
-  plantasDe,
-} from './mudanzaMapaDestinoRender';
+import { htmlNivelMuebles, plantasDe } from './mudanzaMapaDestinoRender';
 import type { NivelMapaDestino } from './mudanzaMapaDestinoRender';
 import {
   htmlCascadaDestino,
@@ -116,25 +117,33 @@ function ajustarVistaDestino(ubicaciones: UbicacionDto[]): void {
 // TRANSICIONES DE NIVEL
 // =============================================================================
 
-/** Nivel 0 → Nivel 1: abre la casa en sus plantas. */
+/** Nivel 0 → Nivel 1: abre el plano REAL de la planta de referencia. */
 function entrarEnPlantas(): boolean {
-  if (pasoActual().nivel !== 'ESTOK') return false;
-  pilaDestino.push({
-    nivel: 'PLANTAS',
-    planta: pasoActual().planta,
-    habitacionId: null,
-  });
+  const actual = pasoActual();
+  if (actual.nivel !== 'ESTOK') return false;
+  pilaDestino.push({ nivel: 'PLANTAS', planta: actual.planta, habitacionId: null });
   return true;
 }
 
-/** Nivel 1 → Nivel 2: abre el plano REAL de la planta elegida. */
+/**
+ * Nivel 1 → elige el piso. Con el piso YA abierto, el chip CAMBIA la planta EN
+ * SITIO: no se apila un nivel intermedio idéntico (era la causa de los planos
+ * repetidos en cascada vertical). Desde el Nivel 0 abre el piso elegido.
+ */
 function entrarEnPlanta(planta: string): boolean {
   if (!planta) return false;
-  pilaDestino.push({ nivel: 'HABITACIONES', planta, habitacionId: null });
+  const actual = pasoActual();
+  if (actual.nivel === 'PLANTAS') {
+    if (actual.planta === planta) return false; // ese piso ya está abierto
+    actual.planta = planta;
+    actual.habitacionId = null;
+    return true;
+  }
+  pilaDestino.push({ nivel: 'PLANTAS', planta, habitacionId: null });
   return true;
 }
 
-/** Nivel 2 → Nivel 3: abre el interior de la habitación (suelta fina). */
+/** Nivel 1 → Nivel 2: abre el interior de la habitación (suelta fina). */
 function entrarEnHabitacion(habitacionId: string): boolean {
   if (!habitacionId) return false;
   const actual = pasoActual();
@@ -159,7 +168,7 @@ export interface VistaMapaDestino {
   cascada: string;
   /** ¿Hay niveles por encima del vigente? (muestra/oculta «⬅ Volver»). */
   hayVolver: boolean;
-  /** El plano vigente es la silueta de la casa (niveles 0 y 1). */
+  /** El plano vigente es la silueta macro de la casa (sólo el Nivel 0). */
   casita: boolean;
 }
 
@@ -172,14 +181,16 @@ function renderNivelVigente(
 ): NivelMapaDestino {
   const paso = pasoActual();
   if (paso.nivel === 'ESTOK') return htmlNivelEstok(nombreEstok, ubicaciones);
-  if (paso.nivel === 'PLANTAS') return htmlNivelPlantas(ubicaciones, paso.planta);
   if (paso.nivel === 'MUEBLES') {
     const abierta = habitacionesDe(ubicaciones).find(
       (u) => String(u.id) === String(paso.habitacionId),
     );
     if (abierta) return htmlNivelMuebles(abierta, contenedores, filtros);
   }
-  return htmlNivelHabitaciones(ubicaciones, contenedores, paso.planta, filtros);
+  // Nivel 1 «piso elegido» (y defensa si el ambiente abierto ya no existe): el
+  // cuerpo central queda para el plano REAL de la planta; la casa macro vive
+  // únicamente en el cabezal de contexto como miniatura.
+  return htmlNivelPlantas(ubicaciones, contenedores, paso.planta, filtros);
 }
 
 /** Nivel vigente (plano grande) + cabezal de contexto + botón «⬅ Volver». */
