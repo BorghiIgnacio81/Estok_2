@@ -120,11 +120,22 @@ const htmlCadena = nodosFinales.length
   ? renderMinimapasAnidados(nodosFinales, { activoId, todosActivos })
   : '';
 
+// SIN FALLBACK GENÉRICO: si no hay datos, el host queda VACÍO. La pantalla que lo
+// usa es la única responsable de mostrar spinner de carga o aviso/error; el
+// componente JAMÁS inventa un plano/cajón de relleno.
 const html = htmlPlano || htmlCadena;
+
+// FORMATO POR PEDIDO (no por disponibilidad de datos): el host nace con las
+// reglas canónicas de `.minimapa-ruta-plano` (aspect-ratio real del lienzo + SVG
+// elástico al 100%) siempre que el consumidor pida `plano`, porque estas
+// pantallas rellenan el host EN CALIENTE con `minimapaSectoresSvg({responsive})`.
+// Sin esto, un plano inyectado dentro de un host `.minimapa-ruta-cadena` (flex)
+// quedaba sin sus reglas de tamaño y el lienzo no se amoldaba al contenedor.
+const formatoPlano = plano || (sectoresFinales.length > 0 && nodosFinales.length === 0);
 
 const clases = [
   'minimapa-ruta',
-  htmlPlano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
+  formatoPlano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
   // Anti-desborde SIEMPRE; el centrado de la cadena y el `aspect-ratio` del plano
   // viven en styles/minimapa-ruta.css. NO se declaran `h-full` ni utilidades de
   // flex acá: chocarían con el comportamiento elástico que pide cada pantalla
@@ -136,7 +147,7 @@ const clases = [
   .join(' ');
 
 // Proporción REAL del lienzo (ancho/alto) para el `aspect-ratio` del host.
-const estilo = htmlPlano
+const estilo = formatoPlano
   ? `--minimapa-aspecto-ratio:${(1 / aspectoFinal).toFixed(4)};`
   : undefined;
 ---

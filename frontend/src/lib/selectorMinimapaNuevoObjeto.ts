@@ -21,11 +21,15 @@
 import { getEstokActivoId } from '../services/auth';
 import { fetchAllPages } from './api';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+import { habitacionesDeFila } from './espaciosDePlanta';
 // Estado, IDs del DOM y derivaciones: fuente ÚNICA compartida con el render.
 import {
   estado,
   IDS,
   plantasDisponibles,
+  filaActiva,
+  espaciosEstok,
+  filaDeUbicacionDe,
   habitacionActual,
 } from './selectorMinimapaUbicacionEstado';
 import { render } from './selectorMinimapaNuevoObjetoRender';
@@ -41,15 +45,26 @@ function el(id: string): HTMLElement | null {
 // CARGA DE DATOS (tenant activo → espacios reales con geometría ui_*)
 // =============================================================================
 
+/**
+ * ÁRBOL COMPLETO DEL ESTOK ACTIVO (una sola pasada por recurso):
+ *   · `/estoks/`       → plantas/grilla del inmueble,
+ *   · `/ubicaciones/`  → divisiones (plantas) Y sus HABITACIONES HIJAS con sus
+ *                        dimensiones elásticas reales (ui_left/ui_top/ui_width/
+ *                        ui_height) persistidas en PostgreSQL,
+ *   · `/contenedores/` → muebles y cajas con la misma geometría nativa.
+ * `page_size=1000` + `fetchAllPages` garantizan el árbol íntegro (sin depender de
+ * que el backend no pagine) y el aislamiento multi-tenant viaja en el header
+ * X-Estok-Id de getAuthHeaders (services/auth).
+ */
 async function cargarDatos(): Promise<void> {
   estado.cargando = true;
   estado.error = null;
 
   try {
     const [estoks, ubicaciones, contenedores] = await Promise.all([
-      fetchAllPages<EstokConfig>('/estoks/'),
-      fetchAllPages<UbicacionPlano>('/ubicaciones/'),
-      fetchAllPages<ContenedorMinimapa>('/contenedores/'),
+      fetchAllPages<EstokConfig>('/estoks/', { page_size: '1000' }),
+      fetchAllPages<UbicacionPlano>('/ubicaciones/', { page_size: '1000' }),
+      fetchAllPages<ContenedorMinimapa>('/contenedores/', { page_size: '1000' }),
     ]);
 
     const activoId = getEstokActivoId();
@@ -57,10 +72,16 @@ async function cargarDatos(): Promise<void> {
     estado.ubicaciones = ubicaciones;
     estado.contenedores = contenedores;
 
-    // La planta activa arranca en la primera planta REAL del inmueble.
+    // PLANTA ACTIVA SIEMPRE CON PLANO: si la fila vigente quedó sin ambientes (el
+    // inmueble tiene su estructura real en otra planta), el recorrido salta a la
+    // primera planta CON ambientes reales. Nunca se queda mirando un lienzo vacío.
     const plantas = plantasDisponibles();
-    if (!plantas.some((p) => p.valor === estado.planta)) {
-      estado.planta = plantas[0]?.valor || 'PRIMER_PISO';
+    const fila = filaActiva();
+    const espacios = espaciosEstok();
+    if (habitacionesDeFila(espacios, fila).length === 0) {
+      const conAmbientes = plantas.find((p) => habitacionesDeFila(espacios, p.fila).length > 0);
+      if (conAmbientes) estado.planta = String(conAmbientes.fila);
+      else if (!plantas.some((p) => p.fila === fila)) estado.planta = String(plantas[0]?.fila ?? 1);
     }
   } catch (err) {
     estado.error =
@@ -122,7 +143,9 @@ function manejarClickSector(id: string): void {
 
   const habitacion = estado.ubicaciones.find((u) => String(u.id) === String(id));
   if (habitacion) {
-    estado.planta = String(habitacion.piso || estado.planta);
+    // La planta pasa a ser la FILA REAL de la habitación (la de su división padre
+    // si está encastrada): la misma clave canónica que usa el plano central.
+    estado.planta = String(filaDeUbicacionDe(habitacion));
     estado.habitacionId = String(habitacion.id);
     limpiarDescendencia(2);
     irANivel(2);
@@ -165,15 +188,17 @@ function manejarClick(evento: Event): void {
 
 /**
  * Cambio de PLANTA en Modo Casa (varias plantas reales): el `<select>` nativo de
- * la cabecera dispara `change`, no `click`. Se limpia la descendencia y el mismo
- * plano elástico se repinta con las habitaciones de la planta elegida.
+ * la cabecera dispara `change`, no `click`. El `value` es la FILA de la planta
+ * (clave canónica del lienzo central): se limpia la descendencia y el mismo plano
+ * elástico se repinta al instante con los ambientes de la planta elegida.
  */
 function manejarCambio(evento: Event): void {
   const select = (evento.target as HTMLElement | null)?.closest<HTMLSelectElement>(
     'select[data-accion="planta"]',
   );
   if (!select) return;
-  estado.planta = select.value;
+  const fila = Math.floor(Number(select.value));
+  estado.planta = String(Number.isFinite(fila) && fila > 0 ? fila : 1);
   limpiarDescendencia(1);
   irANivel(1);
 }
@@ -196,6 +221,9 @@ export function iniciarSelectorMinimapaUbicacion(): void {
   raiz.dataset.activo = 'true';
   raiz.addEventListener('click', manejarClick);
   raiz.addEventListener('change', manejarCambio);
+  // PRIMER PINTADO INMEDIATO: el lienzo muestra el spinner de carga (estado
+  // `cargando`) hasta que llega el árbol real del Estok. Nunca un plano genérico.
+  render();
   void cargarDatos().then(() => {
     restaurarSeleccionDesdeInputs();
     render();
@@ -246,7 +274,8 @@ export function seleccionarEspacioMinimapa(
   if (tipo === 'ubicacion') {
     const habitacion = estado.ubicaciones.find((u) => String(u.id) === String(id));
     if (!habitacion) return false;
-    estado.planta = String(habitacion.piso || 'PRIMER_PISO');
+    // Fila real de la planta a la que pertenece el espacio creado.
+    estado.planta = String(filaDeUbicacionDe(habitacion));
     estado.habitacionId = String(habitacion.id);
     limpiarDescendencia(2);
     irANivel(2);
@@ -270,7 +299,7 @@ export function seleccionarEspacioMinimapa(
   }
 
   const habitacion = habitacionActual();
-  if (habitacion) estado.planta = String(habitacion.piso || 'PRIMER_PISO');
+  if (habitacion) estado.planta = String(filaDeUbicacionDe(habitacion));
   irANivel(3);
   return true;
 }

@@ -27,6 +27,7 @@ import {
   IDS,
   iconoContenedor,
   plantasDisponibles,
+  filaActiva,
   habitacionesDePlanta,
   mueblesDeHabitacion,
   cajasDeMueble,
@@ -45,7 +46,8 @@ export type { ContenedorMinimapa, EstadoSelector } from './selectorMinimapaUbica
 /** Cadena de nodos de la ruta actual (la consume el motor global de minimapas). */
 function nodosDeRuta(): NodoRuta[] {
   const plantas = plantasDisponibles();
-  const fila = Math.max(1, plantas.findIndex((p) => p.valor === estado.planta) + 1);
+  // Fila de planta activa: la MISMA clave canónica que usa el plano (1-based).
+  const fila = filaActiva();
   const nodos: NodoRuta[] = [
     {
       tipo: 'estok',
@@ -149,15 +151,26 @@ interface CuerpoNivel {
   aviso: string;
 }
 
-/** Nivel 1: plano a escala de las habitaciones REALES de la planta activa. */
+/**
+ * Nivel SIN ambientes: NUNCA se dibuja un diseño genérico falso (el cajón
+ * amarillo vacío). El lienzo queda limpio, el motivo viaja como aviso explicativo
+ * y se emite un log de error claramente identificable para diagnóstico.
+ */
+function sinSvg(aviso: string, contexto: string): CuerpoNivel {
+  console.error(
+    `[MinimapaRuta] Sin espacios que dibujar en ${contexto}. Se deja el lienzo limpio en vez de un plano genérico.`,
+  );
+  return { svg: '', aviso };
+}
+
+/** Nivel 1: plano a escala de los ambientes REALES de la planta activa. */
 function planoHabitaciones(): CuerpoNivel {
   const habitaciones = habitacionesDePlanta();
   if (!habitaciones.length) {
-    return {
-      svg: '',
-      aviso:
-        '👉 Esta planta todavía no tiene habitaciones. Usá «Nueva Ubicación» para crear una: aparecerá dibujada a escala en este plano.',
-    };
+    return sinSvg(
+      '👉 Esta planta todavía no tiene habitaciones. Usá «Nueva Ubicación» para crear una: aparecerá dibujada a escala en este plano.',
+      'el plano de la planta activa',
+    );
   }
   return {
     svg: planoSvgHtml(
@@ -175,12 +188,12 @@ function planoHabitaciones(): CuerpoNivel {
 function planoMuebles(): CuerpoNivel {
   const muebles = mueblesDeHabitacion(estado.habitacionId);
   if (!muebles.length) {
-    return {
-      svg: '',
-      aviso: `👉 «${escapeHtml(
+    return sinSvg(
+      `👉 «${escapeHtml(
         habitacionActual()?.nombre || 'La habitación',
       )}» no tiene muebles ni cajas. Podés guardar el objeto en la habitación completa o crear un contenedor con «Nuevo Contenedor».`,
-    };
+      'el plano de la habitación activa',
+    );
   }
   return {
     svg: planoSvgHtml(sectoresDeItems(muebles, estado.muebleId, iconoContenedor), estado.muebleId, true),
@@ -192,12 +205,12 @@ function planoMuebles(): CuerpoNivel {
 function planoCajas(): CuerpoNivel {
   const cajas = cajasDeMueble(estado.muebleId);
   if (!cajas.length) {
-    return {
-      svg: '',
-      aviso: `👉 «${escapeHtml(
+    return sinSvg(
+      `👉 «${escapeHtml(
         muebleActual()?.nombre || 'El mueble',
       )}» no tiene cajas internas. Podés guardar el objeto en el mueble completo o crear una caja con «Nuevo Contenedor».`,
-    };
+      'el plano del mueble activo',
+    );
   }
   return {
     svg: planoSvgHtml(sectoresDeItems(cajas, estado.cajaId, iconoContenedor), estado.cajaId, true),
@@ -230,20 +243,23 @@ const PIE_NIVEL: Record<1 | 2 | 3, string> = {
 
 /**
  * Planta activa del plano: es un DATO de contexto, nunca un selector de mapas.
- * Con una sola planta se muestra como etiqueta; en Modo Casa (varias plantas)
- * se ofrece un `<select>` nativo compacto para cambiar de piso — jamás los
- * cajones vacíos «1er piso» / «Planta 2».
+ * Las opciones son las PLANTAS REALES del inmueble (fila + división), resueltas
+ * por el mapeo canónico `plantasDisponibles()`: las MISMAS que lista el lienzo
+ * central de Almacenamiento. Con una sola planta se muestra como etiqueta; con
+ * varias se ofrece un `<select>` nativo compacto para cambiar de piso — jamás los
+ * cajones vacíos «1er piso» / «Planta 2» sin estructura ni ambientes.
  */
 function plantaEtiquetaHtml(): string {
   const plantas = plantasDisponibles();
-  const etiqueta = plantas.find((p) => p.valor === estado.planta)?.etiqueta || 'Planta activa';
+  const fila = String(filaActiva());
+  const etiqueta = plantas.find((p) => String(p.fila) === fila)?.etiqueta || 'Planta activa';
   if (plantas.length <= 1) {
     return `<span class="text-[11px] text-gray-500">🏠 ${escapeHtml(etiqueta)}</span>`;
   }
   const opciones = plantas
     .map(
       (p) =>
-        `<option value="${escapeHtml(p.valor)}"${p.valor === estado.planta ? ' selected' : ''}>${escapeHtml(p.etiqueta)}</option>`,
+        `<option value="${p.fila}"${String(p.fila) === fila ? ' selected' : ''}>${escapeHtml(p.etiqueta)}</option>`,
     )
     .join('');
   return `<label class="flex items-center gap-1 text-[11px] text-gray-500">🏠 Planta
@@ -267,6 +283,19 @@ function cabeceraNivelHtml(): string {
 }
 
 /**
+ * SPINNER de carga del lienzo: mientras llegan los espacios del Estok activo el
+ * plano se muestra cargando — JAMÁS un cajón/plano genérico inventado.
+ */
+const SPINNER_CARGA = `
+  <div class="h-full w-full py-10 flex flex-col items-center justify-center gap-2" role="status" aria-live="polite">
+    <svg class="animate-spin h-7 w-7 text-amber-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    <p class="text-sm text-gray-500">Cargando el plano real del Estok…</p>
+  </div>`;
+
+/**
  * Reparte el nivel visible en sus TRES hosts: cabecera (`IDS.texto`), plano
  * (`IDS.lienzo`, host del componente global) y pie (`IDS.pie`). Así el plano es
  * literalmente el componente `<MinimapaRuta />` y nada más.
@@ -276,14 +305,21 @@ function renderLienzo(): void {
   const texto = document.getElementById(IDS.texto);
   const pie = document.getElementById(IDS.pie);
 
-  const mensaje = estado.cargando
-    ? '<p class="text-sm text-gray-400 py-6 text-center">Cargando espacios del Estok…</p>'
-    : estado.error
-      ? `<p class="text-sm text-red-600 py-6 text-center">⚠️ ${escapeHtml(estado.error)}</p>`
-      : '';
-  if (mensaje) {
+  // CARGA: spinner en el lienzo (nunca un plano o un cajón genérico inventado).
+  if (estado.cargando) {
+    if (plano) plano.innerHTML = SPINNER_CARGA;
+    if (texto) texto.innerHTML = '';
+    if (pie) pie.innerHTML = '';
+    return;
+  }
+
+  // ERROR de carga: lienzo limpio + mensaje explícito + log de diagnóstico.
+  if (estado.error) {
+    console.error('[MinimapaRuta] No se pudieron cargar los espacios del Estok:', estado.error);
     if (plano) plano.innerHTML = '';
-    if (texto) texto.innerHTML = mensaje;
+    if (texto) {
+      texto.innerHTML = `<p class="text-sm text-red-600 py-6 text-center">⚠️ ${escapeHtml(estado.error)}</p>`;
+    }
     if (pie) pie.innerHTML = '';
     return;
   }

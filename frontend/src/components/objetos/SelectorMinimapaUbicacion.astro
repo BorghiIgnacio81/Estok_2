@@ -16,6 +16,15 @@
 //      sector guardado actual se pinta en NARANJA (#f97316). Tocar un sector
 //      navega al nivel siguiente (data-sector-id → lib/selectorMinimapaNuevoObjeto.ts).
 //
+// MAPEO CANÓNICO (idéntico a la sección central de Almacenamiento): el Nivel 1 NO
+// dibuja las Ubicaciones raíz (que son DIVISIONES de planta: «Planta Baja»,
+// «1er Piso», «En Tránsito»), sino los AMBIENTES HIJOS de la planta activa
+// (Living, Cocina, Baño, Bungalow…) con su geometría real de PostgreSQL. Esa
+// física vive en un único módulo puro compartido: lib/espaciosDePlanta.ts
+// (divisiones ⇄ habitaciones + `habitacionesDeFila`), consumido por
+// lib/selectorMinimapaUbicacionEstado.ts. Sin ambientes se muestra spinner/aviso:
+// JAMÁS un cajón amarillo genérico de relleno.
+//
 // Sin doble columna, sin anchos en px y sin listado de texto duplicado: la
 // geometría la aporta 100% el motor global (src/lib/minimapa.ts).
 //
@@ -50,19 +59,18 @@ const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
   <div id="minimapaPlanoTexto" class="w-full min-w-0"></div>
 
   <!-- 3. PLANO A ESCALA — EL COMPONENTE GLOBAL Y NADA MÁS. Se pide en formato
-       `plano` (el host es `.minimapa-ruta.minimapa-ruta-plano`) y con las clases
-       elásticas anti-desborde pedidas: `w-full h-auto aspect-video max-w-2xl
-       mx-auto`. El SVG lo inyecta el motor del componente
-       (`minimapaSectoresSvg` con `responsive: true`): dibujo a escala real del
-       piso (ui_left/ui_top/ui_width/ui_height), fondo crema suave, borde negro
-       de puntas redondeadas, sin divisorias internas en espacios fusionados y el
+       `plano` (el host es `.minimapa-ruta.minimapa-ruta-plano`) con las clases
+       elásticas anti-desborde `w-full h-auto max-w-2xl mx-auto`: el ALTO lo fija
+       el propio componente con `--minimapa-aspecto-ratio` (la proporción REAL del
+       lienzo), así el plano se ve EXACTAMENTE como el de la sección central de
+       Almacenamiento (sin letterboxing por un aspecto ajeno). El SVG lo inyecta el
+       motor del componente (`minimapaSectoresSvg` con `responsive: true`): dibujo
+       a escala real de los ambientes de la planta activa
+       (ui_left/ui_top/ui_width/ui_height), fondo crema suave, borde negro de
+       puntas redondeadas, sin divisorias internas en espacios fusionados y el
        ambiente actual en NARANJA ESTRICTO (#f97316). Tocar un ambiente fija la
        ubicación del objeto (data-sector-id → selectorMinimapaNuevoObjeto.ts). -->
-  <MinimapaRuta
-    id="minimapaLienzo"
-    plano
-    class="w-full h-auto aspect-video max-w-2xl mx-auto"
-  />
+  <MinimapaRuta id="minimapaLienzo" plano class="w-full h-auto max-w-2xl mx-auto" />
 
   <!-- 4. PIE explicativo del nivel visible. -->
   <div id="minimapaPlanoPie" class="w-full min-w-0"></div>

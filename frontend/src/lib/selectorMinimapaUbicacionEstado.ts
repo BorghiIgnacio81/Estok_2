@@ -18,6 +18,16 @@
 
 import type { ItemGeometria } from './sectoresMinimapa';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+// MAPEO CANÓNICO COMPARTIDO con la sección central de Almacenamiento: quién es
+// división (planta), quién es habitación, y qué ambientes tiene una planta.
+// Es la ÚNICA fuente de esta física: no se duplica ninguna derivación acá.
+import {
+  dividirEspacios,
+  filaDeUbicacion,
+  habitacionesDeFila,
+  plantasDe,
+} from './espaciosDePlanta';
+import type { EspaciosEstok, PlantaDisponible } from './espaciosDePlanta';
 
 // =============================================================================
 // TIPOS
@@ -40,6 +50,12 @@ export interface EstadoSelector {
   error: string | null;
   /** Nivel visible: 1 = habitaciones, 2 = muebles, 3 = cajas. */
   nivel: 1 | 2 | 3;
+  /**
+   * FILA de la planta activa (1-based, como string): es la clave canónica
+   * `parent_grid_row` de la división, la MISMA que usa el lienzo central de
+   * Almacenamiento. NO es un código de piso: la lista de plantas reales la
+   * resuelve `plantasDisponibles()`.
+   */
   planta: string;
   habitacionId: string | null;
   muebleId: string | null;
@@ -56,11 +72,12 @@ export const estado: EstadoSelector = {
   contenedores: [],
   cargando: true,
   error: null,
-  // ARRANQUE EN EL PLANO REAL: el recorrido empieza en el plano de habitaciones
-  // de la planta activa (nivel 1). NO existe el viejo nivel 0 de «elegí la
-  // planta» con tarjetas/cajones por planta («1er piso» / «Planta 2»).
+  // ARRANQUE EN EL PLANO REAL: el recorrido empieza en el plano de ambientes de
+  // la planta activa (nivel 1). NO existe el viejo nivel 0 de «elegí la planta»
+  // con tarjetas/cajones por planta («1er piso» / «Planta 2»). `planta` es la
+  // FILA de la división (clave canónica `parent_grid_row`), no un código de piso.
   nivel: 1,
-  planta: 'PRIMER_PISO',
+  planta: '1',
   habitacionId: null,
   muebleId: null,
   cajaId: null,
@@ -100,38 +117,39 @@ const ICONO_TIPO: Record<string, string> = {
 // =============================================================================
 
 /**
- * Plantas navegables del inmueble (DATO de contexto).
- * `cantidad_pisos > 1` = Modo Casa (varias plantas reales); si no, planta única.
+ * Plantas navegables REALES del inmueble (fila + división + etiqueta), resueltas
+ * por el mapeo canónico compartido (lib/espaciosDePlanta.ts → plantasDe): las
+ * MISMAS que lista el lienzo central de Almacenamiento. Nunca se inventan cajones
+ * vacíos «1er piso» / «Planta 2» sin estructura ni ambientes.
  */
-export function plantasDisponibles(): Array<{ valor: string; etiqueta: string }> {
-  const total = Math.max(1, Math.floor(Number(estado.estok?.cantidad_pisos) || 1));
-  const usadas = new Set(estado.ubicaciones.map((u) => String(u.piso || 'PRIMER_PISO')));
-  const etiquetas = ['PRIMER_PISO', 'PLANTA_BAJA'];
-  const lista: Array<{ valor: string; etiqueta: string }> = [];
-  for (let i = 0; i < total; i++) {
-    const valor = etiquetas[i] || `PLANTA_${i + 1}`;
-    lista.push({ valor, etiqueta: i === 0 ? '1er piso' : `Planta ${i + 1}` });
-  }
-  // Plantas con habitaciones reales que no entraron por cantidad_pisos.
-  usadas.forEach((valor) => {
-    if (!lista.some((p) => p.valor === valor)) {
-      lista.push({
-        valor,
-        etiqueta: valor === 'PLANTA_BAJA' ? 'Planta baja' : 'Planta adicional',
-      });
-    }
-  });
-  return lista;
+export function plantasDisponibles(): PlantaDisponible[] {
+  return plantasDe(estado.estok, estado.ubicaciones);
+}
+
+/** Partición canónica (divisiones ⇄ habitaciones) de los espacios cargados. */
+export function espaciosEstok(): EspaciosEstok {
+  return dividirEspacios(estado.ubicaciones);
+}
+
+/** FILA de planta activa (1-based) como número. */
+export function filaActiva(): number {
+  const n = Math.floor(Number(estado.planta));
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+/** Fila de planta a la que pertenece una Ubicación real (división o habitación). */
+export function filaDeUbicacionDe(habitacion: UbicacionPlano | null | undefined): number {
+  return filaDeUbicacion(espaciosEstok().divisiones, habitacion);
 }
 
 /**
- * Habitaciones (Ubicaciones raíz) de la PLANTA ACTIVA: son los sectores del
- * plano de Nivel 1 (cada uno con su geometría real `ui_*`).
+ * AMBIENTES de la PLANTA ACTIVA: son los sectores del plano de Nivel 1 (cada uno
+ * con su geometría real `ui_*`). Mapeo iterativo canónico: habitaciones
+ * ENCASTADAS en la división de esa fila + sueltas legacy, tal cual la sección
+ * central de Almacenamiento (mapaCasitaNavegable → habitacionesDePlanta).
  */
 export function habitacionesDePlanta(): UbicacionPlano[] {
-  return estado.ubicaciones.filter(
-    (u) => String(u.piso || 'PRIMER_PISO') === estado.planta && !u.parent_ubicacion,
-  );
+  return habitacionesDeFila(espaciosEstok(), filaActiva());
 }
 
 /** Muebles/estantes contenidos en una habitación (contenedores raíz del espacio). */

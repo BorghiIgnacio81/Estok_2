@@ -59,11 +59,13 @@
    tamaño REALES (ui_left/ui_top/ui_width/ui_height), nunca una grilla uniforme.
 
    TAMAÑO ELÁSTICO Y ANTI-DESBORDE (formulario de Objetos, nuevo y edición):
-       `<MinimapaRuta plano class="w-full h-auto aspect-video max-w-2xl mx-auto" />`
-   `aspect-video` (16/9) es el lienzo horizontal de una planta real; el SVG usa
-   `preserveAspectRatio="xMidYMid meet"`, así que JAMÁS deforma la asimetría: se
-   ajusta dentro de la caja. `max-w-2xl mx-auto` lo centra sin salirse por los
-   costados en ningún ancho de pantalla.
+       `<MinimapaRuta plano class="w-full h-auto max-w-2xl mx-auto" />`
+   El ALTO lo gobierna el `aspect-ratio` dinámico de `--minimapa-aspecto-ratio`
+   (la proporción REAL del lienzo del motor), así el plano se ve idéntico al de la
+   sección central de Almacenamiento. El SVG usa `preserveAspectRatio="xMidYMid
+   meet"`, así que JAMÁS deforma la asimetría: se ajusta dentro de la caja.
+   `max-w-2xl mx-auto` lo centra sin salirse por los costados en ningún ancho de
+   pantalla.
    --------------------------------------------------------------------------- */
 .minimapa-ruta-plano {
   aspect-ratio: var(--minimapa-aspecto-ratio, 16 / 9);
