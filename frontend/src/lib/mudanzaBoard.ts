@@ -36,7 +36,7 @@ import {
 import {
   contarDestino,
   htmlMapaDestino,
-  pintarRutaDestino,
+  pintarCascadaDestino,
   reiniciarVistaDestino,
   resolverClickMapaDestino,
 } from './mudanzaMapaDestino';
@@ -63,8 +63,13 @@ export interface NodosMudanza {
   filtrosOrigen: HTMLElement;
   /** Cabezal donde se inyecta la barra de filtros del Destino. */
   filtrosDestino: HTMLElement;
-  /** Host del componente global MinimapaRuta.astro (migaja del mapa destino). */
+  /** Host del componente global MinimapaRuta.astro con la red de minimapas
+   *  COMPACTADOS de los niveles previos (cabezal de contexto en cascada). */
   rutaDestino: HTMLElement;
+  /** Botón «⬅ Volver» del cabezal: retrocede UN nivel exacto de la jerarquía. */
+  volverDestino: HTMLButtonElement;
+  /** Contenedor del cabezal de contexto (botón + minimapas compactados). */
+  cascadaDestino: HTMLElement;
   /** Host del PLANO UNIFICADO (componente global `<MinimapaRuta plano />`): el
    *  tablero sólo escribe DENTRO de él y lo apaga si no hay plano que dibujar. */
   planoDestino: HTMLElement;
@@ -113,16 +118,17 @@ export class MudanzaBoard {
     // Navegación del mapa del destino: se registra UNA sola vez y en FASE DE
     // CAPTURA para resolver la navegación ANTES que la suelta por toque del
     // motor de arrastre (el DOM del panel se reemplaza en cada repintado).
-    ui.mapaDestino.addEventListener(
-      'click',
-      (e) =>
-        resolverClickMapaDestino(e, {
-          haySeleccion: () => this.dnd.haySeleccion(),
-          limpiarSeleccion: () => this.dnd.limpiarSeleccion(),
-          repintar: () => this.render(),
-        }),
-      true,
-    );
+    // DOS hosts: el PANEL del plano (siluetas + chips) y el CABEZAL de contexto
+    // en cascada (minimapas compactados + «⬅ Volver»), que vive en la cabecera
+    // de la columna y por eso NO es descendiente del panel.
+    const clickDestino = (e: MouseEvent): void =>
+      resolverClickMapaDestino(e, {
+        haySeleccion: () => this.dnd.haySeleccion(),
+        limpiarSeleccion: () => this.dnd.limpiarSeleccion(),
+        repintar: () => this.render(),
+      });
+    ui.mapaDestino.addEventListener('click', clickDestino, true);
+    ui.cascadaDestino.addEventListener('click', clickDestino, true);
   }
 
   /** Inicializa selectores, filtros y carga el inventario móvil + el plano destino. */
@@ -346,34 +352,53 @@ export class MudanzaBoard {
           filtrosOrigenEfectivos(this.soloCajas, this.filtrosOrigen),
         );
     this.pintarMapaDestino();
-    pintarRutaDestino(
-      this.ui.rutaDestino,
-      this.estoks.find((e) => e.id === this.destinoId)?.nombre || 'Estok destino',
-      this.ubicacionesDestino,
-    );
     this.renderBarras();
     this.enlazarDnD();
   }
 
-  /** Reparte el mapa en sus DOS hosts: el SVG del componente global (que nunca
-   *  se destruye) dentro del host del plano, y la cabecera/chips en el detalle. */
+  /** Nombre del Estok destino vigente (contexto raíz de la jerarquía). */
+  private nombreDestino(): string {
+    return this.estoks.find((e) => e.id === this.destinoId)?.nombre || 'Estok destino';
+  }
+
+  /** Reparte el mapa en sus hosts: el SVG del nivel vigente (componente global,
+   *  que nunca se destruye), la cabecera/chips del nivel y el CABEZAL DE
+   *  CONTEXTO EN CASCADA con los minimapas compactados de los niveles previos. */
   private pintarMapaDestino(): void {
     const vista = this.errorDestino
       ? {
           plano: '',
           detalle: htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino),
+          cascada: '',
+          hayVolver: false,
+          casita: false,
         }
-      : htmlMapaDestino(this.ubicacionesDestino, this.contenedoresDestino, this.filtrosDestino);
+      : htmlMapaDestino(
+          this.ubicacionesDestino,
+          this.contenedoresDestino,
+          this.filtrosDestino,
+          this.nombreDestino(),
+        );
     this.ui.planoDestino.innerHTML = vista.plano;
     this.ui.planoDestino.classList.toggle('hidden', !vista.plano);
+    // La silueta de la casa (niveles 0 y 1) pide una caja cuadrada centrada.
+    this.ui.planoDestino.classList.toggle('mudanza-plano-casita', vista.casita);
     this.ui.detalleDestino.innerHTML = vista.detalle;
+    pintarCascadaDestino(
+      this.ui.rutaDestino,
+      vista.cascada,
+      vista.hayVolver,
+      this.ui.volverDestino,
+    );
   }
 
-  /** Estado transitorio del Destino (carga o mudanza en curso): apaga el plano. */
+  /** Estado transitorio del Destino (carga o mudanza en curso): apaga el mapa. */
   private pintarEstadoDestino(detalle: string): void {
     this.ui.planoDestino.innerHTML = '';
     this.ui.planoDestino.classList.add('hidden');
+    this.ui.planoDestino.classList.remove('mudanza-plano-casita');
     this.ui.detalleDestino.innerHTML = detalle;
+    pintarCascadaDestino(this.ui.rutaDestino, '', false, this.ui.volverDestino);
   }
 
   // ---------------------------------------------------------------------------

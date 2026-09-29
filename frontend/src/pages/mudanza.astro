@@ -5,11 +5,14 @@
 // gap ampliado desde sm) — nunca se apila en vertical:
 //   - Columna IZQUIERDA: Estok Origen → índice de inventario móvil arrastrable
 //     (cajas tipo='CAJA', muebles móviles y objetos individuales sueltos).
-//   - Columna DERECHA : Estok Destino → MINIMAPAS INTERACTIVOS del plano real
-//     (siluetas proporcionales de habitaciones, muebles y estantes con su
-//     geometría ui_* persistida) + zona estática «En Tránsito» (limbo sin
-//     ubicación física). Cada silueta es una zona de suelta: el ítem se arrastra
-//     desde el Origen y se suelta ENCIMA del ambiente o del mueble.
+//   - Columna DERECHA : Estok Destino → JERARQUÍA ELÁSTICA DE MINIMAPAS del
+//     plano real, de la casa al mueble (Nivel 0 Estok entero → 1 Plantas →
+//     2 Habitaciones → 3 Muebles/Contenedores) + zona estática «En Tránsito»
+//     (limbo sin ubicación física). Al avanzar, el plano que se abandona se
+//     ENCOGE y se apila en el cabezal de contexto (minimapas compactados) con
+//     un botón «⬅ Volver» que retrocede UN nivel exacto. Cada silueta es una
+//     zona de suelta: el ítem se arrastra desde el Origen y se suelta ENCIMA del
+//     ambiente o del mueble.
 // Cada columna tiene ALTURA FIJA (h-[calc(100vh-190px)]) y su propio scroll
 // independiente (overflow-y-auto en el panel), tanto en móvil como en desktop.
 // La lógica vive en src/lib/mudanzaBoard.ts (orquestación de DnD + toque),
@@ -22,9 +25,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
-// Componente GLOBAL de minimapas: host de la migaja de procedencia del Estok
-// destino. mudanzaBoard.ts lo rellena en caliente con el MISMO motor
-// (lib/minimapasAnidados.ts) que Almacenamiento y Objetos.
+// Componente GLOBAL de minimapas: host del CABEZAL DE CONTEXTO EN CASCADA del
+// Estok destino (minimapas compactados de los niveles previos). mudanzaBoard.ts
+// lo rellena en caliente con el MISMO motor (lib/minimapasAnidados.ts) que
+// Almacenamiento y Objetos.
 import MinimapaRuta from '../components/MinimapaRuta.astro';
 import '../styles/mudanza.css';
 // Estilos del mapa de minimapas del Destino (siluetas + chips de navegación).
@@ -124,9 +128,24 @@ import '../styles/mudanza-mapa.css';
             class="w-full rounded-lg border border-gray-300 px-2 py-1 text-[11px] outline-none transition-base focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:px-3 sm:py-2 sm:text-sm"></select>
           <!-- Filtros reactivos del DESTINO: escala de la suelta (gruesa/fina) -->
           <div id="mudanzaFiltrosDestino" class="mt-1.5"></div>
-          <!-- MINIMAPAS INTERACTIVOS: migaja de procedencia (componente global).
-               El tablero lo rellena en caliente en cada repintado del mapa. -->
-          <MinimapaRuta id="mudanzaDestinoRuta" class="mt-1.5" />
+          <!-- ============================================================
+               CABEZAL DE CONTEXTO EN CASCADA DEL ESTOK DESTINO
+               · «⬅ Volver»: retrocede UN nivel exacto de la jerarquía
+                 (ej: de la vista interna de la habitación al plano de la planta).
+               · Red de MINIMAPAS COMPACTADOS de los niveles previos: al avanzar,
+                 el plano que se abandona se ENCOGE (escala canónica 4× menor del
+                 motor) y se acomoda al lado de los anteriores como guía de
+                 contexto activa; tocar uno salta a ESE nivel.
+               Los dibuja el COMPONENTE GLOBAL `<MinimapaRuta />` (mismo motor de
+               siluetas asimétricas reales, contornos negros nítidos y espacios
+               fusionados sin líneas divisorias internas); el tablero lo rellena
+               en caliente en cada repintado del mapa.
+               ============================================================ -->
+          <div id="mudanzaDestinoCascada" class="mudanza-destino-cascada mt-1.5">
+            <button id="mudanzaDestinoVolver" type="button" class="mudanza-mapa-volver hidden"
+              data-navegar-volver title="Volver un nivel en la jerarquía del Estok destino">⬅ Volver</button>
+            <MinimapaRuta id="mudanzaDestinoRuta" class="hidden" />
+          </div>
         </div>
 
         <!-- ZONA ESTÁTICA «EN TRÁNSITO»: receptora de sueltas SIN ubicación
@@ -186,6 +205,8 @@ import '../styles/mudanza-mapa.css';
     const filtrosOrigen = document.getElementById('mudanzaFiltrosOrigen')!;
     const filtrosDestino = document.getElementById('mudanzaFiltrosDestino')!;
     const rutaDestino = document.getElementById('mudanzaDestinoRuta')!;
+    const cascadaDestino = document.getElementById('mudanzaDestinoCascada')!;
+    const volverDestino = document.getElementById('mudanzaDestinoVolver') as HTMLButtonElement;
     const paginaMudanza = document.getElementById('mudanzaPage')!;
     const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
 
@@ -248,6 +269,8 @@ import '../styles/mudanza-mapa.css';
           filtrosOrigen,
           filtrosDestino,
           rutaDestino,
+          cascadaDestino,
+          volverDestino,
           planoDestino,
           detalleDestino,
         });

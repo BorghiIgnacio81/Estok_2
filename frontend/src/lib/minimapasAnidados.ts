@@ -118,8 +118,12 @@ function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
   }
   if (nodo.tipo === 'estok' || nodo.tipo === 'planta') {
     // Fallback sin geometría persistida: silueta de la casita, planta activa naranja.
+    // `filaActiva === 0` es la marca EXPLÍCITA de «Estok entero, sin planta
+    // resaltada» (nodo raíz del mapa jerárquico de Mudanza): cualquier otro
+    // valor ausente/vacío cae, como siempre, a la planta 1. Ningún consumidor
+    // existente pasa 0, así que el cambio es 100% retrocompatible.
     const total = Math.max(1, Math.floor(Number(nodo.totalPlantas) || 1));
-    const fila = Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
+    const fila = nodo.filaActiva === 0 ? 0 : Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
     return `<span class="mini-anidado-lienzo">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</span>`;
   }
   // Habitación o mueble SIN `sectores`: la pantalla no aportó geometría real, así

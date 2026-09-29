@@ -162,6 +162,12 @@ export interface NivelMapaDestino {
   plano: string;
   /** Cabecera, avisos y chips de navegación / suelta fina (HTML). */
   detalle: string;
+  /**
+   * El plano vigente es la SILUETA DE LA CASA (niveles 0 «Estok entero» y 1
+   * «Plantas»): la pantalla le da al host del componente una caja cuadrada
+   * centrada, porque la silueta de la casa es alta y no un lienzo 16:9.
+   */
+  casita?: boolean;
 }
 
 /** Tira de chips de navegación (abrir ambientes, cambiar de planta). */
@@ -265,7 +271,7 @@ export function htmlNivelHabitaciones(
 
   return {
     plano,
-    detalle: `<p class="mudanza-mapa-titulo">🏢 Plano real de la planta · <b>soltá sobre la silueta</b> de la habitación${
+    detalle: `<p class="mudanza-mapa-titulo">🏢 Plano real de la planta · <b>Nivel 2</b> · <b>soltá sobre la silueta</b> de la habitación${
       droppable ? '' : ' (activá el filtro «Habitaciones» para habilitar la suelta)'
     }</p>${htmlChips('Abrir un ambiente:', chips)}`,
   };
@@ -323,12 +329,9 @@ export function htmlNivelMuebles(
 
   return {
     plano,
-    detalle: `<div class="mudanza-mapa-cabecera">
-        <p class="mudanza-mapa-titulo">🗄️ «${escapeHtml(
-          nombreHab,
-        )}» · <b>soltá sobre la silueta</b> del mueble</p>
-        <button type="button" class="mudanza-mapa-volver" data-navegar-volver title="Volver al plano de la planta">← Volver</button>
-      </div>
+    detalle: `<p class="mudanza-mapa-titulo">🗄️ «${escapeHtml(
+        nombreHab,
+      )}» · <b>Nivel 3</b> · <b>soltá sobre la silueta</b> del mueble o del estante</p>
       ${sueltaGruesa}
       ${aviso}
       ${htmlChips('Guardar dentro de:', anidados.map(chipContenedor))}`,

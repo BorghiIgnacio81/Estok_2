@@ -16,13 +16,6 @@
   gap: 8px;
 }
 
-.mudanza-mapa-cabecera {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .mudanza-mapa-titulo {
   margin: 0;
   font-size: 11px;
@@ -204,5 +197,171 @@
 
   .mudanza-mapa-chip-texto {
     max-width: 120px;
+  }
+}
+
+/* =============================================================================
+   CABEZAL DE CONTEXTO EN CASCADA DEL ESTOK DESTINO (minimapas que se achican)
+   -----------------------------------------------------------------------------
+   El host lo declara mudanza.astro (`<MinimapaRuta id="mudanzaDestinoRuta" />`
+   → `.minimapa-ruta-cadena`) y lo rellena mudanzaMapaDestino.ts con el MISMO
+   motor de la cadena de minimapas (lib/minimapasAnidados.ts). Al profundizar en
+   la jerarquía, cada plano abandonado se ENCOGE (escala canónica del motor:
+   lienzo de 40px = 4× más chico que el plano grande) y se acomoda al lado del
+   anterior como guía de contexto ACTIVA: también se puede tocar para saltar a
+   ese nivel.
+
+   ALCANCE PROPIO: estas reglas viven SOLO acá (Mudanza no importa
+   styles/almacenamiento-portales.css) y replican su estándar visual: trazo
+   negro nítido a escala reducida, contenedor punteado suave y ninguna línea
+   divisoria interna (los espacios fusionados son UN solo `<path>`).
+   ============================================================================= */
+
+/* Columna del cabezal: el «⬅ Volver» arriba y la red compactada debajo. */
+.mudanza-destino-cascada {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mudanza-destino-cascada .mini-anidados-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.mudanza-destino-cascada .mini-anidado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 76px;
+  opacity: 0.7;
+  filter: grayscale(0.3);
+  cursor: pointer; /* guía de contexto ACTIVA: navega a su nivel */
+}
+
+.mudanza-destino-cascada .mini-anidado:hover,
+.mudanza-destino-cascada .mini-anidado-activo {
+  opacity: 1;
+  filter: none;
+}
+
+.mudanza-destino-cascada .mini-anidado-ico {
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* Lienzo COMPACTO: 40px = la escala 4× menor del motor de minimapas. */
+.mudanza-destino-cascada .mini-anidado-lienzo {
+  display: block;
+  line-height: 0;
+  width: 40px;
+}
+
+.mudanza-destino-cascada .mini-anidado-lienzo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mudanza-destino-cascada .mini-anidado-proporcional svg {
+  height: 100%;
+}
+
+/* TRAZOS NEGROS NÍTIDOS a escala reducida: sin esto, las siluetas asimétricas
+   reales del minimapa achicado y sus fusiones se pierden en gris tenue. */
+.mudanza-destino-cascada .mini-anidado-lienzo svg rect,
+.mudanza-destino-cascada .mini-anidado-lienzo svg path {
+  stroke: #0a0a0a;
+  stroke-width: 1.5;
+}
+
+.mudanza-destino-cascada .mini-anidado-activo .mini-anidado-lienzo svg {
+  outline: 2px solid #f97316;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+.mudanza-destino-cascada .mini-anidado-nombre {
+  max-width: 100%;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mudanza-destino-cascada .mini-anidado-activo .mini-anidado-nombre {
+  color: #ea580c;
+  font-weight: 800;
+}
+
+.mudanza-destino-cascada .mini-anidado-flecha {
+  align-self: center;
+  font-size: 10px;
+  color: #d1d5db;
+}
+
+/* --- NIVELES 0 y 1: la silueta de la casa dentro del host del plano --------
+   `minimapaCasitaSvg` (motor global) devuelve una silueta ALTA; el host del
+   componente le da una caja CUADRADA centrada, así la casa se lee grande sin
+   estirarse (`preserveAspectRatio` la encaja sola) y conserva el trazo negro
+   nítido que styles/minimapa-ruta.css §2 ya declara para todo SVG del plano. */
+.minimapa-ruta-plano.mudanza-plano-casita {
+  aspect-ratio: 1 / 1;
+  max-width: 260px;
+  margin: 0 auto;
+}
+
+.minimapa-ruta-plano.mudanza-plano-casita > svg,
+.minimapa-ruta-plano .mudanza-casita-boton svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.minimapa-ruta-plano .mudanza-casita-boton {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.minimapa-ruta-plano .mudanza-casita-boton:hover svg rect[data-mini-fila] {
+  filter: brightness(0.94);
+}
+
+/* Escritorio: el cabezal compactado respira un poco más (≈w-24 por miniatura),
+   siempre por debajo del plano grande del nivel vigente. */
+@media (min-width: 640px) {
+  .mudanza-destino-cascada .mini-anidado-lienzo {
+    width: 56px;
+  }
+
+  .mudanza-destino-cascada .mini-anidado {
+    max-width: 88px;
+  }
+
+  .mudanza-destino-cascada .mini-anidado-nombre {
+    font-size: 9px;
   }
 }
