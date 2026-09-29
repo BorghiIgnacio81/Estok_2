@@ -308,6 +308,14 @@ export interface MinimapaSectoresOpts {
    * el espacio real. Sin esta opción el SVG es idéntico al de siempre.
    */
   clicable?: boolean;
+  /**
+   * ATRIBUTOS EXTRA POR SECTOR (ej. las zonas de suelta `data-drop-*` de la
+   * Mudanza): se inyectan en el `<g data-sector-id>` navegable de cada silueta,
+   * así el MISMO plano del componente global sirve como Drop Zone sin duplicar
+   * el motor de dibujo. El texto se inserta TAL CUAL: quien lo provee escapa sus
+   * valores. Sólo tiene efecto junto con `clicable`.
+   */
+  atributosSector?: (sector: { id: string; nombre: string }) => string;
 }
 
 /** Aspecto por defecto del lienzo elástico (alto/ancho) cuando no se puede medir. */
@@ -335,7 +343,12 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
     if (!clicable) return silueta;
     const id = escapeHtml(s.id);
     const nombre = escapeHtml(s.nombre || 'Espacio');
-    return `<g class="minimapa-sector-clicable" data-sector-id="${id}" role="button" aria-label="${nombre}"><title>${nombre}</title>${silueta}</g>`;
+    // Data-attributes extra del sector (zonas de suelta de la Mudanza): el motor
+    // no conoce `data-drop-*`, sólo los inyecta tal cual le llegan.
+    const extra = opts.atributosSector
+      ? opts.atributosSector({ id: s.id != null ? String(s.id) : '', nombre: s.nombre || 'Espacio' })
+      : '';
+    return `<g class="minimapa-sector-clicable" data-sector-id="${id}"${extra ? ` ${extra}` : ''} role="button" aria-label="${nombre}"><title>${nombre}</title>${silueta}</g>`;
   };
 
   const rects = sectores.map((s) => {

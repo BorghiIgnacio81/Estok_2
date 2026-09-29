@@ -2,6 +2,7 @@
 // FILTROS REACTIVOS DEL TABLERO DE MUDANZA (barras simétricas de checkboxes)
 // -----------------------------------------------------------------------------
 // Columna ORIGEN  → Qué se quiere mudar: Objetos sueltos · Muebles · Cajas.
+//                   Más el atajo destacado «Solo cajas».
 // Columna DESTINO → A qué escala se suelta: Habitaciones · Muebles ·
 //                   Espacios / Estantes (suelta fina dentro del contenedor).
 //
@@ -70,4 +71,39 @@ export function htmlBarraFiltros<T extends string>(
     })
     .join('');
   return `<div class="flex flex-wrap items-center gap-1" data-filtros-barra="${grupo}">${items}</div>`;
+}
+
+// =============================================================================
+// ATAJO DESTACADO DE LA COLUMNA ORIGEN · «Solo cajas»
+// -----------------------------------------------------------------------------
+// Interruptor de un solo toque que NO es un cuarto grupo de inventario: reescribe
+// el set de filtros del Origen para exponer únicamente el grupo de cajas móviles
+// (`tipo='CAJA'` y `es_inmueble=false`) y ocultar objetos sueltos y muebles.
+// Cero peticiones al servidor: los datos siguen en memoria y reaparecen al
+// desactivarlo (o al tocar cualquier checkbox de la barra granular).
+// =============================================================================
+
+/** Set EFECTIVO de grupos visibles del Origen según el atajo «Solo cajas». */
+export function filtrosOrigenEfectivos(
+  soloCajas: boolean,
+  activos: Set<FiltroOrigen>,
+): Set<FiltroOrigen> {
+  return soloCajas ? new Set<FiltroOrigen>(['CAJA']) : activos;
+}
+
+/**
+ * Checkbox destacado «Solo cajas» (cabecera del Origen). Se identifica con
+ * `data-solo-cajas` —NO con `data-filtro-valor`— para que la delegación del
+ * tablero distinga el atajo de los tres grupos reales.
+ */
+export function htmlToggleSoloCajas(activo: boolean): string {
+  return `
+    <label class="mudanza-solo-cajas${activo ? ' mudanza-solo-cajas-activo' : ''}"
+      title="Mostrar únicamente las cajas móviles disponibles para traslado (oculta objetos sueltos y muebles)">
+      <input type="checkbox" class="h-3.5 w-3.5 shrink-0 accent-orange-600" data-solo-cajas ${
+        activo ? 'checked' : ''
+      } />
+      <span aria-hidden="true">🧰</span>
+      <span class="mudanza-solo-cajas-texto">Solo cajas</span>
+    </label>`;
 }

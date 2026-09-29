@@ -130,6 +130,48 @@
   opacity: 1;
 }
 
+/* --- FILTROS: barra granular + atajo destacado «Solo cajas» ---------------- */
+.mudanza-solo-cajas {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 3px 8px;
+  border: 1.5px solid #fdba74;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.mudanza-solo-cajas:hover {
+  border-color: #f97316;
+  background: #ffedd5;
+}
+
+/* Estado ACTIVO: el único grupo a la vista son las cajas móviles. */
+.mudanza-solo-cajas-activo {
+  border-color: #ea580c;
+  background: #ffedd5;
+  color: #7c2d12;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+
+.mudanza-solo-cajas-texto {
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .mudanza-solo-cajas {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+}
+
 /* =============================================================================
    CONGELADO DEL VIEWPORT EN MÓVIL (mientras la mudanza está activa)
    -----------------------------------------------------------------------------

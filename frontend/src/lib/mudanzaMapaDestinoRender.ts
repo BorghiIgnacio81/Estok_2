@@ -1,22 +1,26 @@
 // =============================================================================
-// RENDER DEL MAPA DE MINIMAPAS DEL ESTOK DESTINO (Mudanza Inter-Estok)
+// RENDER DEL PLANO UNIFICADO DEL ESTOK DESTINO (Mudanza Inter-Estok)
 // -----------------------------------------------------------------------------
 // Capa PURA de dibujo: convierte los espacios del Estok destino (geometría REAL
-// persistida en PostgreSQL: ui_left/ui_top/ui_width/ui_height) en un plano de
-// SILUETAS PROPORCIONALES donde cada ambiente es una zona de suelta.
+// persistida en PostgreSQL: ui_left/ui_top/ui_width/ui_height) en el PLANO
+// CANÓNICO del componente global components/MinimapaRuta.astro, dibujado con su
+// MISMO motor puro (lib/minimapa.ts → minimapaSectoresSvg + sectoresDeItems):
+// siluetas asimétricas proporcionales, fondo crema, bordes negros definidos y
+// sector activo en naranja (#f97316). Se eliminó de raíz el lienzo propio con
+// cajas absolutas y perímetro gris (los «minimapas gigantes descalzados»).
 //
 //   Nivel 1 (planta)   → siluetas de habitaciones (suelta GRUESA).
 //   Nivel 2 (interior) → siluetas de muebles y estantes (suelta FINA) + chip de
 //                        la habitación completa + chips de cajas internas.
 //
-// Delega en el motor global de minimapas (lib/minimapa.ts → minimapaCasitaSvg)
-// y en sectoresDeItems (lib/sectoresMinimapa.ts): mismo criterio de escala y
-// mismo resalte naranja que Almacenamiento, Objetos y «Nuevo Objeto».
-// Los data-attributes de suelta son los canónicos del motor de arrastre
-// (lib/mudanzaDnd.ts). Acá NO hay estado, ni fetch, ni eventos: sólo HTML.
+// Cada silueta viaja como `<g data-sector-id>` (opción `clicable` del motor) y,
+// cuando es zona de suelta, lleva los data-attributes canónicos del motor de
+// arrastre (lib/mudanzaDnd.ts) inyectados con `atributosSector`. Acá NO hay
+// estado, ni fetch, ni eventos: sólo HTML (el host lo declara mudanza.astro y el
+// tablero lo rellena en caliente).
 // =============================================================================
 
-import { ASPECTO_LIENZO, minimapaCasitaSvg } from './minimapa';
+import { ASPECTO_LIENZO, minimapaCasitaSvg, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
@@ -33,10 +37,6 @@ import type { FiltroDestino } from './mudanzaFiltros';
 export const PISO_DEFECTO = 'PRIMER_PISO';
 /** Piso "planta baja" (segundo valor del modelo, ver mapaJerarquico.ts). */
 export const PISO_BAJA = 'PLANTA_BAJA';
-/** Lado mínimo (%) de un sector para que siga siendo táctil en móvil. */
-const LADO_MINIMO = 7;
-/** Relación ancho/alto del lienzo (CSS aspect-ratio) = inversa del aspecto real. */
-const ASPECTO = 1 / ASPECTO_LIENZO;
 
 /** Iconografía por tipo de contenedor (misma convención que el resto de la app). */
 const ICONO_TIPO: Record<string, string> = {
@@ -119,91 +119,49 @@ export function contarDestino(
 }
 
 // =============================================================================
-// GEOMETRÍA DEL LIENZO (ESCALA SIMÉTRICA REAL)
+// PLANO UNIFICADO (EL MISMO DEL COMPONENTE GLOBAL MinimapaRuta.astro)
 // -----------------------------------------------------------------------------
-// Cada silueta se posiciona con los porcentajes REALES persistidos en
-// PostgreSQL. Sólo se aplica un LADO_MINIMO para que ningún ambiente quede
-// intocable en un teléfono, sin deformar la escala ni permitir que un sector se
-// salga del perímetro del lienzo.
+// Lo dibuja el motor puro compartido: sectoresDeItems (geometría REAL ui_* de
+// cada espacio) + minimapaSectoresSvg (siluetas asimétricas proporcionales,
+// fondo crema, BORDES NEGROS definidos y resalte naranja del sector activo).
+// Así el Destino de la Mudanza se ve idéntico a Almacenamiento y a Objetos.
 // =============================================================================
 
-interface Caja {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-function acotar(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
-
-/** Caja visible de un sector: proporción real + mínimo táctil + borde acotado. */
-function cajaDe(s: SectorMinimapa): Caja {
-  const width = acotar(Number(s.width) || LADO_MINIMO, LADO_MINIMO, 100);
-  const height = acotar(Number(s.height) || LADO_MINIMO, LADO_MINIMO, 100);
-  return {
-    left: acotar(Number(s.left) || 0, 0, 100 - width),
-    top: acotar(Number(s.top) || 0, 0, 100 - height),
-    width,
-    height,
-  };
-}
-
-function estiloCaja(c: Caja): string {
-  const dims = `width:${c.width.toFixed(2)}%;height:${c.height.toFixed(2)}%`;
-  return `left:${c.left.toFixed(2)}%;top:${c.top.toFixed(2)}%;${dims}`;
+/**
+ * SVG elástico del plano del componente global: se inyecta DENTRO del host
+ * `.minimapa-ruta-plano` que declara mudanza.astro, de modo que el tamaño lo
+ * gobierna su `aspect-ratio` real (nunca un ancho fijo que desborde el panel).
+ *
+ * `atributos` (opcional) agrega los `data-drop-*` de cada silueta: sin ellos el
+ * plano es sólo informativo y ningún sector actúa como zona de suelta.
+ */
+function htmlPlano(
+  sectores: SectorMinimapa[],
+  atributos?: (sector: { id: string; nombre: string }) => string,
+): string {
+  return minimapaSectoresSvg({
+    sectores,
+    aspecto: ASPECTO_LIENZO,
+    responsive: true,
+    clicable: true,
+    atributosSector: atributos,
+  });
 }
 
 /**
  * Atributos de la zona de suelta que reconoce el motor de arrastre
- * (mudanzaDnd.ts). Cadena vacía = silueta sólo informativa.
+ * (mudanzaDnd.ts): se inyectan en el `<g data-sector-id>` de la silueta.
  */
-function atributosDrop(
-  tipo: 'ubicacion' | 'contenedor' | null,
-  id: string,
-  nombre: string,
-): string {
-  if (!tipo) return '';
+function atributosDrop(tipo: 'ubicacion' | 'contenedor', id: string, nombre: string): string {
   return `data-drop-${tipo}="${escapeHtml(id)}" data-drop-nombre="${escapeHtml(nombre)}"`;
 }
 
-interface DatosSector {
-  caja: Caja;
-  icono: string;
-  nombre: string;
-  meta: string;
-  /** Atributos data-drop-* ('' = no es zona de suelta). */
-  drop: string;
-  /** Clase de color: habitación (verde), mueble (celeste), espacio (violeta). */
-  tono: string;
-  ayuda: string;
-}
-
-/** Silueta de un espacio del plano (arrastrable si trae `drop`). */
-function htmlSector(d: DatosSector): string {
-  const clases = [
-    'mudanza-sector',
-    d.tono,
-    d.drop ? 'mudanza-drop-zone' : 'mudanza-sector-bloqueado',
-  ];
-  const atributos = d.drop ? ` ${d.drop}` : '';
-  const pista = d.drop ? '<span class="mudanza-drop-hint">soltar acá</span>' : '';
-  return `
-    <div class="${clases.join(' ')}" style="${estiloCaja(d.caja)}" title="${escapeHtml(
-      d.ayuda,
-    )}"${atributos}>
-      <span class="mudanza-sector-ico" aria-hidden="true">${d.icono}</span>
-      <span class="mudanza-sector-nombre">${escapeHtml(d.nombre)}</span>
-      <span class="mudanza-sector-meta">${escapeHtml(d.meta)}</span>
-      ${pista}
-    </div>`;
-}
-
-/** Lienzo rectangular con la proporción elástica real del plano. */
-function htmlLienzo(sectores: string[]): string {
-  const estilo = `aspect-ratio:${ASPECTO.toFixed(3)}`;
-  return `<div class="mudanza-mapa-lienzo" style="${estilo}">${sectores.join('')}</div>`;
+/** Salida de cada nivel del mapa: SVG del plano (host global) + su chrome. */
+export interface NivelMapaDestino {
+  /** SVG elástico del componente global ('' = nada que dibujar → host apagado). */
+  plano: string;
+  /** Cabecera, avisos y chips de navegación / suelta fina (HTML). */
+  detalle: string;
 }
 
 /** Tira de chips de navegación (abrir ambientes, cambiar de planta). */
@@ -271,38 +229,29 @@ export function htmlNivelHabitaciones(
   contenedores: ContenedorDto[],
   planta: string,
   filtros: Set<FiltroDestino>,
-): string {
+): NivelMapaDestino {
   const habitaciones = habitacionesDePlanta(ubicaciones, planta);
   if (!habitaciones.length) {
-    return htmlVacio(
-      'Esta planta todavía no tiene habitaciones',
-      'Modelá el plano del Estok destino desde «Mapa de Estok» en Almacenamiento.',
-    );
+    return {
+      plano: '',
+      detalle: htmlVacio(
+        'Esta planta todavía no tiene habitaciones',
+        'Modelá el plano del Estok destino desde «Mapa de Estok» en Almacenamiento.',
+      ),
+    };
   }
 
   const droppable = filtros.has('HABITACION');
   const sectores = sectoresDeItems(habitaciones, null, (h) =>
     iconoDeHabitacion(String(h.nombre || '')),
   );
-
-  const bloques = sectores.map((sector, i) => {
-    const habitacion = habitaciones[i];
-    const id = String(habitacion.id);
-    const nombre = habitacion.nombre || 'Habitación';
-    const muebles = mueblesDe(contenedores, id).length;
-    const objetos = Number(habitacion.objetos_count) || 0;
-    return htmlSector({
-      caja: cajaDe(sector),
-      icono: sector.icono || '🚪',
-      nombre,
-      meta: `${muebles} 🗄️ · ${objetos} 📦`,
-      drop: droppable ? atributosDrop('ubicacion', id, nombre) : '',
-      tono: 'mudanza-sector-hab',
-      ayuda: droppable
-        ? `Soltá (o tocá) acá para mudar el elemento a «${nombre}»`
-        : `«${nombre}»: activá el filtro «Habitaciones» para soltar en el ambiente completo`,
-    });
-  });
+  // Plano unificado: cada silueta es, además, la zona de suelta GRUESA cuando el
+  // filtro «Habitaciones» está activo. Sin el filtro el plano sigue visible como
+  // contexto (silueta sólo informativa, sin data-drop-*).
+  const plano = htmlPlano(
+    sectores,
+    droppable ? (s) => atributosDrop('ubicacion', s.id, s.nombre) : undefined,
+  );
 
   const chips = habitaciones.map((h) => {
     const id = String(h.id);
@@ -314,12 +263,12 @@ export function htmlNivelHabitaciones(
     );
   });
 
-  return `
-    <div class="mudanza-mapa">
-      <p class="mudanza-mapa-titulo">🏢 Plano real de la planta · <b>soltá sobre la silueta</b> de la habitación</p>
-      ${htmlLienzo(bloques)}
-      ${htmlChips('Abrir un ambiente:', chips)}
-    </div>`;
+  return {
+    plano,
+    detalle: `<p class="mudanza-mapa-titulo">🏢 Plano real de la planta · <b>soltá sobre la silueta</b> de la habitación${
+      droppable ? '' : ' (activá el filtro «Habitaciones» para habilitar la suelta)'
+    }</p>${htmlChips('Abrir un ambiente:', chips)}`,
+  };
 }
 
 // =============================================================================
@@ -330,7 +279,7 @@ export function htmlNivelMuebles(
   habitacion: UbicacionDto,
   contenedores: ContenedorDto[],
   filtros: Set<FiltroDestino>,
-): string {
+): NivelMapaDestino {
   const habitacionId = String(habitacion.id);
   const nombreHab = habitacion.nombre || 'Habitación';
 
@@ -340,28 +289,16 @@ export function htmlNivelMuebles(
     esMueble(c) ? filtros.has('MUEBLE') : filtros.has('ESPACIO'),
   );
   const sectores = sectoresDeItems(raices, null, (c) => iconoDeContenedor(c as ContenedorDto));
-
-  const bloques = sectores.map((sector, i) => {
-    const contenedor = raices[i];
-    const id = String(contenedor.id);
-    const nombre = contenedor.nombre || 'Mueble';
-    const mueble = esMueble(contenedor);
-    const objetos = Number(contenedor.objetos_count) || 0;
-    const espacios = Number(contenedor.subcontenedores_count) || 0;
-    return htmlSector({
-      caja: cajaDe(sector),
-      icono: iconoDeContenedor(contenedor),
-      nombre,
-      meta: espacios > 0 ? `${objetos} 📦 · ${espacios} 🗃️` : `${objetos} 📦`,
-      drop: atributosDrop('contenedor', id, nombre),
-      tono: mueble ? 'mudanza-sector-mueble' : 'mudanza-sector-espacio',
-      ayuda: `Soltá (o tocá) acá para guardar DENTRO de «${nombre}»`,
-    });
-  });
+  // Plano unificado: toda silueta del interior es zona de suelta FINA (el motor
+  // de arrastre resuelve `data-drop-contenedor` desde el propio `<g>`).
+  const plano = htmlPlano(
+    sectores,
+    raices.length ? (s) => atributosDrop('contenedor', s.id, s.nombre) : undefined,
+  );
 
   // Suelta GRUESA dentro del nivel fino: la habitación completa, siempre visible.
   const sueltaGruesa = filtros.has('HABITACION')
-    ? `<div class="mudanza-suelta-gruesa mudanza-drop-zone" data-drop-ubicacion="${escapeHtml(
+    ? `<div class="mudanza-suelta-gruesa" data-drop-ubicacion="${escapeHtml(
         habitacionId,
       )}" data-drop-nombre="${escapeHtml(
         nombreHab,
@@ -377,24 +314,24 @@ export function htmlNivelMuebles(
     ? raices.flatMap((c) => hijosDe(contenedores, String(c.id)))
     : [];
 
-  const plano = bloques.length
-    ? htmlLienzo(bloques)
+  const aviso = plano
+    ? ''
     : htmlVacio(
         'Sin muebles ni estantes visibles con estos filtros',
         'Activá «Muebles» o «Espacios / Estantes» en la barra de filtros, o soltá en la habitación completa.',
       );
 
-  return `
-    <div class="mudanza-mapa">
-      <div class="mudanza-mapa-cabecera">
+  return {
+    plano,
+    detalle: `<div class="mudanza-mapa-cabecera">
         <p class="mudanza-mapa-titulo">🗄️ «${escapeHtml(
           nombreHab,
         )}» · <b>soltá sobre la silueta</b> del mueble</p>
         <button type="button" class="mudanza-mapa-volver" data-navegar-volver title="Volver al plano de la planta">← Volver</button>
       </div>
       ${sueltaGruesa}
-      ${plano}
-      ${htmlChips('Guardar dentro de:', anidados.map(chipContenedor))}
-    </div>`;
+      ${aviso}
+      ${htmlChips('Guardar dentro de:', anidados.map(chipContenedor))}`,
+  };
 }
 

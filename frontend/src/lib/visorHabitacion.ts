@@ -377,8 +377,13 @@ function enlazarVisor(): void {
       if (!id) return;
       const dato = contenedoresRoom.find((x) => x.id === id);
       if (!dato) return;
-      // Solo los muebles (con sub-divisiones o inmuebles fijos) abren ficha.
-      if (!(Number(dato.subcontenedores_count) > 0) && !dato.es_inmueble) return;
+      // CASCADA INFINITA (Nivel 2 → 3 → 4): TODA estructura del lienzo abre su
+      // organización interna. Se eliminó el candado que exigía sub-divisiones
+      // previas o `es_inmueble`: con él, un mueble móvil recién creado (0
+      // subdivisiones) no disparaba `estok:mueble-seleccionado` y era IMPOSIBLE
+      // entrar a su grilla para crear sus primeras subdivisiones/espacios
+      // internos con los controles numéricos de filas y columnas del Nivel 3
+      // (y desde ahí bajar al Nivel 4 de la cascada).
       muebleActivoId = id;
       aplicarMuebleActivo();
       window.dispatchEvent(

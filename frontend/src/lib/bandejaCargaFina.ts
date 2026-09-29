@@ -6,13 +6,15 @@
 //
 //   1. BLOQUE SUPERIOR «A primera vista · sin ubicación» con JERARQUÍA estricta:
 //      GRUPO 1 = Cajas sin ubicación (Contenedores Pequeños /Nuevo Contenedor.png
-//      huérfanos o sin casillero) en la cima, y GRUPO 2 = Objetos individuales
-//      sin ubicación (/fluffy_plush_ball.jpg) inmediatamente debajo (misma regla
-//      hermética de bandejaSinUbicar). Todos los chips son draggable=true y emiten
-//      los MIME types estándar (application/x-estok-contenedor /
-//      application/x-estok-objeto) que las Drop Zones del Visor Contenedor Grande
-//      interpretan para calcular la fila·columna del mueble y persistir con PUT
-//      multi-tenant.
+//      huérfanos o sin casillero, SIEMPRE `tipo='CAJA'` y `es_inmueble=false`) en
+//      la cima, y GRUPO 2 = Objetos individuales sin ubicación
+//      (/fluffy_plush_ball.jpg) inmediatamente debajo (misma regla hermética de
+//      bandejaSinUbicar). Los muebles inmuebles fijos (Cama, Escritorio Pintura,
+//      PC Setup…) quedan descartados de raíz del GRUPO 1.
+//      Todos los chips son draggable=true y emiten los MIME types estándar
+//      (application/x-estok-contenedor / application/x-estok-objeto) que las Drop
+//      Zones del Visor Contenedor Grande interpretan para calcular la fila·columna
+//      del mueble y persistir con PUT multi-tenant.
 //
 //   2. BLOQUE INFERIOR «Cambiar Contenedor»: acordeón que lista de forma
 //      asincrónica los contenedores con ubicación que ya contienen elementos
@@ -77,6 +79,10 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorCarga {
   return {
     id: String(c.id),
     nombre: String(c.nombre || 'Contenedor'),
+    // Taxonomía del backend (MUEBLE | CAJA | ESTANTE) SIN default permisivo: el
+    // GRUPO 1 sólo admite `CAJA`, así que un valor ausente/desconocido jamás se
+    // cuela como caja.
+    tipo: String(c.tipo || '').toUpperCase(),
     es_inmueble: Boolean(c.es_inmueble),
     subcontenedores_count: numero(c.subcontenedores_count),
     parent_contenedor: c.parent_contenedor != null ? String(c.parent_contenedor) : null,

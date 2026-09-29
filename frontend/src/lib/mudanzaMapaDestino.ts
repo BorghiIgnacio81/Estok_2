@@ -13,8 +13,10 @@
 //   · mudanzaDnd.ts               → arrastre y suelta (data-drop-*).
 //   · mudanzaBoard.ts             → orquestación y POST transaccional.
 //
-// La migaja de procedencia se pinta en el componente global
-// components/MinimapaRuta.astro (host que inyecta mudanza.astro).
+// El plano del nivel vigente y la migaja de procedencia se pintan con el
+// COMPONENTE GLOBAL components/MinimapaRuta.astro (hosts que inyecta
+// mudanza.astro): el plano va dentro de su host `.minimapa-ruta-plano` y la
+// migaja dentro del host de la cadena de orientación.
 // =============================================================================
 
 import { ASPECTO_LIENZO } from './minimapa';
@@ -100,22 +102,33 @@ function ajustarVistaDestino(ubicaciones: UbicacionDto[]): void {
 // API PÚBLICA (la consume mudanzaBoard.ts)
 // =============================================================================
 
-/** HTML completo del mapa del Estok destino para el nivel vigente. */
+/** Plano + chrome del mapa del Estok destino para el nivel vigente. */
+export interface VistaMapaDestino {
+  /** SVG del plano: se inyecta DENTRO del host del componente global. */
+  plano: string;
+  /** Cabecera, selector de planta, avisos y chips (hermanos del plano). */
+  detalle: string;
+}
+
+/** Plano y chrome del mapa del Estok destino para el nivel vigente. */
 export function htmlMapaDestino(
   ubicaciones: UbicacionDto[],
   contenedores: ContenedorDto[],
   filtros: Set<FiltroDestino>,
-): string {
+): VistaMapaDestino {
   if (!habitacionesDe(ubicaciones).length) {
-    return htmlVacio(
-      'El Estok destino todavía no tiene habitaciones',
-      'Modelá el plano desde «Mapa de Estok» en Almacenamiento para habilitar las zonas de suelta.',
-    );
+    return {
+      plano: '',
+      detalle: htmlVacio(
+        'El Estok destino todavía no tiene habitaciones',
+        'Modelá el plano desde «Mapa de Estok» en Almacenamiento para habilitar las zonas de suelta.',
+      ),
+    };
   }
   ajustarVistaDestino(ubicaciones);
 
   const habitacion = habitacionDeVista(ubicaciones);
-  const cuerpo =
+  const nivel =
     vistaDestino.nivel === 'MUEBLES' && habitacion
       ? htmlNivelMuebles(habitacion, contenedores, filtros)
       : htmlNivelHabitaciones(ubicaciones, contenedores, vistaDestino.planta, filtros);
@@ -123,7 +136,10 @@ export function htmlMapaDestino(
     vistaDestino.nivel === 'HABITACIONES'
       ? htmlPlantaSelector(ubicaciones, vistaDestino.planta)
       : '';
-  return `${selector}${cuerpo}`;
+  return {
+    plano: nivel.plano,
+    detalle: `<div class="mudanza-mapa">${selector}${nivel.detalle}</div>`,
+  };
 }
 
 /**

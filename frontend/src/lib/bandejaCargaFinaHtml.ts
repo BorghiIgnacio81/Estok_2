@@ -3,7 +3,8 @@
 // -----------------------------------------------------------------------------
 // Vista 100% PRESENTACIONAL del marcado que bandejaCargaFina.ts inyecta en
 // #cargaFinaPanel al abrir «📦 Organizar Contenido». Jerarquía estricta:
-//   1. GRUPO 1 · Cajas sin ubicación (Contenedores Pequeños huérfanos) arriba.
+//   1. GRUPO 1 · Cajas sin ubicación: EXCLUSIVAMENTE cajas móviles
+//      (`tipo='CAJA'` y `es_inmueble=false`); ninguna estructura fija ni mueble.
 //   2. GRUPO 2 · Objetos individuales sin ubicación, inmediatamente debajo.
 //   3. Acordeón «Cambiar Contenedor»: primero Cajas internas, luego Objetos.
 // Todos los chips emiten los MIME estándar; la persistencia al soltar en el
@@ -24,6 +25,8 @@ const IMG_OBJETO = '/fluffy_plush_ball.jpg';
 export interface ContenedorCarga {
   id: string;
   nombre: string;
+  /** Taxonomía del backend: MUEBLE | CAJA | ESTANTE (inventario/services/taxonomia_contenedor.py). */
+  tipo: string;
   es_inmueble: boolean;
   subcontenedores_count: number;
   parent_contenedor: string | null;
@@ -70,13 +73,26 @@ function sinCasillero(x: { parent_grid_row?: number | null; parent_grid_col?: nu
 }
 
 /**
- * GRUPO 1 — Cajas sin ubicación: Contenedores Pequeños (sin sub-contenedores ni
- * es_inmueble) huérfanos o sin casillero asignado.
+ * GRUPO 1 — Caja sin ubicación admisible: EXCLUSIVAMENTE contenedor MÓVIL de
+ * tipo caja (`tipo='CAJA'` y `es_inmueble=false`).
+ *
+ * FILTRO DE DESCARTE ABSOLUTO (mismo criterio taxonómico que la SECCIÓN 1 del
+ * listado de Objetos → lib/listadoObjetosRender.ts · esCajaMovilEnBloqueCajas):
+ * los muebles inmuebles fijos (Cama, Escritorio Pintura, PC Setup, Ropero
+ * Empotrado…), los muebles móviles y las subdivisiones internas (`ESTANTE`)
+ * quedan FUERA de este grupo aunque estén sin casillero.
+ */
+function esCajaMovil(c: ContenedorCarga): boolean {
+  return String(c.tipo || '').toUpperCase() === 'CAJA' && !c.es_inmueble;
+}
+
+/**
+ * GRUPO 1 — Cajas sin ubicación: sólo cajas móviles huérfanas o sin casillero
+ * asignado. Ninguna estructura fija ni ningún mueble puede aparecer acá.
  */
 function cajasSinUbicarDe(contenedores: ContenedorCarga[]): ChipCarga[] {
   return contenedores
-    .filter((c) => c.subcontenedores_count === 0)
-    .filter((c) => !c.es_inmueble)
+    .filter(esCajaMovil)
     .filter((c) => sinCasillero(c))
     .map((c) => ({ id: c.id, nombre: c.nombre, tipo: 'contenedor' as const }));
 }

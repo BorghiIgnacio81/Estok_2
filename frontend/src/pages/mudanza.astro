@@ -133,11 +133,19 @@ import '../styles/mudanza-mapa.css';
              física, fuera del scroll del plano para estar siempre visible. -->
         <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3"></div>
 
+        <!-- PLANO UNIFICADO: host del COMPONENTE GLOBAL `<MinimapaRuta />` en su
+             formato `plano` (mismo motor de siluetas asimétricas proporcionales,
+             bordes negros definidos y sector activo en naranja). El host NO se
+             destruye nunca: el tablero sólo escribe DENTRO de él y lo apaga
+             cuando no hay planos que dibujar. -->
         <div id="mudanzaDestinoMapa"
           class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3 md:max-h-[calc(100vh-230px)]">
-          <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
-            <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin"></span>
-            <p class="text-[11px] font-medium text-gray-400 sm:text-xs">Cargando plano del destino…</p>
+          <MinimapaRuta id="mudanzaDestinoPlano" plano class="hidden" />
+          <div id="mudanzaDestinoDetalle">
+            <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
+              <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin"></span>
+              <p class="text-[11px] font-medium text-gray-400 sm:text-xs">Cargando plano del destino…</p>
+            </div>
           </div>
         </div>
       </section>
@@ -172,6 +180,8 @@ import '../styles/mudanza-mapa.css';
     const destinoSel = document.getElementById('mudanzaDestinoSel') as HTMLSelectElement;
     const mapaOrigen = document.getElementById('mudanzaOrigenMapa')!;
     const mapaDestino = document.getElementById('mudanzaDestinoMapa')!;
+    const planoDestino = document.getElementById('mudanzaDestinoPlano')!;
+    const detalleDestino = document.getElementById('mudanzaDestinoDetalle')!;
     const transito = document.getElementById('mudanzaTransito')!;
     const filtrosOrigen = document.getElementById('mudanzaFiltrosOrigen')!;
     const filtrosDestino = document.getElementById('mudanzaFiltrosDestino')!;
@@ -238,6 +248,8 @@ import '../styles/mudanza-mapa.css';
           filtrosOrigen,
           filtrosDestino,
           rutaDestino,
+          planoDestino,
+          detalleDestino,
         });
         await board.init(user.estoks);
       } catch (err: any) {

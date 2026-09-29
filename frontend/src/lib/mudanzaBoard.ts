@@ -44,7 +44,9 @@ import {
   FILTROS_DESTINO,
   FILTROS_ORIGEN,
   filtrosActivos,
+  filtrosOrigenEfectivos,
   htmlBarraFiltros,
+  htmlToggleSoloCajas,
 } from './mudanzaFiltros';
 import type { FiltroDestino, FiltroOrigen } from './mudanzaFiltros';
 
@@ -63,6 +65,11 @@ export interface NodosMudanza {
   filtrosDestino: HTMLElement;
   /** Host del componente global MinimapaRuta.astro (migaja del mapa destino). */
   rutaDestino: HTMLElement;
+  /** Host del PLANO UNIFICADO (componente global `<MinimapaRuta plano />`): el
+   *  tablero sólo escribe DENTRO de él y lo apaga si no hay plano que dibujar. */
+  planoDestino: HTMLElement;
+  /** Cabecera, avisos y chips del plano (hermano del host). */
+  detalleDestino: HTMLElement;
 }
 
 /** Devuelve una copia del set con `valor` agregado o quitado según `activo`. */
@@ -90,6 +97,8 @@ export class MudanzaBoard {
   /** Filtros activos de cada columna (estado en memoria; nunca viaja al server). */
   private filtrosOrigen: Set<FiltroOrigen> = filtrosActivos(FILTROS_ORIGEN);
   private filtrosDestino: Set<FiltroDestino> = filtrosActivos(FILTROS_DESTINO);
+  /** Atajo «Solo cajas»: sólo el grupo de cajas móviles a la vista. */
+  private soloCajas = false;
   /** Motor de arrastre/suelta (mouse y toque) sobre las dos columnas. */
   private readonly dnd: MudanzaDndTactil;
 
@@ -172,12 +181,14 @@ export class MudanzaBoard {
 
   /** Dibuja las dos barras con sus contadores reales de inventario. */
   private renderBarras(): void {
-    this.ui.filtrosOrigen.innerHTML = htmlBarraFiltros(
+    // Barra granular (Objetos sueltos · Muebles · Cajas) MÁS el atajo destacado
+    // «Solo cajas», en la misma fila y en el cabezal que no se re-renderiza.
+    this.ui.filtrosOrigen.innerHTML = `<div class="flex flex-wrap items-center gap-1">${htmlBarraFiltros(
       'origen',
       FILTROS_ORIGEN,
       this.filtrosOrigen,
       contarOrigen(this.contenedoresOrigen, this.objetosOrigen),
-    );
+    )}${htmlToggleSoloCajas(this.soloCajas)}</div>`;
     this.ui.filtrosDestino.innerHTML = htmlBarraFiltros(
       'destino',
       FILTROS_DESTINO,
@@ -199,9 +210,19 @@ export class MudanzaBoard {
   /** Aplica el checkbox marcado/desmarcado y repinta la columna en el cliente. */
   private aplicarFiltro(grupo: 'origen' | 'destino', e: Event): void {
     const input = e.target as HTMLInputElement;
+    // Atajo destacado «Solo cajas»: no es un grupo de inventario, es un
+    // interruptor que reescribe el set de filtros del Origen.
+    if (input?.dataset?.soloCajas !== undefined) {
+      this.soloCajas = input.checked;
+      this.render();
+      return;
+    }
     const valor = input?.dataset?.filtroValor;
     if (!valor) return;
     if (grupo === 'origen') {
+      // Tocar la barra granular devuelve el control al usuario: el atajo se apaga
+      // para que el checkbox recién marcado se refleje sin ambigüedad.
+      this.soloCajas = false;
       this.filtrosOrigen = alternar(this.filtrosOrigen, valor as FiltroOrigen, input.checked);
     } else {
       this.filtrosDestino = alternar(this.filtrosDestino, valor as FiltroDestino, input.checked);
@@ -280,7 +301,7 @@ export class MudanzaBoard {
     }
     // Transición de carga limpia (Tailwind) en ambos paneles.
     this.ui.mapaOrigen.innerHTML = htmlCargando('Cargando inventario móvil…');
-    this.ui.mapaDestino.innerHTML = htmlCargando('Cargando plano del destino…');
+    this.pintarEstadoDestino(htmlCargando('Cargando plano del destino…'));
     this.contenedoresOrigen = [];
     this.objetosOrigen = [];
     this.ubicacionesDestino = [];
@@ -318,10 +339,13 @@ export class MudanzaBoard {
     this.dnd.limpiarSeleccion(); // el DOM se reemplaza: la selección por toque caduca
     this.ui.mapaOrigen.innerHTML = this.errorOrigen
       ? htmlVacio('No se pudo cargar el inventario del Estok origen', this.errorOrigen)
-      : htmlInventarioMovil(this.contenedoresOrigen, this.objetosOrigen, this.filtrosOrigen);
-    this.ui.mapaDestino.innerHTML = this.errorDestino
-      ? htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino)
-      : htmlMapaDestino(this.ubicacionesDestino, this.contenedoresDestino, this.filtrosDestino);
+      : htmlInventarioMovil(
+          this.contenedoresOrigen,
+          this.objetosOrigen,
+          // El atajo «Solo cajas» reescribe el set de grupos visibles del Origen.
+          filtrosOrigenEfectivos(this.soloCajas, this.filtrosOrigen),
+        );
+    this.pintarMapaDestino();
     pintarRutaDestino(
       this.ui.rutaDestino,
       this.estoks.find((e) => e.id === this.destinoId)?.nombre || 'Estok destino',
@@ -329,6 +353,27 @@ export class MudanzaBoard {
     );
     this.renderBarras();
     this.enlazarDnD();
+  }
+
+  /** Reparte el mapa en sus DOS hosts: el SVG del componente global (que nunca
+   *  se destruye) dentro del host del plano, y la cabecera/chips en el detalle. */
+  private pintarMapaDestino(): void {
+    const vista = this.errorDestino
+      ? {
+          plano: '',
+          detalle: htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino),
+        }
+      : htmlMapaDestino(this.ubicacionesDestino, this.contenedoresDestino, this.filtrosDestino);
+    this.ui.planoDestino.innerHTML = vista.plano;
+    this.ui.planoDestino.classList.toggle('hidden', !vista.plano);
+    this.ui.detalleDestino.innerHTML = vista.detalle;
+  }
+
+  /** Estado transitorio del Destino (carga o mudanza en curso): apaga el plano. */
+  private pintarEstadoDestino(detalle: string): void {
+    this.ui.planoDestino.innerHTML = '';
+    this.ui.planoDestino.classList.add('hidden');
+    this.ui.detalleDestino.innerHTML = detalle;
   }
 
   // ---------------------------------------------------------------------------
@@ -350,7 +395,7 @@ export class MudanzaBoard {
     if (!this.destinoId) return;
     this.mudando = true;
     const etiqueta = item.nombre ? `«${item.nombre}»` : 'el elemento';
-    this.ui.mapaDestino.innerHTML = htmlCargando(`Mudando ${etiqueta}…`);
+    this.pintarEstadoDestino(htmlCargando(`Mudando ${etiqueta}…`));
 
     try {
       const resultado = await enviarMudanza(item, this.destinoId, destino);
