@@ -134,25 +134,15 @@
   stroke-width: 1.5;
 }
 /* ---------------------------------------------------------------------------
-   2.2 PLANO ELÁSTICO POR PLANTAS DE LA TARJETA DE PLANTA (Visor / selector)
-   Las tarjetas de planta (`tarjetaPlantaHtml`) y las tarjetas de planta del
-   selector de ubicación montan el MISMO plano a escala del componente global
-   (`minimapaSectoresSvg({ responsive: true })` dentro de `.minimapa-ruta-plano`):
-   heredan de styles/minimapa-ruta.css los trazos negros nítidos y las fusiones
-   («Pasillo Escalera») como un único ambiente continuo. Acá solo se ajusta la
-   caja de la tarjeta para que el plano se amolde a su ancho real.
+   2.2 PLANO ELÁSTICO DE LA TARJETA DE PLANTA (Visor)
+   `tarjetaPlantaHtml` monta el MISMO plano a escala del componente global
+   (`renderMinimapasAnidados` → `minimapaSectoresSvg` dentro de
+   `.minimapa-ruta-plantas`): hereda de styles/minimapa-ruta.css los trazos
+   negros nítidos y las fusiones («Pasillo Escalera») como un único ambiente
+   continuo. Las tarjetas del VIEJO selector de plantas del alta de objetos
+   («1er piso» / «Planta 2» — cajones sin geometría real) se eliminaron junto
+   con su nivel: sus estilos murieron con ellas.
    --------------------------------------------------------------------------- */
-.minimapa-plantas-cards {
-  width: 100%;
-  min-width: 0;
-}
-.minimapa-plantas-card {
-  min-width: 0;
-  overflow: hidden;
-}
-.minimapa-plantas-card .minimapa-ruta-plano {
-  width: 100%;
-}
 .mini-anidado-nombre {
   max-width: 100%;
   font-size: 8px;

@@ -57,11 +57,18 @@
    `rect` del SVG (lib/minimapa.ts → `lamina`). Acá solo se gobierna el tamaño:
    el SVG llena el 100% de la caja y cada ambiente conserva su posición y su
    tamaño REALES (ui_left/ui_top/ui_width/ui_height), nunca una grilla uniforme.
+
+   TAMAÑO ELÁSTICO Y ANTI-DESBORDE (formulario de Objetos, nuevo y edición):
+       `<MinimapaRuta plano class="w-full h-auto aspect-video max-w-2xl mx-auto" />`
+   `aspect-video` (16/9) es el lienzo horizontal de una planta real; el SVG usa
+   `preserveAspectRatio="xMidYMid meet"`, así que JAMÁS deforma la asimetría: se
+   ajusta dentro de la caja. `max-w-2xl mx-auto` lo centra sin salirse por los
+   costados en ningún ancho de pantalla.
    --------------------------------------------------------------------------- */
 .minimapa-ruta-plano {
-  aspect-ratio: var(--minimapa-aspecto-ratio, 4 / 3);
+  aspect-ratio: var(--minimapa-aspecto-ratio, 16 / 9);
   height: auto;
-  max-height: 100%;
+  max-height: none;
 }
 .minimapa-ruta-plano svg.minimapa-rect-svg-elastico {
   display: block;
@@ -97,6 +104,15 @@
 .minimapa-ruta-cadena,
 .minimapa-ruta-plantas {
   width: 100%;
+}
+/* Centrado elástico del contenido de la cadena (antes utilidades Tailwind
+   `flex items-center justify-center h-full` del componente): el contenido se
+   centra y se encoge antes que desbordar su contenedor. */
+.minimapa-ruta-cadena {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
 }
 .minimapa-ruta-cadena > .mini-anidados-barra {
   width: 100%;

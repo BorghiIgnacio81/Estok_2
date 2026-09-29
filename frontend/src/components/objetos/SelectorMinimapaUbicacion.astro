@@ -37,28 +37,35 @@ interface Props {
 const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
 ---
 
-<!-- Columna vertical natural del formulario: `w-full min-w-0` impide que un mapa
-     ancho empuje el layout hacia los costados (no hay doble columna lateral). -->
-<div class="w-full min-w-0 space-y-3">
+<!-- RAÍZ del selector: única delegación de eventos (click en el plano/cabecera y
+     change del selector de planta). El nivel visible reparte su contenido en los
+     TRES hosts de abajo, así que la delegación no depende de ninguno en
+     particular. -->
+<div id="minimapaSelectorRaiz" class="w-full min-w-0 space-y-3">
   <!-- 1. CADENA DE ORIENTACIÓN (componente global encapsulado). -->
   <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-cadena" />
 
-  <!-- 2. PLANO A ESCALA (mismo componente, formato elástico): PUNTO DE MONTAJE
-       del plano del nivel visible. El plano NO se dibuja acá: lo emite el motor
-       del componente global (`minimapaSectoresSvg` con `responsive: true` dentro
-       de `.minimapa-ruta.minimapa-ruta-plano`) y
-       selectorMinimapaNuevoObjetoRender.ts solo lo inyecta en caliente. El host
-       se deja NEUTRO a propósito (sin caja gris, sin grilla) para que las únicas
-       paredes visibles sean las del plano proporcional del componente, con su
-       fondo crema, su borde negro de puntas redondeadas y el ambiente actual en
-       NARANJA (#f97316). -->
-  <div
+  <!-- 2. CABECERA del nivel: título, planta activa y acciones (volver / quitar).
+       La pinta selectorMinimapaNuevoObjetoRender.ts en caliente. -->
+  <div id="minimapaPlanoTexto" class="w-full min-w-0"></div>
+
+  <!-- 3. PLANO A ESCALA — EL COMPONENTE GLOBAL Y NADA MÁS. Se pide en formato
+       `plano` (el host es `.minimapa-ruta.minimapa-ruta-plano`) y con las clases
+       elásticas anti-desborde pedidas: `w-full h-auto aspect-video max-w-2xl
+       mx-auto`. El SVG lo inyecta el motor del componente
+       (`minimapaSectoresSvg` con `responsive: true`): dibujo a escala real del
+       piso (ui_left/ui_top/ui_width/ui_height), fondo crema suave, borde negro
+       de puntas redondeadas, sin divisorias internas en espacios fusionados y el
+       ambiente actual en NARANJA ESTRICTO (#f97316). Tocar un ambiente fija la
+       ubicación del objeto (data-sector-id → selectorMinimapaNuevoObjeto.ts). -->
+  <MinimapaRuta
     id="minimapaLienzo"
-    class="w-full min-w-0"
-    data-minimapa-montaje
-    role="group"
-    aria-label="Navegación visual de la ubicación del objeto"
-  ></div>
+    plano
+    class="w-full h-auto aspect-video max-w-2xl mx-auto"
+  />
+
+  <!-- 4. PIE explicativo del nivel visible. -->
+  <div id="minimapaPlanoPie" class="w-full min-w-0"></div>
 
   <!-- Inputs ocultos canónicos: viajan idénticos a Django (sin cambios de API) -->
   <input type="hidden" name="ubicacion" id="ubicacionSeleccionada" value={ubicacionSeleccionada} />

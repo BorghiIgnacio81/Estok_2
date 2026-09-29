@@ -125,7 +125,11 @@ const html = htmlPlano || htmlCadena;
 const clases = [
   'minimapa-ruta',
   htmlPlano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
-  'w-full h-full flex items-center justify-center overflow-hidden',
+  // Anti-desborde SIEMPRE; el centrado de la cadena y el `aspect-ratio` del plano
+  // viven en styles/minimapa-ruta.css. NO se declaran `h-full` ni utilidades de
+  // flex acá: chocarían con el comportamiento elástico que pide cada pantalla
+  // (ej: `w-full h-auto aspect-video max-w-2xl mx-auto` del formulario de objetos).
+  'w-full overflow-hidden',
   clase,
 ]
   .filter(Boolean)

@@ -21,16 +21,17 @@
 import { getEstokActivoId } from '../services/auth';
 import { fetchAllPages } from './api';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+// Estado, IDs del DOM y derivaciones: fuente ÚNICA compartida con el render.
 import {
   estado,
   IDS,
-  render,
   plantasDisponibles,
   habitacionActual,
-} from './selectorMinimapaNuevoObjetoRender';
-import type { ContenedorMinimapa } from './selectorMinimapaNuevoObjetoRender';
+} from './selectorMinimapaUbicacionEstado';
+import { render } from './selectorMinimapaNuevoObjetoRender';
+import type { ContenedorMinimapa } from './selectorMinimapaUbicacionEstado';
 
-export type { ContenedorMinimapa, EstadoSelector } from './selectorMinimapaNuevoObjetoRender';
+export type { ContenedorMinimapa, EstadoSelector } from './selectorMinimapaUbicacionEstado';
 
 function el(id: string): HTMLElement | null {
   return document.getElementById(id);
@@ -98,7 +99,8 @@ function limpiarDescendencia(desde: 0 | 1 | 2 | 3): void {
   }
 }
 
-function irANivel(nivel: 0 | 1 | 2 | 3): void {
+/** Niveles del plano: 1 = habitaciones, 2 = muebles, 3 = cajas (no hay nivel 0). */
+function irANivel(nivel: 1 | 2 | 3): void {
   estado.nivel = nivel;
   escribirSeleccion();
   render();
@@ -149,55 +151,51 @@ function manejarClick(evento: Event): void {
 
   const accion = objetivo.dataset.accion;
   if (accion === 'volver') {
-    const destino = Math.max(0, estado.nivel - 1) as 0 | 1 | 2 | 3;
+    const destino = Math.max(1, estado.nivel - 1) as 1 | 2 | 3;
     limpiarDescendencia(destino);
     irANivel(destino);
     return;
   }
   if (accion === 'limpiar') {
+    // Quitar ubicación: el plano vuelve al nivel de habitaciones de la planta.
     limpiarDescendencia(0);
-    irANivel(0);
-    return;
-  }
-
-  const nivel = objetivo.dataset.nivel;
-  const id = objetivo.dataset.id || '';
-
-  if (nivel === 'planta') {
-    estado.planta = id;
-    limpiarDescendencia(1);
     irANivel(1);
-    return;
   }
-  if (nivel === 'habitacion') {
-    estado.habitacionId = id;
-    limpiarDescendencia(2);
-    irANivel(2);
-    return;
-  }
-  if (nivel === 'mueble') {
-    estado.muebleId = id;
-    limpiarDescendencia(3);
-    irANivel(3);
-    return;
-  }
-  if (nivel === 'caja') {
-    estado.cajaId = id;
-    escribirSeleccion();
-    render();
-  }
+}
+
+/**
+ * Cambio de PLANTA en Modo Casa (varias plantas reales): el `<select>` nativo de
+ * la cabecera dispara `change`, no `click`. Se limpia la descendencia y el mismo
+ * plano elástico se repinta con las habitaciones de la planta elegida.
+ */
+function manejarCambio(evento: Event): void {
+  const select = (evento.target as HTMLElement | null)?.closest<HTMLSelectElement>(
+    'select[data-accion="planta"]',
+  );
+  if (!select) return;
+  estado.planta = select.value;
+  limpiarDescendencia(1);
+  irANivel(1);
 }
 
 // =============================================================================
 // API PÚBLICA
 // =============================================================================
 
-/** Arranca el selector sobre el host del componente (idempotente). */
+/**
+ * Arranca el selector sobre la RAÍZ del componente (idempotente).
+ *
+ * La delegación se registra en la raíz —no en el host del plano— porque el nivel
+ * visible reparte su contenido en TRES hosts (cabecera, plano y pie) y los tres
+ * cambian de `innerHTML` en cada transición. Se escuchan `click` (plano y
+ * botones) y `change` (el `<select>` nativo de planta en Modo Casa).
+ */
 export function iniciarSelectorMinimapaUbicacion(): void {
-  const host = el(IDS.lienzo);
-  if (!host || host.dataset.activo === 'true') return;
-  host.dataset.activo = 'true';
-  host.addEventListener('click', manejarClick);
+  const raiz = el(IDS.raiz) || el(IDS.lienzo);
+  if (!raiz || raiz.dataset.activo === 'true') return;
+  raiz.dataset.activo = 'true';
+  raiz.addEventListener('click', manejarClick);
+  raiz.addEventListener('change', manejarCambio);
   void cargarDatos().then(() => {
     restaurarSeleccionDesdeInputs();
     render();
