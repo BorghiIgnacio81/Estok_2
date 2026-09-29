@@ -25,6 +25,11 @@
 //      consumen las pantallas con render en caliente (portalesAlmacenamiento.ts
 //      y rutaCajaMinimapas.ts de Objetos).
 //
+// PROP DE RESALTADO (`activoId`): recibe el ID del contenedor/ambiente en el que
+// está parado el usuario. ÚNICAMENTE el sector (o el nodo de la cadena) cuyo ID
+// coincide se pinta en NARANJA ESTRICTO (#f97316); los demás quedan en el crema
+// suave de fondo. Sin `activoId`, la cadena resalta por posición (último nodo).
+//
 // ANTI-DESBORDE: NINGÚN ancho fijo. El host es `w-full min-w-0` con
 // `overflow-hidden` y las celdas interiores escalan en porcentaje, de modo que
 // el bloque jamás empuja ni desborda su contenedor lateral.
@@ -35,6 +40,16 @@
 // styles/almacenamiento-portales.css §2.1 (cadena: mismo negro a escala
 // reducida). Un espacio FUSIONADO («Pasillo Escalera») se dibuja como UN solo
 // `<path>` de contorno: nunca queda una línea divisoria interna.
+//
+// ESTÁNDAR VISUAL ÚNICO (idéntico en Almacenamiento, Objetos —nuevo/editar—,
+// Mudanza y la barra lateral de «Minimapas de las plantas»):
+//   - contenedor estilizado con PUNTAS REDONDEADAS y BORDE NEGRO externo,
+//   - FONDO CREMA suave (#fef3c7) en todos los ambientes,
+//   - NARANJA ESTRICTO (#f97316) SOLO en el ambiente/contenedor actual,
+//   - geometría POSICIONAL PROPORCIONAL ABSOLUTA: cada ambiente se ubica con su
+//     `ui_left`/`ui_top`/`ui_width`/`ui_height` real persistido en PostgreSQL
+//     (lib/sectoresMinimapa.ts → sectoresDeItems) — NUNCA una cuadrícula rígida
+//     de filas y columnas uniformes.
 // =============================================================================
 
 import { renderMinimapasAnidados } from '../lib/minimapasAnidados';
@@ -85,10 +100,20 @@ const nodosFinales: NodoRuta[] =
   aspecto != null ? nodos.map((nodo) => ({ ...nodo, aspecto: nodo.aspecto ?? aspecto })) : nodos;
 
 // PLANO a escala: SVG elástico (100% del padre) con los porcentajes reales.
-const htmlPlano =
-  plano && sectores && sectores.length
-    ? minimapaSectoresSvg({ sectores, aspecto: aspectoFinal, activoId, responsive: true, clicable })
-    : '';
+// Los `sectores` son la fuente de verdad geométrica: cuando vienen, SIEMPRE se
+// dibuja el plano proporcional (no hace falta recordar `plano`), así ninguna
+// pantalla puede caer en una cuadrícula de celdas idénticas.
+const sectoresFinales: SectorMinimapa[] = sectores ?? [];
+const dibujarPlano = sectoresFinales.length > 0 && (plano || nodosFinales.length === 0);
+const htmlPlano = dibujarPlano
+  ? minimapaSectoresSvg({
+      sectores: sectoresFinales,
+      aspecto: aspectoFinal,
+      activoId,
+      responsive: true,
+      clicable,
+    })
+  : '';
 
 // CADENA de orientación (host vacío sin `nodos`: la pantalla la rellena en vivo).
 const htmlCadena = nodosFinales.length
@@ -99,7 +124,7 @@ const html = htmlPlano || htmlCadena;
 
 const clases = [
   'minimapa-ruta',
-  plano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
+  htmlPlano ? 'minimapa-ruta-plano' : 'minimapa-ruta-cadena',
   'w-full h-full flex items-center justify-center overflow-hidden',
   clase,
 ]
@@ -107,7 +132,7 @@ const clases = [
   .join(' ');
 
 // Proporción REAL del lienzo (ancho/alto) para el `aspect-ratio` del host.
-const estilo = plano
+const estilo = htmlPlano
   ? `--minimapa-aspecto-ratio:${(1 / aspectoFinal).toFixed(4)};`
   : undefined;
 ---

@@ -216,15 +216,13 @@ function renderNiveles(): void {
 }
 
 /**
- * PLANO A ESCALA (formato elástico del componente global).
- *
- * Monta el MISMO markup de `MinimapaRuta.astro` en su variante `plano`: un
- * `<div class="minimapa-ruta minimapa-ruta-plano">` que se amolda al ancho real
- * de la tarjeta «Ubicación de Almacenamiento» y adentro el SVG ELÁSTICO del
- * motor global (`responsive: true` → `width="100%"`, `viewBox`), donde cada
- * sector conserva su `ui_*` real y el guardado actual va en NARANJA (#f97316).
- * Con `clicable` cada silueta viaja en un `<g data-sector-id>`: el clic se
- * resuelve en selectorMinimapaNuevoObjeto.ts y hace descender un nivel.
+ * PLANO A ESCALA (formato elástico del componente global `MinimapaRuta.astro`).
+ * Monta el contenedor canónico `.minimapa-ruta.minimapa-ruta-plano` con el
+ * `aspect-ratio` REAL del lienzo (no deforma la asimetría) y adentro el SVG
+ * elástico del motor global (`responsive: true`): cada ambiente conserva su
+ * `ui_*` real, la lámina es crema suave con borde negro de puntas redondeadas y
+ * el contenedor guardado va en NARANJA (#f97316). Con `clicable` cada silueta
+ * viaja en un `<g data-sector-id>`: el clic desciende un nivel.
  */
 function planoEscalaHtml(
   sectores: SectorMinimapa[],
@@ -239,7 +237,8 @@ function planoEscalaHtml(
     clicable,
   });
   if (!svg) return '';
-  return `<div class="minimapa-ruta minimapa-ruta-plano w-full">${svg}</div>`;
+  const ratio = (1 / ASPECTO_LIENZO).toFixed(4); // alto/ancho real del lienzo
+  return `<div class="minimapa-ruta minimapa-ruta-plano w-full" style="--minimapa-aspecto-ratio:${ratio};">${svg}</div>`;
 }
 
 

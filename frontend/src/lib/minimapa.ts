@@ -343,8 +343,12 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
     const y = pad + s.top * sy;
     const w = Math.max(1.5, s.width * sx);
     const h = Math.max(1.5, s.height * sy);
+    // PALETA CANÓNICA ÚNICA de la app (idéntica en Almacenamiento, Objetos,
+    // Mudanza y la barra lateral): relleno crema suave + borde NEGRO definido.
+    // Únicamente el sector con el ID del contenedor actual va en NARANJA
+    // ESTRICTO (#f97316); los demás quedan en crema.
     const fill = s.activo ? COLOR_NARANJA : '#fef3c7';
-    const stroke = s.activo ? '#c2410c' : '#d1d5db';
+    const stroke = s.activo ? '#c2410c' : '#0a0a0a';
     // Espacio FUSIONADO: UNA sola silueta con el contorno exterior de la unión
     // (las aristas compartidas quedan interiores → sin línea interna), trazada en
     // las coordenadas del SVG para conservar el grosor del trazo en cada sector.
@@ -354,17 +358,23 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
         y: y + (p.y / 100) * h,
       }));
       if (d) {
-        return navegable(s, `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`);
+        return navegable(
+          s,
+          `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="0.5" stroke-linejoin="round" />`,
+        );
       }
     }
     return navegable(
       s,
-      `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`,
+      `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="0.5" />`,
     );
   });
 
-  // Marco del perímetro real del lienzo (bounded box 100% × 100%).
-  const marco = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="2" fill="none" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="2 1.6" />`;
+  // LÁMINA del lienzo (bounded box 100% × 100%): contenedor estilizado con
+  // PUNTAS REDONDEADAS, BORDE NEGRO EXTERNO DEFINIDO y FONDO CREMA SUAVE. Es el
+  // único trazo de perímetro del minimapa: se eliminó el antiguo marco punteado
+  // gris, que agregaba una guía interna y rompía la lectura del plano real.
+  const lamina = `<rect x="${pad}" y="${pad}" width="${ancho - pad * 2}" height="${alto - pad * 2}" rx="3" fill="#fffbeb" stroke="#0a0a0a" stroke-width="0.8" />`;
 
   // Elástico: 100%/100% del padre + `viewBox` (mismas coordenadas internas) y
   // `preserveAspectRatio` para no deformar la silueta al escalar.
@@ -373,6 +383,6 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
     : `width="${ancho}" height="${alto}"`;
   const clase = responsive ? 'minimapa-rect-svg minimapa-rect-svg-elastico' : 'minimapa-rect-svg';
 
-  return `<svg class="${clase}" ${medida} viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Minimapa proporcional del lienzo (sector activo en naranja)">${marco}${rects.join('')}</svg>`;
+  return `<svg class="${clase}" ${medida} viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Plano proporcional del lienzo (ambiente actual en naranja)">${lamina}${rects.join('')}</svg>`;
 }
 

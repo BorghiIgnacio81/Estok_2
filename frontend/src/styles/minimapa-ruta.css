@@ -52,6 +52,11 @@
 
 /* ---------------------------------------------------------------------------
    2. PLANO A ESCALA (variante elástica: se amolda al ancho del padre)
+   LOOK CANÓNICO ÚNICO de la app: la LÁMINA delimitada (fondo crema suave +
+   BORDE NEGRO EXTERNO con PUNTAS REDONDEADAS) la traza el motor como primer
+   `rect` del SVG (lib/minimapa.ts → `lamina`). Acá solo se gobierna el tamaño:
+   el SVG llena el 100% de la caja y cada ambiente conserva su posición y su
+   tamaño REALES (ui_left/ui_top/ui_width/ui_height), nunca una grilla uniforme.
    --------------------------------------------------------------------------- */
 .minimapa-ruta-plano {
   aspect-ratio: var(--minimapa-aspecto-ratio, 4 / 3);
@@ -63,14 +68,14 @@
   width: 100%;
   height: 100%;
 }
-/* Trazo negro nítido del plano a escala (el motor emite gris tenue de 0.5
-   unidades porque su escala nativa es de 62-140px; acá el mismo trazo se lee
-   sobre el ancho real del formulario). Los sectores fusionados son un único
+/* Trazo negro nítido del plano a escala: el MISMO del look canónico (bordes
+   negros definidos sobre fondo crema). Los sectores fusionados son un único
    `<path>`: nunca aparece una línea divisoria interna. */
 .minimapa-ruta-plano svg rect,
 .minimapa-ruta-plano svg path {
   stroke: #0a0a0a;
   stroke-width: 0.6;
+  stroke-linejoin: round;
 }
 /* Sector clicable (navegación por el plano): la silueta es el blanco del clic. */
 .minimapa-sector-clicable {
@@ -113,6 +118,35 @@
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+/* Tarjetas de planta de la barra lateral («MINIMAPAS DE LAS PLANTAS» de
+   Almacenamiento): contienen la barra que emite tarjetaPlantaHtml y su lienzo
+   elástico DENTRO del recuadro lateral, sin anchos fijos y sin desborde
+   horizontal. El plano de cada tarjeta es el mismo del componente global
+   (crema + borde negro de puntas redondeadas + ambiente actual en naranja). */
+.minimapa-ruta-plantas .mini-anidados-barra {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  justify-content: center;
+  overflow: hidden;
+}
+.minimapa-ruta-plantas .visor-minimapa-planta {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  /* La tarjeta deja de aportar su propio marco punteado naranja: dentro del
+     componente global el ÚNICO contenedor estilizado es la LÁMINA canónica del
+     plano (puntas redondeadas + borde negro externo + fondo crema suave). */
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.minimapa-ruta-plantas .mini-anidado-lienzo svg {
+  max-width: 100%;
+  height: auto;
 }
 /* Celda del lienzo: ocupa el ancho disponible y el SVG la llena al 100%
    conservando su aspecto (`height:auto`, jamás un ancho en px). */

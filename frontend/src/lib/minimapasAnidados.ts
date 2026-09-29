@@ -92,6 +92,23 @@ function cajaProporcional(aspecto: number | undefined, svg: string): string {
 }
 
 /** Miniatura del nodo: sectores reales, casita (sin geometría) o grilla pura. */
+/**
+ * Lienzo de un nodo de la cadena.
+ *
+ * REGLA DE GEOMETRÍA (estándar único de la app): las habitaciones y los muebles
+ * se dibujan SIEMPRE con posicionamiento PROPORCIONAL ABSOLUTO a partir de su
+ * geometría REAL (`ui_left`/`ui_top`/`ui_width`/`ui_height` persistidos en
+ * PostgreSQL → lib/sectoresMinimapa.ts → sectoresDeItems). ACÁ NO EXISTE
+ * ninguna cuadrícula rígida de filas y columnas uniformes: ningún nodo cae a
+ * celdas idénticas.
+ *
+ *   - `sectores` presente  → plano proporcional (con el ambiente actual naranja).
+ *   - `estok` / `planta`   → si no hay planta modelada, silueta de la CASITA
+ *                            (una casa real dibujada, nunca una grilla).
+ *   - `caja`               → rejilla de CASILLEROS del mueble que la contiene:
+ *                            es un selector de casillero interno (F·C), no un
+ *                            plano de ambientes.
+ */
 function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
   // Geometría REAL disponible: se dibujan los sectores proporcionales consumiendo
   // ui_left/ui_top/ui_width/ui_height, con el sector activo en naranja.
@@ -105,6 +122,10 @@ function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
     const fila = Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
     return `<span class="mini-anidado-lienzo">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</span>`;
   }
+  // Habitación o mueble SIN `sectores`: la pantalla no aportó geometría real, así
+  // que NO se inventa una cuadrícula uniforme (rompería el estándar visual): el
+  // nodo conserva su icono y su nombre como migaja textual.
+  if (nodo.tipo !== 'caja') return '';
   const filas = Math.max(1, Math.floor(Number(nodo.filas) || 1));
   const columnasPorFila =
     nodo.columnasPorFila && nodo.columnasPorFila.length

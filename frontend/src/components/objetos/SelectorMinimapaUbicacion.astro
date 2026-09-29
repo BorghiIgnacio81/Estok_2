@@ -43,12 +43,19 @@ const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
   <!-- 1. CADENA DE ORIENTACIÓN (componente global encapsulado). -->
   <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-cadena" />
 
-  <!-- 2. PLANO A ESCALA (mismo componente, formato elástico): el host se amolda
-       al ancho real de la tarjeta y su contenido lo pinta
-       selectorMinimapaNuevoObjetoRender.ts con el MISMO motor de sectores. -->
+  <!-- 2. PLANO A ESCALA (mismo componente, formato elástico): PUNTO DE MONTAJE
+       del plano del nivel visible. El plano NO se dibuja acá: lo emite el motor
+       del componente global (`minimapaSectoresSvg` con `responsive: true` dentro
+       de `.minimapa-ruta.minimapa-ruta-plano`) y
+       selectorMinimapaNuevoObjetoRender.ts solo lo inyecta en caliente. El host
+       se deja NEUTRO a propósito (sin caja gris, sin grilla) para que las únicas
+       paredes visibles sean las del plano proporcional del componente, con su
+       fondo crema, su borde negro de puntas redondeadas y el ambiente actual en
+       NARANJA (#f97316). -->
   <div
     id="minimapaLienzo"
-    class="minimapa-ruta minimapa-ruta-plano w-full bg-gray-50 border border-gray-200 rounded-xl p-2"
+    class="w-full min-w-0"
+    data-minimapa-montaje
     role="group"
     aria-label="Navegación visual de la ubicación del objeto"
   ></div>
