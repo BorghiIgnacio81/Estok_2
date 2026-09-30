@@ -1,0 +1,74 @@
+/* =============================================================================
+   RUTA GEOGRÁFICA DE LAS TARJETAS DEL LISTADO DE OBJETOS
+   -----------------------------------------------------------------------------
+   Widget de TEXTO jerárquico («1er piso -> Habitación Frente -> Ropero ->
+   Estante Arriba») que reemplaza al render estático de la cadena de minimapas.
+   Al hacer CLIC sobre el texto, el panel inferior despliega de forma suave la
+   fila de minimapas analíticos unificados (casita + plano proporcional +
+   subcontenedor en NARANJA #f97316); un segundo clic lo colapsa.
+
+   TRANSICIÓN REACTIVA: se anima `grid-template-rows` de `0fr` a `1fr` (el
+   único mecanismo que interpola un despliegue de alto variable sin medir px ni
+   fijar una `max-height` arbitraria que recorte el contenido). El interior
+   lleva `overflow:hidden` + `min-height:0`, requisito de la técnica.
+
+   El texto vive DENTRO del `<summary>` de las tarjetas de contenedor, por eso
+   la delegación de clic (lib/rutaGeograficaDespliegue.ts) cancela la
+   propagación: abrir la ruta JAMÁS pliega/despliega el acordeón de la tarjeta.
+
+   Ningún ancho en px y `min-width:0` en toda la cadena flex: imposible que la
+   ruta empuje al contenedor lateral de la tarjeta.
+   ============================================================================= */
+
+.ruta-geo {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Fila del texto: botón plano (sin fondo ni borde nativo) con resalte al pasar
+   el mouse. `group` de Tailwind gobierna el tooltip "Mostrar en minimapas". */
+.ruta-geo-toggle {
+  font: inherit;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.ruta-geo-cadena {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* El chevron rota al desplegar: única señal de estado del widget. */
+.ruta-geo-chevron {
+  transition: transform 0.25s ease;
+}
+.ruta-geo-abierta .ruta-geo-chevron {
+  transform: rotate(180deg);
+}
+
+/* Despliegue suave del panel de minimapas (0fr → 1fr). */
+.ruta-geo-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.28s ease, opacity 0.28s ease;
+}
+.ruta-geo-panel-interior {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+.ruta-geo-abierta .ruta-geo-panel {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Los minimapas del panel heredan el look canónico del componente global
+   (trazo negro nítido + sector activo en naranja). Solo se fija el
+   comportamiento elástico: nunca un ancho en px. */
+.ruta-geo-panel-interior .mini-anidados-barra {
+  margin-top: 4px;
+  margin-bottom: 0;
+}

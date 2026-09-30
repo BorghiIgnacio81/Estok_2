@@ -32,7 +32,7 @@ import {
   filaAccionesCajaHtml,
   sumarioCategoriasHtml,
 } from './cajaOperativa';
-import { rutaMinimapasHtml } from './rutaCajaMinimapas';
+import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
 
 // Re-export del contrato del payload y del escapador para los consumidores.
@@ -91,9 +91,13 @@ export function esMuebleMovil(nodo: NodoContenedor): boolean {
 interface TarjetaOpts {
   /** Etiqueta de tipo mostrada en el subtítulo de la tarjeta. */
   tipoLabel?: string;
-  /** HTML de la mini-guía analítica asimétrica (Sección 1: Piso→Habitación→Mueble). */
-  minimapa?: string;
-  /** Alineación vertical del lateral: 'start' cuando hay minimapa, si no 'center'. */
+  /**
+   * WIDGET de ruta geográfica (Sección 1: texto con flechas que despliega los
+   * minimapas analíticos al hacer clic). Se resuelve con
+   * lib/rutaCajaMinimapas.ts → rutaGeograficaCardHtml().
+   */
+  ruta?: string;
+  /** Alineación vertical del lateral: 'start' cuando hay ruta, si no 'center'. */
   alinear?: 'start' | 'center';
   /** Inyecta el sumario dinámico por categoría bajo los minimapas (Sección 1). */
   sumario?: boolean;
@@ -116,18 +120,18 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
     numerico(nodo.subcontenedores_count) + ' sub-caja(s) · ' + numerico(nodo.objetos_count) + ' objeto(s)',
   ].filter(Boolean).join(' · ');
 
-  // Con minimapa/sumario (Sección 1) el ícono va arriba; el resto conserva el
-  // centrado original. El minimapa y su sumario se anclan en la LÍNEA INFERIOR
-  // INMEDIATA del título (bloque compacto de coordenadas + stock fino), NUNCA
-  // en el lateral. El sumario solo se inyecta cuando la sección lo pide.
-  const conDetalle = Boolean(opts.minimapa || opts.sumario);
+  // Con ruta/sumario (Sección 1) el ícono va arriba; el resto conserva el
+  // centrado original. La ruta geográfica y su sumario se anclan en la LÍNEA
+  // INFERIOR INMEDIATA del título (bloque compacto de coordenadas + stock fino),
+  // NUNCA en el lateral. El sumario solo se inyecta cuando la sección lo pide.
+  const conDetalle = Boolean(opts.ruta || opts.sumario);
   const alineacionIdentidad = conDetalle ? 'items-start' : 'items-center';
 
   const identidad = '<span class="flex ' + alineacionIdentidad + ' gap-3 min-w-0">'
     + '<img src="' + imagenContenedor(nodo) + '" alt="" class="h-12 w-12 rounded-xl object-cover shrink-0 bg-slate-50 border border-gray-100" />'
     + '<span class="min-w-0 flex-1">'
     + '<h3 class="text-xl font-extrabold text-gray-900 leading-tight truncate" title="' + esc(nodo.nombre) + '">' + esc(nodo.nombre) + '</h3>'
-    + (opts.minimapa ? '<div class="mt-1.5 min-w-0">' + opts.minimapa + '</div>' : '')
+    + (opts.ruta ? '<div class="mt-1.5 min-w-0">' + opts.ruta + '</div>' : '')
     + (opts.sumario ? sumarioCategoriasHtml(contenido) : '')
     + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
     + '</span></span>';
@@ -205,6 +209,20 @@ function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
   const tieneAusencia = Boolean(obj.contenedor_ausente);
   const ubicacion = esc(obj.ubicacion_nombre || 'Sin ubicación');
   const nombre = esc(obj.nombre);
+  // SECCIÓN 2 · RUTA GEOGRÁFICA del objeto: texto con flechas (Piso -> Habitación
+  // -> Mueble -> Caja) que despliega los minimapas analíticos al hacer clic. Sin
+  // ruta real se conserva el estado textual de siempre (nunca un plano falso).
+  const ruta = rutaGeograficaCardHtml({
+    id: obj.id,
+    ubicacion: obj.ubicacion ?? null,
+    contenedor: obj.contenedor ?? null,
+  });
+  const ubicacionHtml = ruta
+    ? '<div class="min-w-0">' + ruta + '</div>'
+    : '<p class="text-xs text-gray-400 flex items-center gap-1">📍 ' + ubicacion + '</p>';
+  const avisoAusencia = tieneAusencia
+    ? '<p class="text-[11px] font-semibold text-amber-600">⚠️ contenedor ausente</p>'
+    : '';
   return '<article class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
     + '<div class="relative h-32 bg-slate-100 flex items-center justify-center overflow-hidden">'
     + '<img src="' + fotoDe(obj) + '" alt="' + nombre + '" class="h-full w-full object-cover" loading="lazy" />'
@@ -213,7 +231,8 @@ function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
     + '<div class="p-3 flex-1 flex flex-col gap-1.5">'
     + '<h3 class="font-semibold text-gray-900 text-sm leading-snug line-clamp-2" title="' + nombre + '">' + nombre + '</h3>'
     + '<div class="flex flex-wrap items-center gap-1">' + chipEstado(obj) + chipDecision(obj) + '</div>'
-    + '<p class="text-xs text-gray-400 flex items-center gap-1">📍 ' + ubicacion + (tieneAusencia ? ' · ⚠️ contenedor ausente' : '') + '</p>'
+    + ubicacionHtml
+    + avisoAusencia
     + '<div class="mt-auto flex items-center justify-between gap-1 pt-2 border-t border-gray-100">'
     + '<a href="/objetos/' + esc(obj.id) + '" class="text-xs font-semibold text-blue-700 hover:underline">Ver</a>'
     + '<div class="flex items-center gap-2">'
@@ -235,7 +254,10 @@ export function seccionCajasHtml(cajas: NodoCaja[]): string {
   return '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
     + moviles.map((caja) => contenedorTarjetaHtml(caja, {
         tipoLabel: '📦 Caja / Contenedor pequeño',
-        minimapa: rutaMinimapasHtml(caja),
+        // RUTA DE TEXTO con flechas (Piso -> Habitación -> Mueble -> Caja): al
+        // hacer clic despliega la fila de minimapas analíticos, en vez de
+        // saturar la tarjeta con la cadena de minimapas siempre visible.
+        ruta: rutaGeograficaCardHtml({ id: caja.id, ubicacion: caja.ubicacion, contenedor: caja.id }),
         alinear: 'start',
         sumario: true,
         acciones: true,

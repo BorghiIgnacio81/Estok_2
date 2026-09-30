@@ -7,10 +7,12 @@
 // bandeja de huérfanos). Persistencia multi-tenant vía lib/api.ts.
 // =============================================================================
 
-import { apiPut, apiDelete, fetchAllPages } from './api';
-import type { ApiError } from './api';
+import { apiPut, apiDelete } from './api';
 import { escapeHtml } from './mapaJerarquico';
 import { confirmarEliminacionEstructura } from './confirmacionEliminar';
+// Asistente de movimiento por minimapas en cascada (modal «Mover»): el recorrido
+// del plano, el PUT atómico y su render viven en módulos propios.
+import { abrirMoverCajaMinimapas } from './moverContenedorMinimapas';
 import {
   abrirOverlay,
   botonesModal,
@@ -39,18 +41,6 @@ export interface CajaOperable {
   alto?: number | string | null;
   /** URL absoluta de la foto física actual (previsualización en el modal). */
   foto?: string | null;
-}
-
-interface UbicacionApi {
-  id: string;
-  nombre: string;
-}
-
-interface ContenedorApi {
-  id: string;
-  nombre: string;
-  tipo?: string;
-  parent_contenedor?: string | null;
 }
 
 /** Materiales admitidos por el modelo Contenedor (valor, etiqueta). */
@@ -217,109 +207,23 @@ export function abrirModalEditarCaja(caja: CajaOperable): void {
   });
 }
 
-// -------- 5. MICRO-MODAL · MOVER (habitación o mueble/estante destino) -------
-/** Un contenedor sólo puede colgar de sus ancestros-hermanos, nunca de un hijo. */
-function esDescendiente(
-  candidatoId: string,
-  ancestroId: string,
-  padrePorId: Map<string, string | null>,
-): boolean {
-  const visitados = new Set<string>();
-  let actual = padrePorId.get(candidatoId) ?? null;
-  while (actual && !visitados.has(actual)) {
-    if (actual === ancestroId) return true;
-    visitados.add(actual);
-    actual = padrePorId.get(actual) ?? null;
-  }
-  return false;
-}
+// ------------- 5. MOVER (asistente de minimapas en cascada) -----------------
 
-/** Abre el micro-modal para mover la caja a otra habitación o a un mueble/estante. */
-export async function abrirModalMoverCaja(caja: CajaOperable): Promise<void> {
-  const { overlay, form } = abrirOverlay('Mover caja · ' + caja.nombre);
-  form.innerHTML = '<p class="text-sm text-gray-500">⏳ Cargando destinos…</p>';
-
-  let ubicaciones: UbicacionApi[] = [];
-  let muebles: ContenedorApi[] = [];
-  try {
-    const [ubi, contenedores] = await Promise.all([
-      fetchAllPages<UbicacionApi>('/ubicaciones/', { page_size: '1000' }),
-      fetchAllPages<ContenedorApi>('/contenedores/', { page_size: '1000' }),
-    ]);
-    ubicaciones = ubi;
-    const padrePorId = new Map<string, string | null>();
-    for (const c of contenedores) padrePorId.set(c.id, c.parent_contenedor ?? null);
-    muebles = contenedores.filter((c) =>
-      c.tipo === 'MUEBLE' && c.id !== caja.id && !esDescendiente(c.id, caja.id, padrePorId),
-    );
-  } catch (err) {
-    const apiErr = err as ApiError;
-    const detalle = apiErr && apiErr.error ? ' ' + apiErr.error : '';
-    form.innerHTML = '<p class="text-sm text-red-600">No se pudieron cargar los destinos.' + escapeHtml(detalle) + '</p>'
-      + '<div class="flex justify-end"><button type="button" class="js-cerrar-overlay px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 cursor-pointer">Cerrar</button></div>';
-    return;
-  }
-
-  const opcionesUbicacion = '<option value="">— Seleccioná una habitación —</option>'
-    + ubicaciones.map((u) =>
-      '<option value="' + escapeHtml(u.id) + '"' + (u.id === caja.ubicacion ? ' selected' : '') + '>' + escapeHtml(u.nombre) + '</option>',
-    ).join('');
-  const opcionesMueble = '<option value="">— Ninguno (nivel raíz de la habitación) —</option>'
-    + muebles.map((m) =>
-      '<option value="' + escapeHtml(m.id) + '"' + (m.id === caja.parent_contenedor ? ' selected' : '') + '>' + escapeHtml(m.nombre) + '</option>',
-    ).join('');
-  const valorFila = caja.parent_grid_row != null ? String(caja.parent_grid_row) : '';
-  const valorCol = caja.parent_grid_col != null ? String(caja.parent_grid_col) : '';
-
-  form.innerHTML =
-    '<label class="block"><span class="block text-xs font-semibold text-gray-600 mb-1">Habitación / espacio</span>'
-    + '<select name="ubicacion" class="' + CLASE_CONTROL + ' cursor-pointer">' + opcionesUbicacion + '</select></label>'
-    + '<label class="block"><span class="block text-xs font-semibold text-gray-600 mb-1">Mueble / estante que la contiene</span>'
-    + '<select name="parent_contenedor" class="' + CLASE_CONTROL + ' cursor-pointer">' + opcionesMueble + '</select></label>'
-    + '<div class="grid grid-cols-2 gap-3">'
-    + '<label class="block"><span class="block text-xs font-semibold text-gray-600 mb-1">Fila (casillero)</span>'
-    + '<input type="number" min="1" name="parent_grid_row" value="' + escapeHtml(valorFila) + '" class="' + CLASE_CONTROL + '" /></label>'
-    + '<label class="block"><span class="block text-xs font-semibold text-gray-600 mb-1">Columna (casillero)</span>'
-    + '<input type="number" min="1" name="parent_grid_col" value="' + escapeHtml(valorCol) + '" class="' + CLASE_CONTROL + '" /></label>'
-    + '</div>'
-    + '<p class="text-[11px] text-gray-400">Si elegís un mueble, la caja hereda su habitación; si no, se ubica a nivel raíz de la habitación elegida.</p>'
-    + botonesModal('Mover caja');
-
-  const selUbicacion = form.querySelector<HTMLSelectElement>('[name="ubicacion"]');
-  const selParent = form.querySelector<HTMLSelectElement>('[name="parent_contenedor"]');
-  const inputFila = form.querySelector<HTMLInputElement>('[name="parent_grid_row"]');
-  const inputCol = form.querySelector<HTMLInputElement>('[name="parent_grid_col"]');
-
-  const sincronizarCoords = (): void => {
-    const dentroDeMueble = Boolean(selParent && selParent.value);
-    if (inputFila) inputFila.disabled = !dentroDeMueble;
-    if (inputCol) inputCol.disabled = !dentroDeMueble;
-    if (selUbicacion) selUbicacion.disabled = dentroDeMueble;
-  };
-  selParent?.addEventListener('change', sincronizarCoords);
-  sincronizarCoords();
-
-  enlazarGuardado(overlay, form, async () => {
-    const parentId = selParent ? selParent.value : '';
-    const payload: Record<string, unknown> = {};
-
-    if (parentId) {
-      payload.parent_contenedor = parentId;
-      payload.parent_grid_row = enteroONull(inputFila ? inputFila.value : '');
-      payload.parent_grid_col = enteroONull(inputCol ? inputCol.value : '');
-    } else {
-      const ubicacionId = selUbicacion ? selUbicacion.value : '';
-      if (!ubicacionId) throw new Error('Seleccioná una habitación o un mueble destino.');
-      payload.parent_contenedor = null;
-      payload.parent_grid_row = null;
-      payload.parent_grid_col = null;
-      payload.ubicacion = ubicacionId;
-    }
-
-    await apiPut('/contenedores/' + encodeURIComponent(caja.id) + '/', payload);
-    cerrarOverlay();
-    onRefrescar();
-  });
+/**
+ * Abre el ASISTENTE DE MOVIMIENTO POR MINIMAPAS en cascada del contenedor: el
+ * usuario navega el plano elástico real del Estok activo (ambientes → muebles →
+ * cajas) y el traslado se persiste con el PUT atómico de
+ * lib/moverContenedorMinimapas.ts. Reemplaza por completo al viejo modal de
+ * selectores de texto + coordenadas de casillero.
+ */
+export async function abrirModalMoverCaja(
+  caja: CajaOperable,
+  alRefrescar: Refrescar = onRefrescar,
+): Promise<void> {
+  await abrirMoverCajaMinimapas(
+    { id: caja.id, nombre: caja.nombre, ubicacion: caja.ubicacion ?? null },
+    alRefrescar,
+  );
 }
 
 // --------- 5bis. ELIMINACIÓN DE CONTENEDOR (resguardo de stock) --------------

@@ -23,15 +23,19 @@ export function cerrarOverlay(): void {
   document.removeEventListener('keydown', alPresionarEscape);
 }
 
-/** Crea el overlay + el <form> y devuelve ambos nodos listos para hidratar. */
-export function abrirOverlay(titulo: string): { overlay: HTMLElement; form: HTMLFormElement } {
+/**
+ * Crea el overlay + el <form> y devuelve ambos nodos listos para hidratar.
+ * `ancho` permite que un modal ancho (ej: el asistente de movimiento por
+ * minimapas en cascada) use la misma lámina sin duplicar markup.
+ */
+export function abrirOverlay(titulo: string, ancho = 'max-w-md'): { overlay: HTMLElement; form: HTMLFormElement } {
   cerrarOverlay();
 
   const overlay = document.createElement('div');
   overlay.id = ID_OVERLAY;
   overlay.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50';
   overlay.innerHTML =
-    '<div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">'
+    '<div class="w-full ' + ancho + ' bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">'
     + '<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">'
     + '<h3 class="text-sm font-bold text-gray-900">' + escapeHtml(titulo) + '</h3>'
     + '<button type="button" class="js-cerrar-overlay text-gray-400 hover:text-gray-700 cursor-pointer" aria-label="Cerrar">✕</button>'

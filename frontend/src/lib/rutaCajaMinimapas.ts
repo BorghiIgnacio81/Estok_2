@@ -51,6 +51,9 @@ import type { UbicacionPlano, EstokConfig } from './mapaJerarquico';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
 import { sectoresDeItems } from './sectoresMinimapa';
+// Cara visual del replanteo geográfico del listado: texto con flechas + tooltip
+// «Mostrar en minimapas» + panel desplegable con la fila de minimapas.
+import { rutaGeograficaWidgetHtml } from './rutaGeograficaWidget';
 
 // =============================================================================
 // TIPOS
@@ -233,24 +236,20 @@ function nombreDePlanta(fila: number, division?: UbicacionPlano): string {
 }
 
 /**
- * HTML de la fila horizontal compacta con la ruta geográfica completa de una
- * caja: casita (planta activa naranja) → plano PROPORCIONAL de los ambientes
- * REALES (la habitación que la contiene en naranja) → plano PROPORCIONAL de los
- * muebles REALES de esa habitación (el mueble que la contiene en naranja).
- *
- * Se delega en renderMinimapasAnidados(): el MISMO motor que alimenta el
- * componente global components/MinimapaRuta.astro y la mini-guía analítica
- * superior de Almacenamiento, así las dos pantallas se ven idénticas.
+ * Nodos BASE de orientación: el MAPA 1 es SIEMPRE la silueta de la casita con
+ * la planta activa en NARANJA (#f97316) y el MAPA 2 —si hay ambiente real— es
+ * el plano PROPORCIONAL de los ambientes de esa división (ui_left/ui_top/
+ * ui_width/ui_height persistidos en PostgreSQL) con la habitación que la
+ * contiene como sector activo.
  */
-export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
+function nodosPlantaYAmbiente(ubicacionId: string | null): NodoRuta[] {
   const totalPlantas = Math.max(1, Math.round(Number(estokCfg?.grid_filas) || 3));
-  const habitacion = nodo.ubicacion ? ubicacionesPorId.get(nodo.ubicacion) : undefined;
+  const habitacion = ubicacionId ? ubicacionesPorId.get(ubicacionId) : undefined;
   const division = habitacion?.parent_ubicacion
     ? ubicacionesPorId.get(habitacion.parent_ubicacion)
     : undefined;
   const plantaFila = division?.parent_grid_row ?? habitacion?.parent_grid_row ?? 1;
 
-  // MAPA 1 (Piso): silueta de la casita con techo a dos aguas; planta activa naranja.
   const nodos: NodoRuta[] = [
     {
       tipo: 'planta',
@@ -261,9 +260,6 @@ export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
   ];
 
   if (habitacion) {
-    // MAPA 2 (Habitación): plano proporcional de los ambientes REALES de la
-    // división (ui_left/ui_top/ui_width/ui_height persistidos en PostgreSQL).
-    // La habitación que contiene la caja es el sector activo en naranja.
     nodos.push({
       id: habitacion.id,
       tipo: 'habitacion',
@@ -271,21 +267,122 @@ export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
       sectores: sectoresDeItems(hermanasDeHabitacion(habitacion), habitacion.id),
     });
   }
+  return nodos;
+}
 
-  const mueble = nodo.parent_contenedor ? contenedoresPorId.get(nodo.parent_contenedor) : undefined;
-  if (mueble && mueble.tipo === 'MUEBLE') {
-    // MAPA 3 (Mueble): plano proporcional de los muebles REALES de la habitación,
-    // con el mueble que contiene la caja pintado en NARANJA (ubicación síncrona).
-    const hermanos = nodo.ubicacion ? mueblesDeHabitacion(nodo.ubicacion) : [];
-    const sectores = hermanos.some((c) => c.id === mueble.id) ? hermanos : [mueble];
-    nodos.push({
-      id: mueble.id,
-      tipo: 'mueble',
-      nombre: mueble.nombre,
-      sectores: sectoresDeItems(sectores, mueble.id),
-    });
+/**
+ * MAPA 3 (Mueble): plano PROPORCIONAL de los muebles REALES de la habitación,
+ * con el mueble dado pintado en NARANJA por identidad (no por posición).
+ */
+function nodoMueble(mueble: ContenedorRuta, ubicacionId: string | null): NodoRuta {
+  const hermanos = ubicacionId ? mueblesDeHabitacion(ubicacionId) : [];
+  const sectores = hermanos.some((c) => c.id === mueble.id) ? hermanos : [mueble];
+  return {
+    id: mueble.id,
+    tipo: 'mueble',
+    nombre: mueble.nombre,
+    sectores: sectoresDeItems(sectores, mueble.id),
+  };
+}
+/**
+ * Cadena de contenedores RAÍZ → HOJA que aloja a una entidad del inventario
+ * (mueble → caja → estante). Sube por `parent_contenedor` con guarda de ciclos:
+ * el TEXTO jerárquico y la fila de minimapas leen EXACTAMENTE la misma cadena.
+ */
+function cadenaContenedores(idInicial: string | null | undefined): ContenedorRuta[] {
+  const cadena: ContenedorRuta[] = [];
+  const visitados = new Set<string>();
+  let actual = idInicial ? contenedoresPorId.get(String(idInicial)) : undefined;
+  while (actual && !visitados.has(actual.id)) {
+    visitados.add(actual.id);
+    cadena.unshift(actual);
+    actual = actual.parent_contenedor ? contenedoresPorId.get(actual.parent_contenedor) : undefined;
   }
+  return cadena;
+}
 
+/** Entidad ubicable del inventario: su ambiente y el contenedor más profundo. */
+export interface EntidadUbicable {
+  /** ID de la Ubicación (habitación/ambiente) donde reside. */
+  ubicacion: string | null;
+  /** ID del contenedor MÁS PROFUNDO que la aloja (`null` = raíz del ambiente). */
+  contenedor?: string | null;
+}
+
+/** Ruta geográfica resuelta de una entidad del inventario. */
+export interface RutaGeografica {
+  /** Cadena jerárquica con flechas: Piso -> Habitación -> Mueble -> Caja. */
+  texto: string;
+  /** Fila de minimapas analíticos de esa misma cadena. */
+  minimapas: string;
+  /** ¿La entidad tiene ruta real que mostrar? (sin ambiente no hay ruta). */
+  hayRuta: boolean;
+}
+
+/**
+ * RUTA GEOGRÁFICA de una entidad: resuelve el ambiente real (por el propio
+ * contenedor cuando el payload no lo trae) y la cadena completa de contenedores
+ * raíz → hoja, para imprimirla como TEXTO con flechas y para dibujar la fila de
+ * minimapas analíticos unificados (casita + plano proporcional + subcontenedor
+ * en NARANJA #f97316). Sin ambiente ni contenedores devuelve `hayRuta: false`:
+ * la tarjeta muestra entonces su estado «sin ubicación», nunca un plano falso.
+ */
+export function resolverRutaGeografica(entidad: EntidadUbicable): RutaGeografica {
+  const cadena = cadenaContenedores(entidad.contenedor);
+  const ubicacionId = entidad.ubicacion || cadena.map((c) => c.ubicacion).find(Boolean) || null;
+  const habitacion = ubicacionId ? ubicacionesPorId.get(ubicacionId) : undefined;
+  const division = habitacion?.parent_ubicacion
+    ? ubicacionesPorId.get(habitacion.parent_ubicacion)
+    : undefined;
+  const plantaFila = division?.parent_grid_row ?? habitacion?.parent_grid_row ?? 1;
+
+  const partes: string[] = [nombreDePlanta(plantaFila, division)];
+  if (habitacion) partes.push(habitacion.nombre);
+  cadena.forEach((contenedor) => partes.push(contenedor.nombre));
+  const texto = partes.filter((parte) => String(parte || '').trim() !== '').join(' -> ');
+
+  const ambienteId = habitacion ? habitacion.id : null;
+  const nodos = nodosPlantaYAmbiente(ambienteId);
+  cadena
+    .filter((contenedor) => contenedor.tipo === 'MUEBLE')
+    .forEach((mueble) => nodos.push(nodoMueble(mueble, ambienteId)));
+
+  return {
+    texto,
+    // Con un solo nodo (la casita) no hay fila que desplegar: el widget degrada
+    // a una etiqueta de texto simple.
+    minimapas: nodos.length > 1 ? renderMinimapasAnidados(nodos, { todosActivos: true }) : '',
+    hayRuta: Boolean(habitacion) || cadena.length > 0,
+  };
+}
+
+/**
+ * WIDGET de la tarjeta del listado: texto de ruta con flechas que despliega, al
+ * hacer clic, la fila de minimapas analíticos. Devuelve '' cuando la entidad no
+ * tiene ruta real (la tarjeta conserva su estado «sin ubicación»).
+ */
+export function rutaGeograficaCardHtml(entidad: EntidadUbicable & { id?: string | null }): string {
+  const ruta = resolverRutaGeografica(entidad);
+  if (!ruta.hayRuta) return '';
+  return rutaGeograficaWidgetHtml({
+    texto: ruta.texto,
+    minimapas: ruta.minimapas,
+    clave: String(entidad.id ?? entidad.contenedor ?? ''),
+  });
+}
+
+/**
+ * HTML de la fila horizontal con la ruta geográfica de una CAJA: casita (planta
+ * activa naranja) → plano PROPORCIONAL de los ambientes REALES (la habitación
+ * que la contiene en naranja) → plano PROPORCIONAL de los muebles REALES de esa
+ * habitación (el mueble que la contiene en naranja). Lo consumen las tarjetas de
+ * Decisión; la Sección 1 del listado usa `rutaGeograficaCardHtml` (texto con
+ * despliegue por clic).
+ */
+export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
+  const nodos = nodosPlantaYAmbiente(nodo.ubicacion);
+  const mueble = nodo.parent_contenedor ? contenedoresPorId.get(nodo.parent_contenedor) : undefined;
+  if (mueble && mueble.tipo === 'MUEBLE') nodos.push(nodoMueble(mueble, nodo.ubicacion));
   // `todosActivos`: los mapas conservan su resalte naranja (la ruta se lee de un
   // vistazo, sin nodos atenuados por ser "procedencia").
   return renderMinimapasAnidados(nodos, { todosActivos: true });

@@ -16,6 +16,7 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
+import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { initCajaOperativa } from './cajaOperativa';
 import {
   esc,
@@ -281,6 +282,11 @@ function enlazarEventos(): void {
 // ---------------------------------------------------------------------------
 
 export function initListadoJerarquicoObjetos(): void {
+  // Delegación del widget de ruta geográfica: clic sobre el TEXTO de la ruta →
+  // despliegue suave de la fila de minimapas. Idempotente y global, sobrevive a
+  // las tarjetas que el listado re-inyecta en caliente con cada filtro/recarga.
+  initRutaGeograficaDespliegue();
+
   loadingEl = document.getElementById('loadingState');
   errorEl = document.getElementById('errorState');
   errorMsgEl = document.getElementById('errorMessage');
