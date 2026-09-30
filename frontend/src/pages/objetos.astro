@@ -25,6 +25,13 @@ import '../styles/almacenamiento-portales.css';
 // Estilos del WIDGET DE RUTA GEOGRÁFICA (.ruta-geo*): texto con flechas que
 // despliega la fila de minimapas al hacer clic (transición suave del panel).
 import '../styles/ruta-geografica.css';
+// Hoja PROPIA del componente global components/MinimapaRuta.astro. Esta página
+// no lo renderiza en su markup (el asistente «Mover» lo monta EN CALIENTE
+// dentro de su overlay), así que Astro no la incluiría por sí sola: sin esta
+// importación el host del plano del modal queda sin su `aspect-ratio` elástico
+// ni el refuerzo de trazos negros y el mapa se ve descalzado. El modal «Mover»
+// usa EXACTAMENTE el mismo host canónico que el componente (lib/minimapaRutaHost.ts).
+import '../styles/minimapa-ruta.css';
 ---
 
 <AuthGuard />

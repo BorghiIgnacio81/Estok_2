@@ -7,10 +7,11 @@
 //
 // NO dibuja por su cuenta: el plano lo emite el MOTOR GLOBAL de minimapas
 // (lib/minimapa.ts → minimapaSectoresSvg con `responsive` + `clicable`), el
-// mismo del componente components/MinimapaRuta.astro. Así el look canónico es
-// idéntico en toda la app: fondo crema, BORDE NEGRO nítido de puntas
-// redondeadas, ambientes fusionados como un único contorno y el sector activo
-// en NARANJA ESTRICTO (#f97316).
+// mismo del componente components/MinimapaRuta.astro, y su contenedor lo
+// declara la ÚNICA fábrica canónica del host (lib/minimapaRutaHost.ts). Así el
+// look canónico es idéntico en toda la app: fondo crema, BORDE NEGRO nítido de
+// puntas redondeadas, ambientes fusionados como un único contorno y el sector
+// activo en NARANJA ESTRICTO (#f97316). Cero divs de plano propios.
 //
 // Sin estado, sin fetch y sin DOM: recibe la vista ya resuelta por el
 // controlador (lib/moverContenedorMinimapas.ts) y devuelve HTML.
@@ -19,6 +20,7 @@
 import { escapeHtml } from './mapaJerarquico';
 import { ASPECTO_LIENZO, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
+import { hostPlanoMinimapaHtml } from './minimapaRutaHost';
 import type { PlantaDisponible } from './espaciosDePlanta';
 
 /** Nivel visible del recorrido: 0 ambientes · 1 contenedores · 2 cajas. */
@@ -74,8 +76,17 @@ function migasHtml(vista: VistaMover): string {
 }
 
 /**
- * Plano elástico del nivel: SVG al 100% del host con la proporción REAL del
- * lienzo (`--minimapa-aspecto-ratio`) y el motor global de minimapas.
+ * Plano elástico del nivel: COMPONENTE GLOBAL y nada más.
+ *
+ * El SVG lo emite el motor (`minimapaSectoresSvg` con `responsive` + `clicable`,
+ * el mismo de components/MinimapaRuta.astro) y el contenedor lo declara la
+ * ÚNICA fábrica canónica del host (`lib/minimapaRutaHost.ts`): mismas clases,
+ * mismo `aspect-ratio` real y mismo `data-minimapa-ruta` que el componente.
+ *
+ * El gancho `data-mover-plano` viaja en el propio host: el controlador lo
+ * reconoce como zona de suelta. Se eliminó el cajón amarillo propio que
+ * recuadraba el mapa viejo (`rounded-xl border border-amber-200 bg-amber-50/40`):
+ * el plano ya no queda dentro de una caja genérica de relleno.
  */
 function lienzoHtml(sectores: SectorMinimapa[]): string {
   const svg = minimapaSectoresSvg({
@@ -84,8 +95,7 @@ function lienzoHtml(sectores: SectorMinimapa[]): string {
     responsive: true,
     clicable: true,
   });
-  return '<div class="minimapa-ruta minimapa-ruta-plano w-full" style="--minimapa-aspecto-ratio:'
-    + (1 / ASPECTO_LIENZO).toFixed(4) + ';">' + svg + '</div>';
+  return hostPlanoMinimapaHtml(svg, ASPECTO_LIENZO, 'data-mover-plano');
 }
 
 /** Ficha arrastrable del contenedor + enunciado del nivel vigente. */
@@ -113,13 +123,14 @@ function accionesHtml(destinoNombre: string | null): string {
 
 /** HTML completo del asistente (miga de pan + ficha + plano + acciones). */
 export function renderAsistenteHtml(vista: VistaMover): string {
+  // El cuerpo es EL COMPONENTE GLOBAL: el host canónico del plano (con la zona
+  // de suelta) o, si el nivel no aporta geometría real, su aviso explicativo.
+  // Nunca se envuelve en un cajón propio ni se inventa un plano de relleno.
   const cuerpo = vista.sectores.length
     ? lienzoHtml(vista.sectores)
     : '<p class="text-sm text-gray-500 py-8 text-center">' + escapeHtml(vista.aviso) + '</p>';
   return migasHtml(vista)
     + fichaHtml(vista)
-    + '<div class="js-mover-plano w-full min-w-0 rounded-xl border border-amber-200 bg-amber-50/40 p-2" data-mover-plano>'
     + cuerpo
-    + '</div>'
     + accionesHtml(vista.destinoNombre);
 }
