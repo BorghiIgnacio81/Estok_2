@@ -7,7 +7,7 @@ from uuid import UUID
 from rest_framework import serializers
 
 from ...models import Ubicacion, Contenedor
-from ...services.taxonomia_contenedor import TIPO_CAJA
+from ...services.taxonomia_contenedor import TIPO_CAJA, es_caja_movil
 
 
 class UbicacionSerializer(serializers.ModelSerializer):
@@ -174,9 +174,17 @@ class ContenedorSerializer(serializers.ModelSerializer):
         plano (mueble inmueble). Si el payload intenta ese cambio reverso, la
         operacion se rechaza con HTTP 400 en vez de corromper el registro y
         descalzar sus objetos internos.
+
+        EXCLUSIVIDAD DE DIVISIONES: las divisiones/estantes internos de un
+        mueble son exclusivos de ese mueble. Por eso una CAJA movil jamas se
+        escribe como una division mas de su cuadricula: el endpoint de
+        actualizacion de almacenamiento descarta sus coordenadas de casillero
+        (`parent_grid_row/col`) y la registra unicamente como CONTENIDO hijo
+        dentro de la division/estante seleccionado. El criterio taxonomico vive
+        en un unico lugar: `services.taxonomia_contenedor.es_caja_movil`.
         """
         instancia = self.instance
-        if instancia is not None and instancia.tipo == TIPO_CAJA and not instancia.es_inmueble:
+        if instancia is not None and es_caja_movil(instancia):
             if attrs.get('es_inmueble') is True:
                 raise serializers.ValidationError({
                     'es_inmueble': (

@@ -16,6 +16,7 @@ import type { UbicacionPlano } from './mapaJerarquico';
 import { iconoContenedorVisor } from './visorHabitacionHtml';
 import { renderLienzoElastico } from './mapaPlantaUnica';
 import type { ItemElastico } from './lienzoElastico';
+import { esCajaMovil } from './taxonomiaContenedor';
 
 const IMG_MUEBLE = '/archivador-login.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
@@ -43,6 +44,12 @@ export interface SubContVisor {
   parent_contenedor?: string | null;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /**
+   * Tipo taxonómico (MUEBLE / CAJA / ESTANTE): decide si la pieza es una
+   * DIVISIÓN estructural de la cuadrícula del mueble o CONTENIDO guardado
+   * dentro de ella (ver lib/taxonomiaContenedor.ts).
+   */
+  tipo?: string | null;
   es_inmueble?: boolean;
   /** Marca manual de clausura: el casillero F·C del mueble está físicamente lleno. */
   espacio_lleno?: boolean;
@@ -110,10 +117,42 @@ function muebleObjetosHtml(m: MuebleVisor, objs: SubObjVisor[]): string {
 }
 
 
+/** Chips de las CAJAS móviles guardadas DENTRO de una división/estante. */
+function contenidoDivisionHtml(division: SubContVisor, conts: SubContVisor[]): string {
+  const cajas = conts.filter((c) => esCajaMovil(c) && c.parent_contenedor === division.id);
+  if (!cajas.length) return '';
+  return cajas
+    .map(
+      (c) => `<span class="pu-contenido-item" title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil GUARDADA dentro de «${escapeHtml(division.nombre)}»: es CONTENIDO, no una división estructural del mueble.">📦 ${escapeHtml(c.nombre)}</span>`,
+    )
+    .join('');
+}
+
+/** CAJAS móviles que cuelgan DIRECTAMENTE del mueble (sin división intermedia). */
+function muebleCajasHtml(m: MuebleVisor, conts: SubContVisor[]): string {
+  const guardadas = conts.filter((c) => esCajaMovil(c) && c.parent_contenedor === m.id);
+  if (!guardadas.length) return '';
+  return `<div class="mueble-objetos-sueltos">
+    <span class="mueble-objetos-titulo">Cajas guardadas</span>
+    ${guardadas
+      .map(
+        (c) => `<span class="mueble-item mueble-item-caja" title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil guardada en este mueble: es CONTENIDO, no una división de su cuadrícula.">
+        <span class="mueble-item-nombre">📦 ${escapeHtml(c.nombre)}</span>
+      </span>`,
+      )
+      .join('')}
+  </div>`;
+}
+
 /** Lienzo 2D elástico del interior del mueble (estantes/cajones como rectángulos libres). */
 function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
-  const items: ItemElastico[] = conts
-    .filter((x) => x.parent_contenedor === m.id)
+  const piezas = conts.filter((x) => x.parent_contenedor === m.id);
+  // EXCLUSIVIDAD DE DIVISIONES: la estructura del mueble la componen SOLO sus
+  // muebles y divisiones internas (ESTANTE). Las CAJAS móviles que el mueble
+  // guarda son CONTENIDO: se dibujan DENTRO de su estante (o en la franja
+  // «Cajas guardadas» del mueble) y JAMÁS como un bloque divisorio extra.
+  const items: ItemElastico[] = piezas
+    .filter((x) => !esCajaMovil(x))
     .map((x) => ({
       id: x.id,
       nombre: x.nombre,
@@ -125,6 +164,7 @@ function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
       // Estante inmueble fijo: el backend rechaza su DELETE → sin botón 🗑️.
       protegido: x.es_inmueble === true,
       meta: x.es_inmueble ? '📌 fijo' : null,
+      contenido: contenidoDivisionHtml(x, conts) || null,
     }));
   return renderLienzoElastico({
     items,
@@ -158,7 +198,7 @@ export function muebleCardHtml(
       ${m.es_inmueble ? '<span class="mueble-inmueble">📌 Mueble fijo</span>' : ''}
       ${abrirHtml}
     </div>
-    <div class="mueble-grilla">${muebleLienzoHtml(m, conts)}${muebleObjetosHtml(m, objs)}</div>
+    <div class="mueble-grilla">${muebleLienzoHtml(m, conts)}${muebleCajasHtml(m, conts)}${muebleObjetosHtml(m, objs)}</div>
   </div>`;
 }
 

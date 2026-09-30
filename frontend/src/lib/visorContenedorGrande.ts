@@ -24,6 +24,7 @@ import { aplicarModo, modoLienzoActual } from './modoLienzo';
 import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
+import { esCajaMovil } from './taxonomiaContenedor';
 import type { ItemGeometria } from './sectoresMinimapa';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
@@ -135,6 +136,7 @@ async function cargar(): Promise<void> {
       parent_contenedor: c.parent_contenedor != null ? String(c.parent_contenedor) : null,
       parent_grid_row: c.parent_grid_row != null ? Number(c.parent_grid_row) : null,
       parent_grid_col: c.parent_grid_col != null ? Number(c.parent_grid_col) : null,
+      tipo: c.tipo != null ? String(c.tipo) : null,
       es_inmueble: Boolean(c.es_inmueble),
       espacio_lleno: Boolean(c.espacio_lleno),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
@@ -440,6 +442,18 @@ function conectarLienzosElasticos(): void {
   });
 }
 
+/**
+ * DIVISIÓN/ESTANTE RECEPTOR del Drop: si el puntero soltó sobre el rectángulo
+ * elástico de una división (`data-inplace-card`), el destino es ESA división;
+ * si soltó en el vacío del lienzo, el destino es el mueble completo. Así una
+ * caja puede guardarse DENTRO del estante elegido sin crear ninguna división.
+ */
+function destinoDropDe(de: DragEvent, muebleId: string): string {
+  const zona = (de.target as HTMLElement | null)?.closest<HTMLElement>('[data-inplace-card]');
+  const id = zona?.dataset.id;
+  return id && id !== muebleId ? id : muebleId;
+}
+
 /** Drop Zone del lienzo completo: anida el elemento soltado dentro del mueble. */
 function enlazarDropPadre(lienzo: HTMLElement, muebleId: string): void {
   lienzo.addEventListener('dragover', (e) => {
@@ -455,8 +469,8 @@ function enlazarDropPadre(lienzo: HTMLElement, muebleId: string): void {
     lienzo.classList.remove('lienzo-elastico-drop-activo');
     const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
     const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-    if (contId) void asignarSubContenedor(contId, muebleId, 1, 1);
-    else if (objId) void asignarObjetoAMueble(objId, muebleId, 1, 1);
+    if (contId) void asignarSubContenedor(contId, destinoDropDe(de, muebleId), 1, 1);
+    else if (objId) void asignarObjetoAMueble(objId, destinoDropDe(de, muebleId), 1, 1);
   });
 }
 
@@ -552,22 +566,33 @@ async function crearSubContenedorEnCelda(muebleId: string, r: number, c: number)
 // PERSISTENCIA (PUT multi-tenant con coordenadas enteras)
 // =============================================================================
 
-async function asignarSubContenedor(id: string, muebleId: string, r: number, c: number): Promise<void> {
+async function asignarSubContenedor(id: string, padreId: string, r: number, c: number): Promise<void> {
   if (!roomActual) return;
-  const filaEntera = Math.floor(Number(r));
-  const colEntera = Math.floor(Number(c));
   const dato = subContenedores.find((x) => x.id === id);
   if (dato && (dato.subcontenedores_count || 0) > 0) {
     toast('⚠️ Un mueble con sub-contenedores no puede anidarse dentro de otro mueble.');
     return;
   }
+  // =====================================================================
+  // EXCLUSIVIDAD DE DIVISIONES (contenido vs estructura) — espejo del
+  // backend (ContenedorViewSet.perform_update):
+  // una CAJA móvil que se suelta dentro de un mueble o de una de sus
+  // divisiones/estantes es CONTENIDO guardado, jamás una división de la
+  // cuadrícula del mueble. Se DESCARTAN taxativamente las coordenadas F·C
+  // (el destino es la división/estante seleccionado) para no alterar la
+  // estructura del mueble ni el resaltado del minimapa. La caja conserva
+  // tipo='CAJA' y es_inmueble=False.
+  // =====================================================================
+  const esContenido = esCajaMovil(dato);
+  const filaEntera = esContenido ? null : Math.floor(Number(r));
+  const colEntera = esContenido ? null : Math.floor(Number(c));
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
       method: 'PUT',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ubicacion: roomActual.id,
-        parent_contenedor: muebleId,
+        parent_contenedor: padreId,
         parent_grid_row: filaEntera,
         parent_grid_col: colEntera,
         // La bandera «espacio_lleno» describe el ESPACIO físico de la celda, no
@@ -581,7 +606,9 @@ async function asignarSubContenedor(id: string, muebleId: string, r: number, c: 
       return;
     }
     if (res.ok) {
-      toast('✅ Contenedor acomodado en el casillero del mueble.');
+      toast(esContenido
+        ? '✅ Caja móvil guardada como CONTENIDO dentro de la división: la cuadrícula del mueble no se alteró.'
+        : '✅ Contenedor acomodado en el casillero del mueble.');
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
     } else {
       const err = await res.json().catch(() => ({}));

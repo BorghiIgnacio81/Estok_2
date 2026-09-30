@@ -474,6 +474,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* CAJA móvil guardada dentro del mueble: es CONTENIDO del mueble, no una
+   división de su cuadrícula. No se arrastra (se reubica soltándola en el
+   estante destino desde la bandeja). */
+.mueble-item-caja {
+  cursor: default;
+  max-width: 150px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #ecfeff;
+  box-shadow: inset 0 0 0 1px #a5f3fc;
+}
+
+.mueble-item-caja .mueble-item-nombre {
+  color: #0e7490;
+}
 .mueble-item-fijo {
   position: absolute;
   top: -2px;

@@ -96,3 +96,34 @@ def inferir_tipo_contenedor(
         return TIPO_MUEBLE
 
     return TIPO_CAJA
+
+
+def es_caja_movil(contenedor):
+    """
+    True si el contenedor es una CAJA móvil: CONTENIDO puro del inventario.
+
+    Una caja móvil (`tipo='CAJA'` y `es_inmueble=False`) es un contenedor
+    pequeño de objetos que el operador mueve de un lugar a otro. NUNCA es una
+    división/estante estructural de un mueble ni un espacio fijo del plano, por
+    lo que su Drop jamas puede alterar la cuadricula de divisiones del mueble
+    anfitrion. Es la ÚNICA definición del concepto en todo el backend (la usan
+    el serializer y el endpoint de actualización de almacenamiento).
+    """
+    return (
+        getattr(contenedor, 'tipo', None) == TIPO_CAJA
+        and not getattr(contenedor, 'es_inmueble', False)
+    )
+
+
+def es_pieza_estructural(contenedor):
+    """
+    True si el contenedor es una pieza FIJA del mueble y dueña de su grilla.
+
+    Un mueble (MUEBLE), su mueble inmueble (`es_inmueble=True`) o una de sus
+    sub-divisiones internas (ESTANTE) mapean su propia cuadrícula de casilleros
+    (`parent_grid_row/col`): esa grilla es EXCLUSIVA del mueble y sólo sirve
+    para mapear coordenadas y saber qué sección del minimapa resaltar.
+    """
+    if getattr(contenedor, 'es_inmueble', False):
+        return True
+    return getattr(contenedor, 'tipo', None) in (TIPO_MUEBLE, TIPO_ESTANTE)

@@ -32,6 +32,12 @@ export interface ItemElastico {
   protegido?: boolean;
   /** Meta visual opcional (texto ya formateado) que se muestra bajo el nombre. */
   meta?: string | null;
+  /**
+   * HTML ya escapado del CONTENIDO alojado dentro del espacio (cajas móviles
+   * guardadas). Se dibuja dentro del propio rectángulo: el contenido NUNCA se
+   * renderiza como una división/bloque extra del lienzo.
+   */
+  contenido?: string | null;
   /** Conteos opcionales: si no hay `meta`, la tarjeta los compone automáticamente. */
   objetos_count?: number;
   contenedores_count?: number;

@@ -232,6 +232,7 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
       ${item.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(item.icono)}</span>` : ''}
       <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}
+      ${item.contenido ? `<span class="pu-contenido">${item.contenido}</span>` : ''}
       <span class="pu-resize" data-libre-resize data-id="${item.id}" title="Estirar para cambiar el tamaño (se guarda solo)"></span>
     </div>`;
     })

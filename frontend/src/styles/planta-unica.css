@@ -215,6 +215,24 @@
   color: #b45309;
 }
 
+/* CONTENIDO alojado dentro de un rectángulo elástico (cajas móviles guardadas).
+   Es contenido del espacio, NUNCA un bloque divisorio más del lienzo. */
+.pu-contenido {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 100%;
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: #ecfeff;
+  box-shadow: inset 0 0 0 1px #a5f3fc;
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: #0e7490;
+  overflow-wrap: anywhere;
+}
+
 .pu-resize {
   position: absolute;
   right: 1px;

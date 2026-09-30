@@ -18,7 +18,12 @@ from ..paginacion import EstokPaginacion
 from ..serializers import UbicacionSerializer, ContenedorSerializer, ObjetoListSerializer
 from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
-from ...services.taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
+from ...services.taxonomia_contenedor import (
+    TIPO_CAJA,
+    TIPO_MUEBLE,
+    es_caja_movil,
+    es_pieza_estructural,
+)
 from .base import HasRolePermission
 from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo, ids_del_grupo
 
@@ -524,6 +529,33 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             if str(parent.id) == str(contenedor.id):
                 raise ValidationError("Un contenedor no puede ser su propio contenedor padre.")
             self._rechazar_ciclo(contenedor, parent)
+
+            # ==============================================================
+            # REGLA DE EXCLUSIVIDAD DE DIVISIONES (CAJA móvil ≠ división)
+            # ==============================================================
+            # Las divisiones/estantes internos de un mueble son PURAS Y
+            # EXCLUSIVAS de ese mueble: su cuadrícula (parent_grid_row/col) es
+            # la que mapea coordenadas y decide qué sección del minimapa se
+            # resalta en naranja. NINGÚN evento Drop puede agregar una CAJA
+            # móvil como una división más de esa cuadrícula.
+            #
+            # Si lo soltado es una CAJA móvil y el destino es una pieza
+            # estructural (mueble o una de sus divisiones/estantes), se
+            # DESCARTAN taxativamente las coordenadas de casillero: la caja se
+            # registra única y exclusivamente como CONTENIDO hijo dentro de la
+            # división/estante seleccionado, sin tocar la estructura del
+            # mueble. La caja conserva tipo='CAJA' y es_inmueble=False; el
+            # serializer rechaza cualquier intento de reversión de esos flags.
+            # ==============================================================
+            if es_caja_movil(contenedor) and es_pieza_estructural(parent):
+                serializer.save(
+                    ubicacion=parent.ubicacion,
+                    parent_contenedor=parent,
+                    parent_grid_row=None,
+                    parent_grid_col=None,
+                )
+                self._propagar_ubicacion(contenedor)
+                return
 
             serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
             self._propagar_ubicacion(contenedor)
