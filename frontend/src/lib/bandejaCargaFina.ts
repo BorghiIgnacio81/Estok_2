@@ -222,6 +222,19 @@ export function initBandejaCargaFina(opts: { contenedor?: HTMLElement | null }):
     void cargar();
   });
 
+  // PORTAL DE NIVEL 3: al abrir la organización interna de un mueble, este panel
+  // (columna derecha de «Organización Interna del Mueble») se enfoca en ESE
+  // contenedor con sus cajas internas y objetos sueltos ya desplegados, para que
+  // el cambio de pantalla sea limpio y accionable en un solo clic.
+  window.addEventListener('estok:mueble-seleccionado', (e) => {
+    const detalle = (e as CustomEvent<{ id?: string | null }>).detail ?? {};
+    if (!detalle.id) return;
+    contenedorSeleccionadoId = detalle.id;
+    // Si el listado todavía está cargando, el render de la carga lo valida y lo
+    // conserva cuando el contenedor realmente tiene contenido interno.
+    if (dataCargado) render();
+  });
+
   void cargar();
 }
 

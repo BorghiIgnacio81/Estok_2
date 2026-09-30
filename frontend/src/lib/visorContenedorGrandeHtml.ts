@@ -27,6 +27,8 @@ const IMG_OBJETO = '/fluffy_plush_ball.jpg';
 export interface MuebleVisor {
   id: string;
   nombre: string;
+  /** Contenedor padre (null = raíz de la habitación): habilita la recursión por hermanas. */
+  parent_contenedor?: string | null;
   es_inmueble?: boolean;
   grid_filas?: number | null;
   grid_columnas?: number | null;
@@ -65,6 +67,12 @@ export interface SubObjVisor {
 export interface OpcionesVisorContenido {
   room: UbicacionPlano | null;
   muebles: MuebleVisor[];
+  /**
+   * Piezas NAVEGABLES del Nivel 3: las raíces de la habitación más cualquier
+   * estructura ANIDADA con divisiones propias. Es el catálogo que resuelve el
+   * detalle activo, habilitando la recursión (estante dentro de estante).
+   */
+  piezas: MuebleVisor[];
   subContenedores: SubContVisor[];
   subObjetos: SubObjVisor[];
   muebleActivoId: string | null;
@@ -174,7 +182,7 @@ function conmutadorMueblesHtml(muebles: MuebleVisor[], activoId: string | null):
 
 /** Cuerpo completo del Visor Contenedor Grande según el estado de la ESCENA 3. */
 export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
-  const { room, muebles, subContenedores, subObjetos, muebleActivoId, raices } = opts;
+  const { room, muebles, piezas, subContenedores, subObjetos, muebleActivoId, raices } = opts;
   if (!room) return '';
 
   const cabecera = `
@@ -200,7 +208,11 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
       </div>`;
   }
 
-  const activo = muebleActivoId ? muebles.find((m) => m.id === muebleActivoId) ?? null : null;
+  // CATÁLOGO NAVEGABLE: raíces de la habitación + estructuras anidadas con
+  // divisiones propias. Así el detalle activo se resuelve también para una pieza
+  // interna y la cascada avanza de forma RECURSIVA (estante dentro de estante).
+  const catalogo = piezas.length ? piezas : muebles;
+  const activo = muebleActivoId ? catalogo.find((m) => m.id === muebleActivoId) ?? null : null;
   if (activo) {
     // Cabecera viva del Visor Contenedor Grande: cuando hay un mueble activo, el
     // título refleja al instante su distribución interna (selección desde el
@@ -211,7 +223,10 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
         <span class="cg-sub">Mueble inspeccionado en caliente. Usá los botones + y − al final de cada fila para ajustar sus estantes/cajones, o soltá objetos/cajas en un casillero para reubicarlos en el acto.</span>
       </div>`;
     return `${activoCabecera}
-      ${conmutadorMueblesHtml(muebles, activo.id)}
+      ${conmutadorMueblesHtml(
+        catalogo.filter((m) => (m.parent_contenedor ?? null) === (activo.parent_contenedor ?? null)),
+        activo.id,
+      )}
       <div class="mueble-detalle">
         <button type="button" class="cg-atras" data-mueble-atras title="Volver al listado de todos los muebles de «${escapeHtml(room.nombre)}»">← Ver todos los muebles</button>
         ${muebleCardHtml(activo, subContenedores, subObjetos, { conControles: true })}

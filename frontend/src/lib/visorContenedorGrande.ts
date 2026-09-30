@@ -24,6 +24,7 @@ import { aplicarModo, modoLienzoActual } from './modoLienzo';
 import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
+import type { ItemGeometria } from './sectoresMinimapa';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
   agregarDivisionEnFila,
@@ -35,6 +36,13 @@ import type { ItemADesplazar } from './visorContenedorGrandeAcciones';
 
 let roomActual: UbicacionPlano | null = null;
 let muebles: MuebleVisor[] = [];
+/**
+ * Catálogo NAVEGABLE del Nivel 3: muebles raíz de la habitación MÁS las
+ * estructuras anidadas con divisiones propias. Es el catálogo con el que se
+ * resuelve el detalle activo, habilitando la recursión (estante dentro de
+ * estante) sin alterar el listado general del Nivel 2.
+ */
+let piezas: MuebleVisor[] = [];
 /** Contenedores RAÍZ de la habitación (alimentan el lienzo elástico vacío). */
 let raices: ItemElastico[] = [];
 /** ¿El MODO EDICIÓN fue activado automáticamente por una habitación vacía? */
@@ -84,6 +92,7 @@ async function cargar(): Promise<void> {
   if (!rootEl) return;
   if (!roomActual) {
     muebles = [];
+    piezas = [];
     subContenedores = [];
     subObjetos = [];
     raices = [];
@@ -97,18 +106,26 @@ async function cargar(): Promise<void> {
   ]);
 
   const conts = contData as Record<string, unknown>[];
-  muebles = conts
-    .filter((c) => !c.parent_contenedor && ((Number(c.subcontenedores_count) || 0) > 0 || Boolean(c.es_inmueble)))
-    .map((c) => ({
-      id: String(c.id),
-      nombre: String(c.nombre || 'Mueble'),
-      es_inmueble: Boolean(c.es_inmueble),
-      grid_filas: c.grid_filas != null ? Number(c.grid_filas) : null,
-      grid_columnas: c.grid_columnas != null ? Number(c.grid_columnas) : null,
-      grid_filas_config: Array.isArray(c.grid_filas_config) ? (c.grid_filas_config as number[]) : null,
-      subcontenedores_count: Number(c.subcontenedores_count) || 0,
-      objetos_count: Number(c.objetos_count) || 0,
-    }));
+  /** Raíz navegable: mueble/estructura de la habitación con divisiones o inmueble fijo. */
+  const esNavegable = (c: Record<string, unknown>): boolean =>
+    (Number(c.subcontenedores_count) || 0) > 0 || Boolean(c.es_inmueble);
+  const mapearPieza = (c: Record<string, unknown>): MuebleVisor => ({
+    id: String(c.id),
+    nombre: String(c.nombre || 'Mueble'),
+    parent_contenedor: c.parent_contenedor != null ? String(c.parent_contenedor) : null,
+    es_inmueble: Boolean(c.es_inmueble),
+    grid_filas: c.grid_filas != null ? Number(c.grid_filas) : null,
+    grid_columnas: c.grid_columnas != null ? Number(c.grid_columnas) : null,
+    grid_filas_config: Array.isArray(c.grid_filas_config) ? (c.grid_filas_config as number[]) : null,
+    subcontenedores_count: Number(c.subcontenedores_count) || 0,
+    objetos_count: Number(c.objetos_count) || 0,
+  });
+
+  // LISTADO GENERAL (Nivel 2): muebles/estructuras RAÍZ de la habitación.
+  muebles = conts.filter((c) => !c.parent_contenedor && esNavegable(c)).map(mapearPieza);
+  // CATÁLOGO NAVEGABLE (Nivel 3): + estructuras ANIDADAS con divisiones propias,
+  // para poder descender de forma recursiva dentro de un estante/cajón interno.
+  piezas = conts.filter(esNavegable).map(mapearPieza);
 
   subContenedores = conts
     .filter((c) => c.parent_contenedor)
@@ -152,9 +169,10 @@ async function cargar(): Promise<void> {
       fusion_grupo: c.fusion_grupo != null ? String(c.fusion_grupo) : null,
     }));
 
-  // Si el mueble inspeccionado desapareció (borrado en otra vista), se vuelve
-  // al listado general sin romper la ESCENA 3.
-  if (muebleActivoId && !muebles.some((m) => m.id === muebleActivoId)) {
+  // Si la pieza inspeccionada desapareció (borrada en otra vista), se vuelve
+  // al listado general sin romper la ESCENA 3. Se valida contra el catálogo
+  // navegable para que una estructura anidada (recursión) no se descarte.
+  if (muebleActivoId && !piezas.some((m) => m.id === muebleActivoId)) {
     muebleActivoId = null;
   }
   render();
@@ -172,6 +190,7 @@ function render(): void {
   rootEl.innerHTML = visorContenidoGrandeHtml({
     room: roomActual,
     muebles,
+    piezas,
     subContenedores,
     subObjetos,
     muebleActivoId,
@@ -661,14 +680,59 @@ async function persistirEspacioLleno(muebleId: string, r: number, c: number, lle
 // CONMUTACIÓN EN CALIENTE + CONTROLES +/− DE SUB-DIVISIONES (ESCENA 3)
 // =============================================================================
 
-/** Activa el mueble a inspeccionar y sincroniza el resaltado del panel izquierdo. */
+/**
+ * Activa el mueble a inspeccionar y sincroniza el resaltado del panel izquierdo.
+ *
+ * LA ACTIVACIÓN ES UN PORTAL DE NIVEL: se publica como `estok:mueble-seleccionado`
+ * (único punto de entrada) para que la máquina de niveles
+ * (portalesAlmacenamiento.ts) haga descender la cascada y el panel cambie
+ * limpiamente de pantalla. El renderizado local corre en el listener de ese
+ * mismo evento, de modo que nunca hay dos renders por una sola acción.
+ */
 function activarMueble(id: string | null): void {
   if (!roomActual) return;
-  // Se conserva el id aunque todavía no esté en la lista local (carga asincrónica):
-  // cargar() lo mantendrá y render() abrirá el detalle apenas esté disponible.
-  muebleActivoId = id;
-  render();
-  window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: muebleActivoId } }));
+  // 1) Resaltado del panel izquierdo (sincronización visual, sin render propio).
+  window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id } }));
+  // 2) PORTAL DE NIVEL: el visor re-renderiza su detalle en el listener de este
+  // evento (un solo render) y la máquina de niveles desciende de pantalla.
+  // `raices` aporta la geometría real (ui_*) de las piezas de la habitación, para
+  // que el minimapa de orientación no deforme las proporciones.
+  window.dispatchEvent(
+    new CustomEvent('estok:mueble-seleccionado', { detail: { id, hermanos: raices } }),
+  );
+}
+
+/** Datos de navegación de una pieza interna (Nivel 3) para el portal de niveles. */
+export interface DatosPiezaNivel3 {
+  /** La pieza tiene sub-divisiones propias: se desciende de forma recursiva. */
+  tieneDivisiones: boolean;
+  /** Piezas hermanas (mismo contenedor padre) con su geometría real (minimapa). */
+  hermanos: ItemGeometria[];
+}
+
+/**
+ * Datos de navegación de una pieza del Nivel 3 (estante/caja dentro del mueble
+ * activo) que consume el motor de portales: permite DESCENDER de forma recursiva
+ * dentro de una estructura que a su vez tiene divisiones propias, y dibujar el
+ * minimapa de orientación con las hermanas reales (geometría ui_* persistida).
+ *
+ * Devuelve null cuando el id no es una pieza interna conocida de la habitación.
+ */
+export function datosPiezaNivel3(id: string): DatosPiezaNivel3 | null {
+  const pieza = subContenedores.find((s) => s.id === id);
+  if (!pieza) return null;
+  const hermanos: ItemGeometria[] = subContenedores
+    .filter((s) => s.parent_contenedor === pieza.parent_contenedor)
+    .map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      ui_left: s.ui_left,
+      ui_top: s.ui_top,
+      ui_width: s.ui_width,
+      ui_height: s.ui_height,
+      fusion_grupo: s.fusion_grupo,
+    }));
+  return { tieneDivisiones: Number(pieza.subcontenedores_count) > 0, hermanos };
 }
 
 /** Reduce en el estado local la geometría de una fila (espejo del PUT servido). */

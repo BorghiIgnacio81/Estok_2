@@ -27,6 +27,7 @@ import { filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import type { CajaSeleccionada } from './cajaDetalle';
+import { datosPiezaNivel3 } from './visorContenedorGrande';
 
 export type NivelPortales = 0 | 1 | 2 | 3 | 4;
 
@@ -312,6 +313,11 @@ export function volverNivel(): void {
  * PORTAL de Nivel 3 → Nivel 4: clic (en modo navegación) sobre una caja/estante
  * del mueble en la grilla izquierda. La pieza pasa a la izquierda y el listado
  * fino de objetos se carga en caliente a la derecha.
+ *
+ * DESCENSO RECURSIVO: si la pieza clickeada tiene sub-divisiones propias
+ * (un estante con divisiones internas), NO se baja al listado fino: se vuelve a
+ * disparar el portal de mueble para que su grilla interna ocupe el mismo Nivel 3
+ * (así se gestionan divisiones y estanterías de forma recursiva, nivel tras nivel).
  */
 function conectarPortalCaja(): void {
   const izq = slotIzq();
@@ -325,6 +331,15 @@ function conectarPortalCaja(): void {
     if (!id) return;
     const nombre =
       carta.querySelector<HTMLElement>('[data-inplace-renombrar]')?.textContent?.trim() || 'Caja / Estante';
+    const datos = datosPiezaNivel3(id);
+    if (datos?.tieneDivisiones) {
+      window.dispatchEvent(
+        new CustomEvent('estok:mueble-seleccionado', {
+          detail: { id, nombre, hermanos: datos.hermanos },
+        }),
+      );
+      return;
+    }
     const detalle: CajaSeleccionada = { id, nombre, fila: null, col: null };
     estado.caja = detalle;
     irANivel(4);
@@ -379,15 +394,21 @@ export function iniciarPortalesAlmacenamiento(): void {
     irANivel(2);
   });
 
-  // Nivel 2 → 3: el mueble elegido abre su organización interna (solo navegando).
+  // Nivel 2 → 3 (y 3 → 3 RECURSIVO): el mueble elegido abre su organización
+  // interna. Se acepta cualquier nivel >= 2 para que el descenso vuelva a
+  // ejecutarse al entrar a una estructura anidada (un estante con divisiones
+  // propias se gestiona igual que un mueble, de forma recursiva).
   window.addEventListener('estok:mueble-seleccionado', (e) => {
     const detalle =
       (e as CustomEvent<{ id?: string | null; nombre?: string; hermanos?: ItemGeometria[] }>).detail ?? {};
-    estado.hermanosMueble = detalle.hermanos ?? [];
+    // Solo se reemplaza la geometría de las hermanas cuando el emisor la envía:
+    // el visor de la habitación manda las de la habitación y el visor del mueble
+    // las internas; un emisor sin geometría no debe borrar las vigentes.
+    if (detalle.hermanos?.length) estado.hermanosMueble = detalle.hermanos;
     estado.mueble = detalle.id ? { id: detalle.id, nombre: detalle.nombre || 'Mueble' } : null;
     estado.caja = null;
     if (estado.mueble) void cargarGrillaMueble(estado.mueble.id);
-    if (modoLienzoActual() === 'navegacion' && estado.nivel === 2 && estado.mueble) {
+    if (modoLienzoActual() === 'navegacion' && estado.nivel >= 2 && estado.mueble) {
       irANivel(3);
     } else {
       renderMinimapa();

@@ -7,6 +7,7 @@ from uuid import UUID
 from rest_framework import serializers
 
 from ...models import Ubicacion, Contenedor
+from ...services.taxonomia_contenedor import TIPO_CAJA
 
 
 class UbicacionSerializer(serializers.ModelSerializer):
@@ -162,6 +163,37 @@ class ContenedorSerializer(serializers.ModelSerializer):
         if total is not None:
             return total
         return obj.subcontenedores.count()
+
+    def validate(self, attrs):
+        """
+        BLINDAJE DE INTEGRIDAD TAXONOMICA (anti-insercion doble erronea).
+
+        Una CAJA movil (`tipo='CAJA'` y `es_inmueble=False`) es un contenedor
+        pequeno de objetos: el Drop / endpoint de traslado NUNCA puede alterar su
+        tipo ni su flag `es_inmueble` para convertirla en un espacio FIJO del
+        plano (mueble inmueble). Si el payload intenta ese cambio reverso, la
+        operacion se rechaza con HTTP 400 en vez de corromper el registro y
+        descalzar sus objetos internos.
+        """
+        instancia = self.instance
+        if instancia is not None and instancia.tipo == TIPO_CAJA and not instancia.es_inmueble:
+            if attrs.get('es_inmueble') is True:
+                raise serializers.ValidationError({
+                    'es_inmueble': (
+                        "Integridad de tipo: una caja movil (tipo='CAJA') no puede "
+                        "convertirse en mueble inmueble (es_inmueble=True). Cree un "
+                        "mueble nuevo si necesita un espacio fijo del plano."
+                    ),
+                })
+            tipo_nuevo = attrs.get('tipo')
+            if tipo_nuevo and tipo_nuevo != TIPO_CAJA:
+                raise serializers.ValidationError({
+                    'tipo': (
+                        "Integridad de tipo: el tipo de una caja movil (tipo='CAJA') "
+                        "es inmutable y no puede pasar a '%s'." % tipo_nuevo
+                    ),
+                })
+        return attrs
 
     def create(self, validated_data):
         """
