@@ -7,58 +7,61 @@
 //
 //   NIVEL 0 · ambientes de la planta activa.
 //   NIVEL 1 · muebles y cajas raíz del ambiente elegido.
-//   NIVEL 2 · cajas internas del mueble elegido.
+//   NIVEL 2 · INTERIOR del mueble elegido: sus estantes/divisiones reales
+//             (sub-contenedores) y, si todavía no tiene ninguno, la CUADRÍCULA
+//             INTERNA de casilleros de su grilla (filas × columnas).
 //
-// El mapa del nivel anterior queda como MIGA DE PAN contextual en el encabezado,
-// con el botón «⬅ Volver» para desandar niveles.
+// NAVEGACIÓN RECURSIVA (regla de oro): tocar un MUEBLE —inmueble o móvil— NUNCA
+// dispara la mudanza: lo ABRE (Nivel 2 → Nivel 3 de la cascada) y el mapa de la
+// habitación se encoge al encabezado como miga de pan visual. Solo una HOJA del
+// inventario (caja/estante sin hijos internos) se traslada con el toque directo.
+// La persistencia final SIEMPRE es explícita: el botón «💾 Confirmar ubicación
+// aquí» (o soltar la ficha sobre la silueta) envía el destino elegido.
 //
 // FORMAS DE MOVER (todas ejecutan el PUT atómico en PostgreSQL):
-//   · CLIC sobre un destino FINAL (caja/estante sin hijos o mueble sin cajas).
+//   · Botón «💾 Confirmar ubicación aquí» sobre el nivel/destino seleccionado.
+//   · CLIC sobre un destino FINAL (caja/estante sin hijos o casillero interno).
 //   · SOLTAR la ficha del contenedor sobre cualquier sector del plano.
-//   · Botón «📦 Mover a «X»» sobre el nivel seleccionado.
 //
-// Los datos viven en lib/moverContenedorMinimapasDatos.ts y el dibujo en
+// Los datos viven en lib/moverContenedorMinimapasDatos.ts, la miga visual en
+// lib/moverContenedorMinimapasRuta.ts y el dibujo en
 // lib/moverContenedorMinimapasRender.ts: este archivo solo orquesta estado,
 // eventos y persistencia (disciplina de modularidad <400 líneas).
 //
 // PERSISTENCIA: PUT /api/contenedores/{id}/ con `parent_contenedor` + `ubicacion`
-// y coordenadas de casillero nulas — el MISMO payload probado del Drag & Drop de
-// Almacenamiento (lib/almacenamientoBoard.ts → moverContenedor) y tolerado por
-// el backend (`update` con partial=True): la reasignación del
-// `parent_contenedor_id` es atómica. Auth multi-tenant centralizada: lib/api.ts
-// usa getAuthHeaders() (JWT + X-Estok-Id); acá NUNCA se definen headers propios.
+// (+ `parent_grid_row`/`parent_grid_col` cuando el destino es un casillero
+// interno del mueble) — el MISMO payload probado del Drag & Drop de
+// Almacenamiento (lib/almacenamientoBoard.ts → moverContenedor) y del Visor de
+// Contenedores (asignarSubContenedor), tolerado por el backend (`update` con
+// partial=True): la reasignación del `parent_contenedor_id` es atómica. Auth
+// multi-tenant centralizada: lib/api.ts usa getAuthHeaders() (JWT + X-Estok-Id);
+// acá NUNCA se definen headers propios.
 // =============================================================================
 
 import { apiPut } from './api';
 import type { ApiError } from './api';
-import type { SectorMinimapa } from './minimapa';
-import { sectoresDeItems } from './sectoresMinimapa';
 import { plantasDe } from './espaciosDePlanta';
 import { abrirOverlay, cerrarOverlay } from './cajaOperativaModal';
 import { renderAsistenteHtml } from './moverContenedorMinimapasRender';
 import type { VistaMover } from './moverContenedorMinimapasRender';
+import { nodosMigaMover } from './moverContenedorMinimapasRuta';
 import {
-  ambientesDePlanta,
-  cajasDelMueble,
+  destinoDeSector,
+  nombresRecorrido,
+  sectoresDelNivel,
+} from './moverContenedorMinimapasNiveles';
+import type { Destino, NivelRecorrido } from './moverContenedorMinimapasNiveles';
+import {
   cargarEstructuraMover,
-  contenedoresDelAmbiente,
+  contenedorPorId,
   esDescendiente,
+  esMuebleIngresable,
 } from './moverContenedorMinimapasDatos';
 import type { ContenedorMover, EstructuraMover } from './moverContenedorMinimapasDatos';
 
 export type { ContenedorMover } from './moverContenedorMinimapasDatos';
 
 type Refrescar = () => void;
-type Nivel = 0 | 1 | 2;
-
-/** Destino final del traslado (ambiente o contenedor del Estok). */
-interface Destino {
-  tipo: 'habitacion' | 'contenedor';
-  id: string;
-  nombre: string;
-  /** Ubicación que viaja en el PUT (ambiente del destino final). */
-  ubicacionId: string;
-}
 
 const LAMINA_CARGA =
   '<p class="text-sm text-gray-500 py-6 text-center">⏳ Cargando el plano real del Estok…</p>';
@@ -87,7 +90,7 @@ export async function abrirMoverCajaMinimapas(
     planta: estructura.planta,
     habitacionId: null as string | null,
     muebleId: null as string | null,
-    nivel: 0 as Nivel,
+    nivel: 0 as NivelRecorrido,
     destino: null as Destino | null,
     guardando: false,
   };
@@ -96,91 +99,28 @@ export async function abrirMoverCajaMinimapas(
     overlay.querySelector(selector) as T | null;
 
   // ---------------------------------------------------------------------------
-  // 1. DERIVACIONES DEL RECORRIDO · destino de un sector y sectores por nivel
+  // 1. DERIVACIONES DEL RECORRIDO (sectores por nivel, destino de cada sector y
+  // miga de pan textual) · viven en lib/moverContenedorMinimapasNiveles.ts y se
+  // consumen con el estado vigente: acá solo hay estado, eventos y persistencia.
   // ---------------------------------------------------------------------------
-
-  /** Destino final al que apunta un sector del plano (ambiente o contenedor). */
-  function destinoDeSector(sectorId: string): Destino | null {
-    if (!sectorId) return null;
-    const habitacion = estructura.ubicaciones.find((u) => String(u.id) === sectorId);
-    if (habitacion) {
-      return {
-        tipo: 'habitacion',
-        id: String(habitacion.id),
-        nombre: habitacion.nombre,
-        ubicacionId: String(habitacion.id),
-      };
-    }
-    const destino = estructura.contenedores.find((c) => c.id === sectorId);
-    if (!destino) return null;
-    return {
-      tipo: 'contenedor',
-      id: destino.id,
-      nombre: destino.nombre,
-      ubicacionId: destino.ubicacion || estado.habitacionId || '',
-    };
-  }
-
-  /**
-   * Sectores REALES del nivel visible (geometría ui_* de PostgreSQL). Sin datos
-   * devuelve el aviso explicativo: el asistente JAMÁS dibuja un plano inventado.
-   */
-  function sectoresDelNivel(): { sectores: SectorMinimapa[]; aviso: string } {
-    if (estado.nivel === 0) {
-      const ambientes = ambientesDePlanta(estructura, estado.planta);
-      if (!ambientes.length) {
-        return {
-          sectores: [],
-          aviso: 'Esta planta todavía no tiene ambientes definidos en el plano.',
-        };
-      }
-      return { sectores: sectoresDeItems(ambientes, estado.habitacionId), aviso: '' };
-    }
-
-    if (estado.nivel === 1) {
-      const items = contenedoresDelAmbiente(estructura, estado.habitacionId, contenedor.id);
-      if (!items.length) {
-        return {
-          sectores: [],
-          aviso: 'Este ambiente no tiene muebles ni cajas: tocá «Mover aquí» para dejarlo a nivel del ambiente.',
-        };
-      }
-      return { sectores: sectoresDeItems(items, null), aviso: '' };
-    }
-
-    const cajas = cajasDelMueble(estructura, estado.muebleId, contenedor.id);
-    if (!cajas.length) {
-      return {
-        sectores: [],
-        aviso: 'Este mueble no tiene cajas internas: tocá «Mover aquí» para dejarlo dentro del mueble.',
-      };
-    }
-    return { sectores: sectoresDeItems(cajas, null), aviso: '' };
-  }
-
-  /** Nombres de los niveles ya recorridos (miga de pan contextual). */
-  function nombresRecorrido(): string[] {
-    const nombres: string[] = [];
-    const habitacion = estado.habitacionId
-      ? estructura.ubicaciones.find((u) => String(u.id) === String(estado.habitacionId))
-      : undefined;
-    if (habitacion) nombres.push(habitacion.nombre);
-    const mueble = estado.muebleId
-      ? estructura.contenedores.find((c) => c.id === estado.muebleId)
-      : undefined;
-    if (mueble) nombres.push(mueble.nombre);
-    return nombres;
-  }
 
   /** Repinta el asistente completo con el mapa vigente y la miga de pan. */
   function render(): void {
-    const { sectores, aviso } = sectoresDelNivel();
+    const { sectores, aviso } = sectoresDelNivel(estructura, contenedor.id, estado);
     const vista: VistaMover = {
       nivel: estado.nivel,
       nombreContenedor: contenedor.nombre,
       plantas: plantasDe(estructura.estok, estructura.ubicaciones),
       planta: estado.planta,
-      recorrido: nombresRecorrido(),
+      recorrido: nombresRecorrido(estructura, estado),
+      // MIGA VISUAL: la habitación y el mueble recorridos «encogidos» en el
+      // encabezado (solo existen a partir del nivel de contenedores).
+      nodos: nodosMigaMover(estructura, {
+        planta: estado.planta,
+        habitacionId: estado.habitacionId,
+        muebleId: estado.nivel === 2 ? estado.muebleId : null,
+        contenedorId: contenedor.id,
+      }),
       sectores,
       aviso,
       destinoNombre: estado.destino ? estado.destino.nombre : null,
@@ -205,7 +145,9 @@ export async function abrirMoverCajaMinimapas(
     if (estado.nivel === 2) {
       estado.muebleId = null;
       estado.nivel = 1;
-      estado.destino = estado.habitacionId ? destinoDeSector(estado.habitacionId) : null;
+      estado.destino = estado.habitacionId
+        ? destinoDeSector(estructura, estado, estado.habitacionId)
+        : null;
     } else if (estado.nivel === 1) {
       estado.habitacionId = null;
       estado.nivel = 0;
@@ -215,12 +157,13 @@ export async function abrirMoverCajaMinimapas(
   }
 
   /**
-   * CLIC en un sector: en el primer nivel NAVEGA al ambiente elegido; en los
-   * niveles de contenedores NAVEGA al mueble con cajas internas y, si el sector
-   * es una hoja del inventario (caja/estante sin hijos), EJECUTA el traslado.
+   * CLIC en un sector: en el nivel de ambientes NAVEGA al ambiente elegido; en el
+   * nivel de contenedores NAVEGA (ABRE) cualquier MUEBLE —inmueble o móvil: el
+   * toque jamás lo mueve— y, si el sector es una hoja del inventario (caja/estante
+   * sin hijos) o un estante/casillero del mueble ya abierto, ejecuta el traslado.
    */
   function seleccionarSector(sectorId: string): void {
-    const destino = destinoDeSector(sectorId);
+    const destino = destinoDeSector(estructura, estado, sectorId);
     if (!destino) return;
 
     if (destino.tipo === 'habitacion') {
@@ -232,14 +175,17 @@ export async function abrirMoverCajaMinimapas(
       return;
     }
 
-    if (cajasDelMueble(estructura, destino.id, contenedor.id).length) {
+    // MUEBLE: se ABRE (Nivel 2 → Nivel 3 de la cascada). El lienzo central pasa a
+    // su interior y el mapa de la habitación sube a la miga del encabezado.
+    const destinoContenedor = contenedorPorId(estructura, destino.id);
+    if (estado.nivel === 1 && destinoContenedor && esMuebleIngresable(destinoContenedor)) {
       estado.muebleId = destino.id;
       estado.nivel = 2;
       estado.destino = destino;
       render();
       return;
     }
-    // Destino FINAL (hoja del inventario): el clic mueve el contenedor en el acto.
+    // Destino FINAL (hoja del inventario o estante/casillero del mueble abierto).
     void ejecutarMovimiento(destino);
   }
 
@@ -259,10 +205,18 @@ export async function abrirMoverCajaMinimapas(
     }
 
     // Raíz del ambiente → sin padre y con la ubicación nueva; dentro de un
-    // contenedor → con su ubicación sincronizada y sin coordenadas de casillero.
+    // contenedor → con su ubicación sincronizada y, si el destino elegido fue un
+    // CASILLERO de la cuadrícula interna del mueble, con su coordenada F·C exacta
+    // (mismo payload que el arrastre del Visor de Contenedores).
+    const casillero = destino.casillero ?? null;
     const payload = destino.tipo === 'habitacion'
       ? { ubicacion: destino.ubicacionId, parent_contenedor: null, parent_grid_row: null, parent_grid_col: null }
-      : { ubicacion: destino.ubicacionId || null, parent_contenedor: destino.id, parent_grid_row: null, parent_grid_col: null };
+      : {
+          ubicacion: destino.ubicacionId || null,
+          parent_contenedor: destino.id,
+          parent_grid_row: casillero ? casillero.fila : null,
+          parent_grid_col: casillero ? casillero.col : null,
+        };
 
     try {
       await apiPut('/contenedores/' + encodeURIComponent(contenedor.id) + '/', payload);
@@ -275,7 +229,7 @@ export async function abrirMoverCajaMinimapas(
       mostrarError(apiErr && apiErr.error ? apiErr.error : 'No se pudo mover el contenedor.');
       if (boton) {
         boton.disabled = false;
-        boton.textContent = '📦 Mover a «' + destino.nombre + '»';
+        boton.textContent = '💾 Confirmar ubicación aquí';
       }
       estado.guardando = false;
     }
@@ -344,7 +298,9 @@ export async function abrirMoverCajaMinimapas(
     if (!esZonaSoltado(objetivo)) return;
     evento.preventDefault();
     const sector = objetivo ? objetivo.closest('[data-sector-id]') : null;
-    const destino = sector ? destinoDeSector(sector.getAttribute('data-sector-id') || '') : null;
+    const destino = sector
+      ? destinoDeSector(estructura, estado, sector.getAttribute('data-sector-id') || '')
+      : null;
     if (destino) void ejecutarMovimiento(destino);
   });
 

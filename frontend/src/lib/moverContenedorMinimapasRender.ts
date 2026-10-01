@@ -20,7 +20,9 @@
 import { escapeHtml } from './mapaJerarquico';
 import { ASPECTO_LIENZO, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
-import { hostPlanoMinimapaHtml } from './minimapaRutaHost';
+import { hostCadenaMinimapaHtml, hostPlanoMinimapaHtml } from './minimapaRutaHost';
+import { renderMinimapasAnidados } from './minimapasAnidados';
+import type { NodoRuta } from './minimapasAnidados';
 import type { PlantaDisponible } from './espaciosDePlanta';
 
 /** Nivel visible del recorrido: 0 ambientes · 1 contenedores · 2 cajas. */
@@ -35,20 +37,26 @@ export interface VistaMover {
   plantas: PlantaDisponible[];
   /** FILA (1-based) de la planta activa. */
   planta: number;
-  /** Nombres de los niveles ya recorridos (miga de pan contextual). */
+  /** Nombres de los niveles ya recorridos (miga de pan textual). */
   recorrido: string[];
+  /**
+   * MIGA VISUAL: los planos previos «encogidos» en la cadena canónica de
+   * minimapas anidados (lib/moverContenedorMinimapasRuta.ts). Viaja vacía en el
+   * nivel de ambientes (el plano grande ya es ese mapa).
+   */
+  nodos: NodoRuta[];
   /** Sectores REALES del nivel visible (geometría ui_* de PostgreSQL). */
   sectores: SectorMinimapa[];
-  /** Aviso cuando el nivel no aporta sectores: jamás un plano inventado. */
+  /** Aviso/ayuda del nivel (reemplaza al plano si no hay sectores). */
   aviso: string;
-  /** Nombre del destino seleccionado (habilita «📦 Mover a «X»»). */
+  /** Nombre del destino seleccionado (habilita «💾 Confirmar ubicación aquí»). */
   destinoNombre: string | null;
 }
 
 const TITULO_NIVEL: Record<NivelMover, string> = {
   0: '1 · Tocá el ambiente',
-  1: '2 · Tocá el mueble o la caja',
-  2: '3 · Tocá la caja interna',
+  1: '2 · Tocá el mueble (se abre) o la caja',
+  2: '3 · Tocá el estante / casillero o confirmá la ubicación',
 };
 
 /** MIGA DE PAN del encabezado: planta activa + niveles recorridos + Volver. */
@@ -72,7 +80,23 @@ function migasHtml(vista: VistaMover): string {
       .map((nivel) => '<span class="text-[11px] text-gray-400">›</span><span class="text-[11px] font-semibold text-gray-700">' + escapeHtml(nivel) + '</span>')
       .join('')
     + '<span class="ml-auto">' + volver + '</span>'
-    + '</div>';
+    + '</div>'
+    + migaVisualHtml(vista.nodos);
+}
+
+/**
+ * MIGA VISUAL de contexto: los mapas ya recorridos «encogidos» en el encabezado
+ * (planta → ambiente → mueble), con el nodo vigente en naranja. Es la MISMA
+ * cadena canónica de minimapas anidados que usan Almacenamiento y las tarjetas
+ * de Objetos, montada en el host de la cadena del componente global
+ * (lib/minimapaRutaHost.ts). Con un solo nodo no hay contexto que mostrar.
+ */
+function migaVisualHtml(nodos: NodoRuta[]): string {
+  if (nodos.length < 2) return '';
+  return hostCadenaMinimapaHtml(
+    renderMinimapasAnidados(nodos, { todosActivos: true }),
+    'mb-2',
+  );
 }
 
 /**
@@ -111,17 +135,20 @@ function fichaHtml(vista: VistaMover): string {
     + '</div>';
 }
 
-/** Pie de acciones: cancelar + confirmación del nivel seleccionado. */
+/** Pie de acciones: cancelar + CONFIRMACIÓN explícita de la ubicación elegida. */
 function accionesHtml(destinoNombre: string | null): string {
-  const etiqueta = destinoNombre
-    ? '📦 Mover a «' + escapeHtml(destinoNombre) + '»'
-    : '📦 Mover aquí';
+  // El botón tiene SIEMPRE el mismo rótulo pedido: la decisión es del operador
+  // (raíz del mueble, estante interno, casillero o ambiente), no del clic.
+  const objetivo = destinoNombre
+    ? '<span class="text-[11px] text-gray-400">Destino elegido: <span class="font-semibold text-gray-700">«'
+      + escapeHtml(destinoNombre) + '»</span></span>'
+    : '<span class="text-[11px] text-gray-400">Tocá un ambiente o mueble para recorrerlo y tocá el estante/caja final para elegirlo; o arrastrá la ficha sobre el destino.</span>';
   return '<div class="flex flex-wrap items-center justify-between gap-2 pt-3 mt-2 border-t border-gray-100">'
-    + '<p class="text-[11px] text-gray-400">Tocá el destino final para moverlo; o arrastrá la ficha sobre el ambiente.</p>'
+    + objetivo
     + '<span class="flex items-center gap-2">'
     + '<button type="button" class="js-cerrar-overlay px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 cursor-pointer">Cancelar</button>'
-    + '<button type="button" class="js-mover-confirmar px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 cursor-pointer"'
-    + (destinoNombre ? '' : ' disabled') + '>' + etiqueta + '</button>'
+    + '<button type="button" class="js-mover-confirmar px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/30 disabled:opacity-50 disabled:shadow-none cursor-pointer"'
+    + (destinoNombre ? '' : ' disabled') + '>💾 Confirmar ubicación aquí</button>'
     + '</span></div>';
 }
 
@@ -130,8 +157,13 @@ export function renderAsistenteHtml(vista: VistaMover): string {
   // El cuerpo es EL COMPONENTE GLOBAL: el host canónico del plano (con la zona
   // de suelta) o, si el nivel no aporta geometría real, su aviso explicativo.
   // Nunca se envuelve en un cajón propio ni se inventa un plano de relleno.
+  // Con plano Y aviso (ej: interior de un mueble sin estantes creados) la ayuda
+  // viaja como nota al pie del lienzo, sin reemplazarlo.
   const cuerpo = vista.sectores.length
     ? lienzoHtml(vista.sectores)
+      + (vista.aviso
+        ? '<p class="mt-2 text-[11px] text-gray-500 text-center">' + escapeHtml(vista.aviso) + '</p>'
+        : '')
     : '<p class="text-sm text-gray-500 py-8 text-center">' + escapeHtml(vista.aviso) + '</p>';
   return migasHtml(vista)
     + fichaHtml(vista)

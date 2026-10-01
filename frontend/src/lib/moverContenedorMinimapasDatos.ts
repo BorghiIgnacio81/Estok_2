@@ -20,6 +20,9 @@ import { fetchAllPages } from './api';
 import { getEstokActivoId } from '../services/auth';
 import { dividirEspacios, filaDeUbicacion, habitacionesDeFila } from './espaciosDePlanta';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+// Tipo del motor global: la cuadrícula interna del mueble se devuelve como
+// sectores proporcionales (misma geometría que dibuja todo minimapa del sistema).
+import type { SectorMinimapa } from './minimapa';
 
 /** Contenedor que el asistente va a reubicar (caja o mueble del listado). */
 export interface ContenedorMover {
@@ -40,6 +43,17 @@ export interface ContenedorDestino {
   ui_top?: string | null;
   ui_width?: string | null;
   ui_height?: string | null;
+  /**
+   * Mueble FIJO adherido al inmueble (ropero/armario empotrado). El modal lo
+   * trata como MUEBLE ingresable aunque todavía no tenga divisiones creadas.
+   */
+  es_inmueble?: boolean;
+  /** Sub-contenedores directos (estantes/cajas internas): habilita «entrar». */
+  subcontenedores_count?: number;
+  /** Grilla interna del mueble (casilleros) que se dibuja al abrirlo. */
+  grid_filas?: number | string | null;
+  grid_columnas?: number | string | null;
+  grid_filas_config?: number[] | null;
 }
 
 /** Estructura espacial real del Estok activo, lista para navegar. */
@@ -59,6 +73,9 @@ function normalizarContenedor(crudo: ContenedorDestino): ContenedorDestino {
     tipo: String(crudo.tipo || 'CAJA').toUpperCase(),
     ubicacion: crudo.ubicacion != null ? String(crudo.ubicacion) : null,
     parent_contenedor: crudo.parent_contenedor != null ? String(crudo.parent_contenedor) : null,
+    // Mueble inmueble: la bandera decide si el modal lo ABRE (nunca lo mueve de
+    // un toque) aunque su árbol interno todavía esté vacío.
+    es_inmueble: crudo.es_inmueble === true,
   };
 }
 
@@ -152,4 +169,106 @@ export function cajasDelMueble(
   return estructura.contenedores.filter(
     (c) => c.parent_contenedor === muebleId && !esDescendiente(estructura, contenedorId, c.id),
   );
+}
+
+// =============================================================================
+// NAVEGACIÓN RECURSIVA AL INTERIOR DEL MUEBLE (derivaciones puras)
+// =============================================================================
+
+/** Prefijo de los casilleros sintéticos de la cuadrícula interna de un mueble. */
+const PREFIJO_CASILLERO = 'casillero:';
+/** Icono de referencia de un casillero/estante interno (capa de etiquetas). */
+const ICONO_CASILLERO = '🗂️';
+/** Máximo de filas/columnas que se dibujan del interior (grilla acotada). */
+const MAX_FILAS = 6;
+const MAX_COLUMNAS = 6;
+/** Separación (% del lienzo) entre casilleros: los hace leer como cuadrícula. */
+const HUECO = 1.5;
+
+/** Acota un entero al rango [min, max]. */
+function acotar(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * ¿El contenedor se puede ABRIR para elegir una división interna?
+ *
+ * MISMO criterio con el que el Visor de Contenedor Grande considera un mueble
+ * «navegable»: es un MUEBLE de la taxonomía, es un mueble INMUEBLE (ropero /
+ * armario empotrado: nunca se traslada, siempre se abre) o ya tiene
+ * sub-contenedores. Lo que no cumple ninguna es una HOJA del inventario
+ * (caja/estante sin hijos): tocarla ejecuta el traslado en el acto.
+ */
+export function esMuebleIngresable(contenedor: ContenedorDestino): boolean {
+  return (
+    contenedor.tipo === 'MUEBLE' ||
+    contenedor.es_inmueble === true ||
+    Number(contenedor.subcontenedores_count) > 0
+  );
+}
+
+/** Contenedor por ID dentro del árbol ya cargado (búsqueda única). */
+export function contenedorPorId(
+  estructura: EstructuraMover,
+  id: string | null | undefined,
+): ContenedorDestino | undefined {
+  if (!id) return undefined;
+  return estructura.contenedores.find((c) => c.id === String(id));
+}
+
+/** Token sintético de un casillero del mueble abierto (`casillero:F:C`). */
+export function idDeCasillero(fila: number, columna: number): string {
+  return PREFIJO_CASILLERO + fila + ':' + columna;
+}
+
+/** Coordenada F·C de un token de casillero (null si no es un casillero). */
+export function casilleroDeId(token: string): { fila: number; col: number } | null {
+  if (!token.startsWith(PREFIJO_CASILLERO)) return null;
+  const partes = token.slice(PREFIJO_CASILLERO.length).split(':');
+  const fila = Math.floor(Number(partes[0]));
+  const col = Math.floor(Number(partes[1]));
+  if (!(fila > 0) || !(col > 0)) return null;
+  return { fila, col };
+}
+
+/** Casilleros por fila de la grilla interna REAL del mueble (1..MAX). */
+export function grillaInternaDe(mueble: ContenedorDestino): number[] {
+  const filas = acotar(Math.floor(Number(mueble.grid_filas)) || 1, 1, MAX_FILAS);
+  const columnas = acotar(Math.floor(Number(mueble.grid_columnas)) || 1, 1, MAX_COLUMNAS);
+  const config = Array.isArray(mueble.grid_filas_config) ? mueble.grid_filas_config : null;
+  return Array.from({ length: filas }, (_, i) => {
+    const n = config ? Math.floor(Number(config[i])) : columnas;
+    return acotar(Number.isFinite(n) && n > 0 ? n : columnas, 1, MAX_COLUMNAS);
+  });
+}
+
+/**
+ * CUADRÍCULA INTERNA del mueble como sectores seleccionables: una silueta por
+ * casillero (F·C) con su token `casillero:F:C`.
+ *
+ * Se usa cuando el mueble todavía NO tiene sub-contenedores creados, para que el
+ * operador elija la DIVISIÓN exacta: el PUT viaja con `parent_contenedor` = el
+ * mueble + la coordenada F·C, EXACTAMENTE el mismo payload que persiste el
+ * arrastre del Visor de Contenedores (`asignarSubContenedor`). Así ningún mueble
+ * queda sin interior navegable.
+ */
+export function casillerosDelMueble(mueble: ContenedorDestino): SectorMinimapa[] {
+  const filas = grillaInternaDe(mueble);
+  const alto = 100 / filas.length;
+  const sectores: SectorMinimapa[] = [];
+  filas.forEach((columnas, i) => {
+    const ancho = 100 / columnas;
+    for (let c = 1; c <= columnas; c++) {
+      sectores.push({
+        id: idDeCasillero(i + 1, c),
+        left: (c - 1) * ancho + HUECO,
+        top: i * alto + HUECO,
+        width: Math.max(1, ancho - HUECO * 2),
+        height: Math.max(1, alto - HUECO * 2),
+        nombre: 'F' + (i + 1) + '·C' + c,
+        icono: ICONO_CASILLERO,
+      });
+    }
+  });
+  return sectores;
 }
