@@ -145,6 +145,10 @@ function htmlPlano(
     responsive: true,
     clicable: true,
     atributosSector: atributos,
+    // Etiquetas de lectura del componente global: icono + nombre de cada
+    // ambiente sobre su silueta (la capa es `pointer-events:none`, así que las
+    // zonas de suelta `data-drop-*` siguen recibiendo el arrastre).
+    etiquetas: true,
   });
 }
 

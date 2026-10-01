@@ -41,6 +41,15 @@
 // reducida). Un espacio FUSIONADO («Pasillo Escalera») se dibuja como UN solo
 // `<path>` de contorno: nunca queda una línea divisoria interna.
 //
+// ETIQUETAS DE LECTURA (icono + nombre del ambiente): el plano a escala NUNCA
+// viaja como silueta vacía. El motor emite, DESPUÉS del SVG, la capa
+// `.minimapa-etiquetas` (lib/minimapaEtiquetas.ts) con el icono de referencia y
+// el nombre REAL (`espacio.nombre`) centrado sobre cada sector. El host del
+// plano es `position: relative` y la capa es `pointer-events: none`
+// (styles/minimapa-ruta.css §2.1): el texto no desborda su silueta y jamás
+// bloquea el clic de navegación ni las zonas de suelta de la Mudanza. Un espacio
+// FUSIONADO lleva UNA sola etiqueta en su cuerpo unificado.
+//
 // ESTÁNDAR VISUAL ÚNICO (idéntico en Almacenamiento, Objetos —nuevo/editar—,
 // Mudanza y la barra lateral de «Minimapas de las plantas»):
 //   - contenedor estilizado con PUNTAS REDONDEADAS y BORDE NEGRO externo,
@@ -112,6 +121,12 @@ const htmlPlano = dibujarPlano
       activoId,
       responsive: true,
       clicable,
+      // ETIQUETAS DE LECTURA: la silueta vacía no se entiende sola. El motor agrega
+      // (dentro del mismo string, DESPUÉS del SVG) la capa `.minimapa-etiquetas`
+      // con el icono de referencia y el nombre real de cada ambiente, centrada
+      // sobre su sector. Los espacios FUSIONADOS llegan como UN único sector, así
+      // que muestran UNA sola etiqueta en su cuerpo unificado.
+      etiquetas: true,
     })
   : '';
 

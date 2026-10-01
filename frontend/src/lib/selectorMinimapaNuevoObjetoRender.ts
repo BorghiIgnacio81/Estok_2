@@ -127,6 +127,9 @@ function planoSvgHtml(
     activoId: activoId || undefined,
     responsive: true,
     clicable,
+    // Etiquetas de lectura del componente global: icono + nombre de cada
+    // ambiente (y UNA sola para un espacio fusionado), sobre su silueta.
+    etiquetas: true,
   });
 }
 

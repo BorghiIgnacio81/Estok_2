@@ -94,6 +94,10 @@ function lienzoHtml(sectores: SectorMinimapa[]): string {
     aspecto: ASPECTO_LIENZO,
     responsive: true,
     clicable: true,
+    // Etiquetas de lectura del componente global: icono + nombre de cada
+    // ambiente sobre su silueta (capa `pointer-events:none`: no interfiere con
+    // la zona de suelta `data-mover-plano`).
+    etiquetas: true,
   });
   return hostPlanoMinimapaHtml(svg, ASPECTO_LIENZO, 'data-mover-plano');
 }

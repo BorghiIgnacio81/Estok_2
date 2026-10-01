@@ -71,6 +71,9 @@
   aspect-ratio: var(--minimapa-aspecto-ratio, 16 / 9);
   height: auto;
   max-height: none;
+  /* Ancla de la capa de etiquetas (§2.1): el host del plano es el sistema de
+     coordenadas de los nombres/iconos, medidos en % de este mismo lienzo. */
+  position: relative;
 }
 .minimapa-ruta-plano svg.minimapa-rect-svg-elastico {
   display: block;
@@ -93,6 +96,43 @@
 .minimapa-sector-clicable:hover rect,
 .minimapa-sector-clicable:hover path {
   filter: brightness(0.92);
+}
+
+/* ---------------------------------------------------------------------------
+   2.1 ETIQUETAS DE LECTURA (icono + nombre del ambiente sobre cada silueta)
+   La capa la emite el motor (lib/minimapaEtiquetas.ts) cuando la pantalla pide
+   `etiquetas: true`, DESPUÉS del SVG y DENTRO del host del plano. Es HTML puro
+   posicionado en % del lienzo: el texto se mide en píxeles reales de pantalla
+   (Tailwind `text-[10px] md:text-xs`), no en unidades del `viewBox`, así que la
+   legibilidad NO depende del tamaño con que se dibuje el plano.
+
+   REGLAS DURAS:
+   · `pointer-events: none` → el texto nunca roba el clic de navegación por el
+     plano ni el arrastre sobre las zonas de suelta de la Mudanza;
+   · `overflow: hidden` en cada etiqueta → el texto se recorta dentro de su
+     propia silueta: JAMÁS desborda la caja elástica (plano reducido incluido).
+   --------------------------------------------------------------------------- */
+.minimapa-etiquetas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.minimapa-etiqueta {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 2px;
+}
+/* El nombre vive en una sola línea truncada: no parte ni deforma la silueta. */
+.minimapa-etiqueta-nombre {
+  display: block;
+  width: 100%;
+}
+/* Sobre el sector naranja (ambiente actual) el icono sube su contraste. */
+.minimapa-etiqueta-activa .minimapa-etiqueta-ico {
+  filter: drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.9));
 }
 
 /* ---------------------------------------------------------------------------

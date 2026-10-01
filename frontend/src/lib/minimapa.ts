@@ -13,6 +13,10 @@
 import { sectoresAcotados } from './sectoresProporcionales';
 import { contornoUnion, pathContorno } from './plantaFusionSilueta';
 import type { CajaBloque, PuntoBloque } from './plantaFusionSilueta';
+// ETIQUETAS DE LECTURA (icono + nombre del ambiente): capa HTML que se emite
+// DESPUÉS del SVG cuando la pantalla la pide (`etiquetas: true`). Vive en su
+// propio módulo puro para no acoplar el dibujo con la iconografía.
+import { etiquetasSectoresHtml } from './minimapaEtiquetas';
 
 // =============================================================================
 // TIPOS
@@ -321,6 +325,16 @@ export interface MinimapaSectoresOpts {
    * valores. Sólo tiene efecto junto con `clicable`.
    */
   atributosSector?: (sector: { id: string; nombre: string }) => string;
+  /**
+   * ETIQUETAS DE LECTURA: agrega DESPUÉS del SVG la capa `.minimapa-etiquetas`
+   * con el icono de referencia y el nombre REAL de cada ambiente
+   * (lib/minimapaEtiquetas.ts), centrada sobre su silueta con el MISMO marco
+   * (ancho/alto/pad) que se usó para dibujarla. Un espacio FUSIONADO es UN solo
+   * sector, así que lleva UNA única etiqueta en su cuerpo unificado.
+   * La piden el componente global MinimapaRuta.astro y los planos a escala; las
+   * miniaturas de la cadena (84 px) la omiten para no saturar la migaja.
+   */
+  etiquetas?: boolean;
 }
 
 /** Aspecto por defecto del lienzo elástico (alto/ancho) cuando no se puede medir. */
@@ -401,6 +415,14 @@ export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
     : `width="${ancho}" height="${alto}"`;
   const clase = responsive ? 'minimapa-rect-svg minimapa-rect-svg-elastico' : 'minimapa-rect-svg';
 
-  return `<svg class="${clase}" ${medida} viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Plano proporcional del lienzo (ambiente actual en naranja)">${lamina}${rects.join('')}</svg>`;
+  // ETIQUETAS DE LECTURA (sólo si la pantalla las pide): capa HTML con el icono y
+  // el nombre real de cada ambiente, alineada con las siluetas por el MISMO marco
+  // (`ancho`/`alto`/`pad`) que se usó para dibujarlas. Viaja DESPUÉS del SVG, así
+  // que el plano sigue siendo un SVG puro (los selectores de trazos no cambian) y
+  // las pantallas que no la piden (miniaturas de la cadena) no reciben nada.
+  const etiquetas =
+    opts.etiquetas === true ? etiquetasSectoresHtml(sectores, { ancho, alto, pad }) : '';
+
+  return `<svg class="${clase}" ${medida} viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Plano proporcional del lienzo (ambiente actual en naranja)">${lamina}${rects.join('')}</svg>${etiquetas}`;
 }
 
