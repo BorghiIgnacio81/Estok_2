@@ -20,7 +20,8 @@ from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
 from ...services.taxonomia_contenedor import (
     TIPO_CAJA,
-    TIPO_MUEBLE,
+    TIPO_MUEBLE_MOVIL,
+    es_anclado,
     es_caja_movil,
     es_pieza_estructural,
 )
@@ -390,7 +391,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             parent_contenedor=None,
             parent_grid_row=None,
             parent_grid_col=None,
-            tipo=TIPO_MUEBLE,
+            tipo=TIPO_MUEBLE_MOVIL,
         )
 
         # 3) Eliminación física de TODAS las partes del macro-espacio.
@@ -517,6 +518,31 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         parent_id = data.get('parent_contenedor')
         ubicacion_id = data.get('ubicacion')
 
+        # ==============================================================
+        # REGLA DE FÍSICA: el anclaje al cuarto de origen es INVIOLABLE.
+        # Un CONJUNTO (estructura interna del mueble) o un MUEBLE_INMUEBLE
+        # (mueble fijo del cuarto) no puede arrastrarse a otro contenedor ni
+        # cambiar de habitación: su lugar es su cuarto de origen.
+        # ==============================================================
+        if es_anclado(contenedor):
+            padre_actual = contenedor.parent_contenedor_id
+            padre_nuevo = (
+                None if parent_id in (None, '', 'null') else str(parent_id)
+            )
+            if padre_nuevo is not None and padre_nuevo != str(padre_actual):
+                raise PermissionDenied(
+                    "«%s» está anclado a su cuarto de origen (tipo %s): no puede "
+                    "arrastrarse fuera de él." % (contenedor.nombre, contenedor.tipo)
+                )
+            if (
+                ubicacion_id not in (None, '')
+                and str(ubicacion_id) != str(contenedor.ubicacion_id)
+            ):
+                raise PermissionDenied(
+                    "«%s» está anclado a su cuarto de origen (tipo %s): no puede "
+                    "cambiar de habitación." % (contenedor.nombre, contenedor.tipo)
+                )
+
         # Operación 1: soltar dentro de OTRO contenedor (sub-nivel jerárquico)
         if parent_id not in (None, '', 'null'):
             try:
@@ -642,9 +668,10 @@ class ContenedorViewSet(viewsets.ModelViewSet):
 
         Retorna SOLO la taxonomía válida del inventario con filtros ORM
         estrictos por tipo: `cajas` (tipo='CAJA', SECCIÓN 1), `estructuras`
-        (muebles tipo='MUEBLE' mudables, SECCIÓN 3) y los objetos sueltos/sin
-        ubicación en `sueltos` (SECCIÓN 2). Los `tipo='ESTANTE'` quedan
-        estrictamente EXCLUIDOS de toda consulta y renderizado.
+        (muebles tipo='MUEBLE_MOVIL' mudables, SECCIÓN 3) y los objetos
+        sueltos/sin ubicación en `sueltos` (SECCIÓN 2). Los `tipo='CONJUNTO'`
+        (estructura interna del mueble) y los `tipo='MUEBLE_INMUEBLE'` (fijos)
+        quedan estrictamente EXCLUIDOS de toda consulta y renderizado.
 
         Consulta optimizada para PostgreSQL: 1 query de contenedores
         (select_related) + 1 query de objetos (select_related + prefetch de

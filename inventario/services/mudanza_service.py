@@ -41,6 +41,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from ..models import Contenedor, Objeto
+from .taxonomia_contenedor import es_movible
 
 
 def _estok_de_contenedor(contenedor):
@@ -162,7 +163,19 @@ class MudanzaService:
         limbo «En Tránsito» recibida como `ubicacion_destino`, porque
         `Contenedor.ubicacion` es NOT NULL (un contenedor SIEMPRE pertenece a un
         espacio del inquilinato). Su contenido interno viaja intacto.
+
+        REGLA DE FÍSICA: la mudanza cruzada admite EXCLUSIVAMENTE elementos
+        movibles (CAJA, OBJETO, MUEBLE_MOVIL). Los tipos ANCLADOS (CONJUNTO,
+        MUEBLE_INMUEBLE) se rechazan con HTTP 400: son estructura de su cuarto
+        de origen.
         """
+        if not es_movible(contenedor):
+            raise ValidationError(
+                "«%s» no es un elemento movible (tipo %s): la mudanza entre "
+                "Estoks sólo admite CAJA, OBJETO y MUEBLE_MOVIL."
+                % (contenedor.nombre, contenedor.tipo)
+            )
+
         estok_origen = _estok_de_contenedor(contenedor)
         if str(estok_origen.id) == str(estok_destino.id):
             raise ValidationError("El contenedor ya pertenece al Estok destino.")

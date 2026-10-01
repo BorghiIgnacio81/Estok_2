@@ -251,26 +251,40 @@ class Contenedor(models.Model):
         help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
     )
     # =====================================================================
-    # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO
+    # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO (5 tipos físicos)
     # El listado de la pestaña de Objetos filtra por este campo con el ORM:
     #   SECCIÓN 1 (Cajas e Inventario Interno) → tipo='CAJA' EXCLUSIVAMENTE.
-    #   SECCIÓN 3 (Muebles y Estructuras Móviles) → tipo='MUEBLE' y
+    #   SECCIÓN 3 (Muebles y Estructuras Móviles) → tipo='MUEBLE_MOVIL' y
     #     es_inmueble=False.
-    #   tipo='ESTANTE' (sub-divisiones internas) → EXCLUIDO de todo listado.
+    #   CONJUNTO (estructura interna del mueble) y MUEBLE_INMUEBLE (mueble fijo)
+    #     están ANCLADOS a su cuarto: excluidos de todo listado y de la mudanza.
     # El valor se infiere automáticamente al crear desde cualquier modal,
     # botonera o servicio (ver inventario/services/taxonomia_contenedor.py).
     # =====================================================================
     tipo = models.CharField(
-        max_length=10,
+        max_length=16,
         choices=[
-            ('MUEBLE', 'Mueble Grande'),
-            ('CAJA', 'Caja Móvil Menor'),
-            ('ESTANTE', 'Estante/Cajón Interno'),
+            ('CONJUNTO', 'Conjunto / estructura interna'),
+            ('MUEBLE_INMUEBLE', 'Mueble inmueble (fijo al cuarto)'),
+            ('MUEBLE_MOVIL', 'Mueble móvil (mudable)'),
+            ('CAJA', 'Caja móvil de inventario'),
+            ('OBJETO', 'Objeto suelto (ítem fino)'),
         ],
         default='CAJA',
         db_index=True,
         verbose_name="Tipo de contenedor",
-        help_text="Taxonomía estricta del inventario: MUEBLE (armario/cucheta/ropero), CAJA (contenedor pequeño móvil de objetos) o ESTANTE (sub-división interna de un mueble, excluida de los listados)."
+        help_text="Taxonomía de 5 tipos físicos: CONJUNTO (estructura interna del mueble), MUEBLE_INMUEBLE (fijo al cuarto, fuerza es_inmueble=True), MUEBLE_MOVIL (mudable), CAJA (contenedor móvil) u OBJETO (ítem fino suelto)."
+    )
+    # =====================================================================
+    # «EN TRÁNSITO INTERNO» (evento onDrop dentro de un mueble anfitrión)
+    # El elemento ya reside físicamente dentro del mueble con sub-divisiones
+    # internas, pero todavía NO fue ubicado de forma fina en un estante
+    # definitivo. Se limpia en cuanto se asigna un estante/casillero concreto.
+    # =====================================================================
+    en_transito_interno = models.BooleanField(
+        default=False,
+        verbose_name="En tránsito interno",
+        help_text="Activo cuando el elemento fue soltado dentro de un mueble con sub-divisiones internas SIN indicar un estante/casillero concreto. Se limpia al ubicarlo de forma fina."
     )
     espacio_lleno = models.BooleanField(
         default=False,
@@ -344,16 +358,22 @@ class Contenedor(models.Model):
     def save(self, *args, **kwargs):
         """
         Al guardar:
-          - En CREACIÓN infiere el `tipo` taxonómico legítimo (MUEBLE/CAJA/
-            ESTANTE) desde los servicios, salvo que el cliente lo haya enviado
-            explícitamente (bandera `_tipo_explicito` que fija el serializer).
+          - En CREACIÓN infiere el `tipo` taxonómico legítimo (CONJUNTO /
+            MUEBLE_INMUEBLE / MUEBLE_MOVIL / CAJA / OBJETO) desde los servicios,
+            salvo que el cliente lo haya enviado explícitamente (bandera
+            `_tipo_explicito` que fija el serializer).
+          - Fuerza `es_inmueble=True` cuando el tipo es MUEBLE_INMUEBLE (regla
+            de física: un mueble inmueble siempre es fijo).
           - Al crear una sub-división interna, promueve al mueble anfitrión a
-            MUEBLE (un contenedor con hijos nunca es una caja).
+            MUEBLE_MOVIL (una caja que aloja conjuntos deja de ser caja).
           - Genera el QR automáticamente si no existe.
         """
         from inventario.services.qr_service import QRService
         from inventario.services.taxonomia_contenedor import (
-            TIPO_MUEBLE,
+            TIPO_CAJA,
+            TIPO_MUEBLE_INMUEBLE,
+            TIPO_MUEBLE_MOVIL,
+            TIPO_OBJETO,
             inferir_tipo_contenedor,
         )
 
@@ -362,6 +382,10 @@ class Contenedor(models.Model):
             self.tipo = inferir_tipo_contenedor(
                 self, tipo_explicito=getattr(self, '_tipo_explicito', False),
             )
+
+        # Regla de física: el tipo MUEBLE_INMUEBLE fuerza el flag de inmovilidad.
+        if self.tipo == TIPO_MUEBLE_INMUEBLE:
+            self.es_inmueble = True
 
         super().save(*args, **kwargs)  # Guardar primero para tener ID
         if not self.qr_code_image:
@@ -372,9 +396,11 @@ class Contenedor(models.Model):
                 super().save(update_fields=['qr_code_image'])
 
         # Promoción del anfitrión: al recibir una sub-división interna, un
-        # contenedor RAÍZ deja de ser caja y pasa a ser MUEBLE GRANDE.
+        # contenedor RAÍZ que era CAJA (u OBJETO) pasa a ser MUEBLE_MOVIL
+        # (un mueble raíz mudable con sub-divisiones sigue siendo mudable).
         if es_nuevo and self.parent_contenedor_id:
             Contenedor.objects.filter(
                 pk=self.parent_contenedor_id,
                 parent_contenedor__isnull=True,
-            ).exclude(tipo=TIPO_MUEBLE).update(tipo=TIPO_MUEBLE)
+                tipo__in=(TIPO_CAJA, TIPO_OBJETO),
+            ).update(tipo=TIPO_MUEBLE_MOVIL)

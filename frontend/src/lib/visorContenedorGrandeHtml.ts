@@ -53,6 +53,8 @@ export interface SubContVisor {
   es_inmueble?: boolean;
   /** Marca manual de clausura: el casillero F·C del mueble está físicamente lleno. */
   espacio_lleno?: boolean;
+  /** Flag del backend: soltado en el mueble sin estante concreto («En Tránsito Interno»). */
+  en_transito_interno?: boolean;
   subcontenedores_count?: number;
   /** Medidas visuales + geometría elástica de la estantería/caja (rectángulo libre). */
   ui_left?: string | null;
@@ -69,6 +71,8 @@ export interface SubObjVisor {
   contenedor?: string | null;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /** Flag del backend: objeto dentro del mueble sin casillero fino («En Tránsito Interno»). */
+  en_transito_interno?: boolean;
 }
 
 export interface OpcionesVisorContenido {
@@ -99,6 +103,11 @@ function fichaVisualHtml(nombre: string, clase: string): string {
     : `<img src="${IMG_MUEBLE}" alt="" class="${clase}" draggable="false" />`;
 }
 
+/** Etiqueta roja del flag «En Tránsito Interno» (dentro del mueble, sin estante fino). */
+function etiquetaTransitoHtml(): string {
+  return '<span class="mueble-item-transito" title="En Tránsito Interno: el elemento está físicamente dentro del mueble pero todavía no fue ubicado en un estante concreto.">🔴 En tránsito interno</span>';
+}
+
 /** Objetos sueltos colgados directamente del mueble (chips arrastrables a la bandeja). */
 function muebleObjetosHtml(m: MuebleVisor, objs: SubObjVisor[]): string {
   const directos = objs.filter((o) => o.contenedor === m.id);
@@ -107,9 +116,10 @@ function muebleObjetosHtml(m: MuebleVisor, objs: SubObjVisor[]): string {
     <span class="mueble-objetos-titulo">Objetos sueltos</span>
     ${directos
       .map(
-        (o) => `<span class="mueble-item mueble-item-objeto" draggable="true" data-mueble-obj-dnd="${o.id}" title="Arrastrá «${escapeHtml(o.nombre)}» para reacomodarlo o extraerlo a la bandeja">
+        (o) => `<span class="mueble-item mueble-item-objeto${o.en_transito_interno ? ' mueble-item-transito-fila' : ''}" draggable="true" data-mueble-obj-dnd="${o.id}" title="Arrastrá «${escapeHtml(o.nombre)}» para reacomodarlo o extraerlo a la bandeja">
         <img src="${IMG_OBJETO}" alt="" class="mueble-item-img mueble-item-img-objeto" draggable="false" />
         <span class="mueble-item-nombre">${escapeHtml(o.nombre)}</span>
+        ${o.en_transito_interno ? etiquetaTransitoHtml() : ''}
       </span>`,
       )
       .join('')}
@@ -136,8 +146,9 @@ function muebleCajasHtml(m: MuebleVisor, conts: SubContVisor[]): string {
     <span class="mueble-objetos-titulo">Cajas guardadas</span>
     ${guardadas
       .map(
-        (c) => `<span class="mueble-item mueble-item-caja" title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil guardada en este mueble: es CONTENIDO, no una división de su cuadrícula.">
+        (c) => `<span class="mueble-item mueble-item-caja${c.en_transito_interno ? ' mueble-item-transito-fila' : ''}" title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil guardada en este mueble: es CONTENIDO, no una división de su cuadrícula.">
         <span class="mueble-item-nombre">📦 ${escapeHtml(c.nombre)}</span>
+        ${c.en_transito_interno ? etiquetaTransitoHtml() : ''}
       </span>`,
       )
       .join('')}

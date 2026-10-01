@@ -10,10 +10,11 @@ Objetos ("Exportar Datos / Informe"):
         - completo     → filas de Objeto (todas) + filas de Contenedor.
         - objetos      → solo filas de Objeto (equivalentes a all()).
         - contenedores → solo filas de Contenedor.
-      En este esquema el "tipo" CAJA/MUEBLE vive en el modelo `Contenedor`
-      (taxonomía estricta de inventario/services/taxonomia_contenedor.py), así
-      que el filtro pedido `filter(tipo='CAJA')` se aplica sobre Contenedor y
-      excluye los ESTANTE (sub-divisiones internas, fuera de todo listado).
+      En este esquema el "tipo" (CAJA/MUEBLE_MOVIL/MUEBLE_INMUEBLE) vive en el
+      modelo `Contenedor` (taxonomía estricta de
+      inventario/services/taxonomia_contenedor.py), así que el filtro pedido
+      `filter(tipo='CAJA')` se aplica sobre Contenedor y excluye los CONJUNTO
+      (estructuras internas, fuera de todo listado).
 
   GET /api/objetos/exportar_pdf/?incluir_mapas=&mostrar_precios=&ahorro_tinta=
       Informe PDF (ReportLab) armado por services/informe_pdf_service.py.
@@ -36,7 +37,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ....models import Contenedor, Estok
-from ....services.taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
+from ....services.taxonomia_contenedor import (
+    TIPO_CAJA,
+    TIPO_MUEBLE_INMUEBLE,
+    TIPO_MUEBLE_MOVIL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +145,7 @@ class ExportActionsMixin:
         qs = Contenedor.objects.select_related(
             'ubicacion', 'parent_contenedor',
         ).filter(
-            tipo__in=(TIPO_CAJA, TIPO_MUEBLE),
+            tipo__in=(TIPO_CAJA, TIPO_MUEBLE_MOVIL, TIPO_MUEBLE_INMUEBLE),
         )
         estok_id = self._estok_activo_id()
         if estok_id:

@@ -7,7 +7,16 @@ from uuid import UUID
 from rest_framework import serializers
 
 from ...models import Ubicacion, Contenedor
-from ...services.taxonomia_contenedor import TIPO_CAJA, es_caja_movil
+from ...services.taxonomia_contenedor import (
+    TIPO_CAJA,
+    TIPO_MUEBLE_INMUEBLE,
+    TIPOS,
+    TIPOS_ANCLADOS,
+    TIPOS_TRANSITO_INTERNO,
+    es_anclado,
+    es_caja_movil,
+)
+from ...services.transito_interno import esta_en_transito_interno
 
 
 class UbicacionSerializer(serializers.ModelSerializer):
@@ -166,7 +175,7 @@ class ContenedorSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """
-        BLINDAJE DE INTEGRIDAD TAXONOMICA (anti-insercion doble erronea).
+        BLINDAJE DE INTEGRIDAD TAXONOMICA (5 tipos estrictos de inventario).
 
         Una CAJA movil (`tipo='CAJA'` y `es_inmueble=False`) es un contenedor
         pequeno de objetos: el Drop / endpoint de traslado NUNCA puede alterar su
@@ -175,6 +184,12 @@ class ContenedorSerializer(serializers.ModelSerializer):
         operacion se rechaza con HTTP 400 en vez de corromper el registro y
         descalzar sus objetos internos.
 
+        REGLA DE FISICA (anclaje): los tipos CONJUNTO (estructura interna del
+        mueble) y MUEBLE_INMUEBLE (mueble fijo del cuarto) estan ANCLADOS a su
+        cuarto de origen: no pueden convertirse a un tipo movible ni arrastrarse
+        a otro contenedor por PUT. El criterio unico vive en
+        `services.taxonomia_contenedor.es_anclado`.
+
         EXCLUSIVIDAD DE DIVISIONES: las divisiones/estantes internos de un
         mueble son exclusivos de ese mueble. Por eso una CAJA movil jamas se
         escribe como una division mas de su cuadricula: el endpoint de
@@ -182,8 +197,21 @@ class ContenedorSerializer(serializers.ModelSerializer):
         (`parent_grid_row/col`) y la registra unicamente como CONTENIDO hijo
         dentro de la division/estante seleccionado. El criterio taxonomico vive
         en un unico lugar: `services.taxonomia_contenedor.es_caja_movil`.
+
+        «EN TRANSITO INTERNO» (evento onDrop): una CAJA u OBJETO soltado dentro
+        de un mueble anfitrion CON sub-divisiones internas, sin estante
+        concreto, queda marcado con `en_transito_interno=True`.
         """
         instancia = self.instance
+        tipo_nuevo = attrs.get('tipo')
+
+        # 1) Whitelist estricta de los 5 tipos fisicos.
+        if tipo_nuevo is not None and tipo_nuevo not in TIPOS:
+            raise serializers.ValidationError({
+                'tipo': "Tipo invalido. Valores admitidos: %s." % ', '.join(TIPOS),
+            })
+
+        # 2) Una CAJA movil es inmutable: nunca se vuelve espacio fijo.
         if instancia is not None and es_caja_movil(instancia):
             if attrs.get('es_inmueble') is True:
                 raise serializers.ValidationError({
@@ -193,7 +221,6 @@ class ContenedorSerializer(serializers.ModelSerializer):
                         "mueble nuevo si necesita un espacio fijo del plano."
                     ),
                 })
-            tipo_nuevo = attrs.get('tipo')
             if tipo_nuevo and tipo_nuevo != TIPO_CAJA:
                 raise serializers.ValidationError({
                     'tipo': (
@@ -201,18 +228,77 @@ class ContenedorSerializer(serializers.ModelSerializer):
                         "es inmutable y no puede pasar a '%s'." % tipo_nuevo
                     ),
                 })
+
+        # 3) Regla de fisica: el tipo MUEBLE_INMUEBLE fuerza es_inmueble=True.
+        if tipo_nuevo == TIPO_MUEBLE_INMUEBLE:
+            attrs['es_inmueble'] = True
+
+        # 4) Anclaje: un elemento anclado no se desancla ni cambia de cuarto.
+        if instancia is not None and es_anclado(instancia):
+            if tipo_nuevo and tipo_nuevo not in TIPOS_ANCLADOS:
+                raise serializers.ValidationError({
+                    'tipo': (
+                        "Integridad de fisica: '%s' esta ANCLADO a su cuarto de "
+                        "origen y no puede pasar a un tipo movible." % instancia.tipo
+                    ),
+                })
+            if (
+                'parent_contenedor' in attrs
+                and attrs.get('parent_contenedor') != instancia.parent_contenedor
+            ):
+                raise serializers.ValidationError({
+                    'parent_contenedor': (
+                        "Integridad de fisica: un elemento anclado ('%s') no puede "
+                        "arrastrarse fuera de su cuarto de origen." % instancia.tipo
+                    ),
+                })
+
+        # 5) Estado «En Transito Interno» derivado del Drop.
+        self._resolver_transito_interno(instancia, attrs)
         return attrs
+
+    def _resolver_transito_interno(self, instancia, attrs):
+        """
+        Deriva el flag `en_transito_interno` del Drop sobre un mueble anfitrion.
+
+        Se recalcula UNICAMENTE cuando el payload toca la jerarquia
+        (`parent_contenedor`) o las coordenadas del casillero
+        (`parent_grid_row/col`), para no borrar un estado vigente en un PUT
+        parcial que solo renombra la pieza. Solo aplica a CAJA y OBJETO: una
+        sub-division (CONJUNTO) no es un elemento pendiente de ubicacion fina.
+        """
+        claves = ('parent_contenedor', 'parent_grid_row', 'parent_grid_col')
+        if not any(clave in attrs for clave in claves):
+            return
+
+        tipo_efectivo = attrs.get('tipo') or getattr(instancia, 'tipo', None)
+        if tipo_efectivo not in TIPOS_TRANSITO_INTERNO:
+            attrs['en_transito_interno'] = False
+            return
+
+        destino = attrs.get('parent_contenedor') or (
+            instancia.parent_contenedor if instancia is not None else None
+        )
+        fila = attrs.get(
+            'parent_grid_row',
+            instancia.parent_grid_row if instancia is not None else None,
+        )
+        col = attrs.get(
+            'parent_grid_col',
+            instancia.parent_grid_col if instancia is not None else None,
+        )
+        attrs['en_transito_interno'] = esta_en_transito_interno(destino, fila, col)
 
     def create(self, validated_data):
         """
         Alta de Contenedor con TAXONOMÍA AUTOMÁTICA.
 
-        El `tipo` (MUEBLE/CAJA/ESTANTE) se infiere en `Contenedor.save()` desde
-        `inventario.services.taxonomia_contenedor` según el contexto real de
-        creación (es_inmueble, parent_contenedor, coordenadas de la grilla y
-        rótulo del modal/botonera). Si el cliente envía `tipo` explícito se
-        respeta: la bandera `_tipo_explicito` le indica al modelo que no
-        sobrescriba el valor recibido.
+        El `tipo` (CONJUNTO/MUEBLE_INMUEBLE/MUEBLE_MOVIL/CAJA/OBJETO) se infiere
+        en `Contenedor.save()` desde `inventario.services.taxonomia_contenedor`
+        según el contexto real de creación (es_inmueble, parent_contenedor,
+        coordenadas de la grilla y rótulo del modal/botonera). Si el cliente
+        envía `tipo` explícito se respeta: la bandera `_tipo_explicito` le
+        indica al modelo que no sobrescriba el valor recibido.
         """
         instance = Contenedor(**validated_data)
         if 'tipo' in (getattr(self, 'initial_data', None) or {}):

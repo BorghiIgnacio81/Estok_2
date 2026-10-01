@@ -139,6 +139,7 @@ async function cargar(): Promise<void> {
       tipo: c.tipo != null ? String(c.tipo) : null,
       es_inmueble: Boolean(c.es_inmueble),
       espacio_lleno: Boolean(c.espacio_lleno),
+      en_transito_interno: Boolean(c.en_transito_interno),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
       ui_left: c.ui_left != null ? String(c.ui_left) : null,
       ui_top: c.ui_top != null ? String(c.ui_top) : null,
@@ -155,6 +156,7 @@ async function cargar(): Promise<void> {
       contenedor: o.contenedor != null ? String(o.contenedor) : null,
       parent_grid_row: o.parent_grid_row != null ? Number(o.parent_grid_row) : null,
       parent_grid_col: o.parent_grid_col != null ? Number(o.parent_grid_col) : null,
+      en_transito_interno: Boolean(o.en_transito_interno),
     }));
 
   // RAÍCES de la habitación: TODOS los contenedores sin padre. Alimentan el
@@ -469,8 +471,18 @@ function enlazarDropPadre(lienzo: HTMLElement, muebleId: string): void {
     lienzo.classList.remove('lienzo-elastico-drop-activo');
     const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
     const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-    if (contId) void asignarSubContenedor(contId, destinoDropDe(de, muebleId), 1, 1);
-    else if (objId) void asignarObjetoAMueble(objId, destinoDropDe(de, muebleId), 1, 1);
+    // DESTINO FINO vs. CUERPO GENERAL DEL MUEBLE:
+    //   · Sobre el rectángulo de una división/estante (data-inplace-card) el
+    //     elemento se guarda DENTRO de esa división (estante explícito).
+    //   · Sobre la zona gris perimetral del mueble (cuerpo general, sin estante
+    //     elegido) se envía SIN coordenadas F·C: el backend lo marca
+    //     «En Tránsito Interno» dentro del mueble raíz (regla del evento onDrop).
+    const destino = destinoDropDe(de, muebleId);
+    const enCuerpoGeneral = destino === muebleId;
+    const fila = enCuerpoGeneral ? null : 1;
+    const col = enCuerpoGeneral ? null : 1;
+    if (contId) void asignarSubContenedor(contId, destino, fila, col);
+    else if (objId) void asignarObjetoAMueble(objId, destino, fila, col);
   });
 }
 
@@ -566,7 +578,12 @@ async function crearSubContenedorEnCelda(muebleId: string, r: number, c: number)
 // PERSISTENCIA (PUT multi-tenant con coordenadas enteras)
 // =============================================================================
 
-async function asignarSubContenedor(id: string, padreId: string, r: number, c: number): Promise<void> {
+async function asignarSubContenedor(
+  id: string,
+  padreId: string,
+  r: number | null,
+  c: number | null,
+): Promise<void> {
   if (!roomActual) return;
   const dato = subContenedores.find((x) => x.id === id);
   if (dato && (dato.subcontenedores_count || 0) > 0) {
@@ -584,8 +601,11 @@ async function asignarSubContenedor(id: string, padreId: string, r: number, c: n
   // tipo='CAJA' y es_inmueble=False.
   // =====================================================================
   const esContenido = esCajaMovil(dato);
-  const filaEntera = esContenido ? null : Math.floor(Number(r));
-  const colEntera = esContenido ? null : Math.floor(Number(c));
+  // Una CAJA móvil es CONTENIDO (jamás coordenadas de casillero). Y un Drop en
+  // el CUERPO GENERAL (r/c nulos) viaja SIN F·C para que el backend resuelva
+  // «En Tránsito Interno» sobre el mueble anfitrión con divisiones.
+  const filaEntera = esContenido || r == null ? null : Math.floor(Number(r));
+  const colEntera = esContenido || c == null ? null : Math.floor(Number(c));
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
       method: 'PUT',
@@ -619,10 +639,19 @@ async function asignarSubContenedor(id: string, padreId: string, r: number, c: n
   }
 }
 
-async function asignarObjetoAMueble(id: string, muebleId: string, r: number, c: number): Promise<void> {
+async function asignarObjetoAMueble(
+  id: string,
+  muebleId: string,
+  r: number | null,
+  c: number | null,
+): Promise<void> {
   if (!roomActual) return;
-  const filaEntera = Math.floor(Number(r));
-  const colEntera = Math.floor(Number(c));
+  // Drop en el CUERPO GENERAL del mueble (r/c nulos): el objeto entra al mueble
+  // raíz SIN F·C → el backend lo marca «En Tránsito Interno» (pendiente de
+  // ubicación fina en un estante concreto).
+  const enTransito = r == null || c == null;
+  const filaEntera = enTransito ? null : Math.floor(Number(r));
+  const colEntera = enTransito ? null : Math.floor(Number(c));
   try {
     const res = await fetch(`${API_BASE_URL}/objetos/${id}/`, {
       method: 'PUT',
@@ -639,7 +668,9 @@ async function asignarObjetoAMueble(id: string, muebleId: string, r: number, c: 
       return;
     }
     if (res.ok) {
-      toast('✅ Objeto acomodado en el casillero del mueble.');
+      toast(enTransito
+        ? '🔴 «En Tránsito Interno»: el objeto quedó dentro del mueble sin estante concreto. Abrilo para ubicarlo fino en un estante.'
+        : '✅ Objeto acomodado en el casillero del mueble.');
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
     } else {
       const err = await res.json().catch(() => ({}));

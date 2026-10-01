@@ -358,6 +358,21 @@ export function iniciarPortalesAlmacenamiento(): void {
     const detalle =
       (e as CustomEvent<{ fila: number | null; nombre?: string | null; total?: number; hermanas?: ItemGeometria[] }>)
         .detail;
+    // PERSISTENCIA DE NIVEL (fix «pérdida de nivel al editar divisiones»):
+    // El refresco de datos en vivo (estok:espacios-cambiados → notificarPlanta()
+    // del Mapa Estok) REEMITE 'estok:planta-seleccionada' con la planta vigente.
+    // Si el usuario ya está inspeccionando una habitación o el interior de un
+    // mueble (Nivel >= 2), ese re-latido NO debe devolverlo al plano de
+    // habitaciones: solo se refresca el contexto de la planta y su minimapa. La
+    // vuelta a la casa/mapa solo ocurre por navegación explícita
+    // («⬅ Volver de Nivel»).
+    if (estado.nivel >= 2) {
+      estado.plantaTotal = Math.max(1, Math.floor(Number(detalle?.total) || estado.plantaTotal || 1));
+      if (detalle?.nombre) estado.plantaNombre = detalle.nombre;
+      if (detalle?.hermanas?.length) estado.hermanasRoom = detalle.hermanas;
+      renderMinimapa();
+      return;
+    }
     const fila = detalle?.fila ?? null;
     estado.plantaFila = fila;
     estado.plantaNombre = detalle?.nombre ?? '';

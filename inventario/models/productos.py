@@ -91,6 +91,17 @@ class Objeto(models.Model):
         verbose_name="Objeto contenedor padre",
         help_text="Si este objeto está dentro de otro objeto que actúa como contenedor"
     )
+    # =====================================================================
+    # «EN TRÁNSITO INTERNO» (evento onDrop dentro de un mueble anfitrión)
+    # El objeto ya reside físicamente dentro del mueble con sub-divisiones
+    # internas, pero todavía NO fue ubicado de forma fina en un estante
+    # definitivo. Se limpia al asignarle un estante/casillero concreto.
+    # =====================================================================
+    en_transito_interno = models.BooleanField(
+        default=False,
+        verbose_name="En tránsito interno",
+        help_text="Activo cuando el objeto fue soltado dentro de un mueble con sub-divisiones internas SIN indicar un estante/casillero concreto."
+    )
 
     # Estado y valoración
     estado_conservacion = models.CharField(

@@ -15,6 +15,7 @@ import logging
 from rest_framework import serializers
 
 from ...models import Objeto
+from ...services.transito_interno import esta_en_transito_interno
 
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'categoria', 'categoria_nombre',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
-            'owner_action',
+            'owner_action', 'en_transito_interno',
             # IDs espaciales para el árbol de la Mudanza Inter-Estok
             'estok', 'ubicacion', 'contenedor',
         ]
@@ -232,6 +233,42 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             'owner_action', 'plataformas_publicadas',
         ]
         read_only_fields = ['id']
+
+    def validate(self, attrs):
+        """
+        Deriva el estado «En Transito Interno» del Drop del objeto.
+
+        REGLA (evento onDrop del backend): si el objeto se suelta dentro de un
+        MUEBLE_MOVIL o MUEBLE_INMUEBLE que posee sub-divisiones internas
+        (CONJUNTOS) SIN indicar un estante/casillero concreto, queda almacenado
+        con su `contenedor` apuntando al mueble raiz y con
+        `en_transito_interno = True`: ya reside fisicamente en ese mueble, pero
+        esta pendiente de ubicacion fina. Un estante o casillero explicito (o el
+        desvinculo del mueble) limpia el flag.
+
+        Se recalcula UNICAMENTE cuando el payload toca la jerarquia espacial,
+        para no borrar un estado vigente en un PUT parcial que solo renombra el
+        objeto.
+        """
+        claves = ('contenedor', 'parent_grid_row', 'parent_grid_col')
+        if not any(clave in attrs for clave in claves):
+            return attrs
+
+        if 'contenedor' in attrs:
+            destino = attrs.get('contenedor')
+        else:
+            destino = self.instance.contenedor if self.instance is not None else None
+
+        fila = attrs.get(
+            'parent_grid_row',
+            self.instance.parent_grid_row if self.instance is not None else None,
+        )
+        col = attrs.get(
+            'parent_grid_col',
+            self.instance.parent_grid_col if self.instance is not None else None,
+        )
+        attrs['en_transito_interno'] = esta_en_transito_interno(destino, fila, col)
+        return attrs
 
     def create(self, validated_data):
         # Aislamiento multi-tenant: el estok se asigna desde el header,

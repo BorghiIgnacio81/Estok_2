@@ -1,30 +1,58 @@
 """
-TAXONOMÍA ESTRICTA DE CONTENEDORES (MUEBLE / CAJA / ESTANTE).
+TAXONOMÍA ESTRICTA DE CONTENEDORES (5 tipos físicos obligatorios).
 
-El listado de la pestaña de Objetos necesita separar sin ambigüedad tres
-naturalezas físicas que antes se inferían en el cliente con heurísticas
-frágiles (es_inmueble + conteo de hijos + patrón de nombre):
+El inventario separa sin ambigüedad CINCO naturalezas físicas:
 
-  - MUEBLE   → armario, cucheta, ropero, archivador: estructura GRANDE que
-               aloja sub-divisiones u objetos. Se lista en la SECCIÓN 3
-               (Muebles y Estructuras Móviles) y nunca en la SECCIÓN 1.
-  - CAJA     → contenedor pequeño MÓVIL donde el operador mete objetos. Es el
-               ÚNICO tipo admitido en la SECCIÓN 1 (Cajas e Inventario Interno).
-  - ESTANTE  → sub-división interna / cajonera de un mueble (Nivel 3/4). Queda
-               EXCLUIDA de cualquier listado de inventario independiente.
+  - CONJUNTO        → conjunto/estructura interna de un mueble (estante,
+                      cajonera, cajón de Nivel 3/4). Es PURA ESTRUCTURA: se
+                      excluye de la SECCIÓN 3 del listado de Objetos, de las
+                      bandejas de «por ubicar» y de la Mudanza Inter-Estok.
+  - MUEBLE_INMUEBLE → mueble FIJO adherido a su cuarto (ropero empotrado).
+                      Anclado: nunca se arrastra ni se elimina. Fuerza
+                      `es_inmueble = True`.
+  - MUEBLE_MOVIL    → mueble mudable (ropero espejo, archivador). Listado en la
+                      SECCIÓN 3 y único mueble mudable del inventario.
+  - CAJA            → contenedor móvil de inventario (SECCIÓN 1).
+  - OBJETO          → contenedor que representa un ítem fino suelto.
 
-Este módulo es el ÚNICO origen de la clasificación automática: la usan el
-modelo `Contenedor` (al crear desde cualquier modal/botonera/servicio) y la
-migración de backfill de datos históricos. NO define ni importa modelos (así la
-misma regla sirve para el modelo vivo y para el modelo histórico de la
-migración, sin acoplamiento circular).
+REGLA DE FÍSICA (restricción de arrastre y eliminación):
+  - MOVILES = CAJA, OBJETO, MUEBLE_MOVIL → se mudan entre cuartos y Estoks.
+  - ANCLADOS = CONJUNTO, MUEBLE_INMUEBLE → bloqueados ante acciones de
+    arrastre o eliminación FUERA de su cuarto de origen, y omitidos por
+    completo de las bandejas de «Elementos por ubicar» y de las columnas de
+    mudanza cruzada.
+
+Este módulo es el ÚNICO origen de la clasificación automática: lo usan el
+modelo `Contenedor` (al crear desde cualquier modal/botonera/servicio) y los
+serializers/viewsets. NO define ni importa modelos, para poder reutilizarse sin
+acoplamiento circular; el sondeo de jerarquía contra la base vive en
+`inventario/services/transito_interno.py`.
 """
 
 import re
 
-TIPO_MUEBLE = 'MUEBLE'
+TIPO_CONJUNTO = 'CONJUNTO'
+TIPO_MUEBLE_INMUEBLE = 'MUEBLE_INMUEBLE'
+TIPO_MUEBLE_MOVIL = 'MUEBLE_MOVIL'
 TIPO_CAJA = 'CAJA'
-TIPO_ESTANTE = 'ESTANTE'
+TIPO_OBJETO = 'OBJETO'
+
+# Lista canónica de los 5 tipos (whitelist de validación de los serializers).
+TIPOS = (
+    TIPO_CONJUNTO,
+    TIPO_MUEBLE_INMUEBLE,
+    TIPO_MUEBLE_MOVIL,
+    TIPO_CAJA,
+    TIPO_OBJETO,
+)
+
+# Clasificación por física de traslado: ÚNICA regla del backend.
+TIPOS_ANCLADOS = (TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE)
+TIPOS_MOVILES = (TIPO_CAJA, TIPO_OBJETO, TIPO_MUEBLE_MOVIL)
+TIPOS_MUEBLE = (TIPO_MUEBLE_MOVIL, TIPO_MUEBLE_INMUEBLE)
+# Solo estos elementos pueden quedar «En Tránsito Interno» al soltarse dentro
+# de un mueble anfitrión con sub-divisiones, sin estante definitivo.
+TIPOS_TRANSITO_INTERNO = (TIPO_CAJA, TIPO_OBJETO)
 
 # Rótulos por defecto de las botoneras/motores de creación vigentes:
 #   visorHabitacion  → "Mueble 1"
@@ -47,83 +75,112 @@ def es_nombre_de_estante(nombre):
     return bool(RE_NOMBRE_ESTANTE.match(str(nombre or '').strip()))
 
 
-def inferir_tipo_contenedor(
-    contenedor, *, tipo_explicito=False, tiene_hijos=None, parent_es_raiz=None,
-):
+def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):
     """
-    Resuelve el tipo taxonómico legítimo de un Contenedor.
+    Resuelve el tipo taxonómico legítimo de un Contenedor al CREARLO.
 
     Reglas (en orden de prioridad):
 
       1. `tipo_explicito=True` → se respeta el valor enviado por el cliente.
-      2. `es_inmueble=True`    → MUEBLE (mueble fijo adherido a la habitación).
-      3. Tiene sub-contenedores → MUEBLE si es raíz, ESTANTE si es anidado.
-      4. Nombre por defecto "Mueble ..." → MUEBLE.
-      5. Nombre por defecto "Estante/Estantería/Cajonera/Cajón ..." → ESTANTE.
-      6. `parent_contenedor` definido → ESTANTE (sub-división interna). El
-         backfill histórico pasa `parent_es_raiz=True` para preservar las cajas
-         reales que viven dentro de un mueble raíz (Nivel 3).
-      7. Contenedor raíz encastrado en la grilla de la habitación
-         (`parent_grid_row/col`) → MUEBLE.
-      8. Resto → CAJA (contenedor pequeño móvil de objetos).
+      2. `es_inmueble=True`    → MUEBLE_INMUEBLE (mueble fijo del cuarto).
+      3. Rótulo "Estante/Estantería/Cajonera/Cajón ..." → CONJUNTO.
+      4. `parent_contenedor` definido → CONJUNTO (conjunto/estructura interna
+         del mueble anfitrión; Nivel 3/4).
+      5. Rótulo "Mueble ..."   → MUEBLE_MOVIL.
+      6. Encastrado en la grilla de la habitación (`parent_grid_row/col`) →
+         MUEBLE_MOVIL.
+      7. Resto → CAJA (contenedor móvil de objetos).
 
-    `tiene_hijos` y `parent_es_raiz` son opcionales: al crear un contenedor
-    todavía no existen hijos, por lo que el modelo los omite; la migración de
-    backfill los calcula con los datos históricos.
+    Un mueble raíz MUDABLE (`es_inmueble=False`) es SIEMPRE MUEBLE_MOVIL,
+    tenga o no sub-divisiones internas: sus CONJUNTOS viajan con él en
+    cascada, sin alterar su condición de mudable.
     """
     if tipo_explicito and getattr(contenedor, 'tipo', None):
         return contenedor.tipo
 
     if getattr(contenedor, 'es_inmueble', False):
-        return TIPO_MUEBLE
-
-    if tiene_hijos:
-        return TIPO_MUEBLE if not contenedor.parent_contenedor_id else TIPO_ESTANTE
+        return TIPO_MUEBLE_INMUEBLE
 
     nombre = getattr(contenedor, 'nombre', '')
-    if es_nombre_de_mueble(nombre):
-        return TIPO_MUEBLE
     if es_nombre_de_estante(nombre):
-        return TIPO_ESTANTE
+        return TIPO_CONJUNTO
 
-    if contenedor.parent_contenedor_id:
-        return TIPO_CAJA if parent_es_raiz is True else TIPO_ESTANTE
+    if getattr(contenedor, 'parent_contenedor_id', None):
+        return TIPO_CONJUNTO
+
+    if es_nombre_de_mueble(nombre):
+        return TIPO_MUEBLE_MOVIL
 
     if (
-        contenedor.parent_grid_row is not None
-        or contenedor.parent_grid_col is not None
+        getattr(contenedor, 'parent_grid_row', None) is not None
+        or getattr(contenedor, 'parent_grid_col', None) is not None
     ):
-        return TIPO_MUEBLE
+        return TIPO_MUEBLE_MOVIL
 
     return TIPO_CAJA
 
 
-def es_caja_movil(contenedor):
+def es_mueble(pieza):
+    """True si la pieza es un mueble (MUEBLE_MOVIL o MUEBLE_INMUEBLE)."""
+    return getattr(pieza, 'tipo', None) in TIPOS_MUEBLE
+
+
+def es_caja_movil(pieza):
     """
-    True si el contenedor es una CAJA móvil: CONTENIDO puro del inventario.
+    True si la pieza es una CAJA móvil: CONTENIDO puro del inventario.
 
     Una caja móvil (`tipo='CAJA'` y `es_inmueble=False`) es un contenedor
     pequeño de objetos que el operador mueve de un lugar a otro. NUNCA es una
     división/estante estructural de un mueble ni un espacio fijo del plano, por
-    lo que su Drop jamas puede alterar la cuadricula de divisiones del mueble
-    anfitrion. Es la ÚNICA definición del concepto en todo el backend (la usan
+    lo que su Drop jamás puede alterar la cuadrícula de divisiones del mueble
+    anfitrión. Es la ÚNICA definición del concepto en todo el backend (la usan
     el serializer y el endpoint de actualización de almacenamiento).
     """
     return (
-        getattr(contenedor, 'tipo', None) == TIPO_CAJA
-        and not getattr(contenedor, 'es_inmueble', False)
+        getattr(pieza, 'tipo', None) == TIPO_CAJA
+        and not getattr(pieza, 'es_inmueble', False)
     )
 
 
-def es_pieza_estructural(contenedor):
+def es_movible(pieza):
     """
-    True si el contenedor es una pieza FIJA del mueble y dueña de su grilla.
+    True si la pieza es MOVIBLE: CAJA, OBJETO o MUEBLE_MOVIL (y no anclada).
 
-    Un mueble (MUEBLE), su mueble inmueble (`es_inmueble=True`) o una de sus
-    sub-divisiones internas (ESTANTE) mapean su propia cuadrícula de casilleros
-    (`parent_grid_row/col`): esa grilla es EXCLUSIVA del mueble y sólo sirve
-    para mapear coordenadas y saber qué sección del minimapa resaltar.
+    Es la whitelist POSITIVA de la física de traslado: los elementos movibles
+    son los ÚNICOS que pueden mudarse entre cuartos y Estoks, y los únicos que
+    deben listarse en las bandejas de «Elementos por ubicar» y en las columnas
+    de la mudanza cruzada. Su complemento son los tipos ANCLADOS
+    (CONJUNTO, MUEBLE_INMUEBLE) más cualquier `es_inmueble=True`.
     """
-    if getattr(contenedor, 'es_inmueble', False):
+    return (
+        not es_anclado(pieza)
+        and getattr(pieza, 'tipo', None) in TIPOS_MOVILES
+    )
+
+
+def es_anclado(pieza):
+    """
+    True si la pieza está ANCLADA a su cuarto de origen.
+
+    Los tipos CONJUNTO (estructura interna del mueble) y MUEBLE_INMUEBLE
+    (mueble fijo adherido al cuarto) quedan estrictamente BLOQUEADOS ante
+    acciones de arrastre o eliminación fuera de su cuarto de origen y se
+    omiten por completo de las bandejas y de la mudanza cruzada. Un
+    `es_inmueble=True` es anclado por definición, sin importar su tipo.
+    """
+    if getattr(pieza, 'es_inmueble', False):
         return True
-    return getattr(contenedor, 'tipo', None) in (TIPO_MUEBLE, TIPO_ESTANTE)
+    return getattr(pieza, 'tipo', None) in TIPOS_ANCLADOS
+
+
+def es_pieza_estructural(pieza):
+    """
+    True si la pieza es FIJA y dueña de su grilla de casilleros.
+
+    Un mueble (MUEBLE_MOVIL / MUEBLE_INMUEBLE), su mueble inmueble
+    (`es_inmueble=True`) o una de sus sub-divisiones internas (CONJUNTO)
+    mapean su propia cuadrícula de casilleros (`parent_grid_row/col`): esa
+    grilla es EXCLUSIVA del mueble y sólo sirve para mapear coordenadas y
+    saber qué sección del minimapa resaltar.
+    """
+    return es_anclado(pieza) or es_mueble(pieza)

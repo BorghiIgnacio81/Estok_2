@@ -37,7 +37,11 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from inventario.models import Contenedor, Objeto
-from inventario.services.taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
+from inventario.services.taxonomia_contenedor import (
+    TIPO_CAJA,
+    TIPO_MUEBLE_INMUEBLE,
+    TIPO_MUEBLE_MOVIL,
+)
 
 NOMBRE_CAJA_DEFAULT = 'Caja 03(Piezas Yeso Pesebre)'
 NOMBRE_PADRE_DEFAULT = 'Ropero Empotrado'
@@ -140,7 +144,10 @@ class Command(BaseCommand):
         candidatos = list(qs.order_by('created_at'))
         if not candidatos:
             raise CommandError('No existe ningun contenedor con el rotulo padre %r.' % nombre)
-        muebles = [c for c in candidatos if c.tipo == TIPO_MUEBLE or c.es_inmueble]
+        muebles = [
+            c for c in candidatos
+            if c.tipo in (TIPO_MUEBLE_MOVIL, TIPO_MUEBLE_INMUEBLE) or c.es_inmueble
+        ]
         elegidos = muebles or candidatos
         if len(elegidos) > 1:
             self.stdout.write(self.style.WARNING(

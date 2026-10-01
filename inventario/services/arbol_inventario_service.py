@@ -6,14 +6,15 @@ Reúne en UNA sola respuesta la TAXONOMÍA VÁLIDA del Estok activo:
   - SECCIÓN 1 (`cajas`): Contenedores con `tipo='CAJA'` (cajas móviles de
     objetos), a cualquier nivel (raíz o dentro de un mueble), cada uno con sus
     Objetos físicos DIRECTOS. Filtro ORM ÚNICO Y EXCLUSIVO por `tipo='CAJA'`.
-  - SECCIÓN 3 (`estructuras`): Muebles (`tipo='MUEBLE'`) RAÍZ mudables
+  - SECCIÓN 3 (`estructuras`): Muebles (`tipo='MUEBLE_MOVIL'`) RAÍZ mudables
     (`es_inmueble=False`), agrupados por Ubicación, cada uno con los Objetos
-    físicos que aloja (incluidos los que cuelgan de sus estanterías).
+    físicos que aloja (incluidos los que cuelgan de sus CONJUNTOS internos).
   - SECCIÓN 2 (`sueltos`): Objetos sueltos o sin contenedor.
 
 REGLA TAXONÓMICA ESTRICTA (pestaña de Objetos):
-  Los `tipo='ESTANTE'` (sub-divisiones internas, estanterías o cajoneras de un
-  mueble) quedan TERMINANTEMENTE EXCLUIDOS de TODA consulta y renderizado: el
+  Los `tipo='CONJUNTO'` (conjuntos/estructuras internas: estanterías o
+  cajoneras de un mueble) y los `tipo='MUEBLE_INMUEBLE'` (muebles fijos del
+  cuarto) quedan TERMINANTEMENTE EXCLUIDOS de TODA consulta y renderizado: el
   filtro se aplica en el ORM (`tipo`), nunca en memoria.
 
 Optimización SQL/ORM en PostgreSQL:
@@ -37,7 +38,7 @@ from django.db.models import Q
 
 from ..models import Contenedor, Objeto
 from ..api.serializers import ObjetoListSerializer
-from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE
+from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
 
 # ---------------------------------------------------------------------------
 # Helpers de orden "natural" (Caja 1 < Caja 02 < Caja 03 < Caja 10)
@@ -177,10 +178,10 @@ def construir_arbol_estok(
     # 1) MUEBLES del Estok (SECCIÓN 3 · filtro ORM estricto)
     #
     # REGLA TAXONÓMICA ESTRICTA DE LA PESTAÑA DE OBJETOS:
-    #   - SECCIÓN 3 (Muebles y Estructuras Móviles): SOLO `tipo='MUEBLE'` y
-    #     `es_inmueble=False`. Los muebles fijos quedan excluidos de forma
+    #   - SECCIÓN 3 (Muebles y Estructuras Móviles): SOLO `tipo='MUEBLE_MOVIL'`
+    #     y `es_inmueble=False`. Los muebles fijos quedan excluidos de forma
     #     absoluta.
-    #   - Los `tipo='ESTANTE'` (sub-divisiones internas) NUNCA se consultan:
+    #   - Los `tipo='CONJUNTO'` (estructuras internas) NUNCA se consultan:
     #     son estructura interna del mueble, no ítems de inventario.
     #   El filtro es ORM (no en memoria) para que PostgreSQL jamás devuelva
     #   filas fuera de la taxonomía.
@@ -190,7 +191,7 @@ def construir_arbol_estok(
         .filter(
             ubicacion__estok_id=estok_id,
             parent_contenedor__isnull=True,
-            tipo=TIPO_MUEBLE,
+            tipo=TIPO_MUEBLE_MOVIL,
             es_inmueble=False,
         )
         .order_by('ubicacion__nombre', 'nombre')
@@ -368,7 +369,7 @@ def construir_arbol_estok(
 
         return {
             'tipo': 'contenedor',
-            'tipo_contenedor': TIPO_MUEBLE,
+            'tipo_contenedor': TIPO_MUEBLE_MOVIL,
             'id': clave,
             'nombre': contenedor.nombre,
             'descripcion': contenedor.descripcion or '',
