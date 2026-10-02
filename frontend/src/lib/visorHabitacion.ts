@@ -42,11 +42,14 @@ import {
   medidasDe,
   minimapaHabitacionHtml,
   tarjetaPlantaHtml,
+  iconoContenedorVisor,
 } from './visorHabitacionHtml';
 
 interface ContenedorVisor {
   id: string;
   nombre: string;
+  /** Taxonomía física (mueble móvil/inmueble, conjunto, caja) del contenedor. */
+  tipo?: string | null;
   parent_contenedor?: string | null;
   subcontenedores_count?: number;
   parent_grid_row?: number | null;
@@ -240,6 +243,10 @@ function renderVisor(): void {
   const items: ItemElastico[] = contenedoresRoom.map((c) => ({
     id: c.id,
     nombre: c.nombre,
+    // ICONO DE SUBTIPO FÍSICO: el lienzo de edición pinta el icono predefinido
+    // (🗄️ ropero empotrado, 🗃️ cajonera, 🧳 baúl, 🚽 inodoro, 🪑 mesa/silla, 📦
+    // caja) según el nombre declarado y la taxonomía del contenedor.
+    icono: iconoContenedorVisor(c.nombre, c) || null,
     ui_left: c.ui_left,
     ui_top: c.ui_top,
     ui_width: c.ui_width,

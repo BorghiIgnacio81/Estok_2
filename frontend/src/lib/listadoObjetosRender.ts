@@ -77,11 +77,12 @@ export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
 
 /**
  * Mueble móvil de la SECCIÓN 3 (defensa en profundidad sobre el filtro ORM del
- * backend): SOLO `tipo_contenedor === 'MUEBLE'` y NUNCA un mueble inmueble fijo
- * (`es_inmueble = true`). Los `tipo='ESTANTE'` y `tipo='CAJA'` jamás entran acá.
+ * backend): SOLO `tipo_contenedor === 'MUEBLE_MOVIL'` y NUNCA un mueble inmueble
+ * fijo (`es_inmueble = true`). Los `tipo='CONJUNTO'` (estructura interna) y
+ * `tipo='CAJA'` jamás entran acá.
  */
 export function esMuebleMovil(nodo: NodoContenedor): boolean {
-  return nodo.tipo_contenedor === 'MUEBLE' && !esInmueble(nodo);
+  return String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL' && !esInmueble(nodo);
 }
 
 // ---------------------------------------------------------------------------

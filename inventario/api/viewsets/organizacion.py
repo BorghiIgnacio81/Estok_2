@@ -21,6 +21,7 @@ from ...services.arbol_inventario_service import construir_arbol_estok
 from ...services.taxonomia_contenedor import (
     TIPO_CAJA,
     TIPO_MUEBLE_MOVIL,
+    TIPOS,
     es_anclado,
     es_caja_movil,
     es_pieza_estructural,
@@ -265,6 +266,24 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
         if estok_id:
             qs = qs.filter(ubicacion__estok_id=estok_id)
+
+        # FILTRO ORM POR TAXONOMÍA FÍSICA (`?tipo=CAJA` o lista `?tipo=CAJA,OBJETO`).
+        # Lo consume la BANDEJA INFERIOR de «Elementos por ubicar» de Almacenamiento:
+        # al pedir SOLO `tipo=CAJA`, las estructuras fijas (CONJUNTO / MUEBLE_INMUEBLE)
+        # y los muebles (MUEBLE_MOVIL) quedan excluidos DE RAÍZ en la consulta a
+        # PostgreSQL, sin listarse jamás como objeto suelto por ubicar. Los tipos
+        # desconocidos se descartan; una lista sin ningún tipo válido no lista nada.
+        tipos_pedidos = self.request.query_params.get('tipo')
+        if tipos_pedidos:
+            tipos = [t.strip().upper() for t in tipos_pedidos.split(',') if t.strip()]
+            validos = [t for t in tipos if t in TIPOS]
+            qs = qs.filter(tipo__in=validos) if validos else qs.none()
+
+        # Filtro ORM de física de traslado (`?movibles=true`): whitelist positiva
+        # de CAJA y MUEBLE_MOVIL no inmuebles. Excluye todo lo anclado.
+        moviles = self.request.query_params.get('movibles')
+        if moviles and moviles.lower() in ('true', '1', 'yes'):
+            qs = qs.filter(es_inmueble=False, tipo__in=(TIPO_CAJA, TIPO_MUEBLE_MOVIL))
 
         # Optimización de payload: en el listado, los conteos de sub-contenedores
         # y objetos activos se resuelven con UN solo COUNT agrupado por página

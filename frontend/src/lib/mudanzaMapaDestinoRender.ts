@@ -28,6 +28,11 @@ import { escapeHtml } from './mapaEstokWizard';
 import { habitacionesDe, htmlVacio } from './mudanzaInventario';
 import type { ContenedorDto, UbicacionDto } from './mudanzaApi';
 import type { FiltroDestino } from './mudanzaFiltros';
+// TAXONOMÍA FÍSICA ÚNICA + iconografía: muebles (móvil/inmueble), conjuntos y
+// cajas se reconocen con el MISMO criterio que el backend y el resto de la UI.
+import { tipoFisico, esMueble as esMuebleFisico } from './taxonomiaContenedor';
+import type { PiezaTaxonomica } from './taxonomiaContenedor';
+import { iconoDeMuebleReconocido } from './iconosFisicos';
 
 // =============================================================================
 // CONSTANTES
@@ -40,9 +45,13 @@ export const PISO_BAJA = 'PLANTA_BAJA';
 
 /** Iconografía por tipo de contenedor (misma convención que el resto de la app). */
 const ICONO_TIPO: Record<string, string> = {
+  MUEBLE_MOVIL: '🗄️',
+  MUEBLE_INMUEBLE: '🗄️',
   MUEBLE: '🗄️',
+  CONJUNTO: '🗃️',
   ESTANTE: '🗃️',
   CAJA: '📦',
+  OBJETO: '🧸',
 };
 
 // =============================================================================
@@ -55,12 +64,13 @@ export function pisoDe(u: UbicacionDto): string {
 
 /** Un mueble (fijo o móvil) se dibuja como silueta fina del grupo «Muebles». */
 export function esMueble(c: ContenedorDto): boolean {
-  return c.tipo === 'MUEBLE' || Boolean(c.es_inmueble);
+  return esMuebleFisico(c);
 }
 
+/** Icono contextual del contenedor (subtipo por nombre + taxonomía de 5 tipos). */
 export function iconoDeContenedor(c: ContenedorDto): string {
-  const tipo = String(c.tipo || '').toUpperCase();
-  return ICONO_TIPO[tipo] || (esMueble(c) ? '🗄️' : '🗃️');
+  return iconoDeMuebleReconocido(c.nombre, c as PiezaTaxonomica)
+    || ICONO_TIPO[tipoFisico(c)] || (esMueble(c) ? '🗄️' : '🗃️');
 }
 
 /** Plantas con habitaciones reales, en orden canónico del inmueble. */

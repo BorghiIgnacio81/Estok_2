@@ -18,6 +18,7 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { escapeHtml, toast } from './mapaJerarquico';
+import { esCajaMovil } from './taxonomiaContenedor';
 
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
@@ -71,14 +72,18 @@ async function cargar(): Promise<void> {
   if (!rootEl) return;
   try {
     const [contData, objData] = await Promise.all([
-      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000`),
+      // FILTRO ORM ESTRICTO: `tipo=CAJA` excluye de raíz en PostgreSQL toda
+      // estructura fija (CONJUNTO / MUEBLE_INMUEBLE) y todo mueble (MUEBLE_MOVIL,
+      // ej. «Cama Cucheta») — jamás se listan como objeto suelto por ubicar.
+      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&tipo=CAJA`),
       fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000`),
     ]);
 
-    // Contenedores PEQUEÑOS (sin sub-contenedores, no inmuebles) sin casillero.
+    // Contenedores PEQUEÑOS (cajas móviles) sin casillero. Defensa en profundidad
+    // en el cliente con la MISMA taxonomía física (`esCajaMovil`): ninguna
+    // estructura fija ni mueble puede colarse aunque el backend cambie.
     const contenedores: ItemBandeja[] = (contData as Record<string, unknown>[])
-      .filter((c) => (Number(c.subcontenedores_count) || 0) === 0)
-      .filter((c) => !c.es_inmueble)
+      .filter((c) => esCajaMovil(c as { tipo?: string; es_inmueble?: boolean }))
       .filter((c) => sinCasillero(c))
       .map((c) => ({
         id: String(c.id),

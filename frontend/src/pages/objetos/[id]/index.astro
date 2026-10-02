@@ -5,6 +5,9 @@
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
+// Estilos canónicos de la cadena de minimapas anidados (.mini-anidado*), ÚNICO
+// punto que ya cubre Almacenamiento y Objetos: no se duplican reglas CSS.
+import '../../../styles/almacenamiento-portales.css';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -142,6 +145,20 @@ export const prerender = false;
         <div id="minimapaContenedor"></div>
       </div>
 
+      <!-- Ubicación jerárquica: SUCESIÓN de minimapas analíticos asimétricos
+           [Planta] ➔ [Habitación] ➔ [Espacio/Mueble] ➔ [División/Caja], con el
+           contenedor hijo respectivo resaltado en NARANJA (#f97316). Mismo motor
+           que Almacenamiento, Editar Objeto, Mover y Mudanza. -->
+      <div id="rutaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          Ubicación jerárquica
+        </h2>
+        <div id="rutaMinimapas" class="overflow-x-auto pb-1"></div>
+      </div>
+
       <div id="camposEspecificos" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,6 +256,9 @@ export const prerender = false;
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
   import { minimapaHtml, inyectarCssMinimapa, COLOR_NARANJA } from '../../../lib/minimapa';
+  // SUCESIÓN UNIFICADA DE MINIMAPAS de la ubicación del objeto (Planta →
+  // Habitación → Mueble → División/Caja) con el MISMO motor de toda la app.
+  import { renderRutaUbicacionObjeto } from '../../../lib/rutaObjetoDetalle';
   inyectarCssMinimapa();
 
   // ===========================================================================
@@ -601,6 +621,13 @@ export const prerender = false;
         });
         minimapaSection.classList.remove('hidden');
       }
+
+      // === Sucesión de minimapas de la ubicación (Planta → Habitación →
+      //     Espacio/Mueble → División/Caja), con el contenedor hijo en NARANJA ===
+      await renderRutaUbicacionObjeto('rutaMinimapas', 'rutaSection', {
+        ubicacion: obj.ubicacion ?? null,
+        contenedor: obj.contenedor ?? null,
+      });
 
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
       document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';

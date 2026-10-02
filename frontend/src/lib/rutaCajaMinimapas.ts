@@ -219,13 +219,33 @@ function hermanasDeHabitacion(room: UbicacionPlano): UbicacionPlano[] {
 }
 
 /**
- * Muebles REALES de una habitación (contenedores `tipo='MUEBLE'` de nivel raíz
- * de esa ubicación): los sectores del plano proporcional del mueble.
+ * CONTENEDORES RAÍZ REALES de una habitación (muebles móviles/inmuebles y cajas
+ * encastradas en su lienzo, sin padre): los sectores del plano proporcional
+ * «Espacio/Mueble». Incluye CUALQUIER taxonomía (MUEBLE_MOVIL, MUEBLE_INMUEBLE,
+ * CONJUNTO o CAJA): el minimapa debe poder abrir el interior de «PC Setup» o de
+ * «Zona Indoor», no solo de un mueble móvil.
  */
 function mueblesDeHabitacion(ubicacionId: string): ContenedorRuta[] {
   return [...contenedoresPorId.values()].filter(
-    (c) => c.tipo === 'MUEBLE' && !c.parent_contenedor && c.ubicacion === ubicacionId,
+    (c) => !c.parent_contenedor && c.ubicacion === ubicacionId,
   );
+}
+
+/**
+ * HERMANOS de un contenedor: si vive dentro de otro, son los sub-contenedores de
+ * su padre (divisiones/cajas internas del mueble); si es raíz, los contenedores
+ * de su habitación. Nunca se inventa un universo: sin hermanos, el propio
+ * contenedor es el único sector.
+ */
+function hermanosDeContenedor(c: ContenedorRuta): ContenedorRuta[] {
+  if (c.parent_contenedor) {
+    const hermanos = [...contenedoresPorId.values()].filter(
+      (x) => x.parent_contenedor === c.parent_contenedor,
+    );
+    return hermanos.length ? hermanos : [c];
+  }
+  const raices = c.ubicacion ? mueblesDeHabitacion(c.ubicacion) : [];
+  return raices.length ? raices : [c];
 }
 
 function nombreDePlanta(fila: number, division?: UbicacionPlano): string {
@@ -271,17 +291,20 @@ function nodosPlantaYAmbiente(ubicacionId: string | null): NodoRuta[] {
 }
 
 /**
- * MAPA 3 (Mueble): plano PROPORCIONAL de los muebles REALES de la habitación,
- * con el mueble dado pintado en NARANJA por identidad (no por posición).
+ * Nodo de la cadena para CUALQUIER contenedor (mueble, conjunto, división o
+ * caja): plano PROPORCIONAL de sus hermanos REALES con el contenedor dado
+ * pintado en NARANJA por identidad. Permite descender nivel a nivel
+ * (Habitación → Mueble → División/Caja) sin bloquearse en ningún tipo.
  */
-function nodoMueble(mueble: ContenedorRuta, ubicacionId: string | null): NodoRuta {
-  const hermanos = ubicacionId ? mueblesDeHabitacion(ubicacionId) : [];
-  const sectores = hermanos.some((c) => c.id === mueble.id) ? hermanos : [mueble];
+function nodoContenedor(contenedor: ContenedorRuta): NodoRuta {
+  const hermanos = hermanosDeContenedor(contenedor);
   return {
-    id: mueble.id,
-    tipo: 'mueble',
-    nombre: mueble.nombre,
-    sectores: sectoresDeItems(sectores, mueble.id),
+    id: contenedor.id,
+    // El primer nivel tras la habitación es un «mueble/espacio»; los anidados
+    // son «divisiones/cajas» (mismo icono y misma lectura en la cascada).
+    tipo: contenedor.parent_contenedor ? 'caja' : 'mueble',
+    nombre: contenedor.nombre,
+    sectores: sectoresDeItems(hermanos, contenedor.id),
   };
 }
 /**
@@ -343,9 +366,10 @@ export function resolverRutaGeografica(entidad: EntidadUbicable): RutaGeografica
 
   const ambienteId = habitacion ? habitacion.id : null;
   const nodos = nodosPlantaYAmbiente(ambienteId);
-  cadena
-    .filter((contenedor) => contenedor.tipo === 'MUEBLE')
-    .forEach((mueble) => nodos.push(nodoMueble(mueble, ambienteId)));
+  // REGLA UNIFICADA: la cascada desciende TODOS los niveles reales de la cadena
+  // (Planta → Habitación → Espacio/Mueble → División/Caja), un minimapa por
+  // contenedor, resaltando en NARANJA el hijo respectivo. Ningún tipo bloquea.
+  cadena.forEach((contenedor) => nodos.push(nodoContenedor(contenedor)));
 
   return {
     texto,
@@ -381,8 +405,11 @@ export function rutaGeograficaCardHtml(entidad: EntidadUbicable & { id?: string 
  */
 export function rutaMinimapasHtml(nodo: UbicacionDeRuta): string {
   const nodos = nodosPlantaYAmbiente(nodo.ubicacion);
-  const mueble = nodo.parent_contenedor ? contenedoresPorId.get(nodo.parent_contenedor) : undefined;
-  if (mueble && mueble.tipo === 'MUEBLE') nodos.push(nodoMueble(mueble, nodo.ubicacion));
+  // Descenso COMPLETO de la cadena de la caja (mueble → división → caja), con el
+  // hijo respectivo en NARANJA en cada mapa. Ningún tipo queda bloqueado.
+  cadenaContenedores(nodo.parent_contenedor).forEach((contenedor) =>
+    nodos.push(nodoContenedor(contenedor)),
+  );
   // `todosActivos`: los mapas conservan su resalte naranja (la ruta se lee de un
   // vistazo, sin nodos atenuados por ser "procedencia").
   return renderMinimapasAnidados(nodos, { todosActivos: true });

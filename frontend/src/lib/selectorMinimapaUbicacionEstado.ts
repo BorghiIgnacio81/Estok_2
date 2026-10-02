@@ -28,6 +28,9 @@ import {
   plantasDe,
 } from './espaciosDePlanta';
 import type { EspaciosEstok, PlantaDisponible } from './espaciosDePlanta';
+// ICONOGRAFÍA FÍSICA ÚNICA (subtipo por nombre + taxonomía de 5 tipos).
+import { iconoDeMuebleReconocido } from './iconosFisicos';
+import type { PiezaTaxonomica } from './taxonomiaContenedor';
 
 // =============================================================================
 // TIPOS
@@ -106,11 +109,14 @@ export const IDS = {
 // ICONOGRAFÍA CONTEXTUAL
 // =============================================================================
 
-const ICONO_TIPO: Record<string, string> = {
-  MUEBLE: '🗄️',
-  ESTANTE: '🗃️',
-  CAJA: '📦',
-};
+/**
+ * Icono contextual del contenedor. Delega en la fuente ÚNICA de iconografía
+ * física (subtipo por nombre + taxonomía de 5 tipos): 🗄️ ropero empotrado ·
+ * 🗃️ cajonera/estante · 🧳 baúl · 🚽 inodoro · 🪑 mesa/silla · 📦 caja.
+ */
+export function iconoContenedor(item: ItemGeometria): string {
+  return iconoDeMuebleReconocido(item.nombre, item as PiezaTaxonomica) || '📦';
+}
 
 // =============================================================================
 // DERIVACIONES DE LOS ESPACIOS REALES
@@ -176,10 +182,4 @@ export function muebleActual(): ContenedorMinimapa | null {
 
 export function cajaActual(): ContenedorMinimapa | null {
   return estado.contenedores.find((c) => String(c.id) === String(estado.cajaId)) || null;
-}
-
-/** Icono contextual del contenedor (mismo criterio en toda la app). */
-export function iconoContenedor(item: ItemGeometria): string {
-  const tipo = String((item as ContenedorMinimapa).tipo || '').toUpperCase();
-  return ICONO_TIPO[tipo] || '📦';
 }

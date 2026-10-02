@@ -23,6 +23,8 @@ import { escapeHtml } from './mapaEstokWizard';
 import { filtrosActivos, FILTROS_ORIGEN } from './mudanzaFiltros';
 import type { FiltroOrigen } from './mudanzaFiltros';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
+// TAXONOMÍA FÍSICA ÚNICA: caja móvil vs. mueble mudable con los 5 tipos reales.
+import { TIPO_CAJA, TIPO_MUEBLE_MOVIL, tipoFisico } from './taxonomiaContenedor';
 
 // Re-export de los DTOs: el resto del módulo de mudanzas los consume desde acá.
 export type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
@@ -83,7 +85,9 @@ export function esObjetoSuelto(o: ObjetoDto): boolean {
 
 /** Contenedor mudable de forma independiente (caja o mueble móvil). */
 export function esContenedorMudable(c: ContenedorDto): boolean {
-  return !c.es_inmueble && (c.tipo === 'CAJA' || c.tipo === 'MUEBLE');
+  if (c.es_inmueble) return false;
+  const t = tipoFisico(c);
+  return t === TIPO_CAJA || t === TIPO_MUEBLE_MOVIL;
 }
 
 // =============================================================================
@@ -95,7 +99,7 @@ function _partes(...valores: string[]): string {
 }
 
 function _desdeContenedor(c: ContenedorDto): ElementoMudable {
-  const clase: ClaseElemento = c.tipo === 'MUEBLE' ? 'MUEBLE' : 'CAJA';
+  const clase: ClaseElemento = tipoFisico(c) === TIPO_MUEBLE_MOVIL ? 'MUEBLE' : 'CAJA';
   const objetos = Number(c.objetos_count) || 0;
   const estantes = Number(c.subcontenedores_count) || 0;
   return {
@@ -135,8 +139,8 @@ export function contarOrigen(
 ): Record<FiltroOrigen, number> {
   const moviles = contenedores.filter(esContenedorMudable);
   return {
-    CAJA: moviles.filter((c) => c.tipo === 'CAJA').length,
-    MUEBLE: moviles.filter((c) => c.tipo === 'MUEBLE').length,
+    CAJA: moviles.filter((c) => tipoFisico(c) === TIPO_CAJA).length,
+    MUEBLE: moviles.filter((c) => tipoFisico(c) === TIPO_MUEBLE_MOVIL).length,
     OBJETO: objetos.filter(esObjetoSuelto).length,
   };
 }
@@ -159,12 +163,12 @@ export function agruparMoviles(
     {
       clase: 'CAJA',
       titulo: 'Cajas móviles (tipo CAJA)',
-      elementos: moviles.filter((c) => c.tipo === 'CAJA').map(_desdeContenedor),
+      elementos: moviles.filter((c) => tipoFisico(c) === TIPO_CAJA).map(_desdeContenedor),
     },
     {
       clase: 'MUEBLE',
-      titulo: 'Muebles móviles (tipo MUEBLE)',
-      elementos: moviles.filter((c) => c.tipo === 'MUEBLE').map(_desdeContenedor),
+      titulo: 'Muebles móviles (tipo MUEBLE_MOVIL)',
+      elementos: moviles.filter((c) => tipoFisico(c) === TIPO_MUEBLE_MOVIL).map(_desdeContenedor),
     },
     {
       clase: 'OBJETO',

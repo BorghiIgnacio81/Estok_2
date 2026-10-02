@@ -167,6 +167,9 @@ function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
     .map((x) => ({
       id: x.id,
       nombre: x.nombre,
+      // ICONO DE SUBTIPO FÍSICO del estante/división interna (🗃️ cajonera,
+      // 🗄️ ropero, 📦 caja movil, etc.) según nombre + taxonomía.
+      icono: iconoContenedorVisor(x.nombre, x) || null,
       ui_left: x.ui_left,
       ui_top: x.ui_top,
       ui_width: x.ui_width,

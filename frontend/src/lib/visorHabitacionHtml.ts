@@ -17,6 +17,12 @@ import { ASPECTO_LIENZO, minimapaRectangularSvg } from './minimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
+// ICONOGRAFÍA FÍSICA ÚNICA: el icono de un contenedor mueble se resuelve con la
+// MISMA fuente que el lienzo de edición de Almacenamiento (subtipo por nombre +
+// taxonomía). Si no hay subtipo reconocido se devuelve '' y el visor cae a la
+// imagen local (/archivador-login.png o /Nuevo Contenedor.png).
+import { iconoDeMuebleReconocido } from './iconosFisicos';
+import type { PiezaTaxonomica } from './taxonomiaContenedor';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
@@ -28,6 +34,8 @@ export { IMG_OBJETO };
 export interface ItemCeldaVisor {
   id: string;
   nombre: string;
+  /** Taxonomía física del contenedor (para el icono de subtipo). */
+  tipo?: string | null;
   subcontenedores_count?: number;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
@@ -53,12 +61,16 @@ export const ETIQUETAS_PARED: Record<string, string> = {
   RIGHT: 'derecha',
 };
 
-/** Icono contextual de tercer nivel para contenedores internos del Visor. */
-export function iconoContenedorVisor(nombre: string): string {
-  const n = (nombre || '').trim().toLowerCase();
-  if (n.startsWith('ropero')) return '🗄️';
-  if (n.startsWith('cama')) return '🛏️';
-  return '';
+/**
+ * Icono contextual de un contenedor del Visor (subtipo por nombre + taxonomía).
+ * Devuelve '' cuando el subtipo no está definido: el visor cae entonces a la
+ * imagen local (contenedor grande/pequeño), conservando el look de siempre.
+ */
+export function iconoContenedorVisor(
+  nombre: string,
+  pieza?: PiezaTaxonomica | null,
+): string {
+  return iconoDeMuebleReconocido(nombre, pieza);
 }
 
 /** Contenido de una celda del Visor (contenedores y objetos con esa coordenada). */
@@ -80,7 +92,7 @@ export function celdaVisorContenidoHtml(
   const contsHtml = contsCelda
     .map((x) => {
       const img = (x.subcontenedores_count || 0) > 0 ? IMG_CONTENEDOR_GRANDE : IMG_CONTENEDOR_PEQUENO;
-      const ico = iconoContenedorVisor(x.nombre);
+      const ico = iconoContenedorVisor(x.nombre, x);
       const visual = ico
         ? `<span class="visor-celda-emoji">${ico}</span>`
         : `<img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />`;

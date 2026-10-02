@@ -29,6 +29,9 @@
 // =============================================================================
 
 import type { SectorAcotado } from './sectoresProporcionales';
+// ICONOGRAFÍA FÍSICA ÚNICA: el icono del ambiente sale de la MISMA fuente que el
+// lienzo de edición de Almacenamiento, Objetos y Mudanza (subtipo por nombre).
+import { iconoDeEspacio, ICONO_ESPACIO } from './iconosFisicos';
 
 /** Marco del lienzo del plano: los MISMOS valores con los que el motor dibujó. */
 export interface MarcoEtiquetas {
@@ -110,7 +113,9 @@ function escapeHtml(value: unknown): string {
 
 /**
  * Icono de referencia de un ambiente: primero el `icono` explícito que traiga el
- * espacio, después las REGLAS_ICONO por nombre y, si nada coincide, la casita.
+ * espacio, después la fuente ÚNICA de iconografía física (`iconoDeEspacio`:
+ * baño→🚿, cocina→🍽️, pasillo→🚪, depósito→📦, porche→🏡, patio→🌳, …) y, si
+ * tampoco coincide ninguna regla local extra (escalera/lavadero), la casita.
  */
 export function iconoDeAmbiente(
   nombre?: string | null,
@@ -120,6 +125,10 @@ export function iconoDeAmbiente(
   if (explicito) return explicito;
   const base = normalizar(nombre);
   if (!base) return ICONO_AMBIENTE;
+  // Fuente canónica primero: si devuelve algo DISTINTO del icono base es que
+  // reconoció el subtipo; si no, seguimos con las reglas locales extra.
+  const canonico = iconoDeEspacio(nombre);
+  if (canonico && canonico !== ICONO_ESPACIO) return canonico;
   for (const regla of REGLAS_ICONO) {
     if (regla.claves.some((clave) => base.includes(clave))) return regla.icono;
   }

@@ -20,6 +20,9 @@ import { fetchAllPages } from './api';
 import { getEstokActivoId } from '../services/auth';
 import { dividirEspacios, filaDeUbicacion, habitacionesDeFila } from './espaciosDePlanta';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+// TAXONOMÍA FÍSICA ÚNICA: qué contenedor es «ingresable» (mueble/conjunto) se
+// decide con el MISMO criterio que el backend y el resto de la UI.
+import { esEstructuraIngresable } from './taxonomiaContenedor';
 // Tipo del motor global: la cuadrícula interna del mueble se devuelve como
 // sectores proporcionales (misma geometría que dibuja todo minimapa del sistema).
 import type { SectorMinimapa } from './minimapa';
@@ -193,18 +196,16 @@ function acotar(n: number, min: number, max: number): number {
 /**
  * ¿El contenedor se puede ABRIR para elegir una división interna?
  *
- * MISMO criterio con el que el Visor de Contenedor Grande considera un mueble
- * «navegable»: es un MUEBLE de la taxonomía, es un mueble INMUEBLE (ropero /
- * armario empotrado: nunca se traslada, siempre se abre) o ya tiene
- * sub-contenedores. Lo que no cumple ninguna es una HOJA del inventario
- * (caja/estante sin hijos): tocarla ejecuta el traslado en el acto.
+ * MISMO criterio que el resto de la app (lib/taxonomiaContenedor.ts →
+ * esEstructuraIngresable): es un MUEBLE de la taxonomía (MUEBLE_MOVIL /
+ * MUEBLE_INMUEBLE, ej. «PC Setup», «Zona Indoor»), es un mueble INMUEBLE
+ * (ropero/armario empotrado: nunca se traslada, siempre se abre), es un
+ * CONJUNTO (estructura interna) o ya tiene sub-contenedores. Así «PC Setup» se
+ * abre y la cascada desciende; lo que no cumple ninguna es una HOJA del
+ * inventario (caja/objeto sin hijos): tocarla ejecuta el traslado en el acto.
  */
 export function esMuebleIngresable(contenedor: ContenedorDestino): boolean {
-  return (
-    contenedor.tipo === 'MUEBLE' ||
-    contenedor.es_inmueble === true ||
-    Number(contenedor.subcontenedores_count) > 0
-  );
+  return esEstructuraIngresable(contenedor);
 }
 
 /** Contenedor por ID dentro del árbol ya cargado (búsqueda única). */

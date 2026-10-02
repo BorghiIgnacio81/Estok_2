@@ -1,30 +1,25 @@
 // =============================================================================
 // PLANO DE HABITACIONES (Nivel 2) - iconografía contextual (render puro)
 // -----------------------------------------------------------------------------
-// Iconografía contextual por PRIMERA PALABRA del nombre del espacio
-// (Baño 🚽 · Ropero 🗄️ · Suite 🛌 · Habitación 🛏️ · resto 🏠).
+// Iconografía contextual por SUBTIPO físico del espacio: familia del icono
+// canónico `iconoDeEspacio` (lib/iconosFisicos.ts): 🏠 habitación común · 🚿
+// baño/ducha · 🍽️ cocina/comedor · 🚪 pasillo · 📦 depósito · 🏡 porche ·
+// 🌳 patio · 🧺 lavadero · 🚗 garaje · 🛋️ living · 🛌 suite.
 // El dibujado de las tarjetas se delega al LIENZO ELÁSTICO 2D unificado
 // (mapaPlantaUnica.renderLienzoElastico): rectángulos libres con geometría
 // nativa ui_left/ui_top/ui_width/ui_height, SIN grilla matricial rígida.
-// Consumido únicamente por src/lib/mapaCasitaNavegable.ts.
+// Consumido por el lienzo de edición de Almacenamiento, el selector de Objetos
+// y la Mudanza (UN solo criterio de iconos en toda la app).
 // =============================================================================
 
+import { iconoDeEspacio } from './iconosFisicos';
+
 /**
- * Iconografía contextual dinámica por nombre del espacio.
- * Evalúa la PRIMERA PALABRA (nombre.trim().split(' ')[0]) con reglas estrictas:
- *   "Baño"      → 🚽   (inodoro)
- *   "Ropero"    → 🗄️   (mueble/archivador)
- *   "Suite"     → 🛌   (cama matrimonial grande)
- *   "Habitación"→ 🛏️   (cama simple, siempre que no sea suite)
- *   Pasillo u otro → 🏠 (icono base de la casa)
+ * Icono contextual de un ESPACIO/habitación según su nombre. Delega en la
+ * fuente ÚNICA `iconoDeEspacio` (iconosFisicos.ts) para que Almacenamiento,
+ * Objetos y Mudanza muestren exactamente el mismo icono.
  */
 export function iconoDeHabitacion(nombre: string): string {
-  const primeraPalabra = (nombre.trim().split(' ')[0] || '').toLowerCase();
-  const nombreCompleto = ` ${nombre.trim().toLowerCase()} `;
-  if (primeraPalabra.includes('baño') || primeraPalabra.includes('bano')) return '🚽';
-  if (primeraPalabra.includes('ropero')) return '🗄️';
-  if (primeraPalabra.includes('suite') || nombreCompleto.includes(' suite ')) return '🛌';
-  if (primeraPalabra.includes('habitación') || primeraPalabra.includes('habitacion')) return '🛏️';
-  return '🏠';
+  return iconoDeEspacio(nombre);
 }
 
