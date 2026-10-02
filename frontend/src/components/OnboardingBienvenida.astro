@@ -14,6 +14,7 @@
 
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
+import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
 ---
 
 <div
@@ -26,7 +27,7 @@ import '../styles/lienzo-perimetro.css';
 >
   <div class="mx-auto w-full max-w-3xl px-4 py-6 sm:py-10">
     <!-- ======================= ENCABEZADO ======================= -->
-    <header class="flex items-start justify-between gap-4">
+    <header class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
       <div class="flex items-center gap-3">
         <img src="/favicon.png" alt="Estok" class="h-12 w-12 rounded-2xl shadow-sm object-cover" />
         <div>
@@ -34,13 +35,22 @@ import '../styles/lienzo-perimetro.css';
           <h1 id="onbTitulo" class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Arranquemos con tu Estok</h1>
         </div>
       </div>
-      <button
-        type="button"
-        id="onbOmitirTutorial"
-        class="hidden shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/80 border border-blue-200 text-blue-800 text-sm font-semibold shadow-sm hover:bg-white transition-base"
-      >
-        Omitir Tutorial →
-      </button>
+      <div class="flex flex-wrap items-center gap-2 shrink-0">
+        <button
+          type="button"
+          id="onbCodigoBtn"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-blue-700 text-white text-sm font-semibold shadow-sm hover:bg-blue-800 transition-base"
+        >
+          🎟️ Ingresar con código de invitación
+        </button>
+        <button
+          type="button"
+          id="onbOmitirTutorial"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/80 border border-blue-200 text-blue-800 text-sm font-semibold shadow-sm hover:bg-white transition-base"
+        >
+          Omitir Tutorial →
+        </button>
+      </div>
     </header>
 
     <!-- ======================= PROGRESO ======================= -->
@@ -301,6 +311,10 @@ import '../styles/lienzo-perimetro.css';
       <p class="text-xs text-gray-400">Los pasos opcionales los podés retomar cuando quieras desde Almacenamiento.</p>
     </div>
   </div>
+
+  <!-- Modal: ingresar con código de invitación (vive DENTRO de #onbRoot para
+       compartir el scope de DOM del controlador del asistente). -->
+  <OnboardingCodigoInvitacion />
 </div>
 
 <!-- =========================================================================

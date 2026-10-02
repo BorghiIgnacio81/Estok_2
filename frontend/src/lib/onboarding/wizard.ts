@@ -24,6 +24,7 @@ import {
   listarAmbientes,
 } from './api';
 import type { RecursoCreado } from './api';
+import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
 import { PasoEspacios } from './pasoEspacios';
 
@@ -32,6 +33,13 @@ import { PasoEspacios } from './pasoEspacios';
 // =============================================================================
 
 const TOTAL_PASOS = 4;
+
+/**
+ * Nombre del Estok que se funda automáticamente cuando el usuario usa
+ * «Omitir Tutorial» sin haber completado el Paso 1: recibe acceso total de
+ * inmediato a un inquilinato por defecto en vez de quedar bloqueado.
+ */
+const NOMBRE_ESTOK_POR_DEFECTO = 'Mi Estok Inicial';
 
 // =============================================================================
 // CLASE PRINCIPAL
@@ -49,6 +57,8 @@ export class AsistenteBienvenida {
   private pisos = 1;
   /** Controlador del Paso 2 (chips clásicos o plano espacial reactivo). */
   private readonly paso2: PasoEspacios;
+  /** Controlador del modal «Usar código de invitación» (cabecera del asistente). */
+  private readonly modalCodigo: ModalCodigoInvitacion;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -66,6 +76,14 @@ export class AsistenteBienvenida {
         this.ambientes = ambientes;
       },
     });
+    this.modalCodigo = new ModalCodigoInvitacion({
+      root,
+      ocupado: () => this.ocupado,
+      marcarOcupado: (ocupado) => {
+        this.ocupado = ocupado;
+      },
+      onExito: (estok) => this.finalizar(estok),
+    });
   }
 
   /** Estok fundado en el paso 1 (null = todavía no hay acceso concedido). */
@@ -75,9 +93,10 @@ export class AsistenteBienvenida {
 
   iniciar(): void {
     this.q<HTMLFormElement>('#onbFormEstok')?.addEventListener('submit', (e) => void this.fundar(e));
-    this.q<HTMLElement>('#onbOmitirTutorial')?.addEventListener('click', () => this.finalizar());
+    this.q<HTMLElement>('#onbOmitirTutorial')?.addEventListener('click', () => void this.omitirTutorial());
     this.q<HTMLElement>('#onbVolver')?.addEventListener('click', () => this.irAPaso(this.paso - 1));
     this.paso2.iniciar();
+    this.modalCodigo.iniciar();
     this.bindPaso3();
     this.bindPaso4();
     this.renderProgreso();
@@ -138,8 +157,6 @@ export class AsistenteBienvenida {
       if (circulo) circulo.textContent = completado ? '✓' : String(i + 1);
     }
     this.q<HTMLElement>('#onbVolver')?.classList.toggle('hidden', this.paso === 0);
-    const omitir = this.q<HTMLElement>('#onbOmitirTutorial');
-    if (omitir) omitir.classList.toggle('hidden', !this.estok);
   }
 
   // ── PASO 1 — FUNDAR EL ESTOK (OBLIGATORIO) ────────────────────────────────
@@ -181,6 +198,38 @@ export class AsistenteBienvenida {
     } finally {
       this.ocupado = false;
       this.cargando(btn, false, '🏠 Fundar Estok');
+    }
+  }
+
+  // ── OMITIR TUTORIAL — BYPASS CON ACCESO INMEDIATO ─────────────────────────
+
+  /**
+   * «Omitir Tutorial»: atajo de escape que NUNCA deja al usuario bloqueado.
+   *
+   * Si el Paso 1 ya se completó, cierra el asistente como siempre. Si todavía no
+   * hay Estok, funda uno por defecto («Mi Estok Inicial») con el usuario como
+   * Admin, lo persiste en localStorage ('estok_activo_id' → header X-Estok-Id) y
+   * entra al Dashboard ordinario con acceso total, sin pasar por los pasos 2-4.
+   */
+  private async omitirTutorial(): Promise<void> {
+    if (this.ocupado) return;
+    this.error('onbErrorPaso1', null);
+    const btn = this.q<HTMLButtonElement>('#onbOmitirTutorial');
+    this.ocupado = true;
+    this.cargando(btn, true, 'Preparando tu Estok…');
+    try {
+      if (!this.estok) {
+        const estok = await fundarEstok(NOMBRE_ESTOK_POR_DEFECTO, 1);
+        this.estok = estok;
+        setEstokActivoId(estok.id);
+        window.dispatchEvent(new CustomEvent('estok:estok-fundado', { detail: estok }));
+        avisoGlobal(`✅ Estok «${estok.nombre}» creado. ¡Acceso concedido!`);
+      }
+      this.finalizar();
+    } catch (err) {
+      this.error('onbErrorPaso1', mensajeDe(err, 'No se pudo preparar tu Estok inicial. Reintentá.'));
+      this.ocupado = false;
+      this.cargando(btn, false, 'Omitir Tutorial →');
     }
   }
 
@@ -288,10 +337,10 @@ export class AsistenteBienvenida {
    * activo). Limpia el estado global, deja el ID en localStorage y redirige
    * limpiamente al Dashboard, que ahora responde 200 OK con X-Estok-Id.
    */
-  private finalizar(): void {
-    if (!this.estok) return;
-    setEstokActivoId(this.estok.id);
-    window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: this.estok }));
+  private finalizar(estok: EstokInfo | null = this.estok): void {
+    if (!estok) return;
+    setEstokActivoId(estok.id);
+    window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: estok }));
     document.documentElement.removeAttribute('data-estok-onboarding');
     if (window.location.pathname === '/') {
       window.location.reload();
