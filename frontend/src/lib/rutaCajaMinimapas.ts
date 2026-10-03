@@ -324,6 +324,24 @@ function cadenaContenedores(idInicial: string | null | undefined): ContenedorRut
   return cadena;
 }
 
+/**
+ * Entidad ubicable resuelta desde el ID de un contenedor (insumo del MÓDULO
+ * UNIFICADO de minimapas): sube la cadena raíz→hoja y devuelve el AMBIENTE real
+ * (el `ubicacion` del ancestro más alto que lo declare) y el contenedor MÁS
+ * PROFUNDO. Con esto el módulo puede resolver la ruta jerárquica completa
+ * partiendo SÓLO de un ID, sin que la pantalla aporte la jerarquía.
+ * Sin contenedor conocido devuelve ambos en null (nunca una ruta inventada).
+ */
+export function entidadUbicableDeContenedor(
+  contenedorId: string | null | undefined,
+): { ubicacion: string | null; contenedor: string | null } {
+  const cadena = cadenaContenedores(contenedorId);
+  if (!cadena.length) return { ubicacion: null, contenedor: null };
+  const ubicacion = cadena.map((c) => c.ubicacion).find(Boolean) ?? null;
+  const hoja = cadena[cadena.length - 1];
+  return { ubicacion, contenedor: hoja.id };
+}
+
 /** Entidad ubicable del inventario: su ambiente y el contenedor más profundo. */
 export interface EntidadUbicable {
   /** ID de la Ubicación (habitación/ambiente) donde reside. */

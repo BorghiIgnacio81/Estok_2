@@ -18,9 +18,9 @@
 // =============================================================================
 
 import { escapeHtml } from './mapaJerarquico';
-import { ASPECTO_LIENZO, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
-import { hostCadenaMinimapaHtml, hostPlanoMinimapaHtml } from './minimapaRutaHost';
+import { hostCadenaMinimapaHtml } from './minimapaRutaHost';
+import { planoModuloHtml } from './minimapaModuloUnificado';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
 import type { PlantaDisponible } from './espaciosDePlanta';
@@ -100,30 +100,23 @@ function migaVisualHtml(nodos: NodoRuta[]): string {
 }
 
 /**
- * Plano elástico del nivel: COMPONENTE GLOBAL y nada más.
+ * Plano elástico del nivel: lo emite el MÓDULO UNIFICADO (`planoModuloHtml`).
  *
- * El SVG lo emite el motor (`minimapaSectoresSvg` con `responsive` + `clicable`,
- * el mismo de components/MinimapaRuta.astro) y el contenedor lo declara la
- * ÚNICA fábrica canónica del host (`lib/minimapaRutaHost.ts`): mismas clases,
- * mismo `aspect-ratio` real y mismo `data-minimapa-ruta` que el componente.
+ * El módulo internamente dibuja con el motor global (`minimapaSectoresSvg` con
+ * `responsive` + `clicable`, el mismo de components/MinimapaRuta.astro) y monta
+ * el host canónico (`lib/minimapaRutaHost.ts`): mismas clases, mismo
+ * `aspect-ratio` real y mismo `data-minimapa-ruta` que el componente.
  *
  * El gancho `data-mover-plano` viaja en el propio host: el controlador lo
- * reconoce como zona de suelta. Se eliminó el cajón amarillo propio que
- * recuadraba el mapa viejo (`rounded-xl border border-amber-200 bg-amber-50/40`):
- * el plano ya no queda dentro de una caja genérica de relleno.
+ * reconoce como zona de suelta. Las etiquetas de lectura (icono + nombre sobre
+ * cada silueta) son `pointer-events:none`, así no interfieren con la suelta.
  */
 function lienzoHtml(sectores: SectorMinimapa[]): string {
-  const svg = minimapaSectoresSvg({
-    sectores,
-    aspecto: ASPECTO_LIENZO,
-    responsive: true,
+  return planoModuloHtml(sectores, {
     clicable: true,
-    // Etiquetas de lectura del componente global: icono + nombre de cada
-    // ambiente sobre su silueta (capa `pointer-events:none`: no interfiere con
-    // la zona de suelta `data-mover-plano`).
     etiquetas: true,
+    extraHost: 'data-mover-plano',
   });
-  return hostPlanoMinimapaHtml(svg, ASPECTO_LIENZO, 'data-mover-plano');
 }
 
 /** Ficha arrastrable del contenedor + enunciado del nivel vigente. */

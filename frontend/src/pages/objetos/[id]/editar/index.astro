@@ -4,17 +4,17 @@
 // Formulario unificado: el único selector de clasificación es "Categoría"
 // (las 11 categorías oficiales de Mercado Libre vía /api/categorias/).
 // La ubicación se elige con MINIMAPAS INTERACTIVOS (siluetas elásticas de
-// plantas, habitaciones y muebles): MISMO componente global que el alta de
-// objeto, src/components/objetos/SelectorMinimapaUbicacion.astro, que a su vez
-// inyecta el componente global MinimapaRuta.astro. Ya NO hay cascadas rígidas
-// de selects Ubicación → Contenedor.
+// plantas, habitaciones y muebles): se monta el MÓDULO UNIFICADO
+// (components/MinimapaModuloUnificado.astro, modo="interactivo"), que embebe el
+// motor global (MinimapaRuta.astro → minimapasAnidados). Ya NO hay cascadas
+// rígidas de selects Ubicación → Contenedor.
 // Build: 2026-09-27 — Ubicación por minimapas interactivos (sin árbol de texto)
 // =============================================================================
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
 import ImageEditor from '../../../../components/ImageEditor.astro';
-import SelectorMinimapaUbicacion from '../../../../components/objetos/SelectorMinimapaUbicacion.astro';
+import MinimapaModuloUnificado from '../../../../components/MinimapaModuloUnificado.astro';
 // Estilos compartidos de los minimapas anidados (.mini-anidado-*): único punto
 // que ya cubre Almacenamiento y Objetos. No se duplican reglas en esta página.
 import '../../../../styles/almacenamiento-portales.css';
@@ -169,11 +169,11 @@ export const prerender = false;
             naranja es donde queda guardado el objeto.
           </p>
         </div>
-        <!-- El COMPONENTE GLOBAL <MinimapaRuta /> (via el selector de ubicacion)
-             es el UNICO mapa del formulario y ya es elastico y autocontenido:
-             ocupa el ancho real de esta tarjeta, sin contenedor extra ni doble
-             columna lateral. -->
-        <SelectorMinimapaUbicacion />
+        <!-- MÓDULO UNIFICADO DE MINIMAPAS (modo interactivo): ÚNICO mapa del
+             formulario, autónomo y elástico (ocupa el ancho real de esta tarjeta).
+             Conserva la navegación por clic sobre las siluetas y la escritura de
+             los inputs ocultos `ubicacion` / `contenedor`: el PUT no cambia. -->
+        <MinimapaModuloUnificado modo="interactivo" />
       </div>
 
       <!-- ================================================================ -->

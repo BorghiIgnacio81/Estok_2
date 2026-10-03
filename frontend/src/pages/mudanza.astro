@@ -29,11 +29,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
-// Componente GLOBAL de minimapas: host del CABEZAL DE CONTEXTO EN CASCADA del
-// Estok destino (minimapas compactados de los niveles previos). mudanzaBoard.ts
-// lo rellena en caliente con el MISMO motor (lib/minimapasAnidados.ts) que
+// MÓDULO UNIFICADO de minimapas: host del CABEZAL DE CONTEXTO EN CASCADA y del
+// PLANO de Destino. mudanzaBoard.ts los rellena en caliente con el MISMO motor
+// (lib/minimapasAnidados.ts + lib/mudanzaMapaDestinoRender.ts) que
 // Almacenamiento y Objetos.
-import MinimapaRuta from '../components/MinimapaRuta.astro';
+import MinimapaModuloUnificado from '../components/MinimapaModuloUnificado.astro';
 import '../styles/mudanza.css';
 // Estilos del mapa de minimapas del Destino (siluetas + chips de navegación).
 import '../styles/mudanza-mapa.css';
@@ -140,7 +140,7 @@ import '../styles/mudanza-mapa.css';
                  el plano que se abandona se ENCOGE (escala canónica 4× menor del
                  motor) y se acomoda al lado de los anteriores como guía de
                  contexto activa; tocar uno salta a ESE nivel.
-               Los dibuja el COMPONENTE GLOBAL `<MinimapaRuta />` (mismo motor de
+               Los dibuja el MÓDULO UNIFICADO `<MinimapaModuloUnificado />` (mismo motor de
                siluetas asimétricas reales, contornos negros nítidos y espacios
                fusionados sin líneas divisorias internas); el tablero lo rellena
                en caliente en cada repintado del mapa.
@@ -148,7 +148,7 @@ import '../styles/mudanza-mapa.css';
           <div id="mudanzaDestinoCascada" class="mudanza-destino-cascada mt-1.5">
             <button id="mudanzaDestinoVolver" type="button" class="mudanza-mapa-volver hidden"
               data-navegar-volver title="Volver un nivel en la jerarquía del Estok destino">⬅ Volver</button>
-            <MinimapaRuta id="mudanzaDestinoRuta" class="hidden" />
+            <MinimapaModuloUnificado id="mudanzaDestinoRuta" class="hidden" />
           </div>
         </div>
 
@@ -156,14 +156,14 @@ import '../styles/mudanza-mapa.css';
              física, fuera del scroll del plano para estar siempre visible. -->
         <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3"></div>
 
-        <!-- PLANO UNIFICADO: host del COMPONENTE GLOBAL `<MinimapaRuta />` en su
-             formato `plano` (mismo motor de siluetas asimétricas proporcionales,
-             bordes negros definidos y sector activo en naranja). El host NO se
-             destruye nunca: el tablero sólo escribe DENTRO de él y lo apaga
-             cuando no hay planos que dibujar. -->
+        <!-- PLANO UNIFICADO: host del MÓDULO UNIFICADO `<MinimapaModuloUnificado />`
+             en su formato `plano` (mismo motor de siluetas asimétricas
+             proporcionales, bordes negros definidos y sector activo en naranja).
+             El host NO se destruye nunca: el tablero sólo escribe DENTRO de él y
+             lo apaga cuando no hay planos que dibujar. -->
         <div id="mudanzaDestinoMapa"
           class="mudanza-panel min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-3 md:max-h-[calc(100vh-230px)]">
-          <MinimapaRuta id="mudanzaDestinoPlano" plano class="hidden" />
+          <MinimapaModuloUnificado id="mudanzaDestinoPlano" tipo="plano" class="hidden" />
           <div id="mudanzaDestinoDetalle">
             <div class="flex flex-col items-center gap-3 py-8 sm:py-10">
               <span class="w-6 h-6 rounded-full border-2 border-gray-200 border-t-green-500 animate-spin"></span>

@@ -188,7 +188,7 @@
 /* =============================================================================
    CABEZAL DE CONTEXTO EN CASCADA DEL ESTOK DESTINO (minimapas que se achican)
    -----------------------------------------------------------------------------
-   El host lo declara mudanza.astro (`<MinimapaRuta id="mudanzaDestinoRuta" />`
+   El host lo declara mudanza.astro (`<MinimapaModuloUnificado id="mudanzaDestinoRuta" />`
    → `.minimapa-ruta-cadena`) y lo rellena mudanzaMapaDestino.ts con el MISMO
    motor de la cadena de minimapas (lib/minimapasAnidados.ts). Al profundizar en
    la jerarquía, cada plano abandonado se ENCOGE (escala canónica del motor:

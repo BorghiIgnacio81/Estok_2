@@ -8,6 +8,10 @@ import AuthGuard from '../../../components/AuthGuard.astro';
 // Estilos canónicos de la cadena de minimapas anidados (.mini-anidado*), ÚNICO
 // punto que ya cubre Almacenamiento y Objetos: no se duplican reglas CSS.
 import '../../../styles/almacenamiento-portales.css';
+// MÓDULO UNIFICADO DE MINIMAPAS (componente global autónomo). En modo `visor`
+// resuelve la ruta jerárquica hacia arriba desde el ID y dibuja la sucesión
+// horizontal de minimapas asimétricos: reemplaza a la implementación inline.
+import MinimapaModuloUnificado from '../../../components/MinimapaModuloUnificado.astro';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -134,15 +138,16 @@ export const prerender = false;
       </div>
 
       <!-- Campos específicos según tipo (herencia multi-tabla) -->
-      <!-- Minimapa de sección: celda exacta dentro del contenedor -->
+      <!-- MÓDULO UNIFICADO DE MINIMAPAS · SECCIÓN: grilla interna del contenedor
+           (celda F·C activa en NARANJA) con el estándar visual único del motor. -->
       <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-          Minimapa de sección
+          Posición en el contenedor
         </h2>
-        <div id="minimapaContenedor"></div>
+        <MinimapaModuloUnificado id="seccionModuloUnificado" modo="visor" tipo="seccion" />
       </div>
 
       <!-- Ubicación jerárquica: SUCESIÓN de minimapas analíticos asimétricos
@@ -156,7 +161,9 @@ export const prerender = false;
           </svg>
           Ubicación jerárquica
         </h2>
-        <div id="rutaMinimapas" class="overflow-x-auto pb-1"></div>
+        <!-- MÓDULO UNIFICADO DE MINIMAPAS (modo visor): host autónomo que el
+             componente rellena con la sucesión horizontal resuelta por ID. -->
+        <MinimapaModuloUnificado id="rutaModuloUnificado" modo="visor" />
       </div>
 
       <div id="camposEspecificos" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -251,15 +258,11 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  const minimapaSection = document.getElementById('minimapaSection')!;
-  const minimapaContenedor = document.getElementById('minimapaContenedor')!;
-
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
-  import { minimapaHtml, inyectarCssMinimapa, COLOR_NARANJA } from '../../../lib/minimapa';
-  // SUCESIÓN UNIFICADA DE MINIMAPAS de la ubicación del objeto (Planta →
-  // Habitación → Mueble → División/Caja) con el MISMO motor de toda la app.
-  import { renderRutaUbicacionObjeto } from '../../../lib/rutaObjetoDetalle';
-  inyectarCssMinimapa();
+  // MÓDULO UNIFICADO DE MINIMAPAS (modo visor): ruta jerárquica + sección interna
+  // del contenedor, ambos con el MISMO estándar visual. La página ya NO usa el
+  // `minimapaHtml` rígido ni inyecta CSS propia de minimapas.
+  import { renderModuloMinimapa, renderSeccionModulo } from '../../../lib/minimapaModuloUnificado';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -609,24 +612,23 @@ export const prerender = false;
       document.getElementById('ubicacionObj')!.textContent = obj.ubicacion_nombre || 'Sin ubicación';
       document.getElementById('contenedorObj')!.textContent = obj.contenedor_nombre || 'Sin contenedor';
 
-      // === Minimapa: celda exacta donde reside este objeto dentro del contenedor ===
-      minimapaSection.classList.add('hidden');
-      minimapaContenedor.innerHTML = '';
-      if (obj.contenedor && obj.parent_grid_row && obj.parent_grid_col) {
-        minimapaContenedor.innerHTML = minimapaHtml({
-          fila: obj.parent_grid_row,
-          columna: obj.parent_grid_col,
-          titulo: `Posición en «${obj.contenedor_nombre || 'Contenedor'}»`,
-          color: COLOR_NARANJA,
-        });
-        minimapaSection.classList.remove('hidden');
-      }
+      // === MÓDULO UNIFICADO · SECCIÓN: celda exacta (F·C) donde reside este objeto
+      //     dentro de su contenedor, con el estándar visual único (trazo negro +
+      //     celda activa en NARANJA). Sin plano de relleno: sin celda, se oculta. ===
+      renderSeccionModulo('seccionModuloUnificado', 'minimapaSection', {
+        filas: obj.contenedor_grid_filas ?? 3,
+        columnas: obj.contenedor_grid_columnas ?? 3,
+        fila: obj.parent_grid_row ?? null,
+        columna: obj.parent_grid_col ?? null,
+      });
 
-      // === Sucesión de minimapas de la ubicación (Planta → Habitación →
-      //     Espacio/Mueble → División/Caja), con el contenedor hijo en NARANJA ===
-      await renderRutaUbicacionObjeto('rutaMinimapas', 'rutaSection', {
-        ubicacion: obj.ubicacion ?? null,
-        contenedor: obj.contenedor ?? null,
+      // === MÓDULO UNIFICADO DE MINIMAPAS (modo visor): resuelve la ruta COMPLETA
+      //     hacia arriba desde el ID del contenedor/ambiente y dibuja la sucesión
+      //     horizontal (Planta → Habitación → Espacio/Mueble → División/Caja),
+      //     con la celda/ambiente final en NARANJA (#f97316). ===
+      await renderModuloMinimapa('rutaModuloUnificado', 'rutaSection', {
+        containerId: obj.contenedor ?? null,
+        ubicacionId: obj.ubicacion ?? null,
       });
 
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';

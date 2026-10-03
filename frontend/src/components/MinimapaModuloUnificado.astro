@@ -1,0 +1,259 @@
+---
+// =============================================================================
+// MÓDULO UNIFICADO DE MINIMAPAS · COMPONENTE GLOBAL AUTÓNOMO Y ELÁSTICO
+// -----------------------------------------------------------------------------
+// ÚNICA cara del sistema de minimapas para toda la aplicación (Detalle, Nuevo
+// Objeto, Editar, Mover y Mudanzas). Es AUTÓNOMO: el consumidor sólo declara el
+// componente y, como máximo, el ID del contenedor/objeto activo. Toda la
+// resolución jerárquica, la geometría real y el estilo canónico viven adentro.
+//
+// DUALIDAD POR PROP `modo`:
+//
+//   · "visor" (por defecto — Detalle de Objeto y rutas en listas):
+//     VISOR ESTÁTICO de solo lectura. Recibe el ID, resuelve la RUTA COMPLETA
+//     HACIA ARRIBA (Planta → Habitación → Espacio/Mueble → División/Caja) y
+//     dibuja la SUCESIÓN HORIZONTAL de minimapas asimétricos fieles al plano de
+//     piso real, con la celda/ambiente final activa en NARANJA ESTRICTO
+//     (#f97316). Delega 100% en lib/minimapaModuloUnificado.ts.
+//
+//   · "interactivo" (Nuevo Objeto, Editar, Mudanza, Modal Mover):
+//     EMBEBE el selector interactivo canónico (el MISMO diseño visual elástico:
+//     proporciones ui_width/ui_height, bordes negros externos, fusiones limpias
+//     sin divisorias) manteniendo ACTIVOS los listeners de clic sobre las
+//     siluetas para descender de nivel, navegar por el plano y persistir la
+//     ubicación elegida en los inputs ocultos. El selector reutiliza el MISMO
+//     motor global (`components/MinimapaRuta.astro` → lib/minimapasAnidados.ts).
+//
+// ESTÁNDAR VISUAL ÚNICO (idéntico en toda la app):
+//   - contenedor estilizado con PUNTAS REDONDEADAS y BORDE NEGRO externo,
+//   - FONDO CREMA suave (#fef3c7) en todos los ambientes,
+//   - NARANJA ESTRICTO (#f97316) SOLO en la celda/habitación/estante final,
+//   - ambientes FUSIONADOS («Pasillo Escalera») sin ninguna línea divisoria.
+//   El look lo traza el MOTOR (lib/minimapa.ts) y las hojas
+//   styles/minimapa-ruta.css + styles/almacenamiento-portales.css; acá no se
+//   declara ninguna regla de dibujo propia.
+//
+// COMPORTAMIENTO ELÁSTICO: el host es `w-full max-w-2xl mx-auto flex flex-row
+// gap-2 overflow-hidden` (más `min-w-0`, imprescindible dentro de un flex/grid
+// para no desbordar). Se amolda al ancho real del padre —barra lateral de
+// Almacenamiento, formulario de edición o fila del inventario— sin desbordarse.
+// =============================================================================
+
+// Hoja PROPIA del componente global (gobierna el tamaño elástico y refuerza los
+// trazos negros nítidos). El componente es autocontenido: quien lo usa no
+// necesita conocer ni importar ninguna clase/CSS.
+import '../styles/minimapa-ruta.css';
+// Modo interactivo: MISMA cara visual, delegando en el selector canónico.
+import SelectorMinimapaUbicacion from './objetos/SelectorMinimapaUbicacion.astro';
+
+// Aspecto (alto/ancho) canónico de la grilla de sección (plano cuadrado): la
+// MISMA constante que usa el motor para dibujar la sección, así el host y el SVG
+// no se descalzan.
+import { ASPECTO_SECCION } from '../lib/minimapaModuloUnificado';
+import { ASPECTO_LIENZO } from '../lib/minimapa';
+
+interface Props {
+  /** Modo de operación del módulo: `visor` (lectura) o `interactivo` (navegación). */
+  modo?: 'visor' | 'interactivo';
+  /**
+   * Tipo de representación del VISOR: `ruta` (sucesión horizontal de la ruta
+   * jerárquica) o `seccion` (grilla interna del contenedor con la celda F·C
+   * activa en naranja). Ambos formatos comparten el MISMO estándar visual.
+   */
+  tipo?: 'ruta' | 'seccion' | 'plano';
+  /** ID del CONTENEDOR activo (el más profundo) cuya ruta se resuelve hacia arriba. */
+  containerId?: string | null;
+  /** ID del AMBIENTE/ubicación activo (cuando no hay contenedor). */
+  ubicacionId?: string | null;
+  /** ID del objeto activo (vista de detalle); se usa con containerId/ubicacionId. */
+  objetoId?: string | null;
+  /** id del host DOM (para que la pantalla lo rellene en caliente por ID). */
+  id?: string;
+  /** Clases extra que aporte la pantalla. */
+  class?: string;
+  /** Ubicación preseleccionada del selector interactivo (input oculto `ubicacion`). */
+  ubicacionSeleccionada?: string;
+  /** Contenedor preseleccionado del selector interactivo (input oculto `contenedor`). */
+  contenedorSeleccionado?: string;
+  /** Fila activa (1-based) de la sección interna (celda F·C). */
+  fila?: number | null;
+  /** Columna activa (1-based) de la sección interna (celda F·C). */
+  columna?: number | null;
+  /** Filas de la grilla del contenedor (default 3). */
+  filas?: number;
+  /** Columnas de la grilla del contenedor (default 3). */
+  columnas?: number;
+  /** Relación alto/ancho REAL del lienzo para el host `plano` (default ASPECTO_LIENZO). */
+  aspecto?: number;
+}
+
+const {
+  modo = 'visor',
+  tipo = 'ruta',
+  containerId = null,
+  ubicacionId = null,
+  objetoId = null,
+  id,
+  class: clase,
+  ubicacionSeleccionada = '',
+  contenedorSeleccionado = '',
+  fila = null,
+  columna = null,
+  filas = 3,
+  columnas = 3,
+  aspecto = null,
+} = Astro.props;
+
+const esInteractivo = modo === 'interactivo';
+const esSeccion = tipo === 'seccion';
+const esPlano = tipo === 'plano';
+
+// Host del VISOR: clases canónicas del componente global + las utilidades
+// elásticas anti-desborde exigidas. El contenido (la barra `.mini-anidados-barra`
+// con los SVG de siluetas reales) lo inyecta el motor en caliente.
+const clasesVisor = [
+  'minimapa-ruta',
+  'minimapa-ruta-cadena',
+  'minimapa-modulo-unificado',
+  'w-full max-w-2xl mx-auto flex flex-row gap-2 overflow-hidden min-w-0',
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+
+// Host del VISOR DE SECCIÓN: plano a escala (`.minimapa-ruta-plano`) que se
+// amolda al ancho del padre. El alto lo gobierna `--minimapa-aspecto-ratio`, la
+// MISMA proporción con la que el motor dibuja la grilla (nunca se descalza).
+const clasesSeccion = [
+  'minimapa-ruta',
+  'minimapa-ruta-plano',
+  'minimapa-modulo-unificado',
+  'w-full max-w-2xl mx-auto',
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+const estiloSeccion = `--minimapa-aspecto-ratio:${(1 / ASPECTO_SECCION).toFixed(4)};`;
+
+// Host del PLANO CANÓNICO (uso como contenedor de relleno EXTERNO, ej: el mapa
+// de Destino de la Mudanza que mudanzaBoard rellena en caliente). Mismas clases
+// que components/MinimapaRuta.astro en su formato `plano`: NUNCA se auto-rellena.
+const aspectoPlano = Math.max(0.35, Math.min(1.8, Number(aspecto) || ASPECTO_LIENZO));
+const clasesPlano = [
+  'minimapa-ruta',
+  'minimapa-ruta-plano',
+  'minimapa-modulo-unificado',
+  'w-full overflow-hidden min-w-0',
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+const estiloPlano = `--minimapa-aspecto-ratio:${(1 / aspectoPlano).toFixed(4)};`;
+---
+
+{esInteractivo ? (
+  <!-- MODO INTERACTIVO: el selector canónico conserva la navegación por clic y la
+       escritura de los inputs ocultos (`ubicacion` / `contenedor`). MISMO look. -->
+  <div id={id} class={['minimapa-modulo-unificado-interactivo w-full min-w-0', clase].filter(Boolean).join(' ')}>
+    <SelectorMinimapaUbicacion
+      ubicacionSeleccionada={ubicacionSeleccionada}
+      contenedorSeleccionado={contenedorSeleccionado}
+    />
+  </div>
+) : esSeccion ? (
+  <!-- MODO VISOR · SECCIÓN: grilla interna del contenedor (celda F·C activa en
+       NARANJA) con el MISMO estándar visual (plano canónico de trazo negro). -->
+  <div
+    id={id}
+    class={clasesSeccion}
+    style={estiloSeccion}
+    data-minimapa-modulo="seccion"
+    data-fila={fila ?? ''}
+    data-columna={columna ?? ''}
+    data-filas={filas}
+    data-columnas={columnas}
+  ></div>
+) : esPlano ? (
+  <!-- HOST DEL PLANO CANÓNICO de relleno externo (ej: el mapa de Destino de la
+       Mudanza lo rellena mudanzaBoard en caliente). MISMO host que el componente
+       global en formato `plano`: no se auto-rellena. -->
+  <div
+    id={id}
+    class={clasesPlano}
+    style={estiloPlano}
+    data-minimapa-modulo="plano"
+    data-minimapa-ruta
+  ></div>
+) : (
+  <!-- MODO VISOR · RUTA: host vacío que el motor rellena con la sucesión
+       horizontal de minimapas asimétricos resueltos por ID (sin divs manuales). -->
+  <div
+    id={id}
+    class={clasesVisor}
+    data-minimapa-modulo="visor"
+    data-container-id={containerId ?? ''}
+    data-ubicacion-id={ubicacionId ?? ''}
+    data-objeto-id={objetoId ?? ''}
+  ></div>
+)}
+
+<script>
+  // ===========================================================================
+  // ARRANQUE AUTÓNOMO DEL VISOR (modo `visor`)
+  // ---------------------------------------------------------------------------
+  // Recorre TODAS las instancias del módulo en la página y rellena cada host con
+  // la cadena resuelta por ID. La resolución (jerarquía + geometría real) vive en
+  // lib/minimapaModuloUnificado.ts, que a su vez delega en el motor global.
+  // ===========================================================================
+  import { resolverCadenaMinimapas, seccionPlanoHtml } from '../lib/minimapaModuloUnificado';
+
+  function inicializarVisor(host: HTMLElement): void {
+    if (host.dataset.minimapaIniciado === 'true') return;
+    host.dataset.minimapaIniciado = 'true';
+
+    const containerId = host.dataset.containerId || null;
+    const ubicacionId = host.dataset.ubicacionId || null;
+    const objetoId = host.dataset.objetoId || null;
+    if (!containerId && !ubicacionId) return;
+
+    void resolverCadenaMinimapas({ containerId, ubicacionId, objetoId })
+      .then((html) => {
+        if (html) host.innerHTML = html;
+      })
+      .catch((error) => {
+        console.error('[MinimapaModuloUnificado] Error al resolver la ruta:', error);
+      });
+  }
+
+  // VISOR de SECCIÓN: grilla interna del contenedor (celda F·C activa en naranja).
+  // Si el host no trae la celda (la pantalla la resuelve en caliente con
+  // renderSeccionModulo), queda vacío y lo rellena la pantalla.
+  function inicializarSeccion(host: HTMLElement): void {
+    if (host.dataset.minimapaIniciado === 'true') return;
+    host.dataset.minimapaIniciado = 'true';
+
+    const fila = Number(host.dataset.fila) || null;
+    const columna = Number(host.dataset.columna) || null;
+    if (!fila || !columna) return;
+
+    const filas = Number(host.dataset.filas) || 3;
+    const columnas = Number(host.dataset.columnas) || 3;
+    const html = seccionPlanoHtml({ filas, columnas, fila, columna });
+    if (html) host.innerHTML = html;
+  }
+
+  function inicializarTodos(): void {
+    document
+      .querySelectorAll<HTMLElement>('[data-minimapa-modulo="visor"]')
+      .forEach(inicializarVisor);
+    document
+      .querySelectorAll<HTMLElement>('[data-minimapa-modulo="seccion"]')
+      .forEach(inicializarSeccion);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializarTodos);
+  } else {
+    inicializarTodos();
+  }
+</script>

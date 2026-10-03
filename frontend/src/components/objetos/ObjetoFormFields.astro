@@ -19,7 +19,7 @@
 import CategoriaCreator from '../CategoriaCreator.astro';
 import CapturaFotosCompacta from './CapturaFotosCompacta.astro';
 import AutocompletarIA from './AutocompletarIA.astro';
-import SelectorMinimapaUbicacion from './SelectorMinimapaUbicacion.astro';
+import MinimapaModuloUnificado from '../MinimapaModuloUnificado.astro';
 import LegadoTrazabilidad from './LegadoTrazabilidad.astro';
 
 interface Props {
@@ -133,7 +133,8 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
               class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
           </div>
         </div>
-        <SelectorMinimapaUbicacion
+        <MinimapaModuloUnificado
+          modo="interactivo"
           ubicacionSeleccionada={ubicacion}
           contenedorSeleccionado={contenedor}
         />
