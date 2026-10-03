@@ -1,0 +1,27 @@
+# =============================================================================
+# .dockerignore - Estok
+# Excluye basura local del build context para optimizar la build de Coolify
+# (menos peso, menos RAM, sin fugas/OOM en el VPS).
+# =============================================================================
+
+# Entornos virtuales
+.venv/
+venv/
+ENV/
+
+# Python
+*.pyc
+__pycache__/
+
+# Node / Frontend
+frontend/node_modules/
+frontend/.astro/
+frontend/dist/
+
+# Git
+.git/
+.gitignore
+
+# Django
+staticfiles/
+db.sqlite3
