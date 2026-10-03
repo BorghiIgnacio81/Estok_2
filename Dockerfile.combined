@@ -44,13 +44,19 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
-# Instalar Node.js y Nginx
+# Instalar Node.js 22 y Nginx
 # DEBIAN_FRONTEND=noninteractive evita bloqueos interactivos de debconf /
 # Term::ReadLine durante la instalacion de Node.js en entornos headless (Coolify).
+# NodeSource: metodo OFICIAL solo-repositorio (repo `nodistro`) con keyring
+# explicito. El viejo `curl .../setup_22.x | bash -` instala una clave GPG
+# desactualizada y hace fallar `apt-get update` por NO_PUBKEY (exit 1).
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl gnupg nginx && \
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg nginx && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list && \
+    apt-get update && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
