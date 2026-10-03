@@ -1,0 +1,310 @@
+/* =============================================================================
+   INVENTARIO · MÓDULO CSS SEMÁNTICO  (Fase 2 · Pasada 1)
+   -----------------------------------------------------------------------------
+   Centraliza los patrones visuales repetidos de las pantallas de inventario
+   (Almacenamiento, Objetos, Mudanza) en CLASES SEMÁNTICAS con propiedades
+   estándar. Reemplaza las cadenas infinitas de utilidades Tailwind en el
+   marcado y unifica la MISMA firma visual entre el markup (.astro) y el HTML
+   generado por string en src/lib/*.ts.
+
+   Se importa desde:
+     · components/ui/BotonAccionRapida.astro   → botones "+" (`.boton-accion-rapida*`)
+
+   ⚠️ Tailwind v4: este archivo es CSS PLANO A PROPÓSITO (sin `@apply`). En un
+   módulo externo, `@apply` exigiría `@reference "tailwindcss";` y engordaría la
+   hoja procesada; la decisión del proyecto es CSS semántico liviano.
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   0. TOKENS DE DISEÑO (naranja estricto del sistema + medidas táctiles)
+   ----------------------------------------------------------------------------- */
+:root {
+  --estok-naranja: #f97316;           /* naranja estricto (minimapa / acento) */
+  --estok-naranja-fuerte: #ea580c;    /* hover / activo del naranja */
+  --estok-naranja-suave: #fff7ed;     /* fondo naranja suave */
+  --estok-naranja-borde: #fdba74;     /* borde naranja suave */
+  --estok-azul: #1d4ed8;              /* blue-700 (acción primaria) */
+  --estok-azul-hover: #1e40af;        /* blue-800 (hover) */
+  --accion-flotante-medida: 3.5rem;   /* 56px del botón flotante */
+}
+
+/* -----------------------------------------------------------------------------
+   1. BOTÓN DE ACCIÓN RÁPIDA ("+") — firma semántica compartida markup/runtime
+   ----------------------------------------------------------------------------- */
+.boton-accion-rapida {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;                         /* .5rem = gap-2 */
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.boton-accion-rapida:active {
+  transform: scale(0.96);
+}
+
+.boton-accion-rapida__icono {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.boton-accion-rapida__svg {
+  width: 1.25rem;                      /* w-5 */
+  height: 1.25rem;                     /* h-5 */
+  flex-shrink: 0;
+}
+
+/* --- 1.1 INLINE: pastilla azul con icono + texto (EmptyState / lienzos) ----- */
+.boton-accion-rapida--inline {
+  padding: 0.75rem 1.5rem;             /* py-3 px-6 */
+  border-radius: 0.5rem;               /* rounded-lg */
+  background: var(--estok-azul);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); /* shadow-sm */
+}
+
+.boton-accion-rapida--inline:hover {
+  background: var(--estok-azul-hover);
+}
+
+.boton-accion-rapida--inline:focus-visible {
+  outline: 2px solid var(--estok-azul);
+  outline-offset: 2px;
+}
+
+/* --- 1.2 CABECERA: imagen PNG grande de la botonera superior (Objetos) ------ */
+.boton-accion-rapida--cabecera {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.boton-accion-rapida--cabecera .boton-accion-rapida__imagen {
+  height: 6rem;                        /* h-24 */
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.2s ease;
+}
+
+.boton-accion-rapida--cabecera:hover .boton-accion-rapida__imagen {
+  transform: scale(1.05);
+}
+
+.boton-accion-rapida--cabecera:active .boton-accion-rapida__imagen {
+  transform: scale(0.95);
+}
+
+@media (min-width: 768px) {
+  .boton-accion-rapida--cabecera .boton-accion-rapida__imagen {
+    height: 8rem;                      /* md:h-32 */
+  }
+}
+
+@media (min-width: 1024px) {
+  .boton-accion-rapida--cabecera .boton-accion-rapida__imagen {
+    height: 9rem;                      /* lg:h-36 */
+  }
+}
+
+/* --- 1.3 FLOTANTE: círculo naranja estricto #f97316 fijo (móvil) ------------ */
+.boton-accion-rapida--flotante {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 40;
+  width: var(--accion-flotante-medida);
+  height: var(--accion-flotante-medida);
+  border-radius: 9999px;
+  background: var(--estok-naranja);
+  color: #ffffff;
+  box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.4),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.boton-accion-rapida--flotante:hover {
+  background: var(--estok-naranja-fuerte);
+}
+
+.boton-accion-rapida--flotante:active {
+  transform: scale(0.94);
+}
+
+.boton-accion-rapida--flotante:focus-visible {
+  outline: 2px solid var(--estok-naranja);
+  outline-offset: 2px;
+}
+
+.boton-accion-rapida--flotante .boton-accion-rapida__svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+/* --- 1.4 VISIBILIDAD MÓVIL: el flotante reemplaza a la cabecera en desktop ---
+   Se define acá (CSS SIN `@layer`) y NO con `lg:hidden` de Tailwind: en v4 las
+   utilidades viven en `@layer utilities` y el CSS sin capa siempre les gana,
+   así que `lg:hidden` NO ocultaría este botón. */
+@media (min-width: 1024px) {
+  .boton-accion-rapida--solo-movil {
+    display: none;
+  }
+}
+
+/* --- 1.5 FLOTANTE ALTA: por encima de la bandeja inferior fija de Almacenamiento.
+   `.bandeja-fixed` es position:fixed; bottom:0; z-index:40, y la página reserva
+   pb-36 (144px); se eleva el botón a 9.5rem (152px) y z-index 41. */
+.boton-accion-rapida--flotante-alta {
+  bottom: 9.5rem;
+  z-index: 41;
+}
+
+/* -----------------------------------------------------------------------------
+   2. CONTENEDORES DE SCROLL TÁCTIL (paneles/columnas con gesto propio)
+   -----------------------------------------------------------------------------
+   `touch-action: pan-y` + inercia por hardware: el dedo desplaza SOLO el panel
+   (no la página ni la columna vecina). `overscroll-behavior` corta la cadena de
+   scroll al llegar al tope/final. Es la física que ya usan las columnas de la
+   Mudanza (styles/mudanza.css), expuesta ahora como clase semántica reutilizable.
+   ---------------------------------------------------------------------------- */
+.scroll-tactil {
+  overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* -----------------------------------------------------------------------------
+   3. ACENTO NARANJA ESTRICTO (#f97316) DEL MINIMAPA / SECTOR ACTIVO
+   -----------------------------------------------------------------------------
+   El ambiente/contenedor actual se resalta SIEMPRE con el mismo naranja del
+   sistema, tanto en el markup como en las cadenas de minimapas de lib/*.
+   ---------------------------------------------------------------------------- */
+.acento-naranja {
+  color: var(--estok-naranja);
+}
+
+.minimapa-activo-naranja {
+  outline: 2px solid var(--estok-naranja);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* -----------------------------------------------------------------------------
+   4. INDICADOR DE TRÁNSITO (interno del mueble / general de la mudanza)
+   ----------------------------------------------------------------------------- */
+@keyframes estok-transito-pulso {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .5; }
+}
+
+.estado-transito {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 2px dashed;
+  border-radius: 9999px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  animation: estok-transito-pulso 1.5s ease-in-out infinite;
+}
+
+/* Interno: dentro de un mueble raíz, sin estante fino (ROJO). */
+.estado-transito--interno {
+  font-size: 8px;
+  padding: 1px 5px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* General: limbo del inquilinato destino en Mudanzas (ÁMBAR). */
+.estado-transito--general {
+  font-size: 11px;
+  padding: 4px 10px;
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+/* Zona receptora «En Tránsito» (drop target). Reemplaza las utilidades
+   rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/70 p-2 sm:p-3.
+   `.mudanza-transito` SE CONSERVA (gobierna el hover de drag&drop). */
+.estado-transito-zona {
+  border: 2px dashed var(--estok-naranja-borde);
+  border-radius: .75rem;
+  background: #fffbeb;
+  padding: .5rem .75rem;
+}
+
+/* -----------------------------------------------------------------------------
+   5. NAVEGACIÓN JERÁRQUICA (barra «⬅ Volver» + migas de minimapas)
+   ----------------------------------------------------------------------------- */
+.nav-jerarquica {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: .25rem;
+}
+.nav-jerarquica--extremos { justify-content: space-between; }
+/* Embebido en un flex existente SIN alterar el layout: la barra y su slot de
+   migas se vuelven transparentes al layout (display: contents). */
+.nav-jerarquica--plana,
+.nav-jerarquica--plana > .nav-jerarquica__migas { display: contents; }
+
+.nav-jerarquica__migas {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.nav-jerarquica__titulo {
+  font-size: 13px;
+  font-weight: 800;
+  color: #7c2d12;
+}
+
+/* Botón esférico «⬅ Volver» (unifica casita-volver / volver-btn /
+   mudanza-mapa-volver / wizard-volver-btn / js-mover-volver). */
+.nav-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--estok-naranja-borde);
+  background: var(--estok-naranja-suave);
+  color: #c2410c;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
+}
+.nav-volver:hover  { background: #ffedd5; }
+.nav-volver:active { transform: scale(.96); }
+.nav-volver:focus-visible { outline: 2px solid var(--estok-naranja); }
+
+/* Variante NEUTRA (gris): conserva la estética original del modal «Mover». */
+.nav-volver--neutro {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #374151;
+}
+.nav-volver--neutro:hover { background: #e5e7eb; }
+
+/* IMPRESCINDIBLE: los TS ocultan con la utilidad Tailwind `hidden`
+   (classList.toggle('hidden', …)). Sin `!important`, `.nav-volver` (sin @layer)
+   ganaría sobre `.hidden` (@layer utilities) y el botón NUNCA se ocultaría.
+   Mismo patrón ya existente: almacenamiento-portales.css (#btnVolverNivel.hidden). */
+.nav-volver.hidden { display: none !important; }
+
+

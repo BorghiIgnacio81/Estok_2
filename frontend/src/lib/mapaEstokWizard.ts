@@ -431,7 +431,7 @@ export function renderVistaWizard(state: MapaEstokWizardState): string {
           ? '⚠️ Al guardar se persiste toda la jerarquía espacial en el Estok.'
           : `Estás dentro de «${escapeHtml(nodo.nombreNodo)}»`}</span>
         <div class="wizard-pie-botones">
-          ${nivel > 1 ? `<button type="button" class="wizard-volver-btn" data-volver>← Volver al nivel ${nivel - 1}</button>` : ''}
+          ${nivel > 1 ? `<button type="button" class="nav-volver" data-volver>← Volver al nivel ${nivel - 1}</button>` : ''}
           <button type="button" class="wizard-guardar-btn" data-guardar-mapa>💾 Guardar Mapa</button>
         </div>
       </div>

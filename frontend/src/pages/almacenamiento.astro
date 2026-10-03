@@ -18,6 +18,8 @@ import ErrorState from '../components/ErrorState.astro';
 // COMPONENTE GLOBAL de la mini-guía analítica superior: unifica en un único
 // render las siluetas asimétricas proporcionales (mismo motor puro que Objetos).
 import MinimapaRuta from '../components/MinimapaRuta.astro';
+// Botón "+" unificado: variante flotante móvil (sobre la bandeja inferior fija).
+import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
@@ -80,7 +82,7 @@ import '../styles/almacenamiento-portales.css';
               <span id="mapaJerarquicoBadge" class="text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">Cargando...</span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-              <button type="button" id="btnVolverNivel" class="hidden portales-modo-boton" title="⬅ Volver de Nivel: desandá el camino de portales paso a paso">⬅ Volver de Nivel</button>
+              <button type="button" id="btnVolverNivel" class="hidden nav-volver" title="⬅ Volver de Nivel: desandá el camino de portales paso a paso">⬅ Volver de Nivel</button>
               <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
               <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
             </div>
@@ -106,7 +108,7 @@ import '../styles/almacenamiento-portales.css';
               <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
               <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
               <button type="button" id="btnOrganizarEscena4" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer" title="Abrir la Organización Interna del mueble: pantalla dividida con la Bandeja de Carga Fina a la derecha">📦 Organizar Contenido</button>
-              <button type="button" id="btnVolverEscena" class="volver-btn hidden" title="Volver al nivel anterior del flujo en cascada">
+              <button type="button" id="btnVolverEscena" class="nav-volver hidden" title="Volver al nivel anterior del flujo en cascada">
                 <svg class="volver-btn-ico" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/></svg>
                 <span>Volver</span>
               </button>
@@ -269,6 +271,13 @@ import '../styles/almacenamiento-portales.css';
       </div>
     </div>
 
+  <!-- Acción rápida móvil: "+ Nuevo Objeto", por ENCIMA de la bandeja inferior fija. -->
+  <BotonAccionRapida
+    variante="flotante"
+    href="/objetos/nuevo"
+    etiqueta="Nuevo Objeto"
+    class="boton-accion-rapida--solo-movil boton-accion-rapida--flotante-alta"
+  />
 </BaseLayout>
 
 <script>

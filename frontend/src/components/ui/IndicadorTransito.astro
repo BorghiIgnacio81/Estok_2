@@ -1,0 +1,32 @@
+---
+// =============================================================================
+// INDICADOR DE TRÁNSITO · COMPONENTE GLOBAL (markup estático / SSR)
+// -----------------------------------------------------------------------------
+// Emite EXACTAMENTE las mismas clases semánticas que lib/indicadorTransito.ts
+// para que el markup y el HTML de runtime sean indistinguibles:
+//   · tipo 'interno' → .estado-transito--interno (rojo, mueble raíz)
+//   · tipo 'general' → .estado-transito--general (ámbar, mudanzas)
+// Usado como SSR/fallback en el host #mudanzaTransito de mudanza.astro.
+// =============================================================================
+import '../styles/inventario.css';
+
+export interface Props {
+  /** Sabor del indicador: interno (mueble raíz) o general (mudanzas). */
+  tipo?: 'interno' | 'general';
+  /** Texto customizado (default: 🔴 En tránsito interno / 🚚 En Tránsito). */
+  texto?: string;
+  class?: string;
+}
+
+const { tipo = 'general', texto, class: clase } = Astro.props;
+const esInterno = tipo === 'interno';
+const contenido = texto ?? (esInterno ? '🔴 En tránsito interno' : '🚚 En Tránsito');
+const titulo = esInterno
+  ? 'En Tránsito Interno: el elemento está dentro del mueble pero todavía no fue ubicado en un estante concreto.'
+  : 'En Tránsito: viaja al Estok destino SIN ubicación física (limbo del inquilinato).';
+const clases = ['estado-transito', `estado-transito--${tipo}`, clase]
+  .filter(Boolean)
+  .join(' ');
+---
+
+<span class={clases} title={titulo}>{contenido}</span>

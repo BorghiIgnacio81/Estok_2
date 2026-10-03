@@ -34,6 +34,7 @@ import ErrorState from '../components/ErrorState.astro';
 // (lib/minimapasAnidados.ts + lib/mudanzaMapaDestinoRender.ts) que
 // Almacenamiento y Objetos.
 import MinimapaModuloUnificado from '../components/MinimapaModuloUnificado.astro';
+import IndicadorTransito from '../components/ui/IndicadorTransito.astro';
 import '../styles/mudanza.css';
 // Estilos del mapa de minimapas del Destino (siluetas + chips de navegación).
 import '../styles/mudanza-mapa.css';
@@ -146,7 +147,7 @@ import '../styles/mudanza-mapa.css';
                en caliente en cada repintado del mapa.
                ============================================================ -->
           <div id="mudanzaDestinoCascada" class="mudanza-destino-cascada mt-1.5">
-            <button id="mudanzaDestinoVolver" type="button" class="mudanza-mapa-volver hidden"
+            <button id="mudanzaDestinoVolver" type="button" class="nav-volver hidden"
               data-navegar-volver title="Volver un nivel en la jerarquía del Estok destino">⬅ Volver</button>
             <MinimapaModuloUnificado id="mudanzaDestinoRuta" class="hidden" />
           </div>
@@ -154,7 +155,11 @@ import '../styles/mudanza-mapa.css';
 
         <!-- ZONA ESTÁTICA «EN TRÁNSITO»: receptora de sueltas SIN ubicación
              física, fuera del scroll del plano para estar siempre visible. -->
-        <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3"></div>
+        <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3">
+          <!-- Fallback previo a la init del tablero: mudanzaBoard lo reemplaza
+               en caliente con la zona completa (htmlZonaTransito()). -->
+          <IndicadorTransito tipo="general" />
+        </div>
 
         <!-- PLANO UNIFICADO: host del MÓDULO UNIFICADO `<MinimapaModuloUnificado />`
              en su formato `plano` (mismo motor de siluetas asimétricas

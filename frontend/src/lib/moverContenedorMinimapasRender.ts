@@ -71,7 +71,7 @@ function migasHtml(vista: VistaMover): string {
       + escapeHtml(vista.plantas[0] ? vista.plantas[0].etiqueta : 'Planta 1') + '</span>';
 
   const volver = vista.nivel > 0
-    ? '<button type="button" class="js-mover-volver px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer">⬅ Volver</button>'
+    ? '<button type="button" class="js-mover-volver nav-volver nav-volver--neutro">⬅ Volver</button>'
     : '';
 
   return '<div class="flex flex-wrap items-center gap-2 mb-2">'

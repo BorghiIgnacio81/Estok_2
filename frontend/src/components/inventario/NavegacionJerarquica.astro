@@ -1,0 +1,56 @@
+---
+// =============================================================================
+// NAVEGACIÓN JERÁRQUICA · barra «⬅ Volver» + host de las migas de minimapas
+// -----------------------------------------------------------------------------
+// Contiene el botón esférico «⬅ Volver» (clase semántica .nav-volver) y un slot
+// para la cadena de minimapas que se ENCOGE 4× al profundizar nivel (Visual
+// Breadcrumbs). Conserva `id` y `data-*` que consumen los listeners existentes,
+// por lo que se puede inyectar sin romper el salto de nivel (activeLevel).
+// =============================================================================
+import '../styles/inventario.css';
+
+export interface Props {
+  /** id del botón (preserva listeners por id, ej: 'mudanzaDestinoVolver'). */
+  volverId?: string;
+  /** Arranca oculto (se togglea con la utilidad `hidden`; ver .nav-volver.hidden). */
+  oculto?: boolean;
+  /** Texto del botón (default '⬅ Volver'). */
+  etiquetaVolver?: string;
+  titulo?: string;
+  /** `display:contents`: se embebe en un flex existente sin alterar el layout. */
+  plano?: boolean;
+  /** `justify-content: space-between` (cabeceras con título a la derecha). */
+  extremos?: boolean;
+  /** Atributos data-* extra para los listeners por atributo. */
+  atributos?: Record<string, string | number | boolean | undefined>;
+  class?: string;
+}
+
+const {
+  volverId,
+  oculto = false,
+  etiquetaVolver = '⬅ Volver',
+  titulo,
+  plano = false,
+  extremos = false,
+  atributos = {},
+  class: clase,
+} = Astro.props;
+
+const clases = [
+  'nav-jerarquica',
+  plano ? 'nav-jerarquica--plana' : '',
+  extremos ? 'nav-jerarquica--extremos' : '',
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+const clasesVolver = ['nav-volver', oculto ? 'hidden' : ''].filter(Boolean).join(' ');
+---
+
+<nav class={clases}>
+  <button type="button" id={volverId} class={clasesVolver} title={titulo} {...atributos}>
+    {etiquetaVolver}
+  </button>
+  <div class="nav-jerarquica__migas"><slot /></div>
+</nav>

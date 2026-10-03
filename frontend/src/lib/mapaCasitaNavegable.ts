@@ -285,9 +285,9 @@ function renderHabitaciones(): string {
 
   return `
   <div class="casita-lienzo" data-vista="habitaciones">
-    <div class="casita-nivel2-cab">
-      <button type="button" class="casita-volver" data-casita-volver title="Volver a la vista general de la casa">⬅ Volver</button>
-      <span class="casita-nivel2-titulo">🏠 ${escapeHtml(nombre)}</span>
+    <div class="nav-jerarquica nav-jerarquica--extremos">
+      <button type="button" class="nav-volver" data-casita-volver title="Volver a la vista general de la casa">⬅ Volver</button>
+      <span class="nav-jerarquica__titulo">🏠 ${escapeHtml(nombre)}</span>
     </div>
     <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa está en naranja">
       <div class="casita-minimapa-casilla">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</div>

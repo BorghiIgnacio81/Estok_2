@@ -4,6 +4,8 @@
 // Muestra un estado vacío con icono, mensaje y acción opcional
 // =============================================================================
 
+import BotonAccionRapida from './ui/BotonAccionRapida.astro';
+
 export interface Props {
   titulo: string;
   descripcion: string;
@@ -31,19 +33,9 @@ const {
   <p class="text-gray-400 mb-6">{descripcion}</p>
   {accionTexto && (
     accionHref ? (
-      <a href={accionHref} class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        {accionTexto}
-      </a>
+      <BotonAccionRapida variante="inline" href={accionHref} etiqueta={accionTexto} />
     ) : (
-      <button id={accionId} class="inline-flex items-center px-6 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm">
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        {accionTexto}
-      </button>
+      <BotonAccionRapida variante="inline" id={accionId} etiqueta={accionTexto} />
     )
   )}
 </div>

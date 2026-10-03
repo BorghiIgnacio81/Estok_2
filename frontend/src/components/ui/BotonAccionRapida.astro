@@ -1,0 +1,105 @@
+---
+// =============================================================================
+// BOTÓN DE ACCIÓN RÁPIDA · COMPONENTE GLOBAL DE LA ACCIÓN «+»
+// -----------------------------------------------------------------------------
+// Centraliza el botón "+" del sistema (Nuevo Objeto / Nueva Caja / Nueva
+// Ubicación) en TRES variantes con UNA sola firma visual semántica (clases
+// `.boton-accion-rapida*` de styles/inventario.css):
+//
+//   · cabecera → imagen PNG grande de la botonera superior (Objetos)
+//   · inline   → pastilla azul con icono + texto (EmptyState / lienzos)
+//   · flotante → círculo fijo con el NARANJA ESTRICTO #f97316 (móvil)
+//
+// La MISMA firma de clases la consumen los builders de string de src/lib/*
+// (mapaPlantaUnica.ts) para que el botón del runtime y el del markup luzcan
+// idénticos. Autocontenido: importa su propia hoja (styles/inventario.css),
+// igual que MinimapaRuta.astro.
+// =============================================================================
+
+import '../styles/inventario.css';
+
+export interface Props {
+  /** Variante visual del botón. */
+  variante?: 'cabecera' | 'inline' | 'flotante';
+  /** Si se pasa, se renderiza un <a>; si no, un <button type="button">. */
+  href?: string;
+  /** Texto visible (en "flotante" sólo se usa como aria-label / title). */
+  etiqueta?: string;
+  /** Ruta de la imagen PNG (variante "cabecera"). */
+  imagen?: string;
+  /** Icono textual/emoji que reemplaza al SVG "+" por defecto. */
+  icono?: string;
+  /** Etiqueta accesible explícita (default: `etiqueta`). */
+  ariaLabel?: string;
+  /** id del elemento (lo respetan los listeners de runtime). */
+  id?: string;
+  /** Clases extra del consumidor. */
+  class?: string;
+}
+
+const {
+  variante = 'inline',
+  href,
+  etiqueta,
+  imagen,
+  icono,
+  ariaLabel,
+  id,
+  class: clase,
+} = Astro.props;
+
+const esFlotante = variante === 'flotante';
+const mostrarImagen = variante === 'cabecera' && Boolean(imagen);
+const mostrarTexto = Boolean(etiqueta) && !esFlotante && !mostrarImagen;
+const etiquetaAccesible = ariaLabel || etiqueta || 'Acción rápida';
+
+const clases = [
+  'boton-accion-rapida',
+  `boton-accion-rapida--${variante}`,
+  clase,
+]
+  .filter(Boolean)
+  .join(' ');
+
+// Contenido interno compartido por <a> y <button>: imagen PNG, icono textual o
+// el SVG "+" por defecto, más el texto (excepto en la variante flotante).
+const contenido = (
+  <>
+    {mostrarImagen ? (
+      <img src={imagen} alt={etiqueta ?? ''} class="boton-accion-rapida__imagen" />
+    ) : icono ? (
+      <span class="boton-accion-rapida__icono" aria-hidden="true">
+        {icono}
+      </span>
+    ) : (
+      <svg
+        class="boton-accion-rapida__svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M12 4v16m8-8H4"
+        />
+      </svg>
+    )}
+    {mostrarTexto && <span class="boton-accion-rapida__texto">{etiqueta}</span>}
+  </>
+);
+---
+
+{
+  href ? (
+    <a href={href} id={id} class={clases} aria-label={etiquetaAccesible} title={etiqueta}>
+      {contenido}
+    </a>
+  ) : (
+    <button type="button" id={id} class={clases} aria-label={etiquetaAccesible} title={etiqueta}>
+      {contenido}
+    </button>
+  )
+}

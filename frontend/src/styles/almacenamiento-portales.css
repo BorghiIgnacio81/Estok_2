@@ -42,10 +42,10 @@
   background: #ffedd5;
   border-color: #fb923c;
 }
-/* Precedencia sobre el `display` del componente: los botones de modo y el
-   «Volver de Nivel» se ocultan con la utilidad `.hidden` de Tailwind. */
-.portales-modo-boton.hidden,
-#btnVolverNivel.hidden {
+/* Precedencia sobre el `display` del componente: los botones de modo se
+   ocultan con la utilidad `.hidden` de Tailwind. (#btnVolverNivel ahora usa
+   `.nav-volver.hidden`, declarado en styles/inventario.css). */
+.portales-modo-boton.hidden {
   display: none !important;
 }
 

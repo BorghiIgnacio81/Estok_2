@@ -144,26 +144,9 @@
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.volver-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  background: #fffbeb;
-  border: 1px solid #fbbf24;
-  border-radius: 999px;
-  color: #b45309;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-.volver-btn:hover {
-  background: #fef3c7;
-}
-.volver-btn:active {
-  transform: scale(0.96);
-}
+/* .volver-btn migrado a `.nav-volver` (styles/inventario.css): #btnVolverEscena
+   ya usa las clases semánticas. `.volver-btn-ico` SE CONSERVA (tamaño del icono
+   SVG del botón estático). */
 .volver-btn-ico {
   width: 14px;
   height: 14px;
@@ -506,16 +489,8 @@
   border-radius: 8px;
   padding: 2px 4px;
 }
-.mueble-item-transito {
-  font-size: 8px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: #b91c1c;
-  background: #fee2e2;
-  border-radius: 999px;
-  padding: 1px 5px;
-  white-space: nowrap;
-}
+/* .mueble-item-transito migrado a `.estado-transito--interno` (inventario.css):
+   la etiqueta «🔴 En tránsito interno» ya usa las clases semánticas. */
 /* =============================================================================
    CASILLERO MULTI-ELEMENTO + CLAUSURA MANUAL «Lleno» (Visor Contenedor Grande)
    La celda es un contenedor flexible (flex flex-wrap) que acumula miniaturas de

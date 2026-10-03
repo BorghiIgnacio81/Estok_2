@@ -127,49 +127,11 @@
   color: #9ca3af;
 }
 
-/* --- Nivel 2: cabecera ----------------------------------------------------- */
-
-.casita-nivel2-cab {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
-}
-
-.casita-volver {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 12px;
-  background: #fff7ed;
-  border: 1px solid #fdba74;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #c2410c;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.1s;
-}
-
-.casita-volver:hover {
-  background: #ffedd5;
-}
-
-.casita-volver:active {
-  transform: scale(0.96);
-}
-
-.casita-volver:focus-visible {
-  outline: 2px solid #f97316;
-}
-
-.casita-nivel2-titulo {
-  font-size: 13px;
-  font-weight: 800;
-  color: #7c2d12;
-}
+/* --- Nivel 2: cabecera -----------------------------------------------------
+   Migrada a las clases semánticas de styles/inventario.css:
+   .nav-jerarquica--extremos (barra) + .nav-volver (botón «⬅ Volver») +
+   .nav-jerarquica__titulo (título). Las reglas .casita-nivel2-cab /
+   .casita-volver / .casita-nivel2-titulo quedaron sin uso. */
 
 
 /* --- Minimapa ultra-mini de la casita -------------------------------------- */

@@ -23,24 +23,8 @@
   color: #6b7280;
 }
 
-.mudanza-mapa-volver {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #374151;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
-}
-
-.mudanza-mapa-volver:hover {
-  border-color: #fdba74;
-  background: #fff7ed;
-  color: #c2410c;
-}
+/* .mudanza-mapa-volver migrado a `.nav-volver` (styles/inventario.css):
+   #mudanzaDestinoVolver ya usa la clase semántica. */
 
 .mudanza-mapa-aviso {
   margin: 0;

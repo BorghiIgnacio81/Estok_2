@@ -18,6 +18,8 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
 // Modal unificado de exportación (CSV parametrizado + informe PDF con formato).
 // Su lógica vive en src/lib/exportarDatos.ts (auth centralizada en services/auth).
 import ModalExportarDatos from '../components/objetos/ModalExportarDatos.astro';
+// Botón "+" unificado (variante cabecera: PNG grande de la botonera superior).
+import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas de
 // caja de la SECCIÓN 1 y el componente global components/MinimapaRuta.astro.
 // No se duplican: viven en un único archivo compartido por Almacenamiento.
@@ -47,10 +49,13 @@ import '../styles/minimapa-ruta.css';
       <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         <ModalExportarDatos />
-        <a href="/objetos/nuevo" class="inline-block flex-shrink-0" aria-label="Nuevo Objeto">
-          <img src="/nuevo objeto.png" alt="Nuevo Objeto"
-            class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-        </a>
+        <BotonAccionRapida
+          variante="cabecera"
+          class="flex-shrink-0"
+          href="/objetos/nuevo"
+          imagen="/nuevo objeto.png"
+          etiqueta="Nuevo Objeto"
+        />
       </div>
     </div>
 
@@ -221,5 +226,13 @@ import '../styles/minimapa-ruta.css';
       }
     }
   </style>
+
+  <!-- Acción rápida móvil: "+ Nuevo Objeto". En desktop ya está la botonera superior. -->
+  <BotonAccionRapida
+    variante="flotante"
+    href="/objetos/nuevo"
+    etiqueta="Nuevo Objeto"
+    class="boton-accion-rapida--solo-movil"
+  />
 </BaseLayout>
 

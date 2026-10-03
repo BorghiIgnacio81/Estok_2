@@ -17,6 +17,7 @@ import { iconoContenedorVisor } from './visorHabitacionHtml';
 import { renderLienzoElastico } from './mapaPlantaUnica';
 import type { ItemElastico } from './lienzoElastico';
 import { esCajaMovil } from './taxonomiaContenedor';
+import { indicadorTransitoHtml } from './indicadorTransito';
 
 const IMG_MUEBLE = '/archivador-login.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
@@ -105,7 +106,7 @@ function fichaVisualHtml(nombre: string, clase: string): string {
 
 /** Etiqueta roja del flag «En Tránsito Interno» (dentro del mueble, sin estante fino). */
 function etiquetaTransitoHtml(): string {
-  return '<span class="mueble-item-transito" title="En Tránsito Interno: el elemento está físicamente dentro del mueble pero todavía no fue ubicado en un estante concreto.">🔴 En tránsito interno</span>';
+  return indicadorTransitoHtml('interno');
 }
 
 /** Objetos sueltos colgados directamente del mueble (chips arrastrables a la bandeja). */

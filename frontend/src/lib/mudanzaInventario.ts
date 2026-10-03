@@ -25,6 +25,7 @@ import type { FiltroOrigen } from './mudanzaFiltros';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
 // TAXONOMÍA FÍSICA ÚNICA: caja móvil vs. mueble mudable con los 5 tipos reales.
 import { TIPO_CAJA, TIPO_MUEBLE_MOVIL, tipoFisico } from './taxonomiaContenedor';
+import { indicadorTransitoHtml } from './indicadorTransito';
 
 // Re-export de los DTOs: el resto del módulo de mudanzas los consume desde acá.
 export type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
@@ -277,14 +278,13 @@ export function htmlInventarioMovil(
  */
 export function htmlZonaTransito(): string {
   return `
-    <div class="mudanza-transito rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/70 p-2 sm:p-3"
+    <div class="mudanza-transito estado-transito-zona"
       data-drop-transito="1"
       title="Soltá (o tocá) acá para mudar el elemento al Estok destino SIN ubicación física">
       <div class="flex items-center gap-2">
-        <span class="text-lg leading-none sm:text-xl" aria-hidden="true">🚚</span>
+        ${indicadorTransitoHtml('general')}
         <div class="min-w-0 flex-1">
-          <p class="text-[10px] font-bold uppercase tracking-wide text-amber-800 sm:text-xs">En Tránsito</p>
-          <p class="truncate text-[10px] leading-snug text-amber-700/90 sm:text-[11px]">
+          <p class="min-w-0 flex-1 truncate text-[10px] leading-snug text-amber-700/90 sm:text-[11px]">
             Limbo del destino: viaja sin ubicación física
           </p>
         </div>
