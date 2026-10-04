@@ -1,13 +1,43 @@
 # Ajuste de memoria del BUILD (Coolify / Hetzner 4GB)
 
 ## Sintoma
-La build muere por **OOM Killer** (exit 1), o el **streaming de logs de Coolify
-se congela y finaliza cortado** durante el paso de build. Aclaracion (verificado
-2026-10-04): **NO es un "truncamiento de secretos"**. El repo NO contiene
-ninguna directiva `--mount=type=secret` (grep sobre todo el arbol = 0 resultados).
-El corte del log es un sintoma de **presion de memoria**: BuildKit compila
-etapas en paralelo, el pico combinado supera los 3.7 GB fisicos del VPS, el
-daemon queda estrangulado y el socket de logs se cae.
+El deploy falla y el streaming de logs de Coolify se corta durante el build.
+Diagnostico DEFINITIVO (2026-10-04). Evidencia: log REAL del deployment id 863,
+extraido de la tabla `application_deployment_queues` del contenedor `coolify-db`.
+
+## Causa raiz REAL verificada: error de compilacion de Astro (NO era OOM ni secretos)
+El log real muestra:
+```
+"Build secrets are enabled and will be used for enhanced security."
+[frontend-builder 6/7] RUN --mount=type=secret,id=COOLIFY_URL,env=COOLIFY_URL --mount=type=secret,id=...
+#15 4.815 Unexpected ">"
+#15 4.815   Location: /app/src/components/ui/BotonAccionRapida.astro:67:3
+#15 4.815   Stack trace: .../esbuild/lib/main.js:1748:15
+#15 ERROR: process "/bin/sh -c npm run build 2>&1" did not complete successfully: exit code: 1
+```
+- Coolify **SI inyecta** `RUN --mount=type=secret,...` en el Dockerfile (reescribe
+  el archivo en el build context `/artifacts/<id>/`). Es comportamiento normal y
+  **NO es la causa**: ese paso se ejecuto y `npm run build` arranco.
+- La causa real fue que **`npm run build` (Astro) no compilaba**. El commit
+  `a01ae35` ("consolidar clases de UI semanticas") introdujo componentes rotos en
+  `frontend/src/components/ui/`:
+  1. `BotonAccionRapida.astro`: usaba JSX (`<>...</>`) dentro del **frontmatter**
+     (`---`), que Astro procesa como TypeScript plano -> esbuild `Unexpected ">"`
+     en la linea 67. Fix: mover ese JSX al **template** (etiqueta dinamica `<Tag>`).
+  2. `BotonAccionRapida.astro` e `IndicadorTransito.astro`: importaban
+     `../styles/inventario.css`, que desde `components/ui/` resuelve a
+     `components/styles/` (inexistente). Fix: `../../styles/inventario.css`.
+  3. Latente (sin uso): `components/inventario/NavegacionJerarquica.astro` tenia
+     el mismo import mal. Fix: `../../styles/inventario.css`.
+- Efecto en produccion: el deploy quedo roto desde `a01ae35`; el contenedor seguia
+  sirviendo la ultima imagen buena `e8dc7f4` (anterior a ese commit).
+- Verificacion local: `npm run build` (astro build) -> `[build] Server built ...`
+  `[build] Complete!` y `frontend/dist/server/entry.mjs` generado.
+
+## Sobre BuildKit / secretos (lo que NO hay que tocar)
+- El repo NO contiene `--mount=type=secret` en el Dockerfile: los inyecta Coolify
+  al vuelo cuando "Build secrets" esta habilitado. No se controlan desde el
+  Dockerfile ni desde variables del repo (ver nota mas abajo).
 
 ## Estado REAL verificado del servidor (2026-10-04)
 Evidencia obtenida por SSH a `178.156.224.212`:
@@ -93,7 +123,9 @@ Coordinar con el usuario antes de ejecutarlo. Con la swap ya activa + la
 serializacion de la etapa final ya aplicada en `Dockerfile.combined`, esta
 opcion pasa a ser refuerzo opcional.
 
-### Opcion C - Swap (absorbe picos)
+### Opcion C - Swap (absorbe picos) - YA APLICADO
+Estado 2026-10-04: swap de 4 GB ACTIVA y persistida (ver "Estado REAL" arriba).
+Comandos de referencia para replicarlo en otro host:
 En el VPS:
 ```bash
 fallocate -l 4G /swapfile

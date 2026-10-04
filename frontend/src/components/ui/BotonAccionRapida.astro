@@ -16,7 +16,7 @@
 // igual que MinimapaRuta.astro.
 // =============================================================================
 
-import '../styles/inventario.css';
+import '../../styles/inventario.css';
 
 export interface Props {
   /** Variante visual del botón. */
@@ -61,45 +61,41 @@ const clases = [
   .filter(Boolean)
   .join(' ');
 
-// Contenido interno compartido por <a> y <button>: imagen PNG, icono textual o
-// el SVG "+" por defecto, más el texto (excepto en la variante flotante).
-const contenido = (
-  <>
-    {mostrarImagen ? (
-      <img src={imagen} alt={etiqueta ?? ''} class="boton-accion-rapida__imagen" />
-    ) : icono ? (
-      <span class="boton-accion-rapida__icono" aria-hidden="true">
-        {icono}
-      </span>
-    ) : (
-      <svg
-        class="boton-accion-rapida__svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M12 4v16m8-8H4"
-        />
-      </svg>
-    )}
-    {mostrarTexto && <span class="boton-accion-rapida__texto">{etiqueta}</span>}
-  </>
-);
+// Etiqueta dinámica: <a> si hay href, <button type="button"> si no.
+// El contenido interno (imagen PNG / icono textual / SVG "+" y el texto) se
+// declara UNA sola vez en el TEMPLATE de Astro (abajo), nunca en el frontmatter:
+// el frontmatter es TypeScript plano y NO admite JSX (<>...</>), de lo contrario
+// `astro build` falla con "Unexpected >" y rompe el build de producción.
+const Tag = href ? 'a' : 'button';
 ---
 
-{
-  href ? (
-    <a href={href} id={id} class={clases} aria-label={etiquetaAccesible} title={etiqueta}>
-      {contenido}
-    </a>
+<Tag
+  href={href}
+  type={href ? undefined : 'button'}
+  id={id}
+  class={clases}
+  aria-label={etiquetaAccesible}
+  title={etiqueta}
+>
+  {mostrarImagen ? (
+    <img src={imagen} alt={etiqueta ?? ''} class="boton-accion-rapida__imagen" />
+  ) : icono ? (
+    <span class="boton-accion-rapida__icono" aria-hidden="true">{icono}</span>
   ) : (
-    <button type="button" id={id} class={clases} aria-label={etiquetaAccesible} title={etiqueta}>
-      {contenido}
-    </button>
-  )
-}
+    <svg
+      class="boton-accion-rapida__svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M12 4v16m8-8H4"
+      />
+    </svg>
+  )}
+  {mostrarTexto && <span class="boton-accion-rapida__texto">{etiqueta}</span>}
+</Tag>
