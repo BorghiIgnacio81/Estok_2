@@ -52,7 +52,7 @@ export interface GrupoMoviles {
 
 const IMG_FALLBACK: Record<ClaseElemento, string> = {
   CAJA: '/Nuevo Contenedor.png',
-  MUEBLE: '/archivador-login.png',
+  MUEBLE: '/mueble.png',
   OBJETO: '/fluffy_plush_ball.jpg',
 };
 

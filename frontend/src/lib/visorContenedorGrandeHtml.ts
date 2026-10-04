@@ -19,7 +19,7 @@ import type { ItemElastico } from './lienzoElastico';
 import { esCajaMovil } from './taxonomiaContenedor';
 import { indicadorTransitoHtml } from './indicadorTransito';
 
-const IMG_MUEBLE = '/archivador-login.png';
+const IMG_MUEBLE = '/mueble.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
 
 // =============================================================================

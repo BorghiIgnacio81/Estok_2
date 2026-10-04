@@ -14,7 +14,7 @@
 
 import { escapeHtml } from './mapaJerarquico';
 
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
+const IMG_CONTENEDOR_GRANDE = '/mueble.png';
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
 const IMG_OBJETO = '/fluffy_plush_ball.jpg';
 
@@ -151,7 +151,7 @@ export function contenedoresFuenteDeContenidoDe(
     });
 }
 
-/** Imagen icónica de un contenedor: archivador si es mueble/estante, caja si no. */
+/** Imagen icónica de un contenedor: mueble si es estante/inmueble, caja si no. */
 function imagenDeContenedor(c: ContenedorCarga): string {
   return c.subcontenedores_count > 0 || c.es_inmueble ? IMG_CONTENEDOR_GRANDE : IMG_CONTENEDOR_PEQUENO;
 }

@@ -43,7 +43,7 @@ export { esc };
 // Constantes visuales
 // ---------------------------------------------------------------------------
 
-const IMG_ARMARIO = '/archivador-login.png';
+const IMG_ARMARIO = '/mueble.png';
 const IMG_CAJA = '/Nuevo Contenedor.png';
 
 // ---------------------------------------------------------------------------

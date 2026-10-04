@@ -14,6 +14,9 @@ aislado y utilities no siga creciendo.
 
 Criterio del Bloque 1 (única fuente de verdad, sin duplicar la regla del
 service de votaciones):
+  - SOLO objetos finales del inventario: se excluyen los muebles y espacios
+    (CONJUNTO / MUEBLE_INMUEBLE / MUEBLE_MOVIL) y las cajas (CAJA), que el
+    backend registra como Contenedor (+ un registro espejo en Objeto).
   - `owner_action` nulo: todavía no se decidió Vender / Conservar / Tirar.
   - sin baja lógica (`deleted_at` nulo).
   - SIN votación abierta: cuando el objeto tiene Dueño y el Beneficiario está
@@ -30,9 +33,16 @@ Aislamiento multi-tenant: SIEMPRE por el header X-Estok-Id.
 
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import F
 
 from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service
+from ....services.taxonomia_contenedor import (
+    TIPO_CAJA,
+    TIPO_CONJUNTO,
+    TIPO_MUEBLE_INMUEBLE,
+    TIPO_MUEBLE_MOVIL,
+)
 
 
 def nombre_mostrable(usuario):
@@ -138,7 +148,19 @@ class DecisionesActionsMixin:
         )
 
     def _objetos_del_estok(self):
-        """Queryset base del tablero (sin bajas lógicas, optimizado sin N+1)."""
+        """
+        Queryset base del tablero (sin bajas lógicas, optimizado sin N+1).
+
+        FILTRO TAXONÓMICO ESTRICTO — SOLO OBJETOS FINALES DEL INVENTARIO:
+        los muebles y espacios (CONJUNTO / MUEBLE_INMUEBLE / MUEBLE_MOVIL) y las
+        cajas (CAJA) NO son ítems de inventario y jamás deben figurar acá. El
+        backend los persiste como `Contenedor` y, por la REGLA DE DUALIDAD,
+        inserta además un registro ESPEJO en `Objeto` con el MISMO nombre del
+        contenedor y SIN coordenadas de casillero. Esos espejos son los que
+        aparecían como «Mueble 1» / «Mueble 2» en el panel de decisiones. Se
+        excluyen de raíz en el ORM con la MISMA regla del servicio de árbol
+        (services/arbol_inventario_service.py → `_es_registro_espejo`).
+        """
         qs = (
             Objeto.objects.select_related(
                 'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
@@ -147,6 +169,24 @@ class DecisionesActionsMixin:
             .prefetch_related('fotos')
             .filter(deleted_at__isnull=True)
         )
+
+        # Excluye los registros espejo de muebles/cajas RAÍZ mudables: el
+        # contenedor asociado es de tipo CONJUNTO / MUEBLE_INMUEBLE /
+        # MUEBLE_MOVIL / CAJA, el nombre coincide con el del contenedor y no
+        # tiene coordenadas de casillero. Los objetos sueltos (sin contenedor)
+        # y los objetos reales dentro de una caja (nombre propio o casillero
+        # asignado) NO se ven afectados.
+        qs = qs.exclude(
+            contenedor__tipo__in=(
+                TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE, TIPO_MUEBLE_MOVIL, TIPO_CAJA,
+            ),
+            contenedor__parent_contenedor__isnull=True,
+            contenedor__es_inmueble=False,
+            parent_grid_row__isnull=True,
+            parent_grid_col__isnull=True,
+            nombre=F('contenedor__nombre'),
+        )
+
         estok_id = self._estok_id(self.request)
         if estok_id:
             qs = qs.filter(estok_id=estok_id)
