@@ -142,3 +142,5 @@ Persistir en `/etc/fstab`:
 Despues del cambio, relanzar el Redeploy en Coolify y confirmar en el log que
 las etapas corren **una despues de otra** (no intercaladas) y que no aparece
 `Killed` / `exit code 1` por OOM.
+
+Mitigacion de OOM del build: **OPERATIVA** (Swap de 4GB activa y persistida + serializacion de etapas ya aplicada en `Dockerfile.combined`, 2026-10-04).
