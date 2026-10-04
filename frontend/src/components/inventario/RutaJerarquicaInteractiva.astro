@@ -20,6 +20,7 @@
 import '../../styles/ruta-geografica.css';
 import MinimapaModuloUnificado from '../MinimapaModuloUnificado.astro';
 import { escapeHtml } from '../../lib/mapaJerarquico';
+import { PIN_UBICACION_HTML } from '../../lib/rutaGeograficaWidget';
 
 export interface Props {
   /** Cadena jerárquica YA resuelta hacia arriba, con separador «->». */
@@ -61,7 +62,7 @@ const clases = ['ruta-jerarquica-interactiva', clase].filter(Boolean).join(' ');
         <span class="pointer-events-none absolute -top-7 left-1 z-30 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
           Mostrar en minimapas
         </span>
-        <span class="shrink-0 text-[11px]" aria-hidden="true">🗺️</span>
+        <Fragment set:html={PIN_UBICACION_HTML} />
         <span class="ruta-geo-cadena text-[11px] font-semibold text-gray-600 line-clamp-2">{cadena}</span>
         <span class="ruta-geo-chevron shrink-0 text-[10px] text-gray-400" aria-hidden="true">▾</span>
       </button>
