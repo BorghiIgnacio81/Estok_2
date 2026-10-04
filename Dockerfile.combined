@@ -54,6 +54,19 @@ ENV LC_ALL=C.UTF-8
 ENV PYTHONIOENCODING=utf-8
 
 # ---------------------------------------------------------------------------
+# ANTI-OOM (2026-10-04): dependencia SECUENCIAL forzada con las etapas de build.
+# BuildKit podia correr las capas RUN de esta etapa (apt-get + nodejs) EN
+# PARALELO con `npm run build` (etapa 1) y `pip install` (etapa 2): hasta el
+# primer COPY --from= no existia arista de dependencia entre esta etapa y las
+# anteriores. Esa concurrencia sumaba picos de RAM y disparaba el OOM Killer
+# del VPS de 4GB (exit 1 / corte del streaming de logs).
+# Este COPY minimo (un archivo ya presente en la imagen intermedia) crea la
+# arista y obliga a que AMBAS etapas de build terminen antes de arrancar
+# cualquier RUN de aqui. El archivo va a /tmp y NO engorda la imagen final.
+# ---------------------------------------------------------------------------
+COPY --from=backend-builder /tmp/.frontend-builder-done /tmp/.builders-done
+
+# ---------------------------------------------------------------------------
 # Instalacion de Node.js 22 + Nginx (fragmentada en capas RUN independientes)
 # - Se divide en 4 capas RUN para reducir el pico de RAM en el VPS (mitiga el
 #   OOM Killer en builds de 4GB): Docker commitea cada capa y no acumula todo
