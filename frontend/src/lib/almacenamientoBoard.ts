@@ -10,7 +10,7 @@
 //   - Iconografía estricta por imágenes locales:
 //       Contenedor grande (contiene contenedores): /archivador-login.png
 //       Contenedor pequeño (solo objetos)        : /Nuevo Contenedor.png
-//       Objeto individual                        : /fluffy_plush_ball.jpg
+//       Objeto individual                        : /mueble.png
 //   - Grilla asimétrica: cada contenedor define la cantidad de Filas globales
 //     (NumericUp/Down) y CADA fila define su propia cantidad de Columnas.
 //   - Al soltar en un casillero se persisten parent_grid_row / parent_grid_col
@@ -33,7 +33,7 @@ const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
 /** Contenedor que solo contiene objetos (casillero simple). */
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
 /** Ítem individual dentro de un contenedor. */
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 // =============================================================================
 // TIPOS
@@ -93,7 +93,7 @@ export interface UbicacionDnD {
   raices: ContenedorDnD[];
 }
 
-/** Ítem individual representado con /fluffy_plush_ball.jpg en el lienzo. */
+/** Ítem individual representado con /mueble.png en el lienzo. */
 export interface ObjetoDnD {
   id: string;
   nombre: string;
@@ -172,7 +172,7 @@ export class AlmacenamientoBoard {
   private ubicaciones: UbicacionDnD[] = [];
   private contenedores: ContenedorDnD[] = [];
   private contenedoresPorId = new Map<string, ContenedorDnD>();
-  /** Ítems agrupados por contenedor (representados con /fluffy_plush_ball.jpg). */
+  /** Ítems agrupados por contenedor (representados con /mueble.png). */
   private objetosPorContenedor = new Map<string, ObjetoDnD[]>();
   private dragTipo: 'contenedor' | 'objeto' | null = null;
   private dragId: string | null = null;
@@ -561,7 +561,7 @@ export class AlmacenamientoBoard {
 
   // -- Ítems individuales (Objetos) dentro del contenedor --------------------
 
-  /** Renderiza los ítems del contenedor con /fluffy_plush_ball.jpg (draggable). */
+  /** Renderiza los ítems del contenedor con /mueble.png (draggable). */
   private objetosHtml(c: ContenedorDnD): string {
     const objetos = this.objetosPorContenedor.get(c.id) || [];
     if (!objetos.length) return '';

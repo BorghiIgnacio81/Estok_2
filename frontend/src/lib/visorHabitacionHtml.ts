@@ -27,7 +27,7 @@ import type { PiezaTaxonomica } from './taxonomiaContenedor';
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 export { IMG_OBJETO };
 

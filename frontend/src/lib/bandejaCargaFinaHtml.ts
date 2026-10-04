@@ -16,7 +16,7 @@ import { escapeHtml } from './mapaJerarquico';
 
 const IMG_CONTENEDOR_GRANDE = '/mueble.png';
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 // =============================================================================
 // TIPOS COMPARTIDOS

@@ -20,7 +20,7 @@ import { esCajaMovil } from './taxonomiaContenedor';
 import { indicadorTransitoHtml } from './indicadorTransito';
 
 const IMG_MUEBLE = '/mueble.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 // =============================================================================
 // TIPOS (compartidos con visorContenedorGrande.ts)

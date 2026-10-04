@@ -52,7 +52,7 @@ export interface ObjetoDecision {
 }
 
 /** Foto de reemplazo cuando el objeto no tiene imágenes (asset público). */
-export const FOTO_PLACEHOLDER = '/fluffy_plush_ball.jpg';
+export const FOTO_PLACEHOLDER = '/mueble.png';
 
 const ESTADO_COLORS: Record<string, string> = {
   excelente: 'bg-green-100 text-green-700',

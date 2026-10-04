@@ -3,7 +3,7 @@
 // -----------------------------------------------------------------------------
 // Panel horizontal fijo en la parte inferior de la pantalla de almacenamiento.
 // Lista mediante fetch asíncrono todos los Contenedores Pequeños (/Nuevo
-// Contenedor.png) y Objetos (/fluffy_plush_ball.jpg) cuyo campo relacional de
+// Contenedor.png) y Objetos (/mueble.png) cuyo campo relacional de
 // ubicación sea nulo o que aún NO tengan casillero asignado
 // (parent_grid_row / parent_grid_col nulos).
 //
@@ -21,7 +21,7 @@ import { escapeHtml, toast } from './mapaJerarquico';
 import { esCajaMovil } from './taxonomiaContenedor';
 
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 interface ItemBandejaContenedor {
   id: string;

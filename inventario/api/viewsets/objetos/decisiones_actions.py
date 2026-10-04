@@ -33,16 +33,10 @@ Aislamiento multi-tenant: SIEMPRE por el header X-Estok-Id.
 
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import F
 
 from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service
-from ....services.taxonomia_contenedor import (
-    TIPO_CAJA,
-    TIPO_CONJUNTO,
-    TIPO_MUEBLE_INMUEBLE,
-    TIPO_MUEBLE_MOVIL,
-)
+from ....services.espejo_contenedor import q_objeto_es_espejo
 
 
 def nombre_mostrable(usuario):
@@ -152,14 +146,12 @@ class DecisionesActionsMixin:
         Queryset base del tablero (sin bajas lógicas, optimizado sin N+1).
 
         FILTRO TAXONÓMICO ESTRICTO — SOLO OBJETOS FINALES DEL INVENTARIO:
-        los muebles y espacios (CONJUNTO / MUEBLE_INMUEBLE / MUEBLE_MOVIL) y las
-        cajas (CAJA) NO son ítems de inventario y jamás deben figurar acá. El
-        backend los persiste como `Contenedor` y, por la REGLA DE DUALIDAD,
-        inserta además un registro ESPEJO en `Objeto` con el MISMO nombre del
-        contenedor y SIN coordenadas de casillero. Esos espejos son los que
-        aparecían como «Mueble 1» / «Mueble 2» en el panel de decisiones. Se
-        excluyen de raíz en el ORM con la MISMA regla del servicio de árbol
-        (services/arbol_inventario_service.py → `_es_registro_espejo`).
+        los muebles, cajas y espacios NO son ítems de stock y jamás deben
+        figurar acá. El backend los persiste como `Contenedor` y, por la REGLA
+        DE DUALIDAD, inserta además un registro ESPEJO en `Objeto` (que se veía
+        como «Mueble 1» / «Mueble 2» en el tablero). Esos espejos se excluyen de
+        raíz con la regla ESTRUCTURAL ÚNICA del servicio `espejo_contenedor`,
+        que NO depende del nombre del contenedor (a prueba de renombrados).
         """
         qs = (
             Objeto.objects.select_related(
@@ -170,22 +162,11 @@ class DecisionesActionsMixin:
             .filter(deleted_at__isnull=True)
         )
 
-        # Excluye los registros espejo de muebles/cajas RAÍZ mudables: el
-        # contenedor asociado es de tipo CONJUNTO / MUEBLE_INMUEBLE /
-        # MUEBLE_MOVIL / CAJA, el nombre coincide con el del contenedor y no
-        # tiene coordenadas de casillero. Los objetos sueltos (sin contenedor)
-        # y los objetos reales dentro de una caja (nombre propio o casillero
-        # asignado) NO se ven afectados.
-        qs = qs.exclude(
-            contenedor__tipo__in=(
-                TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE, TIPO_MUEBLE_MOVIL, TIPO_CAJA,
-            ),
-            contenedor__parent_contenedor__isnull=True,
-            contenedor__es_inmueble=False,
-            parent_grid_row__isnull=True,
-            parent_grid_col__isnull=True,
-            nombre=F('contenedor__nombre'),
-        )
+        # Excluye de raíz TODO registro espejo (dual de un Contenedor): muebles,
+        # cajas y espacios que no son objetos finales del inventario. Los
+        # objetos sueltos (sin contenedor) y los objetos reales (clasificados o
+        # guardados en un casillero) NO se ven afectados.
+        qs = qs.exclude(q_objeto_es_espejo())
 
         estok_id = self._estok_id(self.request)
         if estok_id:

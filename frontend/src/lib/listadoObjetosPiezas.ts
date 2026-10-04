@@ -33,7 +33,7 @@ export interface PayloadArbol {
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
 }
 
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 const MAX_OBJETOS_POR_NIVEL = 60;
 
 const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {

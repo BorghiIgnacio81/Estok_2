@@ -43,7 +43,7 @@ interface CajaInterna {
   objetos: ItemFino[];
 }
 
-const IMG_OBJETO = '/fluffy_plush_ball.jpg';
+const IMG_OBJETO = '/mueble.png';
 
 let actual: CajaSeleccionada | null = null;
 let raizIzq: HTMLElement | null = null;

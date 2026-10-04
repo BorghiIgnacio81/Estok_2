@@ -8,7 +8,7 @@
 //      GRUPO 1 = Cajas sin ubicación (Contenedores Pequeños /Nuevo Contenedor.png
 //      huérfanos o sin casillero, SIEMPRE `tipo='CAJA'` y `es_inmueble=false`) en
 //      la cima, y GRUPO 2 = Objetos individuales sin ubicación
-//      (/fluffy_plush_ball.jpg) inmediatamente debajo (misma regla hermética de
+//      (/mueble.png) inmediatamente debajo (misma regla hermética de
 //      bandejaSinUbicar). Los muebles inmuebles fijos (Cama, Escritorio Pintura,
 //      PC Setup…) quedan descartados de raíz del GRUPO 1.
 //      Todos los chips son draggable=true y emiten los MIME types estándar

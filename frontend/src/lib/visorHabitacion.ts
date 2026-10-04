@@ -9,7 +9,7 @@
 //      fila, asimétricas) con controles numéricos independientes de la habitación.
 //   3. Celdas Drop Zone que reciben Contenedores Grandes (/archivador-login.png),
 //      Contenedores Pequeños (/Nuevo Contenedor.png) y Objetos
-//      (/fluffy_plush_ball.jpg).
+//      (/mueble.png).
 // Persistencia multi-tenant estricta (JWT + X-Estok-Id):
 //   - Filas/Columnas del lienzo → PUT /api/ubicaciones/{roomId}/
 //   - Contenedor en una celda   → PUT /api/contenedores/{id}/
