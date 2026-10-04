@@ -13,9 +13,12 @@ material, tamano, etc.) son ahora campos directos del modelo Objeto.
 import logging
 
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from ...models import Objeto
+from ...services import decisiones_service
 from ...services.transito_interno import esta_en_transito_interno
+from ..exceptions import DecisionDerivadaAVotacion
 
 
 logger = logging.getLogger(__name__)
@@ -250,6 +253,35 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         para no borrar un estado vigente en un PUT parcial que solo renombra el
         objeto.
         """
+        # ------------------------------------------------------------------
+        # GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar) por el CRUD
+        # ------------------------------------------------------------------
+        # Cierra el bypass de cualquier editor/superusuario (incluido ygumy44):
+        # la decisión SOLO la fija el dueño original. Si el dueño es otro
+        # usuario del sistema → 403; si es externo/fallecido (sin cuenta) → 202
+        # y se deriva a la VOTACIÓN del Estok (período FOMO).
+        request = self.context.get('request')
+        if (
+            self.instance is not None
+            and request is not None
+            and 'owner_action' in attrs
+            and attrs.get('owner_action') != self.instance.owner_action
+        ):
+            resultado = decisiones_service.validar_decision_directa(
+                self.instance, request.user, creado_por=request.user,
+            )
+            if resultado.estado == decisiones_service.DECISION_PROHIBIDA:
+                raise PermissionDenied({'error': resultado.motivo})
+            if resultado.estado == decisiones_service.DECISION_DERIVADA:
+                raise DecisionDerivadaAVotacion({
+                    'requiere_votacion': True,
+                    'votacion_id': (
+                        str(resultado.votacion.id) if resultado.votacion else None
+                    ),
+                    'owner_action': None,
+                    'error': resultado.motivo,
+                })
+
         claves = ('contenedor', 'parent_grid_row', 'parent_grid_col')
         if not any(clave in attrs for clave in claves):
             return attrs

@@ -31,11 +31,12 @@ los dos endpoints y el mixin de descarte: no se duplica el armado de tarjetas.
 Aislamiento multi-tenant: SIEMPRE por el header X-Estok-Id.
 """
 
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ....models import DecisionVotacion, Objeto
-from ....services import descarte_service
+from ....services import descarte_service, decisiones_service
 from ....services.espejo_contenedor import q_objeto_es_espejo
 
 
@@ -125,6 +126,41 @@ def payload_objeto_decision(obj, request):
         "despachado_en": obj.despachado_en.isoformat() if obj.despachado_en else None,
         "despachado_por_nombre": nombre_mostrable(obj.despachado_por),
     }
+
+
+def respuesta_decision_denegada(objeto, request):
+    """
+    Guardia ÚNICA de las decisiones directas (vender / conservar / tirar).
+
+    Delega en `decisiones_service.validar_decision_directa` y traduce el
+    veredicto a HTTP, para que TODOS los puntos de entrada (endpoint dedicado,
+    CRUD y limpieza) compartan una sola regla sin duplicarla.
+
+    Devuelve `None` cuando la acción PROCEDE, o una `Response` lista para
+    retornar:
+      · HTTP 403 → el objeto pertenece a OTRO usuario del sistema.
+      · HTTP 202 → dueño externo/fallecido: muta a votación del Estok (FOMO).
+    """
+    resultado = decisiones_service.validar_decision_directa(
+        objeto, request.user, creado_por=request.user,
+    )
+    if resultado.estado == decisiones_service.DECISION_PERMITIDA:
+        return None
+    if resultado.estado == decisiones_service.DECISION_DERIVADA:
+        return Response(
+            {
+                'requiere_votacion': True,
+                'votacion_id': (
+                    str(resultado.votacion.id) if resultado.votacion else None
+                ),
+                'owner_action': None,
+                'mensaje': resultado.motivo,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+    return Response(
+        {'error': resultado.motivo}, status=status.HTTP_403_FORBIDDEN
+    )
 
 
 class DecisionesActionsMixin:

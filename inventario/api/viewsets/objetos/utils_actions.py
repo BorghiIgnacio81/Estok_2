@@ -19,6 +19,7 @@ from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto
 from ...serializers import FotoObjetoUploadSerializer
 from ....services.mercadolibre_oauth import get_valid_access_token
 from ....services.precio_referencia_service import buscar_precio_referencia
+from .decisiones_actions import respuesta_decision_denegada
 
 
 logger = logging.getLogger(__name__)
@@ -54,21 +55,13 @@ class UtilsActionsMixin:
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not objeto.dueno_original:
-            return Response(
-                {"error": "Este objeto no tiene un dueño original asignado"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if str(objeto.dueno_original_id) != str(request.user.id):
-            return Response(
-                {
-                    "error": (
-                        "Solo el dueño original puede decidir sobre este objeto"
-                    )
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar):
+        #   - objeto de OTRO usuario del sistema → HTTP 403.
+        #   - dueño externo/fallecido            → HTTP 202 (muta a VOTACIÓN FOMO).
+        # Cierra el bypass de cualquier editor/superusuario sobre objetos ajenos.
+        denegada = respuesta_decision_denegada(objeto, request)
+        if denegada is not None:
+            return denegada
 
         objeto.owner_action = action_val
         objeto.save(update_fields=['owner_action'])
@@ -87,21 +80,11 @@ class UtilsActionsMixin:
         """
         objeto = self.get_object()
 
-        if not objeto.dueno_original:
-            return Response(
-                {"error": "Este objeto no tiene un dueño original asignado"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if str(objeto.dueno_original_id) != str(request.user.id):
-            return Response(
-                {
-                    "error": (
-                        "Solo el dueño original puede modificar esta decisión"
-                    )
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Misma guardia de decisión directa que `owner_action`: dueño ajeno →
+        # 403; dueño externo/fallecido → votación del Estok (Alerta FOMO).
+        denegada = respuesta_decision_denegada(objeto, request)
+        if denegada is not None:
+            return denegada
 
         objeto.owner_action = None
         objeto.save(update_fields=['owner_action'])

@@ -15,6 +15,7 @@ Funciones puras de cálculo (mayorías, conteos) separadas de la persistencia.
 """
 
 import logging
+from collections import namedtuple
 
 from django.db import transaction
 
@@ -72,6 +73,88 @@ def crear_votacion_pendiente(objeto, creado_por=None, forzar=False):
         "Votación pendiente abierta para el objeto %s (Estok %s)", objeto.id, objeto.estok_id
     )
     return votacion
+
+
+# =============================================================================
+# GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar)
+# =============================================================================
+
+# Estados del veredicto al autorizar una decisión directa sobre un objeto.
+DECISION_PERMITIDA = 'permitido'          # el usuario es el dueño original
+DECISION_PROHIBIDA = 'prohibido'          # el objeto pertenece a OTRO usuario
+DECISION_DERIVADA = 'derivada_votacion'   # dueño externo/fallecido → FOMO
+
+ResultadoDecision = namedtuple('ResultadoDecision', 'estado votacion motivo')
+
+
+def dueno_es_usuario(objeto):
+    """True si el dueño original es un USUARIO del sistema (FK cargada)."""
+    return bool(objeto.dueno_original_id)
+
+
+def dueno_es_externo(objeto):
+    """True si el dueño es EXTERNO/fallecido (texto plano, sin cuenta)."""
+    return (
+        not objeto.dueno_original_id
+        and bool((objeto.dueno_externo_nombre or '').strip())
+    )
+
+
+@transaction.atomic
+def validar_decision_directa(objeto, usuario, creado_por=None):
+    """
+    Punto ÚNICO que autoriza (o desvía) una decisión directa vender/conservar/tirar.
+
+    Reglas de negocio (sin duplicar lógica en viewsets, serializers ni admin):
+      · Dueño es OTRO usuario del sistema  → 'prohibido' (HTTP 403 en la vista).
+      · Dueño EXTERNO/fallecido (sin cuenta) → 'derivada_votacion': se frena el
+        cambio de estado definitivo y se GARANTIZA la votación del Estok (Alerta
+        FOMO del inquilinato), devolviendo la votación pendiente.
+      · Usuario = dueño original            → 'permitido'.
+      · Sin dueño registrado                → 'permitido': la fija un miembro con
+        permiso de edición (comportamiento histórico del tablero de Decisiones).
+
+    Devuelve un ResultadoDecision(estado, votacion, motivo).
+    """
+    if dueno_es_usuario(objeto):
+        if str(objeto.dueno_original_id) != str(getattr(usuario, 'id', None)):
+            return ResultadoDecision(
+                DECISION_PROHIBIDA, None, 'No tienes permisos sobre este objeto.'
+            )
+        return ResultadoDecision(DECISION_PERMITIDA, None, '')
+
+    if dueno_es_externo(objeto):
+        votacion = (
+            DecisionVotacion.objects
+            .filter(objeto=objeto, estado=DecisionVotacion.ESTADO_PENDIENTE)
+            .first()
+        )
+        if votacion is None:
+            votacion = crear_votacion_pendiente(
+                objeto, creado_por=creado_por or usuario, forzar=True
+            )
+        if votacion is None:
+            # La votación previa ya estaba cerrada: se REABRE una nueva para
+            # reactivar el período de decisión (Alerta FOMO del inquilinato).
+            votacion = DecisionVotacion.objects.create(
+                objeto=objeto,
+                estok=objeto.estok,
+                motivo=DecisionVotacion.MOTIVO_SIN_BENEFICIARIO,
+                estado=DecisionVotacion.ESTADO_PENDIENTE,
+                creada_por=creado_por or usuario,
+            )
+        logger.info(
+            "Decisión directa derivada a votación (objeto %s, votación %s)",
+            objeto.id, votacion.id,
+        )
+        return ResultadoDecision(
+            DECISION_DERIVADA, votacion,
+            'El dueño del objeto no es usuario de este Estok: la decisión quedó '
+            'derivada a la VOTACIÓN del inquilinato (período de herencia FOMO).',
+        )
+
+    # Sin dueño: la decisión la fija un miembro con permiso de edición.
+    return ResultadoDecision(DECISION_PERMITIDA, None, '')
 
 
 # =============================================================================

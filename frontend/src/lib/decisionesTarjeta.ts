@@ -13,7 +13,7 @@
 // por el contexto cargado con cargarContextoRutaCaja().
 // =============================================================================
 
-import { rutaMinimapasHtml } from './rutaCajaMinimapas';
+import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 
 /** Objeto del tablero de Decisiones (payload de /api/objetos/panel_decisiones/). */
 export interface ObjetoDecision {
@@ -93,12 +93,6 @@ export function ubicacionTexto(obj: ObjetoDecision): string {
   return [obj.ubicacion_nombre, obj.contenedor_nombre].filter(Boolean).join(' · ');
 }
 
-/** Mini-guía analítica de la ubicación actual (o el aviso de "sin ubicación"). */
-export function minimapaHtml(obj: ObjetoDecision): string {
-  if (!obj.ubicacion) return '<p class="text-xs text-gray-400">📍 Sin ubicación asignada</p>';
-  return rutaMinimapasHtml({ ubicacion: obj.ubicacion, parent_contenedor: obj.contenedor });
-}
-
 /** Chips de plataformas donde el objeto ya fue publicado (ML / FB). */
 export function chipsPublicacionHtml(obj: ObjetoDecision): string {
   const ml = obj.plataformas_publicadas.includes('mercadolibre');
@@ -130,6 +124,15 @@ export function tarjetaObjetoHtml(
   const estadoClase = ESTADO_COLORS[obj.estado_conservacion] || 'bg-gray-100 text-gray-700';
   const ubicacion = ubicacionTexto(obj);
   const dueno = nombreDueno(obj);
+  // RUTA JERÁRQUICA INTERACTIVA: texto con flechas que despliega los minimapas
+  // al hacer clic (mismo widget que el listado y, en el servidor, el componente
+  // components/inventario/RutaJerarquicaInteractiva.astro). Sin ruta real se
+  // conserva el estado textual de siempre (nunca un plano falso).
+  const ruta = rutaGeograficaCardHtml({
+    id: obj.id,
+    ubicacion: obj.ubicacion ?? null,
+    contenedor: obj.contenedor ?? null,
+  });
 
   return `
     <article data-objeto-card="${escapar(obj.id)}" ${opciones.atributos || ''}
@@ -148,13 +151,12 @@ export function tarjetaObjetoHtml(
           <a href="/objetos/${escapar(obj.id)}"
             class="block font-semibold text-gray-900 hover:text-blue-700 hover:underline truncate"
             title="${escapar(obj.nombre)}">${escapar(obj.nombre)}</a>
-          <p class="text-xs text-gray-500 truncate">
-            ${ubicacion ? `📍 ${escapar(ubicacion)}` : '📍 Sin ubicación'}
-            ${obj.categoria_nombre ? ` · 🏷️ ${escapar(obj.categoria_nombre)}` : ''}
-          </p>
+          ${ruta
+            ? `<div class="decision-ruta min-w-0">${ruta}</div>`
+            : `<p class="text-xs text-gray-500 truncate">${ubicacion ? `📍 ${escapar(ubicacion)}` : '📍 Sin ubicación'}</p>`}
+          ${obj.categoria_nombre ? `<p class="text-[11px] text-gray-400 truncate">🏷️ ${escapar(obj.categoria_nombre)}</p>` : ''}
           ${dueno ? `<p class="text-[11px] text-gray-400 truncate">👤 ${escapar(dueno)}</p>` : ''}
         </div>
-        <div class="decision-minimapa">${minimapaHtml(obj)}</div>
         ${chipsPublicacionHtml(obj)}
         ${opciones.pie || ''}
         ${opciones.acciones || ''}

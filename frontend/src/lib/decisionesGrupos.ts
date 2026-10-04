@@ -32,6 +32,7 @@ import {
 import type { TiempoGracia } from './descarteGracia';
 import { abrirPublicarObjeto } from './publicarObjeto';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
+import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 
 /** Respuesta completa del tablero de la pestaña Decisiones. */
 interface PanelDecisiones {
@@ -386,6 +387,8 @@ export function iniciarPanelDecisiones(): void {
   if (!host || host.dataset.activo === 'true') return;
   host.dataset.activo = 'true';
 
+  // Delegación de clic de la ruta jerárquica interactiva (texto → minimapas).
+  initRutaGeograficaDespliegue();
   host.addEventListener('click', (evento) => void onPanelClick(evento));
   el('btnRefrescarPanel')?.addEventListener('click', () => void refrescarPanelDecisiones());
   // Cualquier cambio de descarte (reclamo, vencimiento, confirmación o despacho)

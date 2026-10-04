@@ -1,0 +1,89 @@
+---
+// =============================================================================
+// RUTA JERÁRQUICA INTERACTIVA · ubicación de un objeto como texto clickeable
+// -----------------------------------------------------------------------------
+// Encapsula la cañería «ubicación como texto → minimapas» para TODA tarjeta de
+// objeto. Renderiza la cadena jerárquica resuelta hacia arriba, por ejemplo:
+//
+//   «Planta Alta -> Habitación Atrás -> Ropero Empotrado -> Estante arriba -> Caja 01»
+//
+// Al pasar el mouse muestra el tooltip «Mostrar en minimapas»; al hacer CLIC
+// despliega con animación suave la hilera de minimapas e HIDRATA el componente
+// global `MinimapaModuloUnificado.astro` en `modo="visor"` (tipo `ruta`), que
+// pinta el casillero final en naranja estricto (#f97316).
+//
+// NO reimplementa nada (una sola verdad visual y de comportamiento):
+//   · CSS canónico        → styles/ruta-geografica.css
+//   · despliegue (clic)   → lib/rutaGeograficaDespliegue.ts
+//   · motor de minimapas  → components/MinimapaModuloUnificado.astro
+// =============================================================================
+import '../../styles/ruta-geografica.css';
+import MinimapaModuloUnificado from '../MinimapaModuloUnificado.astro';
+import { escapeHtml } from '../../lib/mapaJerarquico';
+
+export interface Props {
+  /** Cadena jerárquica YA resuelta hacia arriba, con separador «->». */
+  texto: string;
+  /** ID del contenedor activo (el más profundo) para hidratar el visor. */
+  containerId?: string | null;
+  /** ID del ambiente/ubicación activo (cuando no hay contenedor). */
+  ubicacionId?: string | null;
+  /** ID del objeto activo (contexto del visor). */
+  objetoId?: string | null;
+  /** Clave de la entidad, para identificar el widget en el DOM. */
+  clave?: string;
+  class?: string;
+}
+
+const {
+  texto,
+  containerId = null,
+  ubicacionId = null,
+  objetoId = null,
+  clave = '',
+  class: clase,
+} = Astro.props;
+
+const hayRuta = Boolean(texto && texto.trim());
+const cadena = escapeHtml(texto);
+const clases = ['ruta-jerarquica-interactiva', clase].filter(Boolean).join(' ');
+---
+
+{hayRuta ? (
+  <div class={clases}>
+    <div class="ruta-geo" data-ruta-geo data-ruta-clave={clave}>
+      <button
+        type="button"
+        data-ruta-geo-toggle
+        aria-expanded="false"
+        class="ruta-geo-toggle group relative flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-150 hover:bg-amber-100/70 cursor-pointer"
+      >
+        <span class="pointer-events-none absolute -top-7 left-1 z-30 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+          Mostrar en minimapas
+        </span>
+        <span class="shrink-0 text-[11px]" aria-hidden="true">🗺️</span>
+        <span class="ruta-geo-cadena text-[11px] font-semibold text-gray-600 line-clamp-2">{cadena}</span>
+        <span class="ruta-geo-chevron shrink-0 text-[10px] text-gray-400" aria-hidden="true">▾</span>
+      </button>
+      <div class="ruta-geo-panel" role="region" aria-label="Minimapas de la ruta jerárquica">
+        <div class="ruta-geo-panel-interior">
+          <MinimapaModuloUnificado
+            modo="visor"
+            tipo="ruta"
+            containerId={containerId}
+            ubicacionId={ubicacionId}
+            objetoId={objetoId}
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+) : (
+  <span class="block text-[11px] font-medium text-gray-400">📍 Sin ubicación asignada</span>
+)}
+
+<script>
+  // Delegación de clic del widget (única fuente, idempotente).
+  import { initRutaGeograficaDespliegue } from '../../lib/rutaGeograficaDespliegue';
+  initRutaGeograficaDespliegue();
+</script>

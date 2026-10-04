@@ -27,6 +27,7 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
+import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { abrirPublicarObjeto } from './publicarObjeto';
 import { tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
@@ -217,6 +218,15 @@ async function guardarDecision(obj: ObjetoPendiente, accion: string): Promise<vo
     window.location.href = '/login';
     throw new Error('Sesión expirada.');
   }
+  if (res.status === 202) {
+    // Dueño externo/fallecido: la decisión NO se aplica en el acto; el objeto
+    // pasó a la VOTACIÓN del inquilinato (período FOMO).
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      data.mensaje
+        || 'La decisión quedó derivada a la votación del inquilinato.',
+    );
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(
@@ -326,6 +336,9 @@ export function iniciarDecisionesPendientes(): void {
   const host = el('pendientesGrid');
   if (!host || host.dataset.activo === 'true') return;
   host.dataset.activo = 'true';
+
+  // Delegación de clic de la ruta jerárquica interactiva (texto → minimapas).
+  initRutaGeograficaDespliegue();
 
   host.addEventListener('click', onClickTarjeta);
   el('btnRefrescarPendientes')?.addEventListener('click', () => void cargar());
