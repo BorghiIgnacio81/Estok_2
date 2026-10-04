@@ -49,7 +49,9 @@ export function rutaGeograficaWidgetHtml(opciones: WidgetRutaOpciones): string {
     + '<span class="ruta-geo-cadena text-[11px] font-semibold text-gray-600 line-clamp-2">' + texto + '</span>'
     + '<span class="ruta-geo-chevron shrink-0 text-[10px] text-gray-400" aria-hidden="true">▾</span>'
     + '</button>'
-    + '<div class="ruta-geo-panel" role="region" aria-label="Minimapas de la ruta geográfica">'
+    // El panel de minimapas nace OCULTO (`hidden` + `data-ruta-geo-panel`): la
+    // tarjeta se mantiene COMPACTA y solo se despliega al hacer clic en el texto.
+    + '<div class="ruta-geo-panel hidden" data-ruta-geo-panel role="region" aria-label="Minimapas de la ruta geográfica">'
     + '<div class="ruta-geo-panel-interior">' + opciones.minimapas + '</div>'
     + '</div>'
     + '</div>';

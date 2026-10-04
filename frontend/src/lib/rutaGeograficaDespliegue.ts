@@ -17,6 +17,7 @@
 
 const SELECTOR_ZONA = '[data-ruta-geo]';
 const SELECTOR_DISPARADOR = '[data-ruta-geo-toggle]';
+const SELECTOR_PANEL = '[data-ruta-geo-panel]';
 
 let enlazado = false;
 
@@ -39,7 +40,23 @@ export function initRutaGeograficaDespliegue(): void {
     const disparador = objetivo.closest(SELECTOR_DISPARADOR);
     if (!disparador) return;
 
-    const abierta = zona.classList.toggle('ruta-geo-abierta');
-    disparador.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+    const panel = zona.querySelector<HTMLElement>(SELECTOR_PANEL);
+    if (!panel) return;
+
+    // TOGGLE DE VISIBILIDAD: el panel de minimapas nace OCULTO (`hidden`) para
+    // que la tarjeta quede COMPACTA; el clic lo revela/oculta a demanda.
+    //   · `hidden`           → lo esconde de raíz SIN depender de ninguna hoja
+    //                          de estilos (fix del render abierto por defecto).
+    //   · `ruta-geo-abierta` → dispara la animación (grid 0fr→1fr) cuando la
+    //                          hoja styles/ruta-geografica.css esté presente
+    //                          (contexto del componente Astro).
+    const oculto = panel.classList.toggle('hidden');
+    zona.classList.toggle('ruta-geo-abierta', !oculto);
+    disparador.setAttribute('aria-expanded', oculto ? 'false' : 'true');
+
+    // Giro del chevron como única señal de estado (fallback donde no hay CSS).
+    disparador
+      .querySelector('.ruta-geo-chevron')
+      ?.classList.toggle('rotate-180', !oculto);
   });
 }

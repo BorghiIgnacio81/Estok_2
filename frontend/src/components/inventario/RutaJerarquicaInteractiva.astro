@@ -65,7 +65,7 @@ const clases = ['ruta-jerarquica-interactiva', clase].filter(Boolean).join(' ');
         <span class="ruta-geo-cadena text-[11px] font-semibold text-gray-600 line-clamp-2">{cadena}</span>
         <span class="ruta-geo-chevron shrink-0 text-[10px] text-gray-400" aria-hidden="true">▾</span>
       </button>
-      <div class="ruta-geo-panel" role="region" aria-label="Minimapas de la ruta jerárquica">
+      <div class="ruta-geo-panel hidden" data-ruta-geo-panel role="region" aria-label="Minimapas de la ruta jerárquica">
         <div class="ruta-geo-panel-interior">
           <MinimapaModuloUnificado
             modo="visor"
