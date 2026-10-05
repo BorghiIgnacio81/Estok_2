@@ -1,0 +1,35 @@
+---
+// =============================================================================
+// ENCABEZADO DE LA CARGA MANUAL DE OBJETO (/objetos/nuevo)
+// -----------------------------------------------------------------------------
+// Extraído de pages/objetos/nuevo.astro para dejar la página enfocada en la
+// estructura semántica del formulario (regla de modularización <400 líneas).
+// Marcado PURO: los ids canónicos (#aiStatusBadge/#aiStatusDot/#aiStatusText) los
+// consume src/lib/objetos/objetoAutocompletarIa.ts para reflejar el health-check
+// del motor de IA (Gemini). No cambia clases ni estructura.
+// =============================================================================
+---
+
+<!-- Encabezado -->
+<div class="mb-8">
+  <a
+    href="/objetos"
+    class="inline-flex items-center text-sm text-gray-500 hover:text-blue-700 transition-base mb-4"
+  >
+    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+    </svg>
+    Volver a objetos
+  </a>
+  <div class="flex items-center gap-3">
+    <h1 class="text-3xl font-bold text-gray-900">Nuevo Objeto</h1>
+    <!-- AI Status Badge -->
+    <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+      <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+      <span id="aiStatusText">Verificando IA...</span>
+    </span>
+  </div>
+  <p class="mt-1 text-gray-500">
+    Completa los datos del objeto. Los campos marcados con <span class="text-red-500">*</span> son obligatorios.
+  </p>
+</div>

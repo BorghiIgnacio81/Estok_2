@@ -7,7 +7,7 @@
 // fallback en las páginas ni en los módulos de comportamiento.
 // =============================================================================
 
-export type TipoToast = 'success' | 'error' | 'info';
+export type TipoToast = 'success' | 'error' | 'info' | 'warning';
 
 /** Muestra una notificación efímera (delega en el toast global del layout). */
 export function showToast(message: string, type: TipoToast = 'success'): void {
@@ -23,9 +23,9 @@ export function showToast(message: string, type: TipoToast = 'success'): void {
 
   const toast = document.createElement('div');
   toast.id = 'formToast';
-  toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${
-    type === 'error' ? 'bg-red-600' : 'bg-green-600'
-  }`;
+  const colorFondo =
+    type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-amber-500' : 'bg-green-600';
+  toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${colorFondo}`;
   toast.textContent = message;
   document.body.appendChild(toast);
   setTimeout(() => {
