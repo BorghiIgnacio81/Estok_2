@@ -25,6 +25,8 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from ...models import CustomUser, Membresia
 from ...services.password_recovery import recuperar_password_usuario
+from ...services import notificacion_dueno_email, token_decision_remota
+from ...services.mercadolibre_imagenes import url_media_publica
 
 
 # Tiempo máximo desde última actividad para considerar a un usuario "online".
@@ -259,3 +261,48 @@ def usuarios_online(user, estok_id):
         data.append(user_data)
 
     return data
+
+
+# =============================================================================
+# NOTIFICACIÓN AL DUEÑO DE UN OBJETO (puente del 403)
+# =============================================================================
+
+def enviar_email_notificacion_dueno(objeto):
+    """
+    Despacha al DUEÑO original (usuario del sistema) un correo HTML con 3 botones
+    firmados (Vender / Conservar / Tirar) para que decida a distancia sobre el
+    objeto. La usa POST /api/usuarios/notificar-dueno/.
+
+    Devuelve (enviado: bool, aviso: str | None). Nunca propaga excepciones SMTP:
+    el armado del correo y la captura de errores SMTP viven en
+    inventario/services/notificacion_dueno_email.py.
+    """
+    dueno = objeto.dueno_original
+    email = (getattr(dueno, 'email', '') or '').strip()
+    if dueno is None or not email:
+        raise DRFValidationError({
+            'error': 'El objeto no tiene un dueño usuario registrado con correo electrónico.'
+        })
+
+    # 3 enlaces ABSOLUTOS firmados (uno por acción) para los botones del correo.
+    urls = {
+        accion: token_decision_remota.url_publica_decision(objeto, dueno, accion)
+        for accion in token_decision_remota.ACCIONES_VALIDAS
+    }
+
+    # Foto principal ABSOLUTA (SITE_URL) para incrustar en el HTML del correo.
+    foto = (
+        next((f for f in objeto.fotos.all() if f.es_principal), None)
+        or objeto.fotos.first()
+    )
+    foto_url = url_media_publica(foto.imagen) if foto else None
+
+    enviado = notificacion_dueno_email.enviar_notificacion_dueno(
+        objeto=objeto,
+        destinatario=email,
+        urls=urls,
+        foto_url=foto_url,
+    )
+    if not enviado:
+        return False, 'El servidor de correo rechazó el envío. Intentá de nuevo más tarde.'
+    return True, None

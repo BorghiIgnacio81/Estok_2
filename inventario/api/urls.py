@@ -30,6 +30,7 @@ from .viewsets import (
 )
 
 from .viewsets.mudanza import MudanzaView
+from .viewsets.decisiones_publicas import ObjetoRemotoDecisionView
 
 
 
@@ -75,6 +76,10 @@ urlpatterns = [
     path('ai/models/', AiModelsView.as_view(), name='ai-models'),
     # Mudanza Inter-Estok (transferencia hermética de contenedores/objetos)
     path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),
+    # Captura PÚBLICA de decisiones remotas del dueño (puente del 403).
+    # AllowAny: la única credencial es el token FIRMADO de un solo uso.
+    path('public/objeto-remoto-decision/',
+         ObjetoRemotoDecisionView.as_view(), name='objeto-remoto-decision'),
     path('api-auth/', include('rest_framework.urls')),
 ]
 

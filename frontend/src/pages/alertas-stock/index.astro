@@ -36,6 +36,7 @@ import EmptyState from '../../components/EmptyState.astro';
 import VotacionesPendientes from '../../components/VotacionesPendientes.astro';
 import PublicarObjetoModal from '../../components/PublicarObjetoModal.astro';
 import ModalDescarteGracia from '../../components/ModalDescarteGracia.astro';
+import ModalNotificarDueno from '../../components/ModalNotificarDueno.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas:
 // único archivo compartido con Almacenamiento y Objetos, no se duplican reglas.
 import '../../styles/almacenamiento-portales.css';
@@ -190,17 +191,21 @@ export const prerender = false;
   <PublicarObjetoModal />
   <!-- Modales del descarte: tiempo de gracia + reclamo del Alerta Rojo -->
   <ModalDescarteGracia />
+  <!-- Modal del puente 403: invitar por email al dueño del objeto ajeno -->
+  <ModalNotificarDueno />
 
   <script>
     import { iniciarDecisionesPendientes } from '../../lib/decisionesPendientes';
     import { iniciarModalPublicar } from '../../lib/publicarObjeto';
     import { iniciarPanelDecisiones } from '../../lib/decisionesGrupos';
     import { iniciarModalesDescarte } from '../../lib/descarteModales';
+    import { iniciarModalNotificarDueno } from '../../lib/notificacionDueno';
 
     iniciarDecisionesPendientes();
     iniciarPanelDecisiones();
     iniciarModalPublicar();
     iniciarModalesDescarte();
+    iniciarModalNotificarDueno();
   </script>
 
   <style is:global>

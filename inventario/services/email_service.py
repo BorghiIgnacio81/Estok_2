@@ -17,7 +17,7 @@ import smtplib
 from typing import Optional, Tuple
 
 from django.conf import settings
-from django.core.mail import EmailMessage, get_connection
+from django.core.mail import EmailMessage, EmailMultiAlternatives, get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -127,28 +127,19 @@ def _cuerpo_email(tipo: str, nombre: str, username: str, password: Optional[str]
     return f'¡Hola, {nombre}!\nComunicación oficial de Estok.'
 
 
-def _enviar_mensaje(asunto: str, cuerpo: str, destinatario: str, tipo: str) -> bool:
+def _despachar(mensaje, tipo: str, destinatario: str) -> bool:
     """
-    Punto ÚNICO de envío de correo del servicio (bienvenida, reseteo, invitación).
+    Punto ÚNICO de envío de correo del servicio (bienvenida, reseteo, invitación,
+    notificación al dueño). NUNCA propaga excepciones: todo fallo de red o
+    rechazo del servidor SMTP se captura, se loguea con el error CRUDO de Google
+    y se reporta devolviendo False (así el endpoint responde HTTP controlado en
+    lugar de colapsar con 502 / worker colgado).
 
-    NUNCA propaga excepciones: todo fallo de red o rechazo del servidor SMTP se
-    captura, se loguea con el error CRUDO de Google y se reporta devolviendo
-    False, de modo que el endpoint responda un código HTTP controlado en lugar
-    de colapsar (502 / worker colgado).
-
-    Se usa `fail_silently=False` a propósito: con `True`, Django traga la
-    excepción del servidor SMTP y `send` devuelve 0 sin explicación (así se
-    ocultaba el "550 Daily user sending limit exceeded" de Gmail). El silencio
-    se maneja ACÁ, devolviendo False, nunca propagando.
+    `fail_silently=False` a propósito: con `True`, Django traga la excepción del
+    SMTP y `send` devuelve 0 sin explicación (ocultaba el "550 Daily user sending
+    limit exceeded" de Gmail). El silencio se maneja ACÁ, nunca se propaga.
     """
     try:
-        mensaje = EmailMessage(
-            subject=asunto,
-            body=cuerpo,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[destinatario],
-            connection=_crear_conexion(),
-        )
         enviados = mensaje.send(fail_silently=False)
     except smtplib.SMTPAuthenticationError as exc:
         # App password revocada, 2FA desactivada o usuario mal configurado.
@@ -187,6 +178,37 @@ def _enviar_mensaje(asunto: str, cuerpo: str, destinatario: str, tipo: str) -> b
 
     logger.info('Email "%s" enviado a %s', tipo, destinatario)
     return True
+
+
+def _enviar_mensaje(asunto: str, cuerpo: str, destinatario: str, tipo: str) -> bool:
+    """Correo de TEXTO PLANO (bienvenida, reseteo de clave, invitación).
+    Construye el EmailMessage y delega el envío y sus errores en `_despachar()`."""
+    mensaje = EmailMessage(
+        subject=asunto,
+        body=cuerpo,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[destinatario],
+        connection=_crear_conexion(),
+    )
+    return _despachar(mensaje, tipo, destinatario)
+
+
+def enviar_correo_html(
+    asunto: str, texto: str, html: str, destinatario: str, tipo: str
+) -> bool:
+    """
+    Correo multipart/alternative: HTML refinado + respaldo en texto plano.
+    Reutiliza el MISMO manejo de errores SMTP del servicio (`_despachar`).
+    """
+    mensaje = EmailMultiAlternatives(
+        subject=asunto,
+        body=texto,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[destinatario],
+        connection=_crear_conexion(),
+    )
+    mensaje.attach_alternative(html, 'text/html')
+    return _despachar(mensaje, tipo, destinatario)
 
 
 def enviar_email_usuario(

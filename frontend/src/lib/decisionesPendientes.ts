@@ -32,6 +32,7 @@ import { abrirPublicarObjeto } from './publicarObjeto';
 import { tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import { solicitarDescarte } from './descarteModales';
+import { esErrorPermisoAjeno, ofrecerNotificarDueno } from './notificacionDueno';
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -303,10 +304,19 @@ async function decidir(obj: ObjetoPendiente, accion: string): Promise<void> {
     }
   } catch (err) {
     bloquearBotones(obj.id, false);
-    mostrarAviso(
-      err instanceof Error ? err.message : 'No se pudo fijar la decisión.',
-      false,
-    );
+    const mensaje = err instanceof Error
+      ? err.message
+      : 'No se pudo fijar la decisión.';
+
+    // 403 "No tienes permisos sobre este objeto": el objeto pertenece a OTRO
+    // usuario del sistema. En vez de un error seco, se ofrece invitar por email
+    // al dueño (puente del 403). La tarjeta queda intacta (estado anterior).
+    if (esErrorPermisoAjeno(mensaje)) {
+      ofrecerNotificarDueno(obj.id);
+      return;
+    }
+
+    mostrarAviso(mensaje, false);
   }
 }
 

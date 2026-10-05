@@ -25,7 +25,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ....models import Role, CustomUser, Membresia
+from ....models import Role, CustomUser, Membresia, Objeto
 from ...serializers import RoleSerializer, UserSerializer, UserCreateSerializer
 from ..base import HasRolePermission
 from ...services import usuario_auth_service
@@ -92,7 +92,7 @@ class UsuarioViewSetBase(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         if self.action == 'recuperar_password':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'perfil', 'ping', 'online', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
+        if self.action in ('me', 'perfil', 'ping', 'online', 'notificar_dueno', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 
@@ -233,3 +233,44 @@ class UsuarioViewSetBase(viewsets.ModelViewSet):
             )
 
         return Response(usuario_auth_service.snapshot_access_log())
+
+    @action(detail=False, methods=['post'], url_path='notificar-dueno')
+    def notificar_dueno(self, request):
+        """
+        [PUENTE DEL 403] Notifica por correo al DUEÑO de un objeto ajeno para que
+        decida a distancia (Vender / Conservar / Tirar) mediante enlaces firmados
+        de un solo uso. Se usa cuando un miembro intenta decidir sobre un objeto
+        de OTRO usuario y el backend responde 403.
+
+        POST /api/usuarios/notificar-dueno/   Body: { "objeto_id": "<uuid>" }
+
+        Respuestas: 200 (despachado), 400 (falta id / objeto sin dueño con correo),
+        404 (objeto inexistente), 502 (el SMTP rechazó el envío).
+        """
+        objeto_id = request.data.get('objeto_id')
+        if not objeto_id:
+            return Response(
+                {'error': 'Falta el objeto_id.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        objeto = Objeto.objects.filter(
+            id=objeto_id, deleted_at__isnull=True,
+        ).first()
+        if objeto is None:
+            return Response(
+                {'error': 'El objeto no existe.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        enviado, aviso = usuario_auth_service.enviar_email_notificacion_dueno(objeto)
+        if not enviado:
+            return Response(
+                {'error': aviso or 'No se pudo enviar la invitación.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({
+            'success': True,
+            'mensaje': 'Invitación despachada al correo del propietario.',
+        })
