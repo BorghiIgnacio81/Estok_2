@@ -18,7 +18,7 @@ import type { EstokInfo } from '../../types';
 import { fundarEstok } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
-import { desmontarDivisiones, montarGuiaDivisiones } from './pasoDivisiones';
+import { continuarPasoDivisiones, desmontarDivisiones, montarGuiaDivisiones } from './pasoDivisiones';
 import { iniciarPaso4Tutorial } from './pasoObjeto';
 import { PasoEspacios } from './pasoEspacios';
 
@@ -238,22 +238,28 @@ export class AsistenteBienvenida {
   // ── PASO 3 — DIVISIONES DE LA HABITACIÓN (opcional) ───────────────────────
 
   private bindPaso3(): void {
-    // El lienzo elástico persiste cada cambio solo: «Continuar» sólo avanza.
-    this.q<HTMLElement>('#onbGuardarMueble')?.addEventListener('click', () => this.irAPaso(3));
+    // «Continuar» dispara el EMBUDO secuencial: no avanza salvo que el 100% de
+    // las habitaciones reales haya recibido una decisión explícita. El escape
+    // real al Paso 4 vive en ./pasoDivisiones (callback `avanzar`).
+    this.q<HTMLElement>('#onbGuardarMueble')?.addEventListener('click', () =>
+      continuarPasoDivisiones(),
+    );
+    // «Omitir» es la salida limpia del paso: evita el embudo por completo.
     this.q<HTMLElement>('#onbOmitirPaso3')?.addEventListener('click', () => this.irAPaso(3));
   }
 
   /**
-   * Monta la GUÍA secuencial del Paso 3: lista los ambientes UNIFICADOS
-   * (deduplicados) y, por cada uno, ofrece «🧱 Crear Divisiones» (despliega su
-   * lienzo elástico naranja) u «Omitir». Toda la lógica vive en ./pasoDivisiones.
+   * Monta el EMBUDO secuencial del Paso 3: combobox con la lista REAL de
+   * habitaciones (deduplicadas del Paso 2) y, por cada pendiente, sus 3 vías de
+   * acción. Toda la lógica vive en ./pasoDivisiones; el escape al Paso 4 se
+   * inyecta como callback (`avanzar`).
    */
   private async iniciarPaso3(): Promise<void> {
     const lista = this.q<HTMLElement>('#onbDivisionesLista');
     const lienzo = this.q<HTMLElement>('#onbDivisionesLienzo');
     if (!lista || !lienzo) return;
     this.error('onbErrorPaso3', null);
-    await montarGuiaDivisiones({ lista, lienzo });
+    await montarGuiaDivisiones({ lista, lienzo, avanzar: () => this.irAPaso(3) });
   }
 
   // ── PASO 4 — TU PRIMER OBJETO (formulario modular completo, opcional) ─────

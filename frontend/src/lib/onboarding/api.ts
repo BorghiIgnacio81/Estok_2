@@ -224,15 +224,5 @@ export async function crearAmbiente(nombre: string, orden: number): Promise<Recu
   return { id: data.id, nombre: data.nombre || nombre };
 }
 
-/** Garantiza al menos un ambiente para colgarle un mueble o un objeto. */
-export async function asegurarPrimerAmbiente(): Promise<RecursoCreado | null> {
-  const ambientes = await listarAmbientes();
-  if (ambientes.length > 0) return ambientes[0];
-  try {
-    return await crearAmbiente('Habitación principal', 0);
-  } catch {
-    return null;
-  }
-}
 
 

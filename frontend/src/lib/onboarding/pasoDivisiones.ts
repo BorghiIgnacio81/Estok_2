@@ -1,323 +1,283 @@
 // =============================================================================
-// PASO 3 DEL ASISTENTE — GUÍA SECUENCIAL DE DIVISIONES DE LA HABITACIÓN
+// PASO 3 DEL ASISTENTE — EMBUDO SECUENCIAL DE DIVISIONES DE LA HABITACIÓN
 // -----------------------------------------------------------------------------
-// Flujo GUIADO (asistente), NO un formulario plano:
-//   1. Se le pregunta al usuario: «¿Desea crear las divisiones y estanterías
-//      internas de sus ambientes?».
-//   2. Se enumeran los ambientes UNIFICADOS (deduplicados) y, por cada uno, hay
-//      dos botones:
-//        · [🧱 Crear Divisiones] → despliega el lienzo elástico naranja de ese
-//          cuarto (subdividir, arrastrar, estirar y fusionar en un bloque).
-//        · [Omitir]              → saltea ese ambiente de forma limpia.
+// Reemplaza la lista plana anterior por el «embudo inteligente» secuencial:
+//   ESCENA 1 · Combobox a la IZQUIERDA poblado SOLO con la lista REAL deduplicada
+//     del Paso 2 («Cocina», «Fusión»…) y lienzo elástico naranja ABAJO para
+//     modelar el cuarto elegido. CERO datos fantasma: sin habitaciones reales NO
+//     se inyecta ninguna «Habitación principal».
+//   ESCENA 2 · «Continuar» NO avanza: evalúa las PENDIENTES y congela la pantalla
+//     en la SIGUIENTE con sus 3 vías → [🧱 Crear divisiones ahora] (activa el
+//     selector y despliega el lienzo para modelar en caliente), [⬜ Espacio Único]
+//     (persiste `espacio_unico: true` y avanza solo) y [⏳ En otro momento] (marca
+//     «Se modelará más tarde», la deja abierta de fondo y avanza a la siguiente).
+//   ESCENA 3 · El escape al Paso 4 (Primer Objeto) solo se habilita cuando el
+//     100% de las habitaciones REALES del Paso 2 recibió una decisión explícita.
 //
-// FIX DE CAMPO — DEDUPLICACIÓN: el listado SIEMPRE se pide al endpoint filtrado
-// `GET /api/ubicaciones/?deduplicar_grupos=1` (a través de ./api → listarAmbientes),
-// de modo que un espacio fusionado en «L» se muestra como UNA sola opción y NUNCA
-// como tiles repetidos («Cocina, Fusión, Fusión, Baño»). El lienzo 2D sí recibe
-// todos los tiles: solo el selector colapsa el grupo.
-//
-// El lienzo reutiliza el MISMO motor elástico 2D del plano (renderLienzoElastico
-// + conectarLienzoElastico). Cada espacio es una subdivisión ESTRUCTURAL: se crea
-// con POST /api/contenedores/ (crear_espejo=false → sin stock) y se fusiona en un
-// bloque único e indisoluble. Persistencia multi-tenant (JWT + X-Estok-Id) 100%
-// delegada al motor 2D (adaptadorContenedores). No reimplementa headers ni red.
+// DEDUPLICACIÓN: `?deduplicar_grupos=1` (./api → listarAmbientes): un espacio
+// fusionado en «L» = UNA opción. El LIENZO elástico vive en ./lienzoDivisiones.
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
 import { escapeHtml, guardarUbicacion } from '../mapaJerarquico';
-import { checkboxEspacioUnicoHtml } from '../espacioUnico';
-import { renderLienzoElastico } from '../mapaPlantaUnica';
-import { conectarLienzoElastico } from '../plantaUnicaInteractivo';
-import { adaptadorContenedores } from '../lienzoElastico';
-import type { ItemElastico } from '../lienzoElastico';
-import { asegurarPrimerAmbiente, listarAmbientes } from './api';
+import { limpiarLienzoDivisiones, montarLienzoDivisiones } from './lienzoDivisiones';
+import { listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal } from './comunes';
 
-/** Contenedor/espacio raíz de una habitación tal como lo devuelve el backend. */
-interface EspacioApi {
-  id: string | number;
-  nombre: string;
-  ui_left?: string | null;
-  ui_top?: string | null;
-  ui_width?: string | null;
-  ui_height?: string | null;
-  fusion_grupo?: string | null;
-}
+/** Decisión explícita que el embudo registra por cada habitación real. */
+type Decision = 'divisiones' | 'unico' | 'diferido';
 
-/** Ayuda contextual del lienzo de divisiones (se dibuja dentro del lienzo). */
-const TIP_DIVISIONES =
-  '🧱 <strong>Divisiones de la habitación</strong> · inyectá cada zona con <strong>«➕ Crear Espacio»</strong>, arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque indisoluble. Todo se guarda solo.';
-
-// --- Estado del LIENZO elástico de la habitación activa ----------------------
-let contenedor: HTMLElement | null = null;
-let roomId: string | null = null;
-let espacios: ItemElastico[] = [];
-
-// --- Estado de la GUÍA secuencial (lista de ambientes) -----------------------
+// --- Estado del EMBUDO secuencial (selector + decisiones) --------------------
 let listaEl: HTMLElement | null = null;
 let lienzoEl: HTMLElement | null = null;
+let selectEl: HTMLSelectElement | null = null;
+let estadoEl: HTMLElement | null = null;
+let embudoEl: HTMLElement | null = null;
 let ambientes: RecursoCreado[] = [];
+/** Habitación cuyo lienzo está desplegado abajo (la que se está modelando). */
 let roomActivo: string | null = null;
-/**
- * Ambientes marcados con «⏳ En otro momento»: la estructura se modelará más
- * tarde (solo afecta a la interfaz; nada se borra ni se bloquea).
- */
-const diferidos = new Set<string>();
+/** Decisión explícita por habitación: SIN entrada = PENDIENTE en el embudo. */
+const decisiones = new Map<string, Decision>();
+/** Escape al Paso 4: lo inyecta el wizard (mantiene este módulo desacoplado). */
+let avanzarCb: (() => void) | null = null;
+
 
 // =============================================================================
-// LIENZO ELÁSTICO DE LA HABITACIÓN ACTIVA
+// EMBUDO SECUENCIAL — SELECTOR, ESTADO Y PANEL DE DECISIÓN
 // =============================================================================
 
-/** GET de los espacios RAÍZ de la habitación (fuente de verdad = PostgreSQL). */
-async function fetchEspacios(id: string): Promise<ItemElastico[]> {
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/contenedores/?ubicacion=${id}&raiz=true&page_size=1000`,
-      { headers: { ...getAuthHeaders() } },
-    );
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return [];
-    }
-    if (!res.ok) return [];
-    const data = (await res.json()) as EspacioApi[] | { results?: EspacioApi[] };
-    const lista: EspacioApi[] = Array.isArray(data) ? data : data?.results ?? [];
-    return lista.map((c) => ({
-      id: String(c.id),
-      nombre: c.nombre,
-      ui_left: c.ui_left ?? null,
-      ui_top: c.ui_top ?? null,
-      ui_width: c.ui_width ?? null,
-      ui_height: c.ui_height ?? null,
-      fusion_grupo: c.fusion_grupo ?? null,
-    }));
-  } catch {
-    return [];
-  }
+/** Chip de estado (texto + color) de la decisión registrada para una habitación. */
+function etiquetaDecision(id: string): { texto: string; clase: string } {
+  const decision = decisiones.get(id);
+  if (decision === 'divisiones')
+    return { texto: '✅ Divisiones', clase: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+  if (decision === 'unico')
+    return { texto: '⬜ Espacio Único', clase: 'bg-blue-100 text-blue-700 border-blue-200' };
+  if (decision === 'diferido')
+    return { texto: '⏳ Se modelará más tarde', clase: 'bg-amber-100 text-amber-700 border-amber-200' };
+  return { texto: 'Pendiente', clase: 'bg-gray-100 text-gray-500 border-gray-200' };
 }
 
-/** Crea un espacio estructural (sin espejo de stock) dentro de la habitación. */
-async function crearEspacio(id: string): Promise<boolean> {
-  if (!id) return false;
-  const n = espacios.length;
-  try {
-    const res = await fetch(`${API_BASE_URL}/contenedores/`, {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre: `Espacio ${n + 1}`,
-        descripcion: '',
-        ubicacion: id,
-        ui_left: `${6 + (n % 5) * 12}%`,
-        ui_top: `${8 + (n % 4) * 16}%`,
-        ui_width: '28%',
-        ui_height: '24%',
-        es_inmueble: false,
-        // Subdivisión estructural del paso 3: geometría del mapa sin stock espejo.
-        crear_espejo: false,
-        // Una DIVISIÓN interna nunca es monolítica: no nace como «Espacio Único».
-        espacio_unico: false,
-      }),
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    return res.ok;
-  } catch {
-    return false;
-  }
+/** Panel del embudo: presenta la SIGUIENTE habitación pendiente con sus 3 vías. */
+function htmlEmbudo(a: RecursoCreado): string {
+  return `<div class="rounded-2xl border-2 border-amber-300 bg-amber-50 px-4 py-4">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Embudo secuencial</p>
+    <p class="mt-1 text-sm font-semibold text-gray-800">Siguiente ambiente: <span class="text-amber-800">«${escapeHtml(a.nombre)}»</span></p>
+    <p class="mt-1 text-xs text-gray-500 leading-relaxed">Elegí cómo tratar este ambiente para seguir con el siguiente. El paso no se cierra hasta cubrir el 100% de tus habitaciones.</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear divisiones ahora</button>
+      <button type="button" data-div-unico="${a.id}" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-base">⬜ Espacio Único</button>
+      <button type="button" data-div-diferir="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-base">⏳ En otro momento</button>
+    </div>
+  </div>`;
 }
 
-/** Render + re-enlace del motor 2D (el marcado se regenera en cada refresco). */
-function pintar(): void {
-  const cont = contenedor;
-  if (!cont) return;
-  cont.innerHTML = renderLienzoElastico({
-    items: espacios,
-    etiquetaCrear: 'Crear Espacio',
-    textoVacio:
-      'Sin divisiones todavía. Usá «➕ Crear Espacio» para subdividir esta habitación en zonas físicas.',
-    tip: TIP_DIVISIONES,
-  });
-  conectarLienzoElastico({
-    scope: cont,
-    rooms: () => espacios,
-    adaptador: adaptadorContenedores(),
-    notificarCambios: () => void refrescar(),
-    crearItem: () => crearEspacio(roomId ?? ''),
-  });
+/** Escena 1: pinta el combobox (izquierda) con la lista REAL de habitaciones. */
+function pintarSelector(): void {
+  if (!selectEl) return;
+  selectEl.innerHTML = ambientes
+    .map((a) => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`)
+    .join('');
+  if (roomActivo) selectEl.value = roomActivo;
 }
 
-/** Ciclo completo: leer el backend, dibujar y re-enlazar la edición. */
-async function refrescar(): Promise<void> {
-  espacios = roomId ? await fetchEspacios(roomId) : [];
-  pintar();
-}
-
-/** Monta el lienzo elástico de la habitación elegida (idempotente). */
-async function montarDivisiones(id: string, cont: HTMLElement): Promise<void> {
-  contenedor = cont;
-  roomId = id;
-  await refrescar();
-}
-
-/** Limpia SOLO el estado del lienzo (la lista de ambientes sigue viva). */
-function desmontarLienzo(): void {
-  contenedor = null;
-  roomId = null;
-  espacios = [];
-  if (lienzoEl) lienzoEl.innerHTML = '';
-}
-
-// =============================================================================
-// GUÍA SECUENCIAL (lista de ambientes + acciones por ambiente)
-// =============================================================================
-
-/**
- * Render de la lista guiada de ambientes (deduplicados) con sus acciones:
- * checkbox reutilizable «Espacio Único», [🧱 Crear Divisiones] y [⏳ En otro
- * momento]. Si el ambiente es «Espacio Único» (monolítico) se bloquea la
- * creación de divisiones y se muestra que está listo para recibir objetos.
- */
-function pintarLista(): void {
-  const cont = listaEl;
-  if (!cont) return;
-  if (ambientes.length === 0) {
-    cont.innerHTML =
-      '<p class="text-sm text-gray-400">Todavía no hay ambientes. Podés marcar «En otro momento» y subdividir más tarde desde Almacenamiento.</p>';
-    return;
-  }
-  cont.innerHTML = ambientes
+/** Pinta el estado del embudo (chip por habitación) junto al combobox. */
+function pintarEstado(): void {
+  if (!estadoEl) return;
+  estadoEl.innerHTML = ambientes
     .map((a) => {
-      const unico = Boolean(a.espacioUnico);
-      const diferido = diferidos.has(a.id);
+      const e = etiquetaDecision(a.id);
       const activo = roomActivo === a.id;
-      const base = 'rounded-2xl border px-4 py-3 flex flex-col gap-2 transition-base';
-      const tono = activo
-        ? 'border-orange-400 bg-orange-50'
-        : diferido
-          ? 'border-amber-200 bg-amber-50/70'
-          : 'border-gray-200 bg-white';
-      const botonCrear = unico
-        ? '<span class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">✅ Listo para objetos</span>'
-        : `<button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear Divisiones</button>`;
-      const etiquetaDiferido = diferido
-        ? '<span class="text-[11px] font-semibold text-amber-700">⏳ Se modelará más tarde</span>'
-        : '';
-      return `<div class="${base} ${tono}" data-div-fila="${a.id}">
-        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
-          <div class="flex items-center gap-2 flex-wrap">
-            <p class="text-sm font-semibold text-gray-800">${escapeHtml(a.nombre)}</p>
-            ${etiquetaDiferido}
-          </div>
-          ${checkboxEspacioUnicoHtml({ id: `divUnico-${a.id}`, marcado: unico, valor: a.id })}
-        </div>
-        <div class="flex items-center gap-2 flex-wrap">
-          ${botonCrear}
-          <button type="button" data-div-otro-momento="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-base">⏳ En otro momento</button>
-        </div>
-      </div>`;
+      return `<li class="flex items-center justify-between gap-2">
+        <span class="text-sm ${activo ? 'font-semibold text-orange-700' : 'text-gray-600'}">${escapeHtml(a.nombre)}</span>
+        <span class="px-2 py-0.5 rounded-full border text-[11px] font-semibold ${e.clase}">${e.texto}</span>
+      </li>`;
     })
     .join('');
 }
 
-/** Activa el cuarto elegido y despliega abajo su lienzo elástico naranja. */
+/** Escena 2: muestra (o limpia) el panel del embudo con la próxima pendiente. */
+function pintarEmbudo(pendiente: RecursoCreado | null): void {
+  if (!embudoEl) return;
+  embudoEl.innerHTML = pendiente ? htmlEmbudo(pendiente) : '';
+}
+
+
+// =============================================================================
+// ACCIONES DEL EMBUDO
+// =============================================================================
+
+/** Escena 1: el usuario elige un cuarto → se despliega abajo su lienzo naranja. */
 async function seleccionarAmbiente(id: string): Promise<void> {
   if (!id) return;
-  diferidos.delete(id);
   roomActivo = id;
-  pintarLista();
+  pintarEstado();
   if (!lienzoEl) return;
   lienzoEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  await montarDivisiones(id, lienzoEl);
+  await montarLienzoDivisiones(id, lienzoEl);
 }
 
-/**
- * «⏳ En otro momento»: la estructura de ese ambiente se modelará más tarde. No
- * borra nada ni bloquea el paso: deja el editor disponible en esa sección para
- * futuras pasadas y permite avanzar de forma limpia.
- */
-function marcarParaOtroMomento(id: string): void {
+/** Vía 1: activa el cuarto en caliente y oculta el embudo hasta el próximo «Continuar». */
+async function crearDivisionesAhora(id: string): Promise<void> {
   if (!id) return;
-  diferidos.add(id);
+  pintarEmbudo(null);
+  roomActivo = id;
+  if (selectEl) selectEl.value = id;
+  pintarEstado();
+  if (!lienzoEl) return;
+  lienzoEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  await montarLienzoDivisiones(id, lienzoEl);
+}
+
+/** Vía 2: «Espacio Único»: persiste `espacio_unico: true` (asíncrono) y avanza solo. */
+function marcarEspacioUnico(id: string): void {
+  const ambiente = ambientes.find((a) => a.id === id);
+  decisiones.set(id, 'unico');
+  if (ambiente) ambiente.espacioUnico = true;
   if (roomActivo === id) {
     roomActivo = null;
-    desmontarLienzo();
+    limpiarLienzoDivisiones(lienzoEl);
   }
-  pintarLista();
+  pintarEstado();
+  void guardarUbicacion(id, { espacio_unico: true }).then((ok) => {
+    avisoGlobal(
+      ok
+        ? `✅ «${ambiente?.nombre ?? 'Ambiente'}» declarado Espacio Único.`
+        : '⚠️ No se pudo guardar «Espacio Único». Reintentá.',
+    );
+  });
+  evaluarEmbudo();
 }
 
-/**
- * Persiste el checkbox «Espacio Único» de un ambiente (PUT /api/ubicaciones/{id}/).
- * Un «Espacio Único» es monolítico: se cierra su lienzo de divisiones (queda
- * listo para recibir objetos de forma directa, sin quedar «En Tránsito»).
- */
-async function persistirEspacioUnico(id: string, valor: boolean): Promise<void> {
+/** Vía 3: «En otro momento»: marca «Se modelará más tarde» y avanza a la siguiente. */
+function marcarDiferido(id: string): void {
+  if (!id) return;
   const ambiente = ambientes.find((a) => a.id === id);
-  const ok = await guardarUbicacion(id, { espacio_unico: valor });
-  if (ambiente) ambiente.espacioUnico = valor;
-  if (valor && roomActivo === id) {
+  decisiones.set(id, 'diferido');
+  if (roomActivo === id) {
     roomActivo = null;
-    desmontarLienzo();
+    limpiarLienzoDivisiones(lienzoEl);
   }
-  pintarLista();
-  avisoGlobal(
-    ok
-      ? `✅ «${ambiente?.nombre ?? 'Ambiente'}» ${valor ? 'declarado Espacio Único' : 'dividible de nuevo'}.`
-      : '⚠️ No se pudo guardar «Espacio Único». Reintentá.',
-  );
+  pintarEstado();
+  avisoGlobal(`⏳ «${ambiente?.nombre ?? 'Ambiente'}» se modelará más tarde.`);
+  evaluarEmbudo();
 }
 
+/** Escena 3: evalúa el embudo y, si no quedan pendientes, habilita el escape al Paso 4. */
+function evaluarEmbudo(): void {
+  const pendiente = ambientes.find((a) => !decisiones.has(a.id)) ?? null;
+  if (!pendiente) {
+    pintarEmbudo(null);
+    avanzarCb?.();
+    return;
+  }
+  pintarEmbudo(pendiente);
+}
+
+
+// =============================================================================
+// API PÚBLICA DEL PASO 3
+// =============================================================================
+
 /**
- * Monta la GUÍA del Paso 3 (idempotente; se re-corre al reingresar al paso).
- * El listado viene SIEMPRE del endpoint deduplicado (?deduplicar_grupos=1).
+ * Monta el embudo del Paso 3 (idempotente; se re-corre al reingresar al paso):
+ * combobox con la lista REAL del Paso 2 y lienzo de la primera habitación ya
+ * desplegado de entrada (Escena 1).
  */
 export async function montarGuiaDivisiones(opciones: {
   lista: HTMLElement;
   lienzo: HTMLElement;
+  avanzar: () => void;
 }): Promise<void> {
   listaEl = opciones.lista;
   lienzoEl = opciones.lienzo;
-  diferidos.clear();
+  avanzarCb = opciones.avanzar;
+  decisiones.clear();
   roomActivo = null;
-  desmontarLienzo();
+  limpiarLienzoDivisiones(lienzoEl);
 
-  // Fix de deduplicación: un espacio fusionado en «L» = UNA sola opción.
-  let lista = await listarAmbientes();
-  if (lista.length === 0) {
-    const base = await asegurarPrimerAmbiente();
-    if (base) lista = [base];
+  // Escena 1: SOLO habitaciones REALES del Paso 2 (deduplicadas). CERO fantasmas.
+  ambientes = await listarAmbientes();
+  if (ambientes.length === 0) {
+    listaEl.innerHTML =
+      '<p class="text-sm text-gray-400">No creaste habitaciones en el Paso 2. Podés tocar «Continuar» y subdividir más tarde desde Almacenamiento.</p>';
+    selectEl = null;
+    estadoEl = null;
+    embudoEl = null;
+    return;
   }
-  ambientes = lista;
-  pintarLista();
 
-  // Delegación de eventos por asignación (idempotente ante re-montajes).
+  // Cascarón estático: combobox a la izquierda + estado a la derecha + embudo abajo.
+  listaEl.innerHTML = `
+    <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,260px)_1fr] gap-4 sm:items-start">
+      <div class="sm:border-r sm:border-gray-100 sm:pr-4">
+        <label for="onbAmbienteSelect" class="block text-sm font-semibold text-gray-700 mb-1">Habitación</label>
+        <select id="onbAmbienteSelect" class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-base"></select>
+      </div>
+      <div class="text-xs text-gray-500 leading-relaxed">
+        <p class="font-semibold text-gray-700 mb-1">Estado de tus ambientes</p>
+        <ul id="onbEstadoAmbientes" class="space-y-1"></ul>
+      </div>
+    </div>
+    <div id="onbEmbudo" class="mt-4"></div>`;
+  selectEl = listaEl.querySelector<HTMLSelectElement>('#onbAmbienteSelect');
+  estadoEl = listaEl.querySelector<HTMLElement>('#onbEstadoAmbientes');
+  embudoEl = listaEl.querySelector<HTMLElement>('#onbEmbudo');
+
+  const primero = ambientes[0].id;
+  roomActivo = primero;
+  pintarSelector();
+  pintarEstado();
+  // Se despliega el lienzo elástico naranja del primer cuarto real.
+  await montarLienzoDivisiones(primero, lienzoEl);
+
+  // Delegación idempotente (se re-asigna en cada re-montaje).
+  listaEl.onchange = (e) => {
+    const sel = e.target as HTMLSelectElement;
+    if (sel?.id === 'onbAmbienteSelect') void seleccionarAmbiente(sel.value);
+  };
   listaEl.onclick = (e) => {
     const t = e.target as HTMLElement;
     const crear = t.closest<HTMLElement>('[data-div-crear]');
     if (crear?.dataset.divCrear) {
-      void seleccionarAmbiente(crear.dataset.divCrear);
+      void crearDivisionesAhora(crear.dataset.divCrear);
       return;
     }
-    const otro = t.closest<HTMLElement>('[data-div-otro-momento]');
-    if (otro?.dataset.divOtroMomento) marcarParaOtroMomento(otro.dataset.divOtroMomento);
+    const unico = t.closest<HTMLElement>('[data-div-unico]');
+    if (unico?.dataset.divUnico) {
+      marcarEspacioUnico(unico.dataset.divUnico);
+      return;
+    }
+    const diferir = t.closest<HTMLElement>('[data-div-diferir]');
+    if (diferir?.dataset.divDiferir) marcarDiferido(diferir.dataset.divDiferir);
   };
-  // Checkbox reutilizable «Espacio Único»: persiste al toque (change delega).
-  listaEl.onchange = (e) => {
-    const input = e.target as HTMLInputElement;
-    const id = input?.dataset?.espacioUnico;
-    if (id) void persistirEspacioUnico(id, input.checked);
-  };
+}
+
+/**
+ * «Continuar» (Escena 2/3): marca el cuarto modelado, evalúa las pendientes y
+ * solo habilita el escape al Paso 4 cuando el 100% tiene decisión explícita.
+ */
+export function continuarPasoDivisiones(): void {
+  if (ambientes.length === 0) {
+    avanzarCb?.();
+    return;
+  }
+  if (roomActivo && !decisiones.has(roomActivo)) decisiones.set(roomActivo, 'divisiones');
+  pintarEstado();
+  evaluarEmbudo();
 }
 
 /** Limpia TODO el estado del Paso 3 (vuelta atrás o cierre del asistente). */
 export function desmontarDivisiones(): void {
-  desmontarLienzo();
+  limpiarLienzoDivisiones(lienzoEl);
   listaEl = null;
   lienzoEl = null;
+  selectEl = null;
+  estadoEl = null;
+  embudoEl = null;
   ambientes = [];
-  diferidos.clear();
+  decisiones.clear();
   roomActivo = null;
+  avanzarCb = null;
 }
+
