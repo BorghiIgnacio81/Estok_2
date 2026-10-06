@@ -149,15 +149,15 @@ const CABECERAS: Record<NivelPortales, Cabecera> = {
   },
   2: {
     tituloIzq: '🧭 Visor de Habitación',
-    tituloDer: '📦 Muebles Grandes y Objetos Sueltos',
-    descIzq: 'Interior de la habitación activa. Tocá un mueble para entrar en su organización interna.',
-    descDer: 'Muebles y archivadores de la habitación más los objetos sueltos. Clic en un mueble para abrir sus estanterías.',
+    tituloDer: '📦 Espacios y Objetos Sueltos',
+    descIzq: 'Interior de la habitación activa. Tocá un espacio para entrar en su organización interna.',
+    descDer: 'Espacios de la habitación más los objetos sueltos. Clic en un espacio para abrir sus estanterías.',
   },
   3: {
-    tituloIzq: '🧰 Organización Interna del Mueble',
+    tituloIzq: '🧰 Organización Interna del Espacio',
     tituloDer: '🧺 Estanterías y Cajoneras',
-    descIzq: 'Grilla interna del mueble activo. Tocá una caja o estante para inspeccionar su contenido fino.',
-    descDer: 'Carga fina del mueble activo: cajas internas y objetos sueltos listos para mudarlos a la grilla de la izquierda.',
+    descIzq: 'Grilla interna del espacio activo. Tocá una caja o estante para inspeccionar su contenido fino.',
+    descDer: 'Carga fina del espacio activo: cajas internas y objetos sueltos listos para mudarlos a la grilla de la izquierda.',
   },
   4: {
     tituloIzq: '📦 Caja / Estante',

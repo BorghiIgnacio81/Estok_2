@@ -121,22 +121,32 @@ export function celdaVisorContenidoHtml(
 
 /** Cuerpo de la habitación: grilla rodeada por las CUATRO paredes Drop Zone. */
 export function cuerpoConParedesHtml(filasHtml: string, puerta: string | null): string {
+  // Marcador de ENTRADA: solo la pared que aloja la puerta lo muestra. Ícono +
+  // etiqueta «Entrada» sobre un hueco ámbar de alto contraste (ver mapa-espacial.css).
+  const lateral = (lado: 'TOP' | 'BOTTOM' | 'LEFT' | 'RIGHT'): string =>
+    puerta === lado
+      ? '<span class="visor-puerta-indicador">🚪<span class="visor-puerta-label">Entrada</span></span>'
+      : '';
+  const titulo = (lado: string): string =>
+    puerta === lado
+      ? `Puerta en la pared ${ETIQUETAS_PARED[lado] ?? lado} (clic para cambiarla de pared)`
+      : `Soltá la puerta en la pared ${ETIQUETAS_PARED[lado] ?? lado}`;
   return `
     <div class="visor-habitacion-cuerpo">
-      <div class="visor-pared visor-pared-top${puerta === 'TOP' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="TOP" title="Soltá la puerta en la pared superior">
-        ${puerta === 'TOP' ? '<span class="visor-puerta-indicador">🚪</span>' : ''}
+      <div class="visor-pared visor-pared-top${puerta === 'TOP' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="TOP" title="${titulo('TOP')}">
+        ${lateral('TOP')}
       </div>
       <div class="visor-pared-medio">
-        <div class="visor-pared visor-pared-left${puerta === 'LEFT' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="LEFT" title="Soltá la puerta en la pared izquierda">
-          ${puerta === 'LEFT' ? '<span class="visor-puerta-indicador">🚪</span>' : ''}
+        <div class="visor-pared visor-pared-left${puerta === 'LEFT' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="LEFT" title="${titulo('LEFT')}">
+          ${lateral('LEFT')}
         </div>
         <div class="visor-grid">${filasHtml}</div>
-        <div class="visor-pared visor-pared-right${puerta === 'RIGHT' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="RIGHT" title="Soltá la puerta en la pared derecha">
-          ${puerta === 'RIGHT' ? '<span class="visor-puerta-indicador">🚪</span>' : ''}
+        <div class="visor-pared visor-pared-right${puerta === 'RIGHT' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="RIGHT" title="${titulo('RIGHT')}">
+          ${lateral('RIGHT')}
         </div>
       </div>
-      <div class="visor-pared visor-pared-bottom${puerta === 'BOTTOM' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="BOTTOM" title="Soltá la puerta en la pared inferior">
-        ${puerta === 'BOTTOM' ? '<span class="visor-puerta-indicador">🚪</span>' : ''}
+      <div class="visor-pared visor-pared-bottom${puerta === 'BOTTOM' ? ' visor-pared-con-puerta' : ''}" data-visor-pared="BOTTOM" title="${titulo('BOTTOM')}">
+        ${lateral('BOTTOM')}
       </div>
     </div>`;
 }
@@ -145,8 +155,8 @@ export function cuerpoConParedesHtml(filasHtml: string, puerta: string | null): 
 export function paletaPuertaHtml(): string {
   return `
     <div class="visor-puerta-paleta">
-      <span class="visor-puerta-paleta-titulo">Acomodar puerta</span>
-      <div class="visor-puerta-drag" draggable="true" data-puerta-drag title="Arrastrá la puerta hacia una de las cuatro paredes">🚪 Puerta</div>
+      <span class="visor-puerta-paleta-titulo">Puerta de entrada</span>
+      <div class="visor-puerta-drag" draggable="true" data-puerta-drag title="Arrastrá la puerta hacia una de las cuatro paredes para marcar la entrada del ambiente">🚪 Arrastrá la puerta a una pared</div>
     </div>`;
 }
 

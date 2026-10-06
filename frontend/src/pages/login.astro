@@ -218,14 +218,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
 
         <div id="recoveryMessage" class="text-sm text-center"></div>
 
-        <div class="flex items-center justify-end gap-3">
-          <button
-            id="recoveryCancel"
-            type="button"
-            class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            Cancelar
-          </button>
+        <!-- Único cierre del modal: la cruz (✕) de la cabecera + clic en el fondo.
+             Se eliminó el botón «Cancelar» para no duplicar la acción de cierre. -->
+        <div class="flex items-center justify-end">
           <button
             type="submit"
             id="recoveryBtn"
@@ -321,12 +316,18 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   const recoveryUsername = document.getElementById('recoveryUsername') as HTMLInputElement;
   const recoveryEmail = document.getElementById('recoveryEmail') as HTMLInputElement;
   const recoveryClose = document.getElementById('recoveryClose')!;
-  const recoveryCancel = document.getElementById('recoveryCancel')!;
   const recoveryBtn = document.getElementById('recoveryBtn') as HTMLButtonElement;
   const recoveryBtnText = document.getElementById('recoveryBtnText')!;
   const recoveryMessage = document.getElementById('recoveryMessage')!;
 
+  // Auto-cierre limpio del modal tras mostrar el cartel verde de éxito SMTP.
+  let autoCierreId: number | undefined;
+
   function mostrarModalRecuperacion(visible: boolean): void {
+    if (autoCierreId !== undefined) {
+      window.clearTimeout(autoCierreId);
+      autoCierreId = undefined;
+    }
     recoveryModal.classList.toggle('hidden', !visible);
     if (visible) recoveryUsername.focus();
   }
@@ -339,7 +340,6 @@ import AuthLayout from '../layouts/AuthLayout.astro';
   });
 
   recoveryClose?.addEventListener('click', () => mostrarModalRecuperacion(false));
-  recoveryCancel?.addEventListener('click', () => mostrarModalRecuperacion(false));
 
   recoveryModal?.addEventListener('click', (e) => {
     if (e.target === recoveryModal) mostrarModalRecuperacion(false);
@@ -369,6 +369,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
         recoveryMessage.className = 'text-sm text-center text-green-600 font-medium';
         recoveryEmail.value = '';
         recoveryUsername.value = '';
+        // Éxito SMTP: el modal verde se cierra solo a los 2 segundos (limpio y sin
+        // dejar temporizadores colgados si el usuario lo vuelve a abrir).
+        autoCierreId = window.setTimeout(() => mostrarModalRecuperacion(false), 2000);
       } else {
         recoveryMessage.textContent = data.error || 'No se pudo procesar la solicitud. Intentá de nuevo.';
         recoveryMessage.className = 'text-sm text-center text-red-600 font-medium';

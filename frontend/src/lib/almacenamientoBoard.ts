@@ -493,7 +493,7 @@ export class AlmacenamientoBoard {
       ? `<div class="mt-2.5 pl-3 border-l-2 border-orange-100 space-y-2">${c.hijos.map((h) => this.contenedorHtml(h, profundidad + 1, { filas: this.filasDe(c), columnas: Math.max(1, Number(c.grid_columnas) || 3), columnasPorFila: c.grid_filas_config })).join('')}</div>`
       : '';
     return `
-    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Mueble inmueble fijo (no mudable)' : 'Arrastrá para mover'}">
+    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Espacio fijo (no mudable)' : 'Arrastrá para mover'}">
       ${inmueble ? '<span class="dnd-inmueble-badge">📌 Fijo · No mudable</span>' : ''}
       ${this.minimapasContenedorHtml(c, padreGrid)}
       <div class="flex items-start gap-2.5">
@@ -529,7 +529,7 @@ export class AlmacenamientoBoard {
   private contenedorPaletaHtml(c: ContenedorDnD): string {
     const inmueble = Boolean(c.es_inmueble);
     return `
-    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Mueble inmueble fijo (no mudable)' : 'Arrastrá a una ubicación o dentro de otro contenedor'}">
+    <div class="dnd-contenedor bg-white rounded-xl border border-gray-200 shadow-sm p-3.5 transition-base${inmueble ? ' dnd-contenedor-inmueble cursor-not-allowed' : ' cursor-grab active:cursor-grabbing'} hover:shadow-md hover:border-blue-200" data-id="${c.id}" draggable="${inmueble ? 'false' : 'true'}" title="${inmueble ? '📌 Espacio fijo (no mudable)' : 'Arrastrá a una ubicación o dentro de otro contenedor'}">
       ${inmueble ? '<span class="dnd-inmueble-badge">📌 Fijo · No mudable</span>' : ''}
       ${this.minimapasContenedorHtml(c)}
       <div class="flex items-start gap-2.5">
@@ -1299,7 +1299,7 @@ export class AlmacenamientoBoard {
     form?.reset();
     this.precargarFoto(null);
     (document.getElementById('editarTitulo') as HTMLElement).textContent =
-      `➕ Crear mueble en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
+      `➕ Crear espacio en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
     (document.getElementById('editarTipo') as HTMLInputElement).value = 'contenedor';
     (document.getElementById('editarId') as HTMLInputElement).value = '';
     // Grilla interna del mueble (Filas × Columnas) con valores iniciales útiles.
@@ -1315,7 +1315,7 @@ export class AlmacenamientoBoard {
     const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
     if (inmuebleCheck) inmuebleCheck.checked = false;
     const saveText = document.getElementById('editarSaveText');
-    if (saveText) saveText.textContent = 'Crear mueble';
+    if (saveText) saveText.textContent = 'Crear espacio';
     const error = document.getElementById('editarFormError');
     if (error) error.classList.add('hidden');
     modal.classList.remove('hidden');
@@ -1378,14 +1378,14 @@ export class AlmacenamientoBoard {
         this.celdaCreacionPendiente = null;
         this.cerrarModal('editar');
         form.reset();
-        this.toast(`✅ Mueble «${nombre}» creado en F${pendiente.fila}·C${pendiente.col}.`);
+        this.toast(`✅ Espacio «${nombre}» creado en F${pendiente.fila}·C${pendiente.col}.`);
         window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
       } else {
         const err = await res.json().catch(() => ({}));
         this.formError('editarFormError', this.extraerError(err));
       }
     } catch {
-      this.formError('editarFormError', 'Error de conexión al crear el mueble.');
+      this.formError('editarFormError', 'Error de conexión al crear el espacio.');
     } finally {
       this.setGuardando('editar', false);
     }

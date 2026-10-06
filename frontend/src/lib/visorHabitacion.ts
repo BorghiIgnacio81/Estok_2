@@ -260,10 +260,10 @@ function renderVisor(): void {
 
   const lienzo = renderLienzoElastico({
     items,
-    etiquetaCrear: 'Mueble',
+    etiquetaCrear: 'Espacio',
     textoVacio:
-      'Esta habitación no tiene muebles/archivadores todavía. Usá «➕ Mueble» para crear el primero, o soltá una caja desde la bandeja inferior.',
-    tip: '🧩 <strong>Lienzo elástico de la habitación</strong> · arrastrá cada mueble para acomodarlo, estirá de la esquina, renombrá con clic y <strong>seleccioná 2+ para fusionarlos</strong> en un único espacio con geometría en «L».',
+      'Esta habitación no tiene espacios todavía. Usá «➕ Espacio» para crear el primero, o soltá una caja desde la bandeja inferior.',
+    tip: '🧩 <strong>Lienzo elástico de la habitación</strong> · arrastrá cada espacio para acomodarlo, estirá de la esquina, renombrá con clic y <strong>seleccioná 2+ para fusionarlos</strong> en un único bloque con geometría en «L».',
   });
 
   cont.innerHTML = `
@@ -283,7 +283,7 @@ function renderVisor(): void {
     </div>
     ${cuerpoConParedesHtml(lienzo, puerta)}
     ${paletaPuertaHtml()}
-    <p class="visor-ayuda">Arrastrá muebles libremente dentro del lienzo, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación.</p>
+    <p class="visor-ayuda">Arrastrá espacios libremente dentro del lienzo, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación para marcar la entrada.</p>
   </div>`;
 }
 

@@ -13,12 +13,11 @@
 // Acceso a la API delegado 100% en ./api (auth centralizada).
 // =============================================================================
 
-import { setEstokActivoId } from '../../services/auth';
+import { logout, setEstokActivoId } from '../../services/auth';
 import type { EstokInfo } from '../../types';
 import { escapeHtml } from '../mapaJerarquico';
 import {
   asegurarPrimerAmbiente,
-  crearMueble,
   crearObjetoInicial,
   fundarEstok,
   listarAmbientes,
@@ -26,6 +25,8 @@ import {
 import type { RecursoCreado } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
+import { montarDivisiones } from './pasoDivisiones';
+import { cargarCatalogosObjeto } from './pasoObjeto';
 import { PasoEspacios } from './pasoEspacios';
 
 // =============================================================================
@@ -94,6 +95,7 @@ export class AsistenteBienvenida {
   iniciar(): void {
     this.q<HTMLFormElement>('#onbFormEstok')?.addEventListener('submit', (e) => void this.fundar(e));
     this.q<HTMLElement>('#onbOmitirTutorial')?.addEventListener('click', () => void this.omitirTutorial());
+    this.q<HTMLElement>('#onbCerrarSesion')?.addEventListener('click', () => this.cerrarSesion());
     this.q<HTMLElement>('#onbVolver')?.addEventListener('click', () => this.irAPaso(this.paso - 1));
     this.paso2.iniciar();
     this.modalCodigo.iniciar();
@@ -135,6 +137,8 @@ export class AsistenteBienvenida {
     if (track) track.style.transform = `translateX(-${this.paso * 100}%)`;
     if (this.paso === 1) void this.paso2.entrar();
     if (this.paso === 2) void this.pintarSelectAmbientes();
+    // Paso 4: catálogos del formulario compacto (dueños + categorías).
+    if (this.paso === 3) void cargarCatalogosObjeto();
     this.renderProgreso();
     this.root.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -240,14 +244,18 @@ export class AsistenteBienvenida {
 
   // (fin del Paso 2)
 
-  // ── PASO 3 — CONFIGURAR ALMACENAMIENTO (opcional) ─────────────────────────
+  // ── PASO 3 — DIVISIONES DE LA HABITACIÓN (opcional) ───────────────────────
 
   private bindPaso3(): void {
-    this.q<HTMLElement>('#onbGuardarMueble')?.addEventListener('click', () => void this.guardarMueble());
+    // El lienzo elástico persiste cada cambio solo: «Continuar» sólo avanza.
+    this.q<HTMLElement>('#onbGuardarMueble')?.addEventListener('click', () => this.irAPaso(3));
     this.q<HTMLElement>('#onbOmitirPaso3')?.addEventListener('click', () => this.irAPaso(3));
+    this.q<HTMLSelectElement>('#onbAmbienteSelect')?.addEventListener('change', () => {
+      void this.montarDivisionesSeleccionadas();
+    });
   }
 
-  /** Llena el selector de ambientes del paso 3 (memoria → backend). */
+  /** Llena el selector de ambientes del paso 3 y monta el lienzo de la elegida. */
   private async pintarSelectAmbientes(): Promise<void> {
     const select = this.q<HTMLSelectElement>('#onbAmbienteSelect');
     if (!select) return;
@@ -256,43 +264,34 @@ export class AsistenteBienvenida {
       this.ambientes.length > 0
         ? this.ambientes.map((a) => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`).join('')
         : '<option value="">Crearemos «Habitación principal» por vos</option>';
+    await this.montarDivisionesSeleccionadas();
   }
 
-  private async guardarMueble(): Promise<void> {
-    if (this.ocupado) return;
-    const btn = this.q<HTMLButtonElement>('#onbGuardarMueble');
-    const nombre = (this.q<HTMLInputElement>('#onbMuebleInput')?.value || '').trim() || 'Mueble 1';
-    this.error('onbErrorPaso3', null);
-    this.ocupado = true;
-    this.cargando(btn, true, 'Creando mueble…');
-    try {
-      const seleccionado = this.q<HTMLSelectElement>('#onbAmbienteSelect')?.value || '';
-      let ubicacionId = seleccionado || this.ambientes[0]?.id || '';
-      if (!ubicacionId) {
-        // El usuario omitió el paso 2: creamos un ambiente mínimo para no perder
-        // la ubicación del mueble (el paso 3 también funciona en solitario).
-        const ambiente = await asegurarPrimerAmbiente();
-        if (ambiente) {
-          this.ambientes = [...this.ambientes, ambiente];
-          ubicacionId = ambiente.id;
-          void this.pintarSelectAmbientes();
+  /**
+   * Monta el lienzo elástico de subdivisiones de la habitación elegida (crear,
+   * arrastrar, estirar y fusionar espacios). Si aún no hay ningún ambiente, crea
+   * uno mínimo para no bloquear el paso: el lienzo funciona en solitario.
+   */
+  private async montarDivisionesSeleccionadas(): Promise<void> {
+    const cont = this.q<HTMLElement>('#onbDivisionesLienzo');
+    if (!cont) return;
+    const select = this.q<HTMLSelectElement>('#onbAmbienteSelect');
+    let ubicacionId = select?.value || this.ambientes[0]?.id || '';
+    if (!ubicacionId) {
+      const ambiente = await asegurarPrimerAmbiente();
+      if (ambiente) {
+        this.ambientes = [...this.ambientes, ambiente];
+        if (select) {
+          select.innerHTML = this.ambientes
+            .map((a) => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`)
+            .join('');
+          select.value = ambiente.id;
         }
+        ubicacionId = ambiente.id;
       }
-      if (!ubicacionId) {
-        this.error('onbErrorPaso3', 'No hay un ambiente disponible para el mueble. Probá con «Omitir este paso».');
-        return;
-      }
-
-      const mueble = await crearMueble(nombre, ubicacionId, this.ambientes.length);
-      this.mueble = mueble;
-      avisoGlobal(`✅ «${mueble.nombre}» quedó creado. Ahora guardá tu primer objeto.`);
-      this.irAPaso(3);
-    } catch (err) {
-      this.error('onbErrorPaso3', mensajeDe(err, 'No se pudo crear el mueble.'));
-    } finally {
-      this.ocupado = false;
-      this.cargando(btn, false, 'Crear mueble y continuar');
     }
+    this.error('onbErrorPaso3', null);
+    await montarDivisiones(ubicacionId || null, cont);
   }
 
   // ── PASO 4 — TU PRIMER OBJETO (opcional) ─────────────────────────────────
@@ -304,12 +303,18 @@ export class AsistenteBienvenida {
 
   private async guardarObjeto(): Promise<void> {
     if (this.ocupado) return;
-    const nombre = (this.q<HTMLInputElement>('#onbObjetoInput')?.value || '').trim();
+    // Mismos ids/name que el formulario modular real (components/objetos).
+    const nombre = (this.q<HTMLInputElement>('#nombre')?.value || '').trim();
+    const descripcion = (this.q<HTMLTextAreaElement>('#descripcion')?.value || '').trim();
+    const categoriaId = this.q<HTMLSelectElement>('#categoria')?.value || '';
+    const duenoOriginalId = this.q<HTMLSelectElement>('#dueno_original')?.value || '';
+    const duenoExternoNombre = (this.q<HTMLInputElement>('#dueno_externo_nombre')?.value || '').trim();
+    const beneficiarioId = this.q<HTMLSelectElement>('#beneficiario')?.value || '';
     if (!nombre) {
       this.error('onbErrorPaso4', 'Ponele un nombre al objeto (ej: Taladro) o usá «Omitir/Finalizar».');
       return;
     }
-    const valorBruto = Number(this.q<HTMLInputElement>('#onbObjetoValor')?.value || '');
+    const valorBruto = Number(this.q<HTMLInputElement>('#valor_estimado')?.value || '');
     const btn = this.q<HTMLButtonElement>('#onbGuardarObjeto');
     this.error('onbErrorPaso4', null);
     this.ocupado = true;
@@ -317,7 +322,12 @@ export class AsistenteBienvenida {
     try {
       const objeto = await crearObjetoInicial({
         nombre,
+        descripcion: descripcion || null,
+        categoriaId: categoriaId || null,
         valorEstimado: Number.isFinite(valorBruto) && valorBruto > 0 ? valorBruto : null,
+        duenoOriginalId: duenoOriginalId || null,
+        duenoExternoNombre: duenoExternoNombre || null,
+        beneficiarioId: beneficiarioId || null,
         contenedorId: this.mueble?.id ?? null,
         ubicacionId: this.mueble ? null : (this.ambientes[0]?.id ?? null),
       });
@@ -328,6 +338,19 @@ export class AsistenteBienvenida {
       this.ocupado = false;
       this.cargando(btn, false, 'Guardar objeto y finalizar');
     }
+  }
+
+  // ── SALIDA LIMPIA — CERRAR SESIÓN DESDE EL ASISTENTE ─────────────────────
+
+  /**
+   * Cierra la sesión sin quedar atrapado en el asistente: limpia tokens y datos
+   * de usuario (services/auth · logout) y vuelve al Login. Pensado para un
+   * usuario nuevo que entra por error con una cuenta ajena.
+   */
+  private cerrarSesion(): void {
+    logout();
+    document.documentElement.removeAttribute('data-estok-onboarding');
+    window.location.href = '/login';
   }
 
   // ── CIERRE — ACCESO CONCEDIDO AL DASHBOARD ORDINARIO ─────────────────────

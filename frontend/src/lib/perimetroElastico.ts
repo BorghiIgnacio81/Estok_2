@@ -151,6 +151,164 @@ function aplicarMedida(lienzo: HTMLElement, medida: MedidaPerimetro): void {
   lienzo.style.height = `${medida.alto}px`;
 }
 
+// =============================================================================
+// GEOMETRÍA ABSOLUTA DEL PERÍMETRO (las tarjetas NO se deforman al estirar)
+// -----------------------------------------------------------------------------
+// El marco exterior (recuadro ámbar) es el sistema de coordenadas (%) de las
+// tarjetas. Si solo cambiara su tamaño, TODAS las tarjetas escalarían de forma
+// proporcional (defecto: se achican/agrandan hacia adentro). Acá aplicamos un
+// REBASE ABSOLUTO Y ADITIVO: al estirar el marco, cada tarjeta conserva su
+// geometría en PÍXELES (posición y tamaño ORIGINALES) y el terreno nuevo queda
+// LIBRE a la derecha/abajo. En píxeles es aditivo: +Δ ancho = +Δ terreno;
+// en porcentaje se reexpresa multiplicando por el factor medida/base.
+// =============================================================================
+
+/** Caja en % del lienzo leída de los estilos inline de una tarjeta. */
+interface CajaPct {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const red2 = (n: number): number => Math.round(n * 100) / 100;
+
+function pctDe(valor: string | null | undefined): number | null {
+  const m = /^(-?\d{1,3}(?:\.\d+)?)%$/.exec((valor ?? '').trim());
+  return m ? parseFloat(m[1]) : null;
+}
+
+/** Lee la caja (%) de una tarjeta; null si su geometría no está en % todavía. */
+function leerCajaPct(card: HTMLElement): CajaPct | null {
+  const left = pctDe(card.style.left);
+  const top = pctDe(card.style.top);
+  const width = pctDe(card.style.width);
+  const height = pctDe(card.style.height);
+  if (left === null || top === null || width === null || height === null) return null;
+  return { left, top, width, height };
+}
+
+/** Tarjetas editables de primer nivel del lienzo (bloques fusionados + sueltas). */
+function tarjetasDeLienzo(lienzo: HTMLElement): HTMLElement[] {
+  return Array.from(
+    lienzo.querySelectorAll<HTMLElement>(':scope > [data-inplace-card][data-id]'),
+  );
+}
+
+/** Snapshot inmutable de una tarjeta al iniciar el gesto (base del rebase). */
+interface TarjetaBase {
+  card: HTMLElement;
+  caja: CajaPct;
+  tiles: Array<{ el: SVGElement; data: Record<string, string> }>;
+}
+
+/** Captura la geometría ORIGINAL de una tarjeta (caja + memorias de sus tiles). */
+function capturarTarjeta(card: HTMLElement): TarjetaBase | null {
+  const caja = leerCajaPct(card);
+  if (!caja) return null;
+  const tiles = Array.from(card.querySelectorAll<SVGElement>('[data-tile-id]')).map((el) => ({
+    el,
+    data: {
+      tileLeft: el.dataset.tileLeft ?? '',
+      tileTop: el.dataset.tileTop ?? '',
+      tileWidth: el.dataset.tileWidth ?? '',
+      tileHeight: el.dataset.tileHeight ?? '',
+    },
+  }));
+  return { card, caja, tiles };
+}
+
+/**
+ * Reexpresa la tarjeta sobre el nuevo marco conservando sus PÍXELES. Se calcula
+ * SIEMPRE desde el snapshot original (nunca desde el DOM ya rebasado) para no
+ * acumular el factor en cada movimiento del gesto.
+ */
+function rebasarTarjeta(t: TarjetaBase, fx: number, fy: number): CajaPct {
+  const caja: CajaPct = {
+    left: red2(t.caja.left * fx),
+    top: red2(t.caja.top * fy),
+    width: red2(t.caja.width * fx),
+    height: red2(t.caja.height * fy),
+  };
+  t.card.style.left = `${caja.left}%`;
+  t.card.style.top = `${caja.top}%`;
+  t.card.style.width = `${caja.width}%`;
+  t.card.style.height = `${caja.height}%`;
+  // El bloque fusionado guarda las memorias data-tile-* en % del lienzo: se
+  // reexpresan desde el snapshot para que la persistencia del grupo sea coherente.
+  t.tiles.forEach(({ el, data }) => {
+    const num = (s: string): number => {
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : Number.NaN;
+    };
+    const set = (k: string, v: number): void => {
+      if (Number.isFinite(v)) el.dataset[k] = String(red2(v));
+    };
+    set('tileLeft', num(data.tileLeft) * fx);
+    set('tileTop', num(data.tileTop) * fy);
+    set('tileWidth', num(data.tileWidth) * fx);
+    set('tileHeight', num(data.tileHeight) * fy);
+  });
+  return caja;
+}
+
+/** Rollback visual: restaura la geometría EXACTA capturada al iniciar el gesto. */
+function restaurarTarjeta(t: TarjetaBase): void {
+  t.card.style.left = `${t.caja.left}%`;
+  t.card.style.top = `${t.caja.top}%`;
+  t.card.style.width = `${t.caja.width}%`;
+  t.card.style.height = `${t.caja.height}%`;
+  t.tiles.forEach(({ el, data }) => {
+    el.dataset.tileLeft = data.tileLeft;
+    el.dataset.tileTop = data.tileTop;
+    el.dataset.tileWidth = data.tileWidth;
+    el.dataset.tileHeight = data.tileHeight;
+  });
+}
+
+/** true si la tarjeta es un bloque fusionado (tiles SVG internos). */
+function esBloqueFusionado(card: HTMLElement): boolean {
+  return Boolean(card.dataset.fusionGrupo) || Boolean(card.querySelector('[data-tile-id]'));
+}
+
+/**
+ * Persiste la geometría rebasada de cada tarjeta para que el estado quede
+ * coherente tras un re-render (la pantalla relee del backend). Ítem suelto → PUT
+ * propio; bloque fusionado → UN ÚNICO PUT de grupo con todas sus partes.
+ */
+async function persistirHijosRebasados(
+  opts: OpcionesPerimetro,
+  tarjetas: Array<{ card: HTMLElement; caja: CajaPct }>,
+): Promise<void> {
+  const adaptador = opts.adaptador;
+  if (!adaptador || !tarjetas.length) return;
+  await Promise.all(
+    tarjetas.map(async ({ card, caja }) => {
+      const id = card.dataset.id ?? '';
+      if (!id) return;
+      if (esBloqueFusionado(card)) {
+        const partes = Array.from(card.querySelectorAll<SVGElement>('[data-tile-id]'))
+          .map((t) => ({
+            id: t.dataset.tileId ?? '',
+            ui_left: `${t.dataset.tileLeft ?? '0'}%`,
+            ui_top: `${t.dataset.tileTop ?? '0'}%`,
+            ui_width: `${t.dataset.tileWidth ?? '0'}%`,
+            ui_height: `${t.dataset.tileHeight ?? '0'}%`,
+          }))
+          .filter((p) => p.id);
+        if (partes.length) await adaptador.guardarGrupo(id, { partes });
+        return;
+      }
+      await adaptador.guardarItem(id, {
+        ui_left: `${caja.left}%`,
+        ui_top: `${caja.top}%`,
+        ui_width: `${caja.width}%`,
+        ui_height: `${caja.height}%`,
+      });
+    }),
+  );
+}
+
 /**
  * Conecta los tiradores del perímetro: arrastre elástico en caliente (ancho,
  * alto o ambos según el tirador) y UN ÚNICO PUT al soltar. El ancho se acota al
@@ -173,6 +331,20 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         Math.floor(marco?.width ?? PERIMETRO_MAX_ANCHO),
       );
       const base: MedidaPerimetro = { ancho: rect.width, alto: rect.height };
+      // Sistema de coordenadas real de las tarjetas: la PADDING BOX del lienzo
+      // (clientWidth/Height descuenta el borde). El % de ui_* se mide contra ella.
+      const bordeX = Math.max(0, rect.width - lienzo.clientWidth);
+      const bordeY = Math.max(0, rect.height - lienzo.clientHeight);
+      const baseInterno = {
+        ancho: Math.max(1, rect.width - bordeX),
+        alto: Math.max(1, rect.height - bordeY),
+      };
+      // Snapshot ORIGINAL de las tarjetas: base absoluta del rebase (nunca deforma).
+      const tarjetas = tarjetasDeLienzo(lienzo)
+        .map((card) => capturarTarjeta(card))
+        .filter((t): t is TarjetaBase => t !== null);
+      // Caja REBASADA vigente de cada tarjeta (es la que se persiste al soltar).
+      const resultado = tarjetas.map((t) => ({ card: t.card, caja: t.caja }));
       const x0 = e.clientX;
       const y0 = e.clientY;
       let medida = base;
@@ -198,6 +370,13 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
           alto: modo === 'ancho' ? base.alto : base.alto + (m.clientY - y0),
         });
         aplicarMedida(lienzo, medida);
+        // REBASE ABSOLUTO Y ADITIVO: las tarjetas conservan sus PÍXELES (quedan
+        // quietas) y el terreno nuevo se agrega libre a la derecha/abajo.
+        const fx = baseInterno.ancho / Math.max(1, medida.ancho - bordeX);
+        const fy = baseInterno.alto / Math.max(1, medida.alto - bordeY);
+        tarjetas.forEach((t, i) => {
+          resultado[i].caja = rebasarTarjeta(t, fx, fy);
+        });
       };
 
       const alSoltar = async (): Promise<void> => {
@@ -209,9 +388,13 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         const ok = await persistirMedida(opts, medida);
         if (!ok) {
           aplicarMedida(lienzo, base);
+          tarjetas.forEach((t) => restaurarTarjeta(t));
           toast('❌ No se pudo guardar el tamaño del plano. Volvió al anterior.');
           return;
         }
+        // La geometría rebasada se persiste para que el re-render de la pantalla
+        // (que relee del backend) conserve EXACTAMENTE lo modelado, sin deformar.
+        await persistirHijosRebasados(opts, resultado);
         toast(`📐 Plano redimensionado a ${medida.ancho} × ${medida.alto} px.`);
         opts.alGuardar?.();
       };

@@ -15,6 +15,9 @@
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
+// Formulario compacto del Paso 4: reutiliza la MISMA interfaz modular que
+// /objetos/nuevo (dueños + selectores) para evitar inconsistencias visuales.
+import ObjetoFormCompacto from './onboarding/ObjetoFormCompacto.astro';
 ---
 
 <div
@@ -49,6 +52,15 @@ import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/80 border border-blue-200 text-blue-800 text-sm font-semibold shadow-sm hover:bg-white transition-base"
         >
           Omitir Tutorial →
+        </button>
+        <!-- Salida limpia del asistente: limpia los tokens y vuelve al Login para
+             que un usuario nuevo no quede atrapado al presionar «Atrás». -->
+        <button
+          type="button"
+          id="onbCerrarSesion"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-transparent border border-transparent text-gray-500 text-sm font-semibold hover:text-red-700 hover:bg-white/70 transition-base"
+        >
+          Cerrar Sesión
         </button>
       </div>
     </header>
@@ -202,38 +214,37 @@ import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
             <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold">
               Paso 3 · Opcional
             </span>
-            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Configurá tu almacenamiento 🗄️</h2>
+            <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Divisiones de la Habitación 🧱</h2>
             <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
-              Un <strong class="text-gray-700">contenedor</strong> es el mueble o la caja donde vas a guardar las cosas:
-              un placard, una estantería, una caja de herramientas. Elegí también en qué ambiente vive.
+              Subdividí una habitación en <strong class="text-gray-700">espacios</strong> (zonas físicas) y fusionalos
+              en un único bloque. Elegí la habitación a la izquierda: el lienzo elástico aparece abajo.
             </p>
 
-            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label for="onbMuebleInput" class="block text-sm font-semibold text-gray-700 mb-1">Nombre del contenedor</label>
-                <input
-                  id="onbMuebleInput"
-                  type="text"
-                  maxlength="200"
-                  autocomplete="off"
-                  placeholder="Ej: Placard, Caja 1"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-                />
-              </div>
-              <div>
-                <label for="onbAmbienteSelect" class="block text-sm font-semibold text-gray-700 mb-1">¿En qué ambiente está?</label>
+            <!-- Combobox de habitación a la IZQUIERDA + guía de uso a la derecha -->
+            <div class="mt-5 grid grid-cols-1 sm:grid-cols-[minmax(0,260px)_1fr] gap-4 sm:items-start">
+              <div class="sm:border-r sm:border-gray-100 sm:pr-4">
+                <label for="onbAmbienteSelect" class="block text-sm font-semibold text-gray-700 mb-1">Habitación</label>
                 <select
                   id="onbAmbienteSelect"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-base"
                 ></select>
               </div>
+              <p class="text-xs text-gray-400 leading-relaxed sm:pt-7">
+                Al elegir una habitación se inyecta abajo su
+                <strong class="text-gray-600">lienzo elástico naranja</strong>. Usá «➕ Crear Espacio» para subdividir,
+                arrastrá y estirá cada zona, y seleccioná 2+ para
+                <strong class="text-gray-600">fusionarlas en un bloque indisoluble</strong>.
+              </p>
             </div>
+
+            <!-- Lienzo elástico de divisiones (se rellena al elegir la habitación) -->
+            <div id="onbDivisionesLienzo" class="mt-4"></div>
 
             <p id="onbErrorPaso3" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
 
             <div class="mt-6 flex flex-col sm:flex-row gap-3">
               <button type="button" id="onbGuardarMueble" class="flex-1 px-6 py-3.5 bg-blue-700 hover:bg-blue-800 text-white text-base font-bold rounded-2xl shadow-md transition-base">
-                Crear mueble y continuar
+                Continuar ➜
               </button>
               <button type="button" id="onbOmitirPaso3" class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
                 Omitir
@@ -241,7 +252,8 @@ import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
             </div>
 
             <p class="mt-4 text-xs text-gray-400 leading-relaxed">
-              La grilla interna del mueble arranca en 3 × 3 casilleros; la ajustás cuando quieras desde el Visor de Almacenamiento.
+              Cada espacio es una zona estructural de la habitación: impacta en el plano y nunca crea stock. Los ajustás
+              cuando quieras desde Almacenamiento.
             </p>
           </div>
         </section>
@@ -254,33 +266,15 @@ import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
             </span>
             <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Tu primer objeto 📦</h2>
             <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
-              Registrá un ítem para estrenar el inventario. Si venís de los pasos anteriores, queda guardado dentro del mueble
-              que creaste; si no, cae en la bandeja de «elementos sin ubicar» y no se pierde.
+              Registrá un ítem para estrenar el inventario con el MISMO formulario de «Nuevo Objeto»: nombre, categoría,
+              valor y dueños. Si venís de los pasos anteriores, queda dentro de la ubicación elegida; si no, cae en la
+              bandeja de «elementos sin ubicar» y no se pierde.
             </p>
 
-            <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label for="onbObjetoInput" class="block text-sm font-semibold text-gray-700 mb-1">Nombre del objeto</label>
-                <input
-                  id="onbObjetoInput"
-                  type="text"
-                  maxlength="300"
-                  autocomplete="off"
-                  placeholder="Ej: Taladro"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-                />
-              </div>
-              <div>
-                <label for="onbObjetoValor" class="block text-sm font-semibold text-gray-700 mb-1">Valor estimado (opcional)</label>
-                <input
-                  id="onbObjetoValor"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Ej: 15000"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-                />
-              </div>
+            <!-- Formulario modular compacto: reutiliza los componentes reales de
+                 /objetos/nuevo (categorías + legado/dueños) para evitar desvíos. -->
+            <div class="mt-5">
+              <ObjetoFormCompacto />
             </div>
 
             <p id="onbErrorPaso4" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>

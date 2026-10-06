@@ -46,9 +46,19 @@ export interface RecursoCreado {
 
 export interface DatosObjetoInicial {
   nombre: string;
+  /** Descripción libre del objeto (opcional). */
+  descripcion?: string | null;
+  /** Categoría (FK) elegida en el formulario compacto (opcional). */
+  categoriaId?: string | null;
   /** Valor estimado (USD). Opcional. */
   valorEstimado?: number | null;
-  /** Mueble/caja destino (Nivel 3). Tiene prioridad sobre la ubicación. */
+  /** Dueño original (usuario del Estok) elegido en el formulario compacto. */
+  duenoOriginalId?: string | null;
+  /** Nombre plano de un dueño que NO es usuario de la plataforma (metadata). */
+  duenoExternoNombre?: string | null;
+  /** Beneficiario designado (usuario del Estok). */
+  beneficiarioId?: string | null;
+  /** Espacio/caja destino (Nivel 3). Tiene prioridad sobre la ubicación. */
   contenedorId?: string | null;
   /** Ambiente destino (Nivel 2) cuando el usuario omitió Almacenamiento. */
   ubicacionId?: string | null;
@@ -233,43 +243,6 @@ export async function asegurarPrimerAmbiente(): Promise<RecursoCreado | null> {
 }
 
 // =============================================================================
-// PASO 3 — ALMACENAMIENTO (Nivel 3)
-// =============================================================================
-
-/**
- * Crea un mueble/caja dentro del ambiente indicado. El backend genera además el
- * registro espejo de stock (regla de dualidad) y exige membresía en el Estok.
- */
-export async function crearMueble(
-  nombre: string,
-  ubicacionId: string,
-  orden: number,
-): Promise<RecursoCreado> {
-  const data = await pedirJson(
-    `${API_BASE_URL}/contenedores/`,
-    {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre,
-        descripcion: '',
-        ubicacion: ubicacionId,
-        ui_left: `${6 + (orden % 5) * 12}%`,
-        ui_top: `${8 + (orden % 4) * 16}%`,
-        ui_width: '30%',
-        ui_height: '30%',
-        es_inmueble: false,
-        // Elemento ESTRUCTURAL del Paso 3: impacta SOLO en el Contenedor
-        // geométrico del mapa y NUNCA inyecta un Objeto espejo en el catálogo.
-        crear_espejo: false,
-      }),
-    },
-    `No se pudo crear «${nombre}».`,
-  );
-  return { id: data.id, nombre: data.nombre || nombre };
-}
-
-// =============================================================================
 // PASO 4 — PRIMER OBJETO
 // =============================================================================
 
@@ -280,9 +253,15 @@ export async function crearMueble(
  */
 export async function crearObjetoInicial(datos: DatosObjetoInicial): Promise<RecursoCreado> {
   const cuerpo: Record<string, unknown> = { nombre: datos.nombre };
+  if (datos.descripcion) cuerpo.descripcion = datos.descripcion;
+  if (datos.categoriaId) cuerpo.categoria = datos.categoriaId;
   if (datos.valorEstimado != null && Number.isFinite(Number(datos.valorEstimado))) {
     cuerpo.valor_estimado = Number(datos.valorEstimado);
   }
+  // Legado/trazabilidad: dueño (usuario o externo) y beneficiario (regla dualidad).
+  if (datos.duenoOriginalId) cuerpo.dueno_original = datos.duenoOriginalId;
+  if (datos.duenoExternoNombre) cuerpo.dueno_externo_nombre = datos.duenoExternoNombre;
+  if (datos.beneficiarioId) cuerpo.beneficiario = datos.beneficiarioId;
   if (datos.contenedorId) {
     cuerpo.contenedor = datos.contenedorId;
     cuerpo.parent_grid_row = 1;

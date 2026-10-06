@@ -220,13 +220,13 @@ export function muebleCardHtml(
 /** Conmutador de muebles en caliente (chips, visible cuando hay 2+ muebles). */
 function conmutadorMueblesHtml(muebles: MuebleVisor[], activoId: string | null): string {
   if (muebles.length < 2) return '';
-  return `<div class="cg-conmutador" role="tablist" aria-label="Conmutar mueble activo">
-    <span class="cg-conmutador-titulo">Cambiar mueble:</span>
+  return `<div class="cg-conmutador" role="tablist" aria-label="Conmutar espacio activo">
+    <span class="cg-conmutador-titulo">Cambiar espacio:</span>
     ${muebles
       .map((m) => {
         const ico = iconoContenedorVisor(m.nombre);
         const activo = m.id === activoId;
-        return `<button type="button" role="tab" aria-selected="${activo ? 'true' : 'false'}" class="cg-chip${activo ? ' cg-chip-activo' : ''}" data-mueble-chip="${m.id}" title="${activo ? 'Mueble activo: ' : 'Ver '}«${escapeHtml(m.nombre)}»">
+        return `<button type="button" role="tab" aria-selected="${activo ? 'true' : 'false'}" class="cg-chip${activo ? ' cg-chip-activo' : ''}" data-mueble-chip="${m.id}" title="${activo ? 'Espacio activo: ' : 'Ver '}«${escapeHtml(m.nombre)}»">
           ${ico ? `<span class="cg-chip-ico" aria-hidden="true">${ico}</span>` : ''}
           <span class="cg-chip-nombre">${escapeHtml(m.nombre)}</span>
         </button>`;
@@ -242,8 +242,8 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
 
   const cabecera = `
     <div class="cg-cabecera">
-      <span class="cg-titulo">🧱 Muebles de «${escapeHtml(room.nombre)}»</span>
-      <span class="cg-sub">Elegí un mueble en el Visor de Habitación (izquierda) o con el conmutador para inspeccionar su ficha y su distribución interna. Los casilleros reciben elementos por Drag &amp; Drop.</span>
+      <span class="cg-titulo">🧱 Espacios de «${escapeHtml(room.nombre)}»</span>
+      <span class="cg-sub">Elegí un espacio en el Visor de Habitación (izquierda) o con el conmutador para inspeccionar su ficha y su distribución interna. Los casilleros reciben elementos por Drag &amp; Drop.</span>
     </div>`;
 
   // REGLA DE INICIALIZACIÓN: una habitación SIN muebles NUNCA deja el panel
@@ -253,11 +253,11 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
   if (!muebles.length) {
     return `${cabecera}
       <div class="cg-vacio-editor">
-        <p class="cg-vacio-texto">Esta habitación todavía no tiene muebles/archivadores. Modelá su interior en caliente: creá el primer mueble y acomodalo en el lienzo.</p>
+        <p class="cg-vacio-texto">Esta habitación todavía no tiene espacios. Modelá su interior en caliente: creá el primer espacio y acomodalo en el lienzo.</p>
         ${renderLienzoElastico({
           items: raices,
-          etiquetaCrear: 'Crear mueble aquí',
-          textoVacio: 'Sin muebles todavía. Usá «➕ Crear mueble aquí» para inyectar el primero.',
+          etiquetaCrear: 'Crear Espacio',
+          textoVacio: 'Sin espacios todavía. Usá «➕ Crear Espacio» para inyectar el primero.',
           tip: '🧱 Editor interno de la habitación · mismo motor 2D elástico que los planos de planta.',
         })}
       </div>`;
@@ -275,7 +275,7 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
     const activoCabecera = `
       <div class="cg-cabecera">
         <span class="cg-titulo">🧱 Distribución interna de «${escapeHtml(activo.nombre)}»</span>
-        <span class="cg-sub">Mueble inspeccionado en caliente. Usá los botones + y − al final de cada fila para ajustar sus estantes/cajones, o soltá objetos/cajas en un casillero para reubicarlos en el acto.</span>
+        <span class="cg-sub">Espacio inspeccionado en caliente. Usá los botones + y − al final de cada fila para ajustar sus estantes/cajones, o soltá objetos/cajas en un casillero para reubicarlos en el acto.</span>
       </div>`;
     return `${activoCabecera}
       ${conmutadorMueblesHtml(
@@ -283,7 +283,7 @@ export function visorContenidoGrandeHtml(opts: OpcionesVisorContenido): string {
         activo.id,
       )}
       <div class="mueble-detalle">
-        <button type="button" class="cg-atras" data-mueble-atras title="Volver al listado de todos los muebles de «${escapeHtml(room.nombre)}»">← Ver todos los muebles</button>
+        <button type="button" class="cg-atras" data-mueble-atras title="Volver al listado de todos los espacios de «${escapeHtml(room.nombre)}»">← Ver todos los espacios</button>
         ${muebleCardHtml(activo, subContenedores, subObjetos, { conControles: true })}
       </div>`;
   }

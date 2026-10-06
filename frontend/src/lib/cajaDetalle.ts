@@ -129,7 +129,7 @@ function mapearObjetos(raw: Record<string, unknown>[], cajaId: string): ItemFino
 
 function renderVacio(): void {
   if (raizIzq) {
-    raizIzq.innerHTML = '<div class="caja-vacio">📦 Seleccioná una caja o estante del mueble para inspeccionarla.</div>';
+    raizIzq.innerHTML = '<div class="caja-vacio">📦 Seleccioná una caja o estante del espacio para inspeccionarla.</div>';
   }
   if (raizDer) {
     raizDer.innerHTML = '<div class="caja-vacio">El listado fino de objetos aparecerá acá.</div>';

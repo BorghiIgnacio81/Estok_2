@@ -297,7 +297,7 @@ export function renderBandejaCargaFinaHtml(estado: EstadoBandejaCargaFina): stri
         chips: sueltos.map(chipHtml).join(''),
         vacio: 'No hay objetos individuales por ubicar.',
       })
-    : '<div class="cf-vacio">✨ No hay elementos sin ubicar. Soltá uno desde un casillero del mueble para extraerlo y aparecerá acá.</div>';
+    : '<div class="cf-vacio">✨ No hay elementos sin ubicar. Soltá uno desde un casillero del espacio para extraerlo y aparecerá acá.</div>';
 
   const cuerpoAcordeon = estado.acordeonAbierto ? listadoAcordeonHtml(estado) : '';
 
@@ -308,7 +308,7 @@ export function renderBandejaCargaFinaHtml(estado: EstadoBandejaCargaFina): stri
         <span class="cf-bloque-titulo">🫳 A primera vista · por ubicar</span>
         <span class="cf-bloque-badge">${totalPorUbicar}</span>
       </div>
-      <p class="cf-bloque-hint">Cajas 📦 (GRUPO 1) y objetos 🧸 (GRUPO 2) sin ubicación. Arrastralos hacia un estante del mueble (panel izquierdo).</p>
+      <p class="cf-bloque-hint">Cajas 📦 (GRUPO 1) y objetos 🧸 (GRUPO 2) sin ubicación. Arrastralos hacia un estante del espacio (panel izquierdo).</p>
       ${gruposPorUbicar}
     </section>
 
@@ -319,7 +319,7 @@ export function renderBandejaCargaFinaHtml(estado: EstadoBandejaCargaFina): stri
         <span class="cf-bloque-badge">${estado.roomId ? fuentes.length : 0}</span>
         <span class="cf-chevron" aria-hidden="true">▾</span>
       </button>
-      <p class="cf-bloque-hint">Contenedores con ubicación que ya contienen elementos internos. Al abrir uno verás primero sus cajas y después sus objetos sueltos para mudarlos al mueble activo.</p>
+      <p class="cf-bloque-hint">Contenedores con ubicación que ya contienen elementos internos. Al abrir uno verás primero sus cajas y después sus objetos sueltos para mudarlos al espacio activo.</p>
       <div class="cf-acordeon-cuerpo">${cuerpoAcordeon}</div>
     </section>
   </div>`;

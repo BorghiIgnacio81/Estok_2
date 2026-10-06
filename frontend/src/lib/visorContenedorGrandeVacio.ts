@@ -53,7 +53,7 @@ async function crearMuebleEnHabitacion(opts: OpcionesHabitacionVacia): Promise<b
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: `Mueble ${n + 1}`,
+        nombre: `Espacio ${n + 1}`,
         descripcion: '',
         ubicacion: room.id,
         ui_left: `${6 + (n % 5) * 12}%`,
@@ -68,15 +68,15 @@ async function crearMuebleEnHabitacion(opts: OpcionesHabitacionVacia): Promise<b
       return false;
     }
     if (res.ok) {
-      toast(`✅ «Mueble ${n + 1}» creado en «${room.nombre}».`);
+      toast(`✅ «Espacio ${n + 1}» creado en «${room.nombre}».`);
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
       return true;
     }
     const err = await res.json().catch(() => ({}));
-    toast('❌ ' + (err?.detail || err?.error || 'No se pudo crear el mueble.'));
+    toast('❌ ' + (err?.detail || err?.error || 'No se pudo crear el espacio.'));
     return false;
   } catch {
-    toast('❌ Error de conexión al crear el mueble.');
+    toast('❌ Error de conexión al crear el espacio.');
     return false;
   }
 }
