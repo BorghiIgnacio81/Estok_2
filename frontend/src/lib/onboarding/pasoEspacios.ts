@@ -23,6 +23,7 @@ import { crearAmbiente } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal, mensajeDe } from './comunes';
 import { desmontarPlanoPaso2, habitacionesDelPlano, montarPlanoPaso2 } from './planoPaso2';
+import { fijarRastroAmbientes } from './rastroAmbientes';
 import { compactarYGuardarLienzos } from '../plantaGuardado';
 
 /** Tope de ambientes del asistente (chips y plano comparten el mismo límite). */
@@ -174,6 +175,8 @@ export class PasoEspacios {
         );
         return;
       }
+      // Rastro local (sessionStorage): espejo anti-latencia para el Paso 3.
+      fijarRastroAmbientes(enLienzo.map((r) => ({ id: String(r.id), nombre: r.nombre })));
       avisoGlobal(`✅ ${enLienzo.length} habitación(es) dibujada(s) en tu plano.`);
       this.ctx.irAPaso(2);
     } catch (err) {
@@ -199,6 +202,8 @@ export class PasoEspacios {
       for (let i = 0; i < this.nombres.length; i++) {
         creados.push(await crearAmbiente(this.nombres[i], i));
       }
+      // Rastro local (sessionStorage): espejo anti-latencia para el Paso 3.
+      fijarRastroAmbientes(creados.map((c) => ({ id: c.id, nombre: c.nombre })));
       avisoGlobal(`✅ ${creados.length} ambiente${creados.length === 1 ? '' : 's'} creado${creados.length === 1 ? '' : 's'}.`);
       this.ctx.irAPaso(2);
     } catch (err) {

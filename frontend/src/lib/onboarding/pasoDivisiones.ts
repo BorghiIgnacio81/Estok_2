@@ -16,6 +16,9 @@
 //
 // DEDUPLICACIÓN: `?deduplicar_grupos=1` (./api → listarAmbientes): un espacio
 // fusionado en «L» = UNA opción. El LIENZO elástico vive en ./lienzoDivisiones.
+// ANTI CARRERA DE DATOS: si el fetch llega vacío se REINTENTA con delay de
+// resguardo y, en última instancia, se hidrata desde el rastro local que dejó el
+// Paso 2 (./rastroAmbientes, en sessionStorage).
 // =============================================================================
 
 import { escapeHtml, guardarUbicacion } from '../mapaJerarquico';
@@ -23,6 +26,7 @@ import { limpiarLienzoDivisiones, montarLienzoDivisiones } from './lienzoDivisio
 import { listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal } from './comunes';
+import { leerRastroAmbientes } from './rastroAmbientes';
 
 /** Decisión explícita que el embudo registra por cada habitación real. */
 type Decision = 'divisiones' | 'unico' | 'diferido';
@@ -41,6 +45,36 @@ const decisiones = new Map<string, Decision>();
 /** Escape al Paso 4: lo inyecta el wizard (mantiene este módulo desacoplado). */
 let avanzarCb: (() => void) | null = null;
 
+// =============================================================================
+// CARGA REACTIVA DE AMBIENTES (ANTI CARRERA DE DATOS)
+// =============================================================================
+
+/** Espera `ms` milisegundos (delay de resguardo del re-intento reactivo). */
+function esperar(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Carga los ambientes REALES del Paso 2 con RE-INTENTO REACTIVO: si el primer
+ * fetch llega vacío (carrera de datos: Django todavía consolidando el nuevo
+ * tenant), reintenta con un breve delay de resguardo antes de dar el listado por
+ * vacío. Absorbe la latencia de PostgreSQL sin bloquear al usuario.
+ */
+async function cargarAmbientesConReintento(): Promise<RecursoCreado[]> {
+  // Intento inmediato + dos re-intentos escalonados (300ms y 500ms).
+  const pausasMs = [0, 300, 500];
+  let lista: RecursoCreado[] = [];
+  for (const pausa of pausasMs) {
+    if (pausa > 0) await esperar(pausa);
+    try {
+      lista = await listarAmbientes();
+    } catch {
+      lista = [];
+    }
+    if (lista.length > 0) return lista;
+  }
+  return lista;
+}
 
 // =============================================================================
 // EMBUDO SECUENCIAL — SELECTOR, ESTADO Y PANEL DE DECISIÓN
@@ -197,7 +231,22 @@ export async function montarGuiaDivisiones(opciones: {
   limpiarLienzoDivisiones(lienzoEl);
 
   // Escena 1: SOLO habitaciones REALES del Paso 2 (deduplicadas). CERO fantasmas.
-  ambientes = await listarAmbientes();
+  // Placeholder inmediato: evita que el usuario vea el paso «desierto» mientras
+  // corre el re-intento reactivo.
+  listaEl.innerHTML = '<p class="text-sm text-gray-400">Sincronizando tus ambientes…</p>';
+
+  // 1) RE-INTENTO REACTIVO contra el backend (absorbe la carrera de datos).
+  ambientes = await cargarAmbientesConReintento();
+
+  // 2) Red de seguridad: si la red sigue vacía, hidratamos con el rastro local
+  //    que dejó el Paso 2 (ids REALES, así el lienzo elástico funciona igual).
+  let hidratadoLocal = false;
+  if (ambientes.length === 0) {
+    ambientes = leerRastroAmbientes();
+    hidratadoLocal = ambientes.length > 0;
+  }
+
+  // 3) Fallback defensivo final: recién ahora, sin datos reales NI rastro.
   if (ambientes.length === 0) {
     listaEl.innerHTML =
       '<p class="text-sm text-gray-400">No creaste habitaciones en el Paso 2. Podés tocar «Continuar» y subdividir más tarde desde Almacenamiento.</p>';
@@ -205,6 +254,10 @@ export async function montarGuiaDivisiones(opciones: {
     estadoEl = null;
     embudoEl = null;
     return;
+  }
+
+  if (hidratadoLocal) {
+    avisoGlobal('⏳ Sincronizando tus ambientes con el servidor…');
   }
 
   // Cascarón estático: combobox a la izquierda + estado a la derecha + embudo abajo.

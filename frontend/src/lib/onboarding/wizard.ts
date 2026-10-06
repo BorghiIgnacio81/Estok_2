@@ -19,6 +19,7 @@ import { fundarEstok } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
 import { continuarPasoDivisiones, desmontarDivisiones, montarGuiaDivisiones } from './pasoDivisiones';
+import { limpiarRastroAmbientes } from './rastroAmbientes';
 import { iniciarPaso4Tutorial } from './pasoObjeto';
 import { PasoEspacios } from './pasoEspacios';
 
@@ -294,6 +295,8 @@ export class AsistenteBienvenida {
   private finalizar(estok: EstokInfo | null = this.estok): void {
     if (!estok) return;
     setEstokActivoId(estok.id);
+    // Cierre limpio: el rastro anti-latencia del Paso 2 se descarta tras el éxito.
+    limpiarRastroAmbientes();
     window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: estok }));
     document.documentElement.removeAttribute('data-estok-onboarding');
     if (window.location.pathname === '/') {
