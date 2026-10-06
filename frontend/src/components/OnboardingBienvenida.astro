@@ -15,9 +15,12 @@
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import OnboardingCodigoInvitacion from './OnboardingCodigoInvitacion.astro';
-// Formulario compacto del Paso 4: reutiliza la MISMA interfaz modular que
-// /objetos/nuevo (dueños + selectores) para evitar inconsistencias visuales.
-import ObjetoFormCompacto from './onboarding/ObjetoFormCompacto.astro';
+// Formulario COMPLETO del Paso 4: reutiliza el mismo formulario modular de
+// /objetos/nuevo (Gemini IA, precio de Mercado Libre y minimapas de la Fase 4),
+// más el editor de imagen y el modal de éxito que orquesta objetoFormCore.ts.
+import ObjetoFormTutorial from './onboarding/ObjetoFormTutorial.astro';
+import ImageEditor from './ImageEditor.astro';
+import ModalExitoObjeto from './objetos/ModalExitoObjeto.astro';
 ---
 
 <div
@@ -216,28 +219,24 @@ import ObjetoFormCompacto from './onboarding/ObjetoFormCompacto.astro';
             </span>
             <h2 class="mt-4 text-2xl sm:text-3xl font-bold text-gray-900">Divisiones de la Habitación 🧱</h2>
             <p class="mt-2 text-sm sm:text-base text-gray-500 leading-relaxed">
-              Subdividí una habitación en <strong class="text-gray-700">espacios</strong> (zonas físicas) y fusionalos
-              en un único bloque. Elegí la habitación a la izquierda: el lienzo elástico aparece abajo.
+              Subdividí tus ambientes en <strong class="text-gray-700">espacios</strong> (zonas físicas) y fusionalos
+              en un único bloque indisoluble. Te guiamos ambiente por ambiente.
             </p>
 
-            <!-- Combobox de habitación a la IZQUIERDA + guía de uso a la derecha -->
-            <div class="mt-5 grid grid-cols-1 sm:grid-cols-[minmax(0,260px)_1fr] gap-4 sm:items-start">
-              <div class="sm:border-r sm:border-gray-100 sm:pr-4">
-                <label for="onbAmbienteSelect" class="block text-sm font-semibold text-gray-700 mb-1">Habitación</label>
-                <select
-                  id="onbAmbienteSelect"
-                  class="w-full px-4 py-3 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-base"
-                ></select>
-              </div>
-              <p class="text-xs text-gray-400 leading-relaxed sm:pt-7">
-                Al elegir una habitación se inyecta abajo su
-                <strong class="text-gray-600">lienzo elástico naranja</strong>. Usá «➕ Crear Espacio» para subdividir,
-                arrastrá y estirá cada zona, y seleccioná 2+ para
-                <strong class="text-gray-600">fusionarlas en un bloque indisoluble</strong>.
-              </p>
-            </div>
+            <!-- Guía secuencial: se pregunta si desea subdividir y se enumeran los
+                 ambientes UNIFICADOS (deduplicados), con acciones por ambiente. -->
+            <p class="mt-4 text-base font-semibold text-gray-800">
+              ¿Desea crear las divisiones y estanterías internas de sus ambientes?
+            </p>
+            <p class="mt-1 text-xs text-gray-400 leading-relaxed">
+              Elegí <strong class="text-gray-600">🧱 Crear Divisiones</strong> para subdividir un ambiente (se despliega
+              abajo su lienzo elástico naranja) u <strong class="text-gray-600">Omitir</strong> para saltearlo sin tocarlo.
+            </p>
 
-            <!-- Lienzo elástico de divisiones (se rellena al elegir la habitación) -->
+            <!-- Lista guiada de ambientes (nombres unificados de los espacios fusionados) -->
+            <div id="onbDivisionesLista" class="mt-4 space-y-2"></div>
+
+            <!-- Lienzo elástico de divisiones (se despliega al pulsar «Crear Divisiones») -->
             <div id="onbDivisionesLienzo" class="mt-4"></div>
 
             <p id="onbErrorPaso3" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
@@ -271,21 +270,11 @@ import ObjetoFormCompacto from './onboarding/ObjetoFormCompacto.astro';
               bandeja de «elementos sin ubicar» y no se pierde.
             </p>
 
-            <!-- Formulario modular compacto: reutiliza los componentes reales de
-                 /objetos/nuevo (categorías + legado/dueños) para evitar desvíos. -->
+            <!-- Formulario modular COMPLETO de /objetos/nuevo (Gemini IA, cotización
+                 de Mercado Libre y minimapas de ubicación de la Fase 4). El guardado
+                 lo orquesta objetoFormCore.ts; el componente trae sus propios botones. -->
             <div class="mt-5">
-              <ObjetoFormCompacto />
-            </div>
-
-            <p id="onbErrorPaso4" class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
-
-            <div class="mt-6 flex flex-col sm:flex-row gap-3">
-              <button type="button" id="onbGuardarObjeto" class="flex-1 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-base font-bold rounded-2xl shadow-md transition-base">
-                Guardar objeto y finalizar
-              </button>
-              <button type="button" id="onbOmitirPaso4" class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
-                Omitir / Finalizar
-              </button>
+              <ObjetoFormTutorial />
             </div>
           </div>
         </section>
@@ -309,6 +298,13 @@ import ObjetoFormCompacto from './onboarding/ObjetoFormCompacto.astro';
   <!-- Modal: ingresar con código de invitación (vive DENTRO de #onbRoot para
        compartir el scope de DOM del controlador del asistente). -->
   <OnboardingCodigoInvitacion />
+
+  <!-- Editor de imagen y modal de éxito del formulario real del Paso 4: viven
+       como hijos DIRECTOS de #onbRoot para que su position:fixed no quede
+       atrapado por el transform del track de pasos. Solo se ven con el
+       asistente activo (el panel se oculta por display cuando no corresponde). -->
+  <ImageEditor imageSrc="" />
+  <ModalExitoObjeto />
 </div>
 
 <!-- =========================================================================

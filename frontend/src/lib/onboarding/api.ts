@@ -44,26 +44,6 @@ export interface RecursoCreado {
   nombre: string;
 }
 
-export interface DatosObjetoInicial {
-  nombre: string;
-  /** Descripción libre del objeto (opcional). */
-  descripcion?: string | null;
-  /** Categoría (FK) elegida en el formulario compacto (opcional). */
-  categoriaId?: string | null;
-  /** Valor estimado (USD). Opcional. */
-  valorEstimado?: number | null;
-  /** Dueño original (usuario del Estok) elegido en el formulario compacto. */
-  duenoOriginalId?: string | null;
-  /** Nombre plano de un dueño que NO es usuario de la plataforma (metadata). */
-  duenoExternoNombre?: string | null;
-  /** Beneficiario designado (usuario del Estok). */
-  beneficiarioId?: string | null;
-  /** Espacio/caja destino (Nivel 3). Tiene prioridad sobre la ubicación. */
-  contenedorId?: string | null;
-  /** Ambiente destino (Nivel 2) cuando el usuario omitió Almacenamiento. */
-  ubicacionId?: string | null;
-}
-
 /**
  * División raíz (Nivel 1) que aloja los ambientes del asistente.
  * Se llama «Departamento» para ser coherente con la convención de Planta Única
@@ -196,12 +176,23 @@ export async function asegurarDivisionRaiz(): Promise<UbicacionPlano> {
 
 /** Ambientes (habitaciones) ya existentes del Estok activo. */
 export async function listarAmbientes(): Promise<RecursoCreado[]> {
-  // `true` → el backend colapsa cada espacio fusionado en «L» a UNA sola fila:
-  // el desplegable del Paso 3 ya no repite el cuarto absorbido de la fusión.
+  // `true` → el backend colapsa cada espacio fusionado en «L» a UNA sola fila
+  // (parámetro ?deduplicar_grupos=1): el desplegable del Paso 3 no repite el
+  // cuarto absorbido por la fusión («Cocina, Fusión, Fusión, Baño»).
   const ubicaciones = await fetchUbicacionesPlano(true);
-  return ubicaciones
-    .filter((u) => Boolean(u.parent_ubicacion))
-    .map((u) => ({ id: u.id, nombre: u.nombre }));
+  // Red de seguridad ADICIONAL en el cliente: si el backend devolviera dos tiles
+  // del MISMO `fusion_grupo`, se conserva sólo el primero (nombres unificados).
+  const gruposVistos = new Set<string>();
+  const ambientes: RecursoCreado[] = [];
+  for (const u of ubicaciones) {
+    if (!u.parent_ubicacion) continue;
+    if (u.fusion_grupo) {
+      if (gruposVistos.has(u.fusion_grupo)) continue;
+      gruposVistos.add(u.fusion_grupo);
+    }
+    ambientes.push({ id: u.id, nombre: u.nombre });
+  }
+  return ambientes;
 }
 
 /**
@@ -242,44 +233,4 @@ export async function asegurarPrimerAmbiente(): Promise<RecursoCreado | null> {
   }
 }
 
-// =============================================================================
-// PASO 4 — PRIMER OBJETO
-// =============================================================================
 
-/**
- * Registra el primer objeto. Si hay mueble se guarda dentro de él; si el
- * usuario omitió los pasos opcionales, el objeto queda «sin ubicar» (bandeja de
- * huérfanos), de modo que el stock NUNCA se pierde.
- */
-export async function crearObjetoInicial(datos: DatosObjetoInicial): Promise<RecursoCreado> {
-  const cuerpo: Record<string, unknown> = { nombre: datos.nombre };
-  if (datos.descripcion) cuerpo.descripcion = datos.descripcion;
-  if (datos.categoriaId) cuerpo.categoria = datos.categoriaId;
-  if (datos.valorEstimado != null && Number.isFinite(Number(datos.valorEstimado))) {
-    cuerpo.valor_estimado = Number(datos.valorEstimado);
-  }
-  // Legado/trazabilidad: dueño (usuario o externo) y beneficiario (regla dualidad).
-  if (datos.duenoOriginalId) cuerpo.dueno_original = datos.duenoOriginalId;
-  if (datos.duenoExternoNombre) cuerpo.dueno_externo_nombre = datos.duenoExternoNombre;
-  if (datos.beneficiarioId) cuerpo.beneficiario = datos.beneficiarioId;
-  if (datos.contenedorId) {
-    cuerpo.contenedor = datos.contenedorId;
-    cuerpo.parent_grid_row = 1;
-    cuerpo.parent_grid_col = 1;
-  } else if (datos.ubicacionId) {
-    cuerpo.ubicacion = datos.ubicacionId;
-    cuerpo.parent_grid_row = 1;
-    cuerpo.parent_grid_col = 1;
-  }
-
-  const data = await pedirJson(
-    `${API_BASE_URL}/objetos/`,
-    {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(cuerpo),
-    },
-    `No se pudo registrar «${datos.nombre}».`,
-  );
-  return { id: data.id, nombre: data.nombre || datos.nombre };
-}

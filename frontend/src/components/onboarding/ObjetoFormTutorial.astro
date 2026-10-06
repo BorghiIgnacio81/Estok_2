@@ -1,0 +1,105 @@
+---
+// =============================================================================
+// FORMULARIO COMPLETO DE OBJETO (Paso 4 del Asistente de Bienvenida)
+// -----------------------------------------------------------------------------
+// Reemplaza al componente compacto por el VERDADERO formulario modular de
+// /objetos/nuevo: reutiliza los componentes atómicos vivos a través de
+// components/objetos/ObjetoFormFields.astro (CapturaFotosCompacta con cámara y
+// galería, AutocompletarIA, el ÚNICO botón de Gemini IA, el precio de Mercado
+// Libre, MinimapaModuloUnificado, LegadoTrazabilidad y CategoriaCreator).
+//
+// ORQUESTACIÓN (lib/onboarding/pasoObjeto.ts → iniciarPaso4Tutorial): inicializa
+// los MISMOS módulos que nuevo.astro (objetoCamara, objetoAutocompletarIa,
+// objetoIaSegundaFoto, objetoMercadoLibre, objetoCatalogos y objetoFormCore), de
+// modo que el usuario tiene acceso real al análisis con Gemini IA, la cotización
+// en pesos de Mercado Libre y los minimapas de ubicación geográfica de la Fase 4.
+//
+// Los ids canónicos (#objetoForm / #submitBtn / #submitText / #submitSpinner y el
+// badge #aiStatusBadge/#aiStatusDot/#aiStatusText) son los que consumen
+// objetoFormCore.ts y objetoAutocompletarIa.ts: el POST multipart a
+// /api/objetos/ es idéntico al de la página de alta manual.
+//
+// Tooltips de ayuda: el CSS .tooltip (burbuja que se dispara al hover en desktop
+// y al toque en móvil) se acota a html[data-estok-onboarding], por lo que NUNCA
+// afecta a las demás vistas (ej: /objetos/nuevo). Las etiquetas las inyecta
+// pasoObjeto.ts en los elementos clave de la Fase 4.
+// =============================================================================
+
+import ObjetoFormFields from '../objetos/ObjetoFormFields.astro';
+---
+
+<div class="space-y-4">
+  <!-- Encabezado del tutorial: badge de estado del motor de IA (Gemini). -->
+  <div class="flex flex-wrap items-center gap-3">
+    <h3 class="text-base font-semibold text-gray-900">Datos del objeto</h3>
+    <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+      <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+      <span id="aiStatusText">Verificando IA...</span>
+    </span>
+  </div>
+
+  <!-- Formulario modular completo (mismos ids/names que /objetos/nuevo). -->
+  <form id="objetoForm" class="space-y-6">
+    <ObjetoFormFields />
+  </form>
+
+  <div class="mt-6 flex flex-col sm:flex-row gap-3">
+    <!-- El submit vive FUERA del form pero se asocia por `form="objetoForm"`:
+         lo dispara el listener de objetoFormCore.ts sobre #objetoForm. -->
+    <button type="submit" id="submitBtn" form="objetoForm"
+      class="flex-1 px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white text-base font-bold rounded-2xl shadow-md transition-base disabled:opacity-50 disabled:cursor-not-allowed">
+      <span id="submitText">Guardar objeto y finalizar</span>
+      <span id="submitSpinner" class="hidden">
+        <svg class="animate-spin h-5 w-5 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </span>
+    </button>
+    <button type="button" id="onbOmitirPaso4"
+      class="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-base">
+      Omitir / Finalizar
+    </button>
+  </div>
+</div>
+
+<!-- =========================================================================
+     TOOLTIPS EDUCATIVOS DEL TUTORIAL
+     Burbuja que se dispara al pasar el mouse (desktop) y al tocar (móvil, por
+     :focus del control o por la clase .tooltip-visible que inyecta el script).
+     Acotada a html[data-estok-onboarding]: NUNCA afecta las demás vistas.
+     ========================================================================= -->
+<style is:global>
+  html[data-estok-onboarding] .tooltip {
+    position: relative;
+  }
+  html[data-estok-onboarding] .tooltip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    transform: translateX(-50%);
+    z-index: 80;
+    width: max-content;
+    max-width: 260px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    background-color: #1f2937;
+    color: #ffffff;
+    font-size: 0.72rem;
+    line-height: 1.15rem;
+    font-weight: 500;
+    text-align: center;
+    white-space: normal;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25);
+  }
+  html[data-estok-onboarding] .tooltip:hover::after,
+  html[data-estok-onboarding] .tooltip:focus::after,
+  html[data-estok-onboarding] .tooltip:focus-within::after,
+  html[data-estok-onboarding] .tooltip.tooltip-visible::after {
+    opacity: 1;
+  }
+</style>

@@ -15,11 +15,11 @@
 //                 plantas se hace después en el Mapa Estok).
 //
 // El controlador NO posee el estado del asistente: recibe el `root`, los callbacks
-// de navegación/estado y devuelve los ambientes vigentes por `setAmbientes`.
+// de navegación/estado y avanza los pasos del asistente.
 // =============================================================================
 
 import { escapeHtml } from '../mapaJerarquico';
-import { crearAmbiente, listarAmbientes } from './api';
+import { crearAmbiente } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal, mensajeDe } from './comunes';
 import { desmontarPlanoPaso2, habitacionesDelPlano, montarPlanoPaso2 } from './planoPaso2';
@@ -46,8 +46,6 @@ export interface ContextoPasoEspacios {
   marcarOcupado: (ocupado: boolean) => void;
   /** Estado visual de un botón (disabled + texto + opacidad). */
   cargando: (btn: HTMLButtonElement | null, activo: boolean, texto: string) => void;
-  /** Entrega al asistente los ambientes vigentes (selector del Paso 3). */
-  setAmbientes: (ambientes: RecursoCreado[]) => void;
 }
 
 export class PasoEspacios {
@@ -131,8 +129,8 @@ export class PasoEspacios {
         contenedor: cont,
         maxItems: MAX_AMBIENTES,
         aviso: (mensaje) => this.mostrar(mensaje),
-        // El Paso 3 re-lee los ambientes del backend: el plano crea sobre la marcha.
-        alCambiarAmbientes: () => this.ctx.setAmbientes([]),
+        // El Paso 3 re-lee los ambientes por su cuenta: el plano crea sobre la marcha.
+        alCambiarAmbientes: () => undefined,
       });
     } catch {
       this.planoListo = false;
@@ -176,13 +174,6 @@ export class PasoEspacios {
         );
         return;
       }
-      // Selector del Paso 3: lista canónica (1 fila por espacio fusionado). Si el
-      // backend no la devolviera, cae a las habitaciones reales del lienzo para
-      // no dejar el desplegable vacío.
-      const ambientes = await listarAmbientes();
-      this.ctx.setAmbientes(
-        ambientes.length > 0 ? ambientes : enLienzo.map((h) => ({ id: h.id, nombre: h.nombre })),
-      );
       avisoGlobal(`✅ ${enLienzo.length} habitación(es) dibujada(s) en tu plano.`);
       this.ctx.irAPaso(2);
     } catch (err) {
@@ -208,12 +199,10 @@ export class PasoEspacios {
       for (let i = 0; i < this.nombres.length; i++) {
         creados.push(await crearAmbiente(this.nombres[i], i));
       }
-      this.ctx.setAmbientes(creados);
       avisoGlobal(`✅ ${creados.length} ambiente${creados.length === 1 ? '' : 's'} creado${creados.length === 1 ? '' : 's'}.`);
       this.ctx.irAPaso(2);
     } catch (err) {
       // Parcial tolerado: lo ya creado se conserva y el paso avanza igual.
-      this.ctx.setAmbientes(creados);
       if (creados.length > 0) {
         avisoGlobal(`⚠️ Se crearon ${creados.length} ambiente(s); el resto no se pudo guardar.`);
         this.ctx.irAPaso(2);

@@ -1,90 +1,100 @@
 // =============================================================================
-// PASO 4 DEL ASISTENTE — CATÁLOGOS DEL FORMULARIO COMPACTO DE OBJETO
+// PASO 4 DEL ASISTENTE — ORQUESTADOR DEL FORMULARIO COMPLETO DE OBJETO
 // -----------------------------------------------------------------------------
-// Carga los comboboxes del formulario modular del Paso 4 con los MISMOS
-// endpoints y contrato que /objetos/nuevo (src/lib/objetos/objetoCatalogos.ts):
-//   · GET /api/usuarios/    → «Dueño original» y «Beneficiario» del Estok.
-//   · GET /api/categorias/  → categorías oficiales + personalizadas.
-// Auth 100% centralizada (JWT + X-Estok-Id). Idempotente: una sola carga.
+// Prende el VERDADERO formulario modular de /objetos/nuevo (components/objetos)
+// inicializando los MISMOS módulos que pages/objetos/nuevo.astro, en el orden del
+// ciclo de vida del DOM:
+//   · objetoCamara           → cámara/galería/drag&drop + galería multi-foto.
+//   · objetoAutocompletarIa   → botón IA (Gemini) + health-check + mapeo de campos.
+//   · objetoIaSegundaFoto     → segunda foto (ISBN de libros).
+//   · objetoMercadoLibre      → cotización de referencia en pesos (Mercado Libre AR).
+//   · objetoCatalogos         → catálogos + alta rápida de espacios.
+//   · objetoFormCore          → persistencia, validación y envío (multipart).
+//
+// TOOLTIPS EDUCATIVOS: al ser una sección tutorial, se inyectan burbujas .tooltip
+// (CSS en components/onboarding/ObjetoFormTutorial.astro, acotadas a
+// html[data-estok-onboarding]) en los elementos clave de la Fase 4: el botón de
+// Gemini IA, la búsqueda de precio en Mercado Libre, los minimapas y el legado
+// (dueño original).
+//
+// Idempotente: todos los módulos se inicializan UNA sola vez por sesión.
 // =============================================================================
 
-import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
+import { initObjetoCamara } from '../objetos/objetoCamara';
+import { initObjetoAutocompletarIa } from '../objetos/objetoAutocompletarIa';
+import { initObjetoIaSegundaFoto } from '../objetos/objetoIaSegundaFoto';
+import { initObjetoMercadoLibre } from '../objetos/objetoMercadoLibre';
+import { initObjetoCatalogos } from '../objetos/objetoCatalogos';
+import { initObjetoFormCore } from '../objetos/objetoFormCore';
 
-interface UsuarioApi {
-  id: string | number;
-  full_name?: string;
-  username?: string;
-  email?: string;
+/** Tooltip educativo: dónde engancharlo y qué texto muestra al hover/toque. */
+interface TooltipTutorial {
+  /** Selector del control canónico dentro del formulario real. */
+  selector: string;
+  /** Texto de la burbuja (atributo data-tip). */
+  texto: string;
+  /** Ancla la burbuja a la tarjeta contenedora en vez del control (selects). */
+  anclarTarjeta?: boolean;
 }
 
-interface CategoriaApi {
-  id: string | number;
-  nombre: string;
-  icono?: string;
-}
+const TOOLTIPS_TUTORIAL: TooltipTutorial[] = [
+  {
+    selector: '[data-ia-boton="fotos"]',
+    texto:
+      '✨ Gemini analizará tu foto para rellenar el nombre, descripción y estado automáticamente.',
+  },
+  {
+    selector: '#estimarPrecioBtn',
+    texto:
+      '🇦🇷 Cotiza el valor real de referencia en Mercado Libre Argentina adaptado al estado del ítem.',
+  },
+  {
+    selector: '#minimapaSelectorRaiz',
+    texto:
+      '🗺️ Toca la ruta para visualizar de forma interactiva dónde guardarás físicamente el objeto.',
+  },
+  {
+    selector: '#dueno_original',
+    texto:
+      '🗳️ Si el dueño no usa la app o falleció, se abrirá una votación democrática (Alerta FOMO) en el inquilinato.',
+    anclarTarjeta: true,
+  },
+];
 
-function refOpc<T extends HTMLElement>(id: string): T | null {
-  return document.getElementById(id) as T | null;
-}
-
-/** Llena los comboboxes dueño/beneficiario con los usuarios del Estok. */
-async function cargarUsuarios(): Promise<void> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/usuarios/`, { headers: { ...getAuthHeaders() } });
-    if (!res.ok) return;
-    const data = (await res.json()) as UsuarioApi[] | { results?: UsuarioApi[] };
-    const usuarios: UsuarioApi[] = Array.isArray(data) ? data : data?.results ?? [];
-    const dueno = refOpc<HTMLSelectElement>('dueno_original');
-    const beneficiario = refOpc<HTMLSelectElement>('beneficiario');
-    if (!dueno || !beneficiario) return;
-    usuarios.forEach((u) => {
-      const nombre = u.full_name || u.username || u.email || 'Usuario';
-      const o1 = document.createElement('option');
-      o1.value = String(u.id);
-      o1.textContent = nombre;
-      dueno.appendChild(o1);
-      const o2 = document.createElement('option');
-      o2.value = String(u.id);
-      o2.textContent = nombre;
-      beneficiario.appendChild(o2);
+/** Inyecta la clase .tooltip + data-tip en los elementos clave de la Fase 4. */
+function inyectarTooltipsTutorial(): void {
+  for (const { selector, texto, anclarTarjeta } of TOOLTIPS_TUTORIAL) {
+    const control = document.querySelector<HTMLElement>(selector);
+    if (!control) continue;
+    // Los <select> no admiten pseudoelementos ::after: se ancla a su tarjeta.
+    const objetivo =
+      anclarTarjeta ? control.closest<HTMLElement>('.bg-white') ?? control : control;
+    if (objetivo.classList.contains('tooltip')) continue;
+    objetivo.classList.add('tooltip');
+    objetivo.dataset.tip = texto;
+    // Móvil: al tocar, la burbuja queda visible unos segundos (los controles no
+    // siempre reciben foco táctil; así se garantiza el gesto de descubrimiento).
+    objetivo.addEventListener('click', () => {
+      objetivo.classList.add('tooltip-visible');
+      window.setTimeout(() => objetivo.classList.remove('tooltip-visible'), 3500);
     });
-  } catch {
-    /* silencioso: el formulario sigue usable sin catálogo */
-  } finally {
-    // LegadoTrazabilidad recalcula su aviso de votación con el padrón cargado.
-    window.dispatchEvent(new CustomEvent('estok:usuariosCargados'));
   }
 }
 
-/** Llena el selector de categorías (oficiales + personalizadas del Estok). */
-async function cargarCategorias(): Promise<void> {
-  const select = refOpc<HTMLSelectElement>('categoria');
-  if (!select) return;
-  try {
-    const res = await fetch(`${API_BASE_URL}/categorias/`, { headers: { ...getAuthHeaders() } });
-    if (!res.ok) return;
-    const data = (await res.json()) as CategoriaApi[] | { results?: CategoriaApi[] };
-    const categorias: CategoriaApi[] = Array.isArray(data) ? data : data?.results ?? [];
-    // Se rellenan solo las nuevas: el «Sin categoría» inicial permanece primero.
-    const existentes = new Set(Array.from(select.options).map((o) => o.value));
-    categorias.forEach((c) => {
-      if (existentes.has(String(c.id))) return;
-      const opt = document.createElement('option');
-      opt.value = String(c.id);
-      opt.textContent = `${c.icono || '🏷️'} ${c.nombre}`;
-      select.appendChild(opt);
-    });
-  } catch {
-    /* silencioso */
-  }
-}
+let iniciado = false;
 
-let cargado = false;
-
-/** Carga única de los catálogos del formulario compacto del Paso 4. */
-export async function cargarCatalogosObjeto(): Promise<void> {
-  if (cargado) return;
-  cargado = true;
-  window.addEventListener('categoriaCreada', () => void cargarCategorias());
-  await Promise.all([cargarUsuarios(), cargarCategorias()]);
+/**
+ * Prende el Paso 4 completo (formulario modular real de /objetos/nuevo).
+ * Idempotente: los módulos se inicializan UNA sola vez por sesión del asistente.
+ */
+export function iniciarPaso4Tutorial(): void {
+  if (iniciado) return;
+  iniciado = true;
+  initObjetoCamara();
+  initObjetoAutocompletarIa();
+  initObjetoIaSegundaFoto();
+  initObjetoMercadoLibre();
+  initObjetoCatalogos();
+  initObjetoFormCore();
+  inyectarTooltipsTutorial();
 }

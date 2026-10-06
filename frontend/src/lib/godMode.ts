@@ -114,14 +114,14 @@ function godRenderUsuarios(): void {
     const esYgumy = u.username === 'ygumy44';
     const membresias: any[] = Array.isArray(u.membresias) ? u.membresias : [];
 
-    // Badges de Estoks conectados (con botón × para desvincular)
+    // Badges de Estoks conectados (cada uno con su botón explícito de Revocar)
     const badgesHtml = membresias.length > 0
       ? `<div class="flex flex-wrap gap-1">
           ${membresias.map((m: any) => `
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px]">
+            <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[11px]">
               ${esc(m.estok_nombre || '?')}
               ${m.role_nombre ? `<span class="text-blue-400">(${esc(m.role_nombre)})</span>` : ''}
-              ${esYgumy ? '' : `<button data-god-unlink data-uid="${u.id}" data-estok-id="${m.estok_id}" data-estok-nombre="${esc(m.estok_nombre || '')}" class="godUnlinkBtn text-red-400 hover:text-red-600 ml-0.5 font-bold" title="Quitar de este Estok">×</button>`}
+              ${esYgumy ? '' : `<button data-god-unlink data-uid="${u.id}" data-estok-id="${m.estok_id}" data-estok-nombre="${esc(m.estok_nombre || '')}" class="godUnlinkBtn ml-1 px-1.5 py-0.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 text-[10px] font-semibold transition-base" title="Revocar Membresía: quitar el acceso a este Estok sin borrar los datos de la propiedad">🚫 Revocar</button>`}
             </span>`).join('')}
         </div>`
       : '<span class="text-xs text-gray-400">Sin Estok asignado</span>';
@@ -240,15 +240,23 @@ async function godVincular(uid: string, estokId: string): Promise<void> {
   }
 }
 
+/**
+ * REVOCAR MEMBRESÍA (regla corporativa de rescisión de accesos, ej: dar de baja
+ * a un empleado): elimina de forma limpia la fila de `Membresia` que vincula al
+ * usuario con el Estok indicado — DELETE /api/usuarios/{id}/remover-estok/.
+ * Bloquea sus credenciales de inmediato para ese tenant y NO altera los datos
+ * físicos de la propiedad (objetos, ubicaciones, contenedores ni membresías de
+ * otros inquilinatos).
+ */
 async function godDesvincular(uid: string, estokId: string, estokNombre: string): Promise<void> {
-  if (!confirm(`¿Quitar al usuario del Estok "${estokNombre}"?`)) return;
+  if (!confirm(`¿Revocar la Membresía del usuario en el Estok "${estokNombre}"?\n\nSe le bloqueará el acceso a este inquilinato de inmediato. Los datos físicos de la propiedad NO se alteran.`)) return;
   try {
     const ok = await apiDelete(`/usuarios/${uid}/remover-estok/?estok_id=${estokId}`);
     if (!ok) throw new Error('El servidor rechazó la operación.');
-    godMostrarExito('✅ Membresía removida');
+    godMostrarExito('✅ Membresía revocada');
     await godCargarTodo();
   } catch (err: any) {
-    godMostrarError(err?.error || 'Error al remover la membresía.');
+    godMostrarError(err?.error || 'Error al revocar la membresía.');
   }
 }
 

@@ -1,22 +1,36 @@
 // =============================================================================
-// PASO 3 DEL ASISTENTE — DIVISIONES DE LA HABITACIÓN (lienzo elástico naranja)
+// PASO 3 DEL ASISTENTE — GUÍA SECUENCIAL DE DIVISIONES DE LA HABITACIÓN
 // -----------------------------------------------------------------------------
-// Al elegir una habitación se dibuja su lienzo elástico (MISMO motor 2D que los
-// planos: renderLienzoElastico + conectarLienzoElastico) con el botón
-// «➕ Crear Espacio». Cada espacio es una subdivisión FÍSICA y ESTRUCTURAL de la
-// habitación: se crea in-place con POST /api/contenedores/ (crear_espejo=false
-// → impacta SOLO en la geometría del plano y NUNCA genera stock), se arrastra,
-// se estira y se fusiona en un bloque ÚNICO e INDISOLUBLE (espacio en «L»).
+// Flujo GUIADO (asistente), NO un formulario plano:
+//   1. Se le pregunta al usuario: «¿Desea crear las divisiones y estanterías
+//      internas de sus ambientes?».
+//   2. Se enumeran los ambientes UNIFICADOS (deduplicados) y, por cada uno, hay
+//      dos botones:
+//        · [🧱 Crear Divisiones] → despliega el lienzo elástico naranja de ese
+//          cuarto (subdividir, arrastrar, estirar y fusionar en un bloque).
+//        · [Omitir]              → saltea ese ambiente de forma limpia.
 //
-// Persistencia multi-tenant estricta (JWT + X-Estok-Id) delegada al motor 2D
-// (adaptadorContenedores). No reimplementa fetch de headers ni geometría.
+// FIX DE CAMPO — DEDUPLICACIÓN: el listado SIEMPRE se pide al endpoint filtrado
+// `GET /api/ubicaciones/?deduplicar_grupos=1` (a través de ./api → listarAmbientes),
+// de modo que un espacio fusionado en «L» se muestra como UNA sola opción y NUNCA
+// como tiles repetidos («Cocina, Fusión, Fusión, Baño»). El lienzo 2D sí recibe
+// todos los tiles: solo el selector colapsa el grupo.
+//
+// El lienzo reutiliza el MISMO motor elástico 2D del plano (renderLienzoElastico
+// + conectarLienzoElastico). Cada espacio es una subdivisión ESTRUCTURAL: se crea
+// con POST /api/contenedores/ (crear_espejo=false → sin stock) y se fusiona en un
+// bloque único e indisoluble. Persistencia multi-tenant (JWT + X-Estok-Id) 100%
+// delegada al motor 2D (adaptadorContenedores). No reimplementa headers ni red.
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
+import { escapeHtml } from '../mapaJerarquico';
 import { renderLienzoElastico } from '../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../plantaUnicaInteractivo';
 import { adaptadorContenedores } from '../lienzoElastico';
 import type { ItemElastico } from '../lienzoElastico';
+import { asegurarPrimerAmbiente, listarAmbientes } from './api';
+import type { RecursoCreado } from './api';
 
 /** Contenedor/espacio raíz de una habitación tal como lo devuelve el backend. */
 interface EspacioApi {
@@ -33,9 +47,22 @@ interface EspacioApi {
 const TIP_DIVISIONES =
   '🧱 <strong>Divisiones de la habitación</strong> · inyectá cada zona con <strong>«➕ Crear Espacio»</strong>, arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque indisoluble. Todo se guarda solo.';
 
+// --- Estado del LIENZO elástico de la habitación activa ----------------------
 let contenedor: HTMLElement | null = null;
 let roomId: string | null = null;
 let espacios: ItemElastico[] = [];
+
+// --- Estado de la GUÍA secuencial (lista de ambientes) -----------------------
+let listaEl: HTMLElement | null = null;
+let lienzoEl: HTMLElement | null = null;
+let ambientes: RecursoCreado[] = [];
+let roomActivo: string | null = null;
+/** Ambientes que el usuario decidió NO subdividir (solo afecta a la interfaz). */
+const omitidos = new Set<string>();
+
+// =============================================================================
+// LIENZO ELÁSTICO DE LA HABITACIÓN ACTIVA
+// =============================================================================
 
 /** GET de los espacios RAÍZ de la habitación (fuente de verdad = PostgreSQL). */
 async function fetchEspacios(id: string): Promise<ItemElastico[]> {
@@ -122,19 +149,123 @@ async function refrescar(): Promise<void> {
   pintar();
 }
 
-/**
- * Monta el lienzo de divisiones de la habitación elegida. Nace y se refresca de
- * forma IDEMPOTENTE: reemplaza el marcado y vuelve a enlazar los listeners.
- */
-export async function montarDivisiones(id: string | null, cont: HTMLElement): Promise<void> {
+/** Monta el lienzo elástico de la habitación elegida (idempotente). */
+async function montarDivisiones(id: string, cont: HTMLElement): Promise<void> {
   contenedor = cont;
   roomId = id;
   await refrescar();
 }
 
-/** Limpia el estado del lienzo de divisiones (vuelta atrás o cierre del paso). */
-export function desmontarDivisiones(): void {
+/** Limpia SOLO el estado del lienzo (la lista de ambientes sigue viva). */
+function desmontarLienzo(): void {
   contenedor = null;
   roomId = null;
   espacios = [];
+  if (lienzoEl) lienzoEl.innerHTML = '';
+}
+
+// =============================================================================
+// GUÍA SECUENCIAL (lista de ambientes + acciones por ambiente)
+// =============================================================================
+
+/** Render de la lista guiada de ambientes (deduplicados) con sus dos acciones. */
+function pintarLista(): void {
+  const cont = listaEl;
+  if (!cont) return;
+  if (ambientes.length === 0) {
+    cont.innerHTML =
+      '<p class="text-sm text-gray-400">Todavía no hay ambientes. Podés omitir este paso y subdividir más tarde desde Almacenamiento.</p>';
+    return;
+  }
+  cont.innerHTML = ambientes
+    .map((a) => {
+      const omitido = omitidos.has(a.id);
+      const activo = roomActivo === a.id;
+      const base =
+        'rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between transition-base';
+      const tono = activo
+        ? 'border-orange-400 bg-orange-50'
+        : omitido
+          ? 'border-gray-200 bg-gray-50 opacity-60'
+          : 'border-gray-200 bg-white';
+      const texto = omitido
+        ? 'text-sm font-semibold text-gray-400 line-through'
+        : 'text-sm font-semibold text-gray-800';
+      return `<div class="${base} ${tono}" data-div-fila="${a.id}">
+        <p class="${texto}">${escapeHtml(a.nombre)}</p>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear Divisiones</button>
+          <button type="button" data-div-omitir="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-base">Omitir</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+/** Activa el cuarto elegido y despliega abajo su lienzo elástico naranja. */
+async function seleccionarAmbiente(id: string): Promise<void> {
+  if (!id) return;
+  omitidos.delete(id);
+  roomActivo = id;
+  pintarLista();
+  if (!lienzoEl) return;
+  lienzoEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  await montarDivisiones(id, lienzoEl);
+}
+
+/** Saltea un ambiente sin subdividirlo (no borra nada: solo lo deja fuera). */
+function omitirAmbiente(id: string): void {
+  if (!id) return;
+  omitidos.add(id);
+  if (roomActivo === id) {
+    roomActivo = null;
+    desmontarLienzo();
+  }
+  pintarLista();
+}
+
+/**
+ * Monta la GUÍA del Paso 3 (idempotente; se re-corre al reingresar al paso).
+ * El listado viene SIEMPRE del endpoint deduplicado (?deduplicar_grupos=1).
+ */
+export async function montarGuiaDivisiones(opciones: {
+  lista: HTMLElement;
+  lienzo: HTMLElement;
+}): Promise<void> {
+  listaEl = opciones.lista;
+  lienzoEl = opciones.lienzo;
+  omitidos.clear();
+  roomActivo = null;
+  desmontarLienzo();
+
+  // Fix de deduplicación: un espacio fusionado en «L» = UNA sola opción.
+  let lista = await listarAmbientes();
+  if (lista.length === 0) {
+    const base = await asegurarPrimerAmbiente();
+    if (base) lista = [base];
+  }
+  ambientes = lista;
+  pintarLista();
+
+  // Delegación de eventos por asignación (idempotente ante re-montajes).
+  listaEl.onclick = (e) => {
+    const t = e.target as HTMLElement;
+    const crear = t.closest<HTMLElement>('[data-div-crear]');
+    if (crear?.dataset.divCrear) {
+      void seleccionarAmbiente(crear.dataset.divCrear);
+      return;
+    }
+    const omitir = t.closest<HTMLElement>('[data-div-omitir]');
+    if (omitir?.dataset.divOmitir) omitirAmbiente(omitir.dataset.divOmitir);
+  };
+}
+
+/** Limpia TODO el estado del Paso 3 (vuelta atrás o cierre del asistente). */
+export function desmontarDivisiones(): void {
+  desmontarLienzo();
+  listaEl = null;
+  lienzoEl = null;
+  ambientes = [];
+  omitidos.clear();
+  roomActivo = null;
 }

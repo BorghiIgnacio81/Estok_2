@@ -15,18 +15,11 @@
 
 import { logout, setEstokActivoId } from '../../services/auth';
 import type { EstokInfo } from '../../types';
-import { escapeHtml } from '../mapaJerarquico';
-import {
-  asegurarPrimerAmbiente,
-  crearObjetoInicial,
-  fundarEstok,
-  listarAmbientes,
-} from './api';
-import type { RecursoCreado } from './api';
+import { fundarEstok } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
-import { montarDivisiones } from './pasoDivisiones';
-import { cargarCatalogosObjeto } from './pasoObjeto';
+import { desmontarDivisiones, montarGuiaDivisiones } from './pasoDivisiones';
+import { iniciarPaso4Tutorial } from './pasoObjeto';
 import { PasoEspacios } from './pasoEspacios';
 
 // =============================================================================
@@ -51,8 +44,6 @@ export class AsistenteBienvenida {
   /** Índice 0-based del paso visible. */
   private paso = 0;
   private estok: EstokInfo | null = null;
-  private ambientes: RecursoCreado[] = [];
-  private mueble: RecursoCreado | null = null;
   private ocupado = false;
   /** Plantas elegidas en el Paso 1: 1 = plano 2D espacial; >1 = chips clásicos. */
   private pisos = 1;
@@ -73,9 +64,6 @@ export class AsistenteBienvenida {
         this.ocupado = ocupado;
       },
       cargando: (btn, activo, texto) => this.cargando(btn, activo, texto),
-      setAmbientes: (ambientes) => {
-        this.ambientes = ambientes;
-      },
     });
     this.modalCodigo = new ModalCodigoInvitacion({
       root,
@@ -136,9 +124,12 @@ export class AsistenteBienvenida {
     const track = this.q<HTMLElement>('#onbTrack');
     if (track) track.style.transform = `translateX(-${this.paso * 100}%)`;
     if (this.paso === 1) void this.paso2.entrar();
-    if (this.paso === 2) void this.pintarSelectAmbientes();
-    // Paso 4: catálogos del formulario compacto (dueños + categorías).
-    if (this.paso === 3) void cargarCatalogosObjeto();
+    // Paso 3: guía secuencial de divisiones (lista deduplicada + lienzo por cuarto).
+    if (this.paso === 2) void this.iniciarPaso3();
+    // Al salir del Paso 3 se limpia su estado (lienzo + lista).
+    if (this.paso !== 2) desmontarDivisiones();
+    // Paso 4: formulario modular completo (Gemini IA + Mercado Libre + minimapas).
+    if (this.paso === 3) iniciarPaso4Tutorial();
     this.renderProgreso();
     this.root.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -250,95 +241,29 @@ export class AsistenteBienvenida {
     // El lienzo elástico persiste cada cambio solo: «Continuar» sólo avanza.
     this.q<HTMLElement>('#onbGuardarMueble')?.addEventListener('click', () => this.irAPaso(3));
     this.q<HTMLElement>('#onbOmitirPaso3')?.addEventListener('click', () => this.irAPaso(3));
-    this.q<HTMLSelectElement>('#onbAmbienteSelect')?.addEventListener('change', () => {
-      void this.montarDivisionesSeleccionadas();
-    });
-  }
-
-  /** Llena el selector de ambientes del paso 3 y monta el lienzo de la elegida. */
-  private async pintarSelectAmbientes(): Promise<void> {
-    const select = this.q<HTMLSelectElement>('#onbAmbienteSelect');
-    if (!select) return;
-    if (this.ambientes.length === 0) this.ambientes = await listarAmbientes();
-    select.innerHTML =
-      this.ambientes.length > 0
-        ? this.ambientes.map((a) => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`).join('')
-        : '<option value="">Crearemos «Habitación principal» por vos</option>';
-    await this.montarDivisionesSeleccionadas();
   }
 
   /**
-   * Monta el lienzo elástico de subdivisiones de la habitación elegida (crear,
-   * arrastrar, estirar y fusionar espacios). Si aún no hay ningún ambiente, crea
-   * uno mínimo para no bloquear el paso: el lienzo funciona en solitario.
+   * Monta la GUÍA secuencial del Paso 3: lista los ambientes UNIFICADOS
+   * (deduplicados) y, por cada uno, ofrece «🧱 Crear Divisiones» (despliega su
+   * lienzo elástico naranja) u «Omitir». Toda la lógica vive en ./pasoDivisiones.
    */
-  private async montarDivisionesSeleccionadas(): Promise<void> {
-    const cont = this.q<HTMLElement>('#onbDivisionesLienzo');
-    if (!cont) return;
-    const select = this.q<HTMLSelectElement>('#onbAmbienteSelect');
-    let ubicacionId = select?.value || this.ambientes[0]?.id || '';
-    if (!ubicacionId) {
-      const ambiente = await asegurarPrimerAmbiente();
-      if (ambiente) {
-        this.ambientes = [...this.ambientes, ambiente];
-        if (select) {
-          select.innerHTML = this.ambientes
-            .map((a) => `<option value="${a.id}">${escapeHtml(a.nombre)}</option>`)
-            .join('');
-          select.value = ambiente.id;
-        }
-        ubicacionId = ambiente.id;
-      }
-    }
+  private async iniciarPaso3(): Promise<void> {
+    const lista = this.q<HTMLElement>('#onbDivisionesLista');
+    const lienzo = this.q<HTMLElement>('#onbDivisionesLienzo');
+    if (!lista || !lienzo) return;
     this.error('onbErrorPaso3', null);
-    await montarDivisiones(ubicacionId || null, cont);
+    await montarGuiaDivisiones({ lista, lienzo });
   }
 
-  // ── PASO 4 — TU PRIMER OBJETO (opcional) ─────────────────────────────────
+  // ── PASO 4 — TU PRIMER OBJETO (formulario modular completo, opcional) ─────
 
   private bindPaso4(): void {
-    this.q<HTMLElement>('#onbGuardarObjeto')?.addEventListener('click', () => void this.guardarObjeto());
+    // El guardado lo orquesta el formulario modular real (objetoFormCore.ts, vía
+    // iniciarPaso4Tutorial en ./pasoObjeto): acá sólo queda la salida del tutorial.
     this.q<HTMLElement>('#onbOmitirPaso4')?.addEventListener('click', () => this.finalizar());
   }
 
-  private async guardarObjeto(): Promise<void> {
-    if (this.ocupado) return;
-    // Mismos ids/name que el formulario modular real (components/objetos).
-    const nombre = (this.q<HTMLInputElement>('#nombre')?.value || '').trim();
-    const descripcion = (this.q<HTMLTextAreaElement>('#descripcion')?.value || '').trim();
-    const categoriaId = this.q<HTMLSelectElement>('#categoria')?.value || '';
-    const duenoOriginalId = this.q<HTMLSelectElement>('#dueno_original')?.value || '';
-    const duenoExternoNombre = (this.q<HTMLInputElement>('#dueno_externo_nombre')?.value || '').trim();
-    const beneficiarioId = this.q<HTMLSelectElement>('#beneficiario')?.value || '';
-    if (!nombre) {
-      this.error('onbErrorPaso4', 'Ponele un nombre al objeto (ej: Taladro) o usá «Omitir/Finalizar».');
-      return;
-    }
-    const valorBruto = Number(this.q<HTMLInputElement>('#valor_estimado')?.value || '');
-    const btn = this.q<HTMLButtonElement>('#onbGuardarObjeto');
-    this.error('onbErrorPaso4', null);
-    this.ocupado = true;
-    this.cargando(btn, true, 'Guardando objeto…');
-    try {
-      const objeto = await crearObjetoInicial({
-        nombre,
-        descripcion: descripcion || null,
-        categoriaId: categoriaId || null,
-        valorEstimado: Number.isFinite(valorBruto) && valorBruto > 0 ? valorBruto : null,
-        duenoOriginalId: duenoOriginalId || null,
-        duenoExternoNombre: duenoExternoNombre || null,
-        beneficiarioId: beneficiarioId || null,
-        contenedorId: this.mueble?.id ?? null,
-        ubicacionId: this.mueble ? null : (this.ambientes[0]?.id ?? null),
-      });
-      avisoGlobal(`✅ «${objeto.nombre}» ya forma parte de tu inventario.`);
-      this.finalizar();
-    } catch (err) {
-      this.error('onbErrorPaso4', mensajeDe(err, 'No se pudo guardar el objeto.'));
-      this.ocupado = false;
-      this.cargando(btn, false, 'Guardar objeto y finalizar');
-    }
-  }
 
   // ── SALIDA LIMPIA — CERRAR SESIÓN DESDE EL ASISTENTE ─────────────────────
 
