@@ -7,7 +7,7 @@
 // Visor de Habitación, el Visor Contenedor Grande, los minimapas y la Mudanza.
 //
 // REGLAS (bosquejo estricto del cliente):
-//   Habitaciones: 🏠 habitación común · 🚿 baño/ducha · 🍽️ cocina/comedor ·
+//   Habitaciones: 🛏️ habitación/dormitorio · 🚿 baño/ducha · 🍽️ cocina/comedor ·
 //                 🚪 pasillo · 📦 depósito · 🏡 porche · 🌳 patio · 🧺 lavadero
 //                 · 🚗 garaje · 🛋️ living · 🛌 suite.
 //   Muebles movibles comunes (no contenedores): 🪑 mesa/silla.
@@ -55,8 +55,7 @@ const REGLAS_ESPACIO: readonly ReglaIcono[] = [
     claves: ['deposito', 'almacen', 'bodega', 'trastero', 'despensa', 'guardarropa', 'baulera', 'sotano', 'atico', 'desvan'],
   },
   { icono: '🛌', claves: ['suite'] },
-  { icono: '🛏️', claves: ['dormitorio'] },
-  { icono: '🏠', claves: ['habitacion', 'cuarto', 'pieza'] },
+  { icono: '🛏️', claves: ['dormitorio', 'habitacion', 'cuarto', 'pieza'] },
 ];
 
 /** Icono de una HABITACIÓN/espacio por su nombre (habitación común por defecto). */

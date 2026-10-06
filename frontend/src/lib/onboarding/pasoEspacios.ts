@@ -22,7 +22,7 @@ import { escapeHtml } from '../mapaJerarquico';
 import { crearAmbiente, listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal, mensajeDe } from './comunes';
-import { desmontarPlanoPaso2, montarPlanoPaso2 } from './planoPaso2';
+import { desmontarPlanoPaso2, habitacionesDelPlano, montarPlanoPaso2 } from './planoPaso2';
 import { compactarYGuardarLienzos } from '../plantaGuardado';
 
 /** Tope de ambientes del asistente (chips y plano comparten el mismo límite). */
@@ -166,15 +166,24 @@ export class PasoEspacios {
     this.ctx.cargando(btn, true, 'Verificando…');
     try {
       await compactarYGuardarLienzos();
-      const ambientes = await listarAmbientes();
-      if (ambientes.length === 0) {
+      // VALIDACIÓN contra el ESTADO REAL del lienzo: cuenta TODAS las
+      // habitaciones dibujadas, incluidas las agrupadas bajo `fusion_grupo`,
+      // en vez de una lista deduplicada por el backend que puede llegar vacía.
+      const enLienzo = habitacionesDelPlano();
+      if (enLienzo.length === 0) {
         this.mostrar(
           'Tu plano todavía no tiene habitaciones: usá «➕ Habitación» para inyectar la primera o tocá «Omitir este paso».',
         );
         return;
       }
-      this.ctx.setAmbientes(ambientes);
-      avisoGlobal(`✅ ${ambientes.length} habitación(es) dibujada(s) en tu plano.`);
+      // Selector del Paso 3: lista canónica (1 fila por espacio fusionado). Si el
+      // backend no la devolviera, cae a las habitaciones reales del lienzo para
+      // no dejar el desplegable vacío.
+      const ambientes = await listarAmbientes();
+      this.ctx.setAmbientes(
+        ambientes.length > 0 ? ambientes : enLienzo.map((h) => ({ id: h.id, nombre: h.nombre })),
+      );
+      avisoGlobal(`✅ ${enLienzo.length} habitación(es) dibujada(s) en tu plano.`);
       this.ctx.irAPaso(2);
     } catch (err) {
       this.mostrar(mensajeDe(err, 'No se pudo leer tu plano. Reintentá u omití este paso.'));

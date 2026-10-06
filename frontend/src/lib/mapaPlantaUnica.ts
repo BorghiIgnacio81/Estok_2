@@ -186,28 +186,61 @@ function superficieDeGrupo(g: GrupoFusion): string {
 }
 
 /**
+ * Margen de RESGUARDO (en % del lienzo) que la etiqueta debe dejar libre hacia
+ * el borde perimetral del bloque fusionado. Si el baricentro queda más cerca que
+ * esto de una arista EXTERNA, la etiqueta se relocaliza.
+ */
+const MARGEN_CENTRO = 5;
+
+/** True si (px,py) cae dentro de alguna celda de la silueta fusionada. */
+function dentroDelBloque(px: number, py: number, geos: GeoLibre[]): boolean {
+  return geos.some(
+    (geo) =>
+      px >= geo.left && px <= geo.left + geo.width && py >= geo.top && py <= geo.top + geo.height,
+  );
+}
+
+/**
  * PUNTO MEDIO GEOMÉTRICO del bloque fusionado: baricentro (área ponderada) de
  * sus tiles, expresado en % relativo a la caja (bbox) de la tarjeta. Garantiza
  * que el nombre + su ícono queden CENTRADOS sobre la superficie real de la «L»
  * y no en la esquina vacía de su bounding box.
+ *
+ * RESGUARDO ANTICOLISIÓN: en una «L» de brazos finos el baricentro puede caer
+ * pegado a la arista perimetral EXTERNA (justo donde se apoya un ambiente
+ * vecino, p.ej. el «Baño»), que taparía el texto. Antes de pintar se sondea el
+ * baricentro a MARGEN_CENTRO px hacia los 4 lados; si algún sondeo cae FUERA de
+ * la silueta, el centro colisiona con el límite de un nodo vecino y la etiqueta
+ * se desplaza al centro de la celda de MAYOR área (interior visible garantizado).
  */
 function centroGeometrico(g: GrupoFusion): { x: number; y: number } {
+  const geos = g.miembros.map((m) => geoDe(m));
   let area = 0;
   let sx = 0;
   let sy = 0;
-  g.miembros.forEach((m) => {
-    const geo = geoDe(m);
+  geos.forEach((geo) => {
     const a = Math.max(1e-6, geo.width * geo.height);
     area += a;
     sx += a * (geo.left + geo.width / 2);
     sy += a * (geo.top + geo.height / 2);
   });
   if (area <= 0) return { x: 50, y: 50 };
-  const cx = ((sx / area - g.caja.left) / g.caja.width) * 100;
-  const cy = ((sy / area - g.caja.top) / g.caja.height) * 100;
+  let cx = sx / area;
+  let cy = sy / area;
+  const resguardado =
+    dentroDelBloque(cx - MARGEN_CENTRO, cy, geos) &&
+    dentroDelBloque(cx + MARGEN_CENTRO, cy, geos) &&
+    dentroDelBloque(cx, cy - MARGEN_CENTRO, geos) &&
+    dentroDelBloque(cx, cy + MARGEN_CENTRO, geos);
+  if (!resguardado) {
+    const mayor = geos.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
+    cx = mayor.left + mayor.width / 2;
+    cy = mayor.top + mayor.height / 2;
+  }
+  const pct = (v: number, ini: number, tam: number): number => ((v - ini) / tam) * 100;
   // Acotado al 15..85 % para que la etiqueta nunca se salga de la superficie.
   const acotarPct = (n: number): number => Math.max(15, Math.min(85, n));
-  return { x: acotarPct(cx), y: acotarPct(cy) };
+  return { x: acotarPct(pct(cx, g.caja.left, g.caja.width)), y: acotarPct(pct(cy, g.caja.top, g.caja.height)) };
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {

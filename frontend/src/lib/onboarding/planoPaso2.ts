@@ -177,6 +177,16 @@ export async function montarPlanoPaso2(opciones: OpcionesPlanoPaso2): Promise<vo
   }
 }
 
+/**
+ * Habitaciones REALES presentes hoy en el lienzo del Paso 2 (estado vivo del
+ * modelador). Fuente de verdad del validador del botón «Continuar»: refleja
+ * EXACTAMENTE lo dibujado —incluidos los tiles agrupados bajo `fusion_grupo`—
+ * sin depender del colapso deduplicado que el backend aplica a los desplegables.
+ */
+export function habitacionesDelPlano(): readonly ItemElastico[] {
+  return rooms;
+}
+
 /** Limpia el estado del modelador (vuelta atrás o cierre del asistente). */
 export function desmontarPlanoPaso2(): void {
   contenedor = null;
