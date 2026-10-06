@@ -25,6 +25,7 @@ import type { ItemElastico } from '../lienzoElastico';
 import { renderPlantaUnica } from '../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../plantaUnicaInteractivo';
 import { aplicarModo } from '../modoLienzo';
+import { iconoDeEspacio } from '../iconosFisicos';
 import { asegurarDivisionRaiz } from './api';
 
 /** Habitaciones máximas que dibuja el asistente (evita planos gigantes). */
@@ -122,7 +123,13 @@ async function leerEstado(): Promise<void> {
     ubicaciones.find((u) => !u.parent_ubicacion && u.parent_grid_row === 1) ??
     ubicaciones.find((u) => !u.parent_ubicacion) ??
     null;
-  rooms = apartamento ? ubicaciones.filter((u) => u.parent_ubicacion === apartamento?.id) : [];
+  // Ícono SEMÁNTICO automático por nombre (🚿 Baño · 🍽️ Cocina · 🛏️/🏠 Habitación):
+  // el plano del asistente muestra el mismo ícono que el resto de la aplicación.
+  rooms = apartamento
+    ? ubicaciones
+        .filter((u) => u.parent_ubicacion === apartamento?.id)
+        .map((u) => ({ ...u, icono: iconoDeEspacio(u.nombre) }))
+    : [];
 }
 
 /** Render + re-enlace del motor 2D (el marcado se regenera en cada refresco). */

@@ -360,13 +360,23 @@
   opacity: 1;
 }
 
-.pu-grupo-nombre {
+/* Contenedor CENTRAL del nombre + ícono del bloque fusionado: se posiciona en el
+   PUNTO MEDIO GEOMÉTRICO de la «L» (lo calcula mapaPlantaUnica.centroGeometrico)
+   y centra el texto y el ícono sobre la superficie real del bloque. */
+.pu-grupo-centro {
   position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 90%;
+  pointer-events: none;
+}
+
+.pu-grupo-nombre {
   z-index: 4;
-  max-width: 80%;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 700;
   color: #374151;

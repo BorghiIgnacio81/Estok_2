@@ -185,10 +185,36 @@ function superficieDeGrupo(g: GrupoFusion): string {
     </svg>`;
 }
 
+/**
+ * PUNTO MEDIO GEOMÉTRICO del bloque fusionado: baricentro (área ponderada) de
+ * sus tiles, expresado en % relativo a la caja (bbox) de la tarjeta. Garantiza
+ * que el nombre + su ícono queden CENTRADOS sobre la superficie real de la «L»
+ * y no en la esquina vacía de su bounding box.
+ */
+function centroGeometrico(g: GrupoFusion): { x: number; y: number } {
+  let area = 0;
+  let sx = 0;
+  let sy = 0;
+  g.miembros.forEach((m) => {
+    const geo = geoDe(m);
+    const a = Math.max(1e-6, geo.width * geo.height);
+    area += a;
+    sx += a * (geo.left + geo.width / 2);
+    sy += a * (geo.top + geo.height / 2);
+  });
+  if (area <= 0) return { x: 50, y: 50 };
+  const cx = ((sx / area - g.caja.left) / g.caja.width) * 100;
+  const cy = ((sy / area - g.caja.top) / g.caja.height) * 100;
+  // Acotado al 15..85 % para que la etiqueta nunca se salga de la superficie.
+  const acotarPct = (n: number): number => Math.max(15, Math.min(85, n));
+  return { x: acotarPct(cx), y: acotarPct(cy) };
+}
+
 function gruposHtml(grupos: GrupoFusion[]): string {
   return grupos
-    .map(
-      (g) => `
+    .map((g) => {
+      const centro = centroGeometrico(g);
+      return `
     <div class="pu-grupo" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
          title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
@@ -199,11 +225,13 @@ function gruposHtml(grupos: GrupoFusion[]): string {
       <button type="button" data-eliminar-grupo data-id="${g.base.id}" data-nombre="${escapeHtml(g.base.nombre)}"
         class="pu-grupo-eliminar"
         title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas en PostgreSQL y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
-      ${g.base.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(g.base.icono)}</span>` : ''}
-      <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
+      <div class="pu-grupo-centro" style="left:${centro.x}%;top:${centro.y}%">
+        ${g.base.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(g.base.icono)}</span>` : ''}
+        <span class="pu-grupo-nombre" data-inplace-renombrar data-id="${g.base.id}" title="Clic para renombrar el espacio (se aplica a todas sus partes)">${escapeHtml(g.base.nombre)}</span>
+      </div>
       <span class="pu-grupo-resize" data-grupo-resize data-id="${g.base.id}" title="Estirar el espacio completo (se aplica a todas sus partes en un solo guardado)"></span>
-    </div>`,
-    )
+    </div>`;
+    })
     .join('');
 }
 

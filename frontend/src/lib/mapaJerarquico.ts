@@ -162,9 +162,13 @@ async function fetchTodos(url: string): Promise<any[]> {
   return todos;
 }
 
-export async function fetchUbicacionesPlano(): Promise<UbicacionPlano[]> {
+export async function fetchUbicacionesPlano(deduplicarGrupos = false): Promise<UbicacionPlano[]> {
   try {
-    const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`);
+    // Los selectores/desplegables pasan `true`: el backend colapsa cada espacio
+    // fusionado en «L» (mismo `fusion_grupo`) a UNA sola fila. El lienzo 2D usa
+    // el default y recibe TODOS los tiles (necesarios para la silueta continua).
+    const filtroGrupos = deduplicarGrupos ? '&deduplicar_grupos=1' : '';
+    const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000${filtroGrupos}`);
     return data.map((u) => ({
       id: u.id,
       nombre: u.nombre,

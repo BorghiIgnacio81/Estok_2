@@ -63,11 +63,24 @@ RE_NOMBRE_MUEBLE = re.compile(r'^mueble(\s|$)', re.IGNORECASE)
 RE_NOMBRE_ESTANTE = re.compile(
     r'^(estante|estanter[ií]a|cajonera|caj[oó]n)(\s|$)', re.IGNORECASE,
 )
+# Rótulos de muebles EMPOTRADOS/FIJOS (Nivel 3 estructural): un placard, un
+# ropero empotrado o una alacena son estructuras ANCLADAS al ambiente. Nunca
+# deben degradarse a CAJA (ítem de stock móvil) ni emitir un Objeto espejo.
+RE_NOMBRE_MUEBLE_INMUEBLE = re.compile(
+    r'^(placard|ropero|armario|alacena|vestidor|closet|empotrad[oa]|'
+    r'biblioteca|vitrina|escritorio fijo|modulo)(\s|$)',
+    re.IGNORECASE,
+)
 
 
 def es_nombre_de_mueble(nombre):
     """True si el rótulo es el de un mueble por defecto ("Mueble 1"/"Mueble F1·C2")."""
     return bool(RE_NOMBRE_MUEBLE.match(str(nombre or '').strip()))
+
+
+def es_nombre_de_mueble_inmueble(nombre):
+    """True si el rótulo es el de un mueble EMPOTRADO/FIJO (placard, alacena…)."""
+    return bool(RE_NOMBRE_MUEBLE_INMUEBLE.match(str(nombre or '').strip()))
 
 
 def es_nombre_de_estante(nombre):
@@ -107,6 +120,9 @@ def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):
 
     if getattr(contenedor, 'parent_contenedor_id', None):
         return TIPO_CONJUNTO
+
+    if es_nombre_de_mueble_inmueble(nombre):
+        return TIPO_MUEBLE_INMUEBLE
 
     if es_nombre_de_mueble(nombre):
         return TIPO_MUEBLE_MOVIL

@@ -20,6 +20,8 @@ from ...services.qr_service import QRService
 from ...services.arbol_inventario_service import construir_arbol_estok
 from ...services.taxonomia_contenedor import (
     TIPO_CAJA,
+    TIPO_CONJUNTO,
+    TIPO_MUEBLE_INMUEBLE,
     TIPO_MUEBLE_MOVIL,
     TIPOS,
     es_anclado,
@@ -27,7 +29,13 @@ from ...services.taxonomia_contenedor import (
     es_pieza_estructural,
 )
 from .base import HasRolePermission
-from .fusion_espacial import fusionar_espacios, separar_espacios, editar_grupo, ids_del_grupo
+from .fusion_espacial import (
+    editar_grupo,
+    fusionar_espacios,
+    ids_del_grupo,
+    representantes_de_grupo,
+    separar_espacios,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +77,19 @@ class UbicacionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(estok_id=estok_id)
         else:
             qs = qs.none()
-        return qs.distinct()
+        qs = qs.distinct()
+        # Selectores/desplegables (Paso 3 del Onboarding): colapsan el espacio
+        # fusionado en «L» a UNA sola opción. El lienzo 2D NUNCA pide este flag,
+        # por lo que sus tiles y la silueta en «L» quedan intactos.
+        if self.action == 'list' and self._deduplicar_grupos():
+            qs = representantes_de_grupo(qs)
+        return qs
+
+    def _deduplicar_grupos(self):
+        """True si el cliente pide colapsar cada `fusion_grupo` a una sola fila
+        (desplegables/selectores): `?deduplicar_grupos=1`."""
+        valor = self.request.query_params.get('deduplicar_grupos')
+        return str(valor).lower() in ('1', 'true', 'yes', 'si', 'sí')
 
     def update(self, request, *args, **kwargs):
         """
@@ -423,6 +443,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         Asigna automaticamente la ubicacion y valida membresia al Estok.
         Si el body incluye parent_contenedor, la ubicacion se resuelve desde el padre.
         """
+        crear_espejo = self._flag_crear_espejo()
         parent_id = self.request.data.get('parent_contenedor')
         if parent_id:
             try:
@@ -431,7 +452,7 @@ class ContenedorViewSet(viewsets.ModelViewSet):
                 raise ValidationError("El contenedor padre especificado no existe.")
             _validar_membresia(self.request.user, parent.ubicacion.estok_id)
             contenedor = serializer.save(ubicacion=parent.ubicacion, parent_contenedor=parent)
-            self._crear_registro_espejo_mudable(contenedor)
+            self._crear_registro_espejo_mudable(contenedor, crear_espejo)
             return
 
         ubicacion_id = (
@@ -447,9 +468,18 @@ class ContenedorViewSet(viewsets.ModelViewSet):
             contenedor = serializer.save(ubicacion_id=ubicacion_id)
         else:
             contenedor = serializer.save()
-        self._crear_registro_espejo_mudable(contenedor)
+        self._crear_registro_espejo_mudable(contenedor, crear_espejo)
 
-    def _crear_registro_espejo_mudable(self, contenedor):
+    def _flag_crear_espejo(self):
+        """True salvo que el cliente pida `crear_espejo=false`. El Onboarding del
+        Paso 3 lo envía en falso para que sus elementos ESTRUCTURALES impacten
+        SOLO en el Contenedor geométrico y nunca en el catálogo de Objetos."""
+        valor = self.request.data.get('crear_espejo', True)
+        if isinstance(valor, str):
+            return valor.strip().lower() not in ('0', 'false', 'no', '')
+        return bool(valor)
+
+    def _crear_registro_espejo_mudable(self, contenedor, crear_espejo=True):
         """
         REGLA DE DUALIDAD (Contenedor + Objeto) al crear un mueble mudable.
 
@@ -468,9 +498,20 @@ class ContenedorViewSet(viewsets.ModelViewSet):
         que están adheridos permanentemente a la habitación, NI para
         sub-divisiones internas (estantes/cajones con parent_contenedor):
         son parte estructural del mueble, se mudan en cascada con él y no
-        generan ítems de stock propios.
+        generan ítems de stock propios. Tampoco cuando el cliente pide
+        EXPLÍCITAMENTE `crear_espejo=False` (el Onboarding del Paso 3 crea
+        elementos ESTRUCTURALES que deben vivir SOLO en el Contenedor
+        geométrico del mapa y jamás contaminar el catálogo de Objetos).
         """
+        if not crear_espejo:
+            return
+
         if getattr(contenedor, 'es_inmueble', False):
+            return
+
+        # Estructuras ANCLADAS: la estructura interna (CONJUNTO) y los muebles
+        # fijos (MUEBLE_INMUEBLE) nunca son ítems de stock mudables.
+        if getattr(contenedor, 'tipo', None) in (TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE):
             return
 
         if contenedor.parent_contenedor_id is not None:

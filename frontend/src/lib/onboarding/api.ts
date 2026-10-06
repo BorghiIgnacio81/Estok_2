@@ -186,7 +186,9 @@ export async function asegurarDivisionRaiz(): Promise<UbicacionPlano> {
 
 /** Ambientes (habitaciones) ya existentes del Estok activo. */
 export async function listarAmbientes(): Promise<RecursoCreado[]> {
-  const ubicaciones = await fetchUbicacionesPlano();
+  // `true` → el backend colapsa cada espacio fusionado en «L» a UNA sola fila:
+  // el desplegable del Paso 3 ya no repite el cuarto absorbido de la fusión.
+  const ubicaciones = await fetchUbicacionesPlano(true);
   return ubicaciones
     .filter((u) => Boolean(u.parent_ubicacion))
     .map((u) => ({ id: u.id, nombre: u.nombre }));
@@ -257,6 +259,9 @@ export async function crearMueble(
         ui_width: '30%',
         ui_height: '30%',
         es_inmueble: false,
+        // Elemento ESTRUCTURAL del Paso 3: impacta SOLO en el Contenedor
+        // geométrico del mapa y NUNCA inyecta un Objeto espejo en el catálogo.
+        crear_espejo: false,
       }),
     },
     `No se pudo crear «${nombre}».`,

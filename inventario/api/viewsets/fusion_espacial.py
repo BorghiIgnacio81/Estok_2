@@ -13,10 +13,38 @@ multi-tenant se valida sin duplicar código.
 from uuid import uuid4
 
 from django.db import transaction
+from django.db.models import Min, Q, Subquery
 from rest_framework.exceptions import ValidationError
 
 # Campos de geometría elástica editables de forma consolidada por el motor 2D.
 CAMPOS_GEOMETRIA = ('ui_left', 'ui_top', 'ui_width', 'ui_height')
+
+
+def representantes_de_grupo(qs):
+    """
+    Colapsa las filas que comparten `fusion_grupo` (espacio fusionado en «L») a
+    UNA sola fila representativa (la de menor ID), conservando INTACTAS todas
+    las filas sin grupo (fusion_grupo = None).
+
+    Se usa EXCLUSIVAMENTE en los desplegables/selectores (ej: Paso 3 del
+    Onboarding): un espacio fusionado debe verse como UNA opción y no como N
+    tiles repetidos. NUNCA se aplica al lienzo 2D, que necesita TODOS los tiles
+    para dibujar la silueta en «L»: la física multi-tile y su geometría quedan
+    intactas en PostgreSQL.
+    """
+    # `.order_by()` limpia el `ordering` por defecto del modelo (Ubicacion:
+    # ['nombre']): sin esto Django lo arrastraría al GROUP BY y rompería el
+    # agrupamiento por `fusion_grupo`.
+    representantes = (
+        qs.exclude(fusion_grupo__isnull=True)
+        .order_by()
+        .values('fusion_grupo')
+        .annotate(base=Min('id'))
+        .values('base')
+    )
+    return qs.filter(
+        Q(fusion_grupo__isnull=True) | Q(id__in=Subquery(representantes))
+    )
 
 
 def _mismo_estok(base, objetivo, estok_id_de):
