@@ -42,6 +42,8 @@ import {
 export interface RecursoCreado {
   id: string;
   nombre: string;
+  /** «Espacio Único»: bloque monolítico sin subdivisiones internas. */
+  espacioUnico?: boolean;
 }
 
 /**
@@ -190,7 +192,7 @@ export async function listarAmbientes(): Promise<RecursoCreado[]> {
       if (gruposVistos.has(u.fusion_grupo)) continue;
       gruposVistos.add(u.fusion_grupo);
     }
-    ambientes.push({ id: u.id, nombre: u.nombre });
+    ambientes.push({ id: u.id, nombre: u.nombre, espacioUnico: Boolean(u.espacio_unico) });
   }
   return ambientes;
 }

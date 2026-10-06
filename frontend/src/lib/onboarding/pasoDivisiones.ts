@@ -24,13 +24,15 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
-import { escapeHtml } from '../mapaJerarquico';
+import { escapeHtml, guardarUbicacion } from '../mapaJerarquico';
+import { checkboxEspacioUnicoHtml } from '../espacioUnico';
 import { renderLienzoElastico } from '../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../plantaUnicaInteractivo';
 import { adaptadorContenedores } from '../lienzoElastico';
 import type { ItemElastico } from '../lienzoElastico';
 import { asegurarPrimerAmbiente, listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
+import { avisoGlobal } from './comunes';
 
 /** Contenedor/espacio raíz de una habitación tal como lo devuelve el backend. */
 interface EspacioApi {
@@ -57,8 +59,11 @@ let listaEl: HTMLElement | null = null;
 let lienzoEl: HTMLElement | null = null;
 let ambientes: RecursoCreado[] = [];
 let roomActivo: string | null = null;
-/** Ambientes que el usuario decidió NO subdividir (solo afecta a la interfaz). */
-const omitidos = new Set<string>();
+/**
+ * Ambientes marcados con «⏳ En otro momento»: la estructura se modelará más
+ * tarde (solo afecta a la interfaz; nada se borra ni se bloquea).
+ */
+const diferidos = new Set<string>();
 
 // =============================================================================
 // LIENZO ELÁSTICO DE LA HABITACIÓN ACTIVA
@@ -111,6 +116,8 @@ async function crearEspacio(id: string): Promise<boolean> {
         es_inmueble: false,
         // Subdivisión estructural del paso 3: geometría del mapa sin stock espejo.
         crear_espejo: false,
+        // Una DIVISIÓN interna nunca es monolítica: no nace como «Espacio Único».
+        espacio_unico: false,
       }),
     });
     if (res.status === 401) {
@@ -168,34 +175,48 @@ function desmontarLienzo(): void {
 // GUÍA SECUENCIAL (lista de ambientes + acciones por ambiente)
 // =============================================================================
 
-/** Render de la lista guiada de ambientes (deduplicados) con sus dos acciones. */
+/**
+ * Render de la lista guiada de ambientes (deduplicados) con sus acciones:
+ * checkbox reutilizable «Espacio Único», [🧱 Crear Divisiones] y [⏳ En otro
+ * momento]. Si el ambiente es «Espacio Único» (monolítico) se bloquea la
+ * creación de divisiones y se muestra que está listo para recibir objetos.
+ */
 function pintarLista(): void {
   const cont = listaEl;
   if (!cont) return;
   if (ambientes.length === 0) {
     cont.innerHTML =
-      '<p class="text-sm text-gray-400">Todavía no hay ambientes. Podés omitir este paso y subdividir más tarde desde Almacenamiento.</p>';
+      '<p class="text-sm text-gray-400">Todavía no hay ambientes. Podés marcar «En otro momento» y subdividir más tarde desde Almacenamiento.</p>';
     return;
   }
   cont.innerHTML = ambientes
     .map((a) => {
-      const omitido = omitidos.has(a.id);
+      const unico = Boolean(a.espacioUnico);
+      const diferido = diferidos.has(a.id);
       const activo = roomActivo === a.id;
-      const base =
-        'rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between transition-base';
+      const base = 'rounded-2xl border px-4 py-3 flex flex-col gap-2 transition-base';
       const tono = activo
         ? 'border-orange-400 bg-orange-50'
-        : omitido
-          ? 'border-gray-200 bg-gray-50 opacity-60'
+        : diferido
+          ? 'border-amber-200 bg-amber-50/70'
           : 'border-gray-200 bg-white';
-      const texto = omitido
-        ? 'text-sm font-semibold text-gray-400 line-through'
-        : 'text-sm font-semibold text-gray-800';
+      const botonCrear = unico
+        ? '<span class="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">✅ Listo para objetos</span>'
+        : `<button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear Divisiones</button>`;
+      const etiquetaDiferido = diferido
+        ? '<span class="text-[11px] font-semibold text-amber-700">⏳ Se modelará más tarde</span>'
+        : '';
       return `<div class="${base} ${tono}" data-div-fila="${a.id}">
-        <p class="${texto}">${escapeHtml(a.nombre)}</p>
-        <div class="flex items-center gap-2 shrink-0">
-          <button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear Divisiones</button>
-          <button type="button" data-div-omitir="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-base">Omitir</button>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+          <div class="flex items-center gap-2 flex-wrap">
+            <p class="text-sm font-semibold text-gray-800">${escapeHtml(a.nombre)}</p>
+            ${etiquetaDiferido}
+          </div>
+          ${checkboxEspacioUnicoHtml({ id: `divUnico-${a.id}`, marcado: unico, valor: a.id })}
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          ${botonCrear}
+          <button type="button" data-div-otro-momento="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold transition-base">⏳ En otro momento</button>
         </div>
       </div>`;
     })
@@ -205,7 +226,7 @@ function pintarLista(): void {
 /** Activa el cuarto elegido y despliega abajo su lienzo elástico naranja. */
 async function seleccionarAmbiente(id: string): Promise<void> {
   if (!id) return;
-  omitidos.delete(id);
+  diferidos.delete(id);
   roomActivo = id;
   pintarLista();
   if (!lienzoEl) return;
@@ -213,15 +234,40 @@ async function seleccionarAmbiente(id: string): Promise<void> {
   await montarDivisiones(id, lienzoEl);
 }
 
-/** Saltea un ambiente sin subdividirlo (no borra nada: solo lo deja fuera). */
-function omitirAmbiente(id: string): void {
+/**
+ * «⏳ En otro momento»: la estructura de ese ambiente se modelará más tarde. No
+ * borra nada ni bloquea el paso: deja el editor disponible en esa sección para
+ * futuras pasadas y permite avanzar de forma limpia.
+ */
+function marcarParaOtroMomento(id: string): void {
   if (!id) return;
-  omitidos.add(id);
+  diferidos.add(id);
   if (roomActivo === id) {
     roomActivo = null;
     desmontarLienzo();
   }
   pintarLista();
+}
+
+/**
+ * Persiste el checkbox «Espacio Único» de un ambiente (PUT /api/ubicaciones/{id}/).
+ * Un «Espacio Único» es monolítico: se cierra su lienzo de divisiones (queda
+ * listo para recibir objetos de forma directa, sin quedar «En Tránsito»).
+ */
+async function persistirEspacioUnico(id: string, valor: boolean): Promise<void> {
+  const ambiente = ambientes.find((a) => a.id === id);
+  const ok = await guardarUbicacion(id, { espacio_unico: valor });
+  if (ambiente) ambiente.espacioUnico = valor;
+  if (valor && roomActivo === id) {
+    roomActivo = null;
+    desmontarLienzo();
+  }
+  pintarLista();
+  avisoGlobal(
+    ok
+      ? `✅ «${ambiente?.nombre ?? 'Ambiente'}» ${valor ? 'declarado Espacio Único' : 'dividible de nuevo'}.`
+      : '⚠️ No se pudo guardar «Espacio Único». Reintentá.',
+  );
 }
 
 /**
@@ -234,7 +280,7 @@ export async function montarGuiaDivisiones(opciones: {
 }): Promise<void> {
   listaEl = opciones.lista;
   lienzoEl = opciones.lienzo;
-  omitidos.clear();
+  diferidos.clear();
   roomActivo = null;
   desmontarLienzo();
 
@@ -255,8 +301,14 @@ export async function montarGuiaDivisiones(opciones: {
       void seleccionarAmbiente(crear.dataset.divCrear);
       return;
     }
-    const omitir = t.closest<HTMLElement>('[data-div-omitir]');
-    if (omitir?.dataset.divOmitir) omitirAmbiente(omitir.dataset.divOmitir);
+    const otro = t.closest<HTMLElement>('[data-div-otro-momento]');
+    if (otro?.dataset.divOtroMomento) marcarParaOtroMomento(otro.dataset.divOtroMomento);
+  };
+  // Checkbox reutilizable «Espacio Único»: persiste al toque (change delega).
+  listaEl.onchange = (e) => {
+    const input = e.target as HTMLInputElement;
+    const id = input?.dataset?.espacioUnico;
+    if (id) void persistirEspacioUnico(id, input.checked);
   };
 }
 
@@ -266,6 +318,6 @@ export function desmontarDivisiones(): void {
   listaEl = null;
   lienzoEl = null;
   ambientes = [];
-  omitidos.clear();
+  diferidos.clear();
   roomActivo = null;
 }

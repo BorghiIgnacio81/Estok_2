@@ -13,6 +13,7 @@
 // =============================================================================
 
 import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
+import { checkboxEspacioUnicoHtml, leerEspacioUnico } from '../espacioUnico';
 import { refOpcional } from '../dom';
 import {
   refrescarSelectorMinimapaUbicacion,
@@ -288,6 +289,10 @@ function abrirModalNuevoContenedor(): void {
             <input id="inputNombreContenedor" type="text" placeholder="Ej: Caja N°1, Estante A, Cajón..." autofocus
               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
           </div>
+          <div class="pt-1">
+            ${checkboxEspacioUnicoHtml({ id: 'inputEspacioUnicoContenedor', marcado: true })}
+            <p class="mt-1 text-xs text-gray-400">En una Caja llega activado por defecto: destildalo si vas a dividirla en estantes.</p>
+          </div>
           <div id="errorNuevoContenedor" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
         </div>
         <div class="flex gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
@@ -338,7 +343,7 @@ function abrirModalNuevoContenedor(): void {
       const response = await fetch(`${API_BASE_URL}/contenedores/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ nombre, ubicacion: ubicacionId }),
+        body: JSON.stringify({ nombre, ubicacion: ubicacionId, espacio_unico: leerEspacioUnico('inputEspacioUnicoContenedor') }),
       });
       if (!response.ok) {
         throw new Error(await leerErrorApi(response, 'Error al crear el contenedor.'));

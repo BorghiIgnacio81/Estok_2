@@ -30,6 +30,12 @@ def tiene_divisiones_internas(mueble):
     """True si el mueble anfitrión aloja al menos una sub-división (CONJUNTO)."""
     if mueble is None or getattr(mueble, 'pk', None) is None:
         return False
+    # «ESPACIO ÚNICO»: el contenedor fue declarado un BLOQUE MONOLÍTICO sin
+    # subdivisiones internas, por lo que está listo para recibir objetos de
+    # forma DIRECTA. Nunca se considera un anfitrión «con divisiones» y, por lo
+    # tanto, sus ítems jamás caen en el estado «En Tránsito Interno».
+    if getattr(mueble, 'espacio_unico', False):
+        return False
     return Contenedor.objects.filter(
         parent_contenedor_id=mueble.pk,
         tipo=TIPO_CONJUNTO,

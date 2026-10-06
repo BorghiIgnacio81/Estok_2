@@ -301,7 +301,15 @@ class ContenedorSerializer(serializers.ModelSerializer):
         indica al modelo que no sobrescriba el valor recibido.
         """
         instance = Contenedor(**validated_data)
-        if 'tipo' in (getattr(self, 'initial_data', None) or {}):
+        datos_iniciales = getattr(self, 'initial_data', None) or {}
+        if 'tipo' in datos_iniciales:
             instance._tipo_explicito = True
         instance.save()
+        # REGLA DE NEGOCIO «ESPACIO ÚNICO»: una CAJA nace marcada por defecto como
+        # bloque monolítico (lista para recibir objetos de forma DIRECTA, sin caer
+        # en «En Tránsito Interno»). Se respeta el valor cuando el cliente lo envía
+        # explícitamente, lo que permite DESTILDARLO para dividir la caja.
+        if instance.tipo == TIPO_CAJA and 'espacio_unico' not in datos_iniciales:
+            instance.espacio_unico = True
+            instance.save(update_fields=['espacio_unico'])
         return instance

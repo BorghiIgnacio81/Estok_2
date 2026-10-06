@@ -7,7 +7,8 @@ from .base import *  # noqa: F401,F403
 from .usuarios import Role, CustomUser, Membresia, CodigoInvitacion
 from .nucleo import Estok
 from .clasificacion import Categoria
-from .espacios import Ubicacion, Contenedor
+from .espacios import Contenedor
+from .ubicaciones import Ubicacion
 from .productos import Objeto, HistorialPrecio
 
 from .multimedia import FotoObjeto
