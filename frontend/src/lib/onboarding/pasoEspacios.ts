@@ -25,11 +25,44 @@ import { avisoGlobal, mensajeDe } from './comunes';
 import { desmontarPlanoPaso2, habitacionesDelPlano, montarPlanoPaso2 } from './planoPaso2';
 import { fijarRastroAmbientes } from './rastroAmbientes';
 import { compactarYGuardarLienzos } from '../plantaGuardado';
+import type { ItemElastico } from '../lienzoElastico';
 
 /** Tope de ambientes del asistente (chips y plano comparten el mismo límite). */
 const MAX_AMBIENTES = 8;
 /** Atajos de un toque para los ambientes más comunes de una casa. */
 const SUGERENCIAS_AMBIENTES = ['Cocina', 'Habitación', 'Living', 'Baño', 'Garaje', 'Depósito'];
+
+/** Id real de PostgreSQL (UUID): distingue un id definitivo de uno temporal del lienzo. */
+const ES_ID_REAL = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Deduplica el estado vivo del lienzo a UNA entidad por ambiente para el rastro
+ * local del Paso 3 (sessionStorage). Evita que un espacio FUSIONADO en «L» se
+ * vuelva a mostrar repetido en el combobox («Baño, Pasillo, Baño»): los tiles que
+ * comparten `fusion_grupo` colapsan a su PRIMER representante (mismo nombre
+ * unificado por el backend). Los ítems sueltos con id todavía temporal se
+ * deduplican por nombre; los de id real (UUID) se conservan íntegros, porque dos
+ * ambientes distintos —«Baño» de la suite y «Baño» de visita— pueden llamarse igual.
+ */
+function deduplicarRastro(items: readonly ItemElastico[]): { id: string; nombre: string }[] {
+  const grupos = new Set<string>();
+  const nombresTemporales = new Set<string>();
+  const rastro: { id: string; nombre: string }[] = [];
+  for (const item of items) {
+    const id = String(item.id);
+    const nombre = String(item.nombre);
+    if (item.fusion_grupo) {
+      if (grupos.has(item.fusion_grupo)) continue;
+      grupos.add(item.fusion_grupo);
+    } else if (!ES_ID_REAL.test(id)) {
+      const clave = nombre.trim().toLowerCase();
+      if (nombresTemporales.has(clave)) continue;
+      nombresTemporales.add(clave);
+    }
+    rastro.push({ id, nombre });
+  }
+  return rastro;
+}
 
 /** Puente con el asistente (navegación, carteles y estado de ocupado). */
 export interface ContextoPasoEspacios {
@@ -176,7 +209,9 @@ export class PasoEspacios {
         return;
       }
       // Rastro local (sessionStorage): espejo anti-latencia para el Paso 3.
-      fijarRastroAmbientes(enLienzo.map((r) => ({ id: String(r.id), nombre: r.nombre })));
+      // Se deduplica el estado del lienzo (una entidad por ambiente fusionado)
+      // para que el combobox nunca repita el «Baño» reconstruido por la fusión.
+      fijarRastroAmbientes(deduplicarRastro(enLienzo));
       avisoGlobal(`✅ ${enLienzo.length} habitación(es) dibujada(s) en tu plano.`);
       this.ctx.irAPaso(2);
     } catch (err) {
@@ -203,7 +238,7 @@ export class PasoEspacios {
         creados.push(await crearAmbiente(this.nombres[i], i));
       }
       // Rastro local (sessionStorage): espejo anti-latencia para el Paso 3.
-      fijarRastroAmbientes(creados.map((c) => ({ id: c.id, nombre: c.nombre })));
+      fijarRastroAmbientes(deduplicarRastro(creados));
       avisoGlobal(`✅ ${creados.length} ambiente${creados.length === 1 ? '' : 's'} creado${creados.length === 1 ? '' : 's'}.`);
       this.ctx.irAPaso(2);
     } catch (err) {

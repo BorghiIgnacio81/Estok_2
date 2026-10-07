@@ -26,6 +26,8 @@ import { initObjetoIaSegundaFoto } from '../objetos/objetoIaSegundaFoto';
 import { initObjetoMercadoLibre } from '../objetos/objetoMercadoLibre';
 import { initObjetoCatalogos } from '../objetos/objetoCatalogos';
 import { initObjetoFormCore } from '../objetos/objetoFormCore';
+// Re-sincronización del plano elástico contra el Estok activo real (X-Estok-Id).
+import { refrescarSelectorMinimapaUbicacion } from '../selectorMinimapaNuevoObjeto';
 
 /** Tooltip educativo: dónde engancharlo y qué texto muestra al hover/toque. */
 interface TooltipTutorial {
@@ -85,16 +87,24 @@ let iniciado = false;
 
 /**
  * Prende el Paso 4 completo (formulario modular real de /objetos/nuevo).
- * Idempotente: los módulos se inicializan UNA sola vez por sesión del asistente.
+ * Los módulos se inicializan UNA sola vez por sesión del asistente.
  */
 export function iniciarPaso4Tutorial(): void {
-  if (iniciado) return;
-  iniciado = true;
-  initObjetoCamara();
-  initObjetoAutocompletarIa();
-  initObjetoIaSegundaFoto();
-  initObjetoMercadoLibre();
-  initObjetoCatalogos();
-  initObjetoFormCore();
-  inyectarTooltipsTutorial();
+  if (!iniciado) {
+    iniciado = true;
+    initObjetoCamara();
+    initObjetoAutocompletarIa();
+    initObjetoIaSegundaFoto();
+    initObjetoMercadoLibre();
+    initObjetoCatalogos();
+    initObjetoFormCore();
+    inyectarTooltipsTutorial();
+  }
+  // El selector de minimapas se auto-inicializó al cargar la página —antes de que
+  // el usuario fundara su Estok (Paso 1) y dibujara sus ambientes (Paso 2)—, así
+  // que quedó apuntando a un Estok inexistente y mostraba el mapa genérico. Acá
+  // se RE-SINCRONIZA contra el Estok activo real (header X-Estok-Id) para hidratar
+  // el plano elástico de planta única con sus ambientes REALES («Baño», «Pasillo»,
+  // «Habitación») y sin el techo genérico. Se re-corre en cada entrada al paso.
+  void refrescarSelectorMinimapaUbicacion();
 }

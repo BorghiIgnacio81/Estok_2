@@ -62,6 +62,12 @@ export interface NodoRuta {
   /** Casillero activo dentro de esa grilla (1-based). */
   celdaFila?: number | null;
   celdaCol?: number | null;
+  /**
+   * Nodo de PLANTA ÚNICA (sin techo): dibuja la silueta rectangular de perímetro
+   * continuo en vez de la casa con tejado a dos aguas. Lo usa el nodo Estok de la
+   * cadena cuando el inmueble tiene una sola planta (Modo Planta Única).
+   */
+  sinTecho?: boolean;
 }
 
 const ICONO: Record<TipoNodoRuta, string> = {
@@ -124,7 +130,7 @@ function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
     // existente pasa 0, así que el cambio es 100% retrocompatible.
     const total = Math.max(1, Math.floor(Number(nodo.totalPlantas) || 1));
     const fila = nodo.filaActiva === 0 ? 0 : Math.max(1, Math.floor(Number(nodo.filaActiva) || 1));
-    return `<span class="mini-anidado-lienzo">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</span>`;
+    return `<span class="mini-anidado-lienzo">${minimapaCasitaSvg({ filas: total, filaActiva: fila, sinTecho: nodo.sinTecho === true })}</span>`;
   }
   // Habitación o mueble SIN `sectores`: la pantalla no aportó geometría real, así
   // que NO se inventa una cuadrícula uniforme (rompería el estándar visual): el

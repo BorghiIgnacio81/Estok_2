@@ -168,8 +168,14 @@ export function inyectarCssMinimapa(): void {
 // (derecha) para mantener la MISMA silueta proporcional de casa.
 // =============================================================================
 
-export function minimapaCasitaSvg(opts: { filas: number; filaActiva: number }): string {
-  const { filas, filaActiva } = opts;
+export function minimapaCasitaSvg(opts: {
+  filas: number;
+  filaActiva: number;
+  /** PLANTA ÚNICA (sin techo): omite el tejado y deja una silueta rectangular.
+   *  Default false (Modo Casa): ninguna pantalla existente cambia su dibujo. */
+  sinTecho?: boolean;
+}): string {
+  const { filas, filaActiva, sinTecho = false } = opts;
   // Silueta ANCHA tipo casa real: cuerpo rectangular horizontal (no una
   // flecha vertical estrecha). Cada piso es una barra que ocupa todo el ancho
   // y el techo puntiagudo corona la silueta (proporciones w-18 h-10 / w-20 h-12).
@@ -177,7 +183,8 @@ export function minimapaCasitaSvg(opts: { filas: number; filaActiva: number }): 
   const cell = 8; // alto de cada barra-piso
   const gap = 2;
   const pad = 4;
-  const techoAlto = 13;
+  // Sin techo el triángulo no ocupa alto: la silueta queda como plano continuo.
+  const techoAlto = sinTecho ? 0 : 13;
   const ancho = pad * 2 + cuerpoAncho;
   const altoCuerpo = pad * 2 + filas * cell + (filas - 1) * gap;
   const h = techoAlto + altoCuerpo;
@@ -196,10 +203,15 @@ export function minimapaCasitaSvg(opts: { filas: number; filaActiva: number }): 
   // comparta este motor (Almacenamiento, Objetos —nuevo/editar/lista—, la barra
   // lateral «Minimapas de las plantas», la mudanza y sus migajas) vuelve a
   // dibujar un rectángulo superpuesto al techo.
-  const techo = `
+  const techo = sinTecho
+    ? ''
+    : `
     <path d="M2 ${techoAlto} L${mitad} 1 L${ancho - 2} ${techoAlto} Z" fill="#9a3412" stroke="#7c2d12" stroke-width="0.6" stroke-linejoin="round" />`;
+  const etiqueta = sinTecho
+    ? 'Minimapa del plano de una sola planta (sector activo en naranja)'
+    : 'Minimapa de la casita (sector activo en naranja)';
 
-  return `<svg class="casita-minimapa-svg" width="${ancho}" height="${h + 2}" viewBox="0 0 ${ancho} ${h + 2}" role="img" aria-label="Minimapa de la casita (sector activo en naranja)">${techo}${celdas}</svg>`;
+  return `<svg class="casita-minimapa-svg" width="${ancho}" height="${h + 2}" viewBox="0 0 ${ancho} ${h + 2}" role="img" aria-label="${etiqueta}">${techo}${celdas}</svg>`;
 }
 
 // =============================================================================
