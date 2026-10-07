@@ -1,46 +1,69 @@
 // =============================================================================
-// BANDEJA INFERIOR DE ELEMENTOS POR UBICAR (permanente)
+// BANDEJA LATERAL DE ELEMENTOS POR UBICAR (panel vertical flotante derecho)
 // -----------------------------------------------------------------------------
-// Panel horizontal fijo en la parte inferior de la pantalla de almacenamiento.
-// Lista mediante fetch asíncrono todos los Contenedores Pequeños (/Nuevo
-// Contenedor.png) y Objetos (/mueble.png) cuyo campo relacional de
-// ubicación sea nulo o que aún NO tengan casillero asignado
-// (parent_grid_row / parent_grid_col nulos).
+// Panel VERTICAL flotante anclado al lateral derecho de la pantalla de
+// almacenamiento (`.bandeja-lateral`, md:w-80 h-full fixed right-0). Reemplaza a
+// la antigua bandeja inferior fija: su contenido se lista en CASCADA MOVIBLE, en
+// este orden secuencial EXACTO:
+//
+//   1) Objetos sueltos   → objetos sin ubicación ni contenedor (huérfanos).
+//   2) Cajas sueltas     → cajas móviles (tipo=CAJA, es_inmueble=false) sin ubicación.
+//   3) Objetos ubicados  → objetos con ubicación (viven en un espacio, sin caja).
+//   4) Cajas ubicadas    → cajas móviles con ubicación (se pueden reciclar).
+//   5) Muebles móviles   → muebles mudables (MUEBLE_MOVIL) sin anclar.
+//
+// PURGA ESTRUCTURAL: del query del cliente se excluye TODA arquitectura fija
+// (habitaciones y espacios = Ubicaciones, nunca consultadas; estanterías/CONJUNTO
+// y muebles inmuebles = excluidos de raíz con `?movibles=true` en PostgreSQL) y,
+// como defensa en profundidad, también en el cliente con la MISMA taxonomía
+// física (`esCajaMovil` / `esMuebleMovil`). Nada estructural puede colarse.
 //
 // Doble rol de Drag & Drop:
-//   1. ORIGEN de arrastre: los chips se arrastran hacia los casilleros del
-//      Visor de Habitación o de un Mueble (Visor Contenedor Grande).
-//   2. DROP ZONE de EXTRACCIÓN viva: soltar un elemento que ya estaba en un
-//      casillero sobre la bandeja lo devuelve al estado "sin casillero"
-//      (PUT asincrónico con coordenadas nulas).
+//   1. ORIGEN de arrastre: los chips se arrastran hacia los casilleros del Visor.
+//   2. DROP ZONE de EXTRACCIÓN viva: soltar un elemento de un casillero acá lo
+//      devuelve al estado «sin casillero» (PUT asincrónico con coordenadas nulas).
 // Persistencia multi-tenant estricta: JWT + header X-Estok-Id (getAuthHeaders).
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { escapeHtml, toast } from './mapaJerarquico';
-import { esCajaMovil } from './taxonomiaContenedor';
+import { esCajaMovil, esMuebleMovil } from './taxonomiaContenedor';
 
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
+const IMG_MUEBLE = '/mueble.png';
 const IMG_OBJETO = '/mueble.png';
 
-interface ItemBandejaContenedor {
+interface ContenedorBandeja {
   id: string;
   nombre: string;
-  tipo: 'contenedor';
-  es_inmueble?: boolean;
+  tipo: string;
+  es_inmueble: boolean;
+  ubicacion: string | null;
 }
-interface ItemBandejaObjeto {
-  id: string;
-  nombre: string;
-  tipo: 'objeto';
-}
-type ItemBandeja = ItemBandejaContenedor | ItemBandejaObjeto;
 
-let items: ItemBandeja[] = [];
+interface ObjetoBandeja {
+  id: string;
+  nombre: string;
+  contenedor: string | null;
+  ubicacion: string | null;
+  deleted_at: string | null;
+}
+
+/** Chip draggable de la bandeja (caja, mueble móvil u objeto individual). */
+interface ChipBandeja {
+  id: string;
+  nombre: string;
+  tipo: 'contenedor' | 'objeto';
+  img: string;
+  esMueble: boolean;
+}
+
+let contenedores: ContenedorBandeja[] = [];
+let objetos: ObjetoBandeja[] = [];
 let rootEl: HTMLElement | null = null;
 
 // =============================================================================
-// HELPERS
+// HELPERS DE CARGA
 // =============================================================================
 
 async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
@@ -60,85 +83,145 @@ async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
   return todos;
 }
 
-function sinCasillero(x: { parent_grid_row?: unknown; parent_grid_col?: unknown }): boolean {
-  return x.parent_grid_row == null && x.parent_grid_col == null;
+function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
+  return {
+    id: String(c.id),
+    nombre: String(c.nombre || 'Contenedor'),
+    tipo: String(c.tipo || '').toUpperCase(),
+    es_inmueble: Boolean(c.es_inmueble),
+    ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
+  };
+}
+
+function normalizarObjeto(o: Record<string, unknown>): ObjetoBandeja {
+  return {
+    id: String(o.id),
+    nombre: String(o.nombre || 'Objeto'),
+    contenedor: o.contenedor != null ? String(o.contenedor) : null,
+    ubicacion: o.ubicacion != null ? String(o.ubicacion) : null,
+    deleted_at: o.deleted_at != null ? String(o.deleted_at) : null,
+  };
 }
 
 // =============================================================================
-// CARGA + RENDER
+// CARGA + RENDER EN CASCADA
 // =============================================================================
 
 async function cargar(): Promise<void> {
   if (!rootEl) return;
   try {
     const [contData, objData] = await Promise.all([
-      // FILTRO ORM ESTRICTO: `tipo=CAJA` excluye de raíz en PostgreSQL toda
-      // estructura fija (CONJUNTO / MUEBLE_INMUEBLE) y todo mueble (MUEBLE_MOVIL,
-      // ej. «Cama Cucheta») — jamás se listan como objeto suelto por ubicar.
-      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&tipo=CAJA`),
+      // PURGA DE RAÍZ (PostgreSQL): `movibles=true` = SOLO CAJA y MUEBLE_MOVIL
+      // no inmuebles. Toda arquitectura fija (CONJUNTO / MUEBLE_INMUEBLE) queda
+      // EXCLUIDA de la consulta, jamás listada como chip de la bandeja.
+      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&movibles=true`),
       fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000`),
     ]);
-
-    // Contenedores PEQUEÑOS (cajas móviles) sin casillero. Defensa en profundidad
-    // en el cliente con la MISMA taxonomía física (`esCajaMovil`): ninguna
-    // estructura fija ni mueble puede colarse aunque el backend cambie.
-    const contenedores: ItemBandeja[] = (contData as Record<string, unknown>[])
-      .filter((c) => esCajaMovil(c as { tipo?: string; es_inmueble?: boolean }))
-      .filter((c) => sinCasillero(c))
-      .map((c) => ({
-        id: String(c.id),
-        nombre: String(c.nombre || 'Contenedor'),
-        tipo: 'contenedor' as const,
-      }));
-
-    // Objetos sin ubicación O sin casillero asignado todavía.
-    // REGLA HERMÉTICA DE LA DUALIDAD: un objeto ya asignado a un Contenedor
-    // (p.ej. el registro espejo en Objeto de un mueble mudable creado con
-    // dualidad Contenedor+Objeto) NO es "por ubicar": ya tiene hogar espacial,
-    // aunque no esté sobre un casillero de grilla. Se excluye para no mostrar
-    // chips fantasma del mueble en la bandeja.
-    const objetos: ItemBandeja[] = (objData as Record<string, unknown>[])
-      .filter((o) => !o.deleted_at)
-      .filter((o) => !o.contenedor)
-      .filter((o) => o.ubicacion == null || sinCasillero(o))
-      .map((o) => ({
-        id: String(o.id),
-        nombre: String(o.nombre || 'Objeto'),
-        tipo: 'objeto' as const,
-      }));
-
-    items = [...contenedores, ...objetos];
+    // PURGA EN EL CLIENTE (defensa en profundidad): misma whitelist taxonómica.
+    contenedores = (contData as Record<string, unknown>[])
+      .map(normalizarContenedor)
+      .filter((c) => esCajaMovil(c) || esMuebleMovil(c));
+    // Los objetos con `contenedor` asignado son el registro ESPEJO de un mueble o
+    // el contenido fino de una caja: ya tienen hogar espacial y NO van en la
+    // bandeja (evita chips fantasma duplicados del mueble).
+    objetos = (objData as Record<string, unknown>[])
+      .map(normalizarObjeto)
+      .filter((o) => !o.deleted_at && !o.contenedor);
   } catch {
-    items = [];
+    contenedores = [];
+    objetos = [];
   }
   render();
 }
 
+function chipContenedor(c: ContenedorBandeja): ChipBandeja {
+  const mueble = esMuebleMovil(c);
+  return {
+    id: c.id,
+    nombre: c.nombre,
+    tipo: 'contenedor',
+    img: mueble ? IMG_MUEBLE : IMG_CONTENEDOR_PEQUENO,
+    esMueble: mueble,
+  };
+}
+
+function chipObjeto(o: ObjetoBandeja): ChipBandeja {
+  return { id: o.id, nombre: o.nombre, tipo: 'objeto', img: IMG_OBJETO, esMueble: false };
+}
+
+/** Caja móvil (tipo=CAJA, no inmueble): reutiliza la whitelist compartida. */
+function esCaja(c: ContenedorBandeja): boolean {
+  return esCajaMovil(c);
+}
+
+/**
+ * Segmentos de la cascada en ORDEN EXACTO. `ubicado` distingue los elementos con
+ * hogar espacial (ubicacion != null) de los huérfanos («sueltos»).
+ */
+function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] }[] {
+  const cajas = contenedores.filter(esCaja);
+  const muebles = contenedores.filter(esMuebleMovil);
+  return [
+    {
+      clave: 'objetos-sueltos',
+      titulo: '1 · Objetos sueltos',
+      chips: objetos.filter((o) => o.ubicacion == null).map(chipObjeto),
+    },
+    {
+      clave: 'cajas-sueltas',
+      titulo: '2 · Cajas sueltas',
+      chips: cajas.filter((c) => c.ubicacion == null).map(chipContenedor),
+    },
+    {
+      clave: 'objetos-ubicados',
+      titulo: '3 · Objetos ubicados',
+      chips: objetos.filter((o) => o.ubicacion != null).map(chipObjeto),
+    },
+    {
+      clave: 'cajas-ubicadas',
+      titulo: '4 · Cajas ubicadas',
+      chips: cajas.filter((c) => c.ubicacion != null).map(chipContenedor),
+    },
+    {
+      clave: 'muebles-moviles',
+      titulo: '5 · Muebles móviles',
+      chips: muebles.map(chipContenedor),
+    },
+  ];
+}
+
+function chipHtml(chip: ChipBandeja): string {
+  const claseImg = chip.tipo === 'objeto'
+    ? 'bandeja-chip-img bandeja-chip-img-objeto'
+    : 'bandeja-chip-img';
+  const claseGrupo = chip.esMueble ? ' bandeja-chip-mueble' : '';
+  const eco = chip.tipo === 'contenedor' ? (chip.esMueble ? '🛋️' : '📦') : '🧸';
+  return `<span class="bandeja-chip${claseGrupo}" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" title="Arrastrá «${escapeHtml(chip.nombre)}» hacia un casillero para fijar su coordenada">
+    <img src="${chip.img}" alt="" class="${claseImg}" draggable="false" />
+    <span class="bandeja-chip-nombre">${eco} ${escapeHtml(chip.nombre)}</span>
+  </span>`;
+}
+
+function grupoHtml(grupo: { clave: string; titulo: string; chips: ChipBandeja[] }): string {
+  const chips = grupo.chips.length
+    ? `<div class="bandeja-grupo-chips">${grupo.chips.map(chipHtml).join('')}</div>`
+    : '<span class="bandeja-grupo-vacio">Sin elementos en este grupo.</span>';
+  return `<section class="bandeja-grupo" data-bandeja-grupo="${grupo.clave}">
+    <div class="bandeja-grupo-cab">
+      <span class="bandeja-grupo-titulo">${grupo.titulo}</span>
+      <span class="bandeja-grupo-num">${grupo.chips.length}</span>
+    </div>
+    ${chips}
+  </section>`;
+}
+
 function render(): void {
   if (!rootEl) return;
+  const grupos = gruposCascada();
+  const total = grupos.reduce((acc, g) => acc + g.chips.length, 0);
   const contador = document.getElementById('contadorBandeja');
-  if (contador) contador.textContent = `${items.length}`;
-
-  if (!items.length) {
-    rootEl.innerHTML =
-      '<span class="bandeja-vacio">✨ No hay elementos sin ubicar. Arrastrá un elemento desde un casillero hacia acá para extraerlo.</span>';
-    return;
-  }
-
-  rootEl.innerHTML = items
-    .map((it) => {
-      if (it.tipo === 'contenedor') {
-        return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${it.id}" data-bandeja-tipo="contenedor" title="Arrastrá «${escapeHtml(it.nombre)}» a un casillero para fijar su coordenada">
-          <img src="${IMG_CONTENEDOR_PEQUENO}" alt="" class="bandeja-chip-img" draggable="false" />
-          <span class="bandeja-chip-nombre">${escapeHtml(it.nombre)}</span>
-        </span>`;
-      }
-      return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${it.id}" data-bandeja-tipo="objeto" title="Arrastrá «${escapeHtml(it.nombre)}» a un casillero para fijar su coordenada">
-        <img src="${IMG_OBJETO}" alt="" class="bandeja-chip-img bandeja-chip-img-objeto" draggable="false" />
-        <span class="bandeja-chip-nombre">${escapeHtml(it.nombre)}</span>
-      </span>`;
-    })
-    .join('');
+  if (contador) contador.textContent = `${total}`;
+  rootEl.innerHTML = grupos.map(grupoHtml).join('');
   enlazar();
 }
 
@@ -256,3 +339,4 @@ export function initBandeja(opts: { contenedor?: HTMLElement | null }): void {
   enlazarExtraccion();
   void cargar();
 }
+

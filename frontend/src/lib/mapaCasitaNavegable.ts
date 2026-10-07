@@ -45,6 +45,9 @@ import { iconoDeHabitacion } from './planoHabitaciones';
 import { adaptadorUbicaciones } from './lienzoElastico';
 import type { ItemElastico } from './lienzoElastico';
 import { modoLienzoActual } from './modoLienzo';
+// Fix de jitter visual: los refrescos asíncronos del mapa (arrastrar/redimensionar
+// una habitación → PUT + recarga) conservan la posición de scroll del usuario.
+import { preservarScroll } from './scrollPreservado';
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 
 // =============================================================================
@@ -280,6 +283,9 @@ function renderHabitaciones(): string {
         etiquetaCrear: 'Habitación',
         textoVacio:
           'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
+        // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del
+        // Onboarding (idéntico motor 2D), para que la interfaz se vea consistente.
+        tip: '🧩 <strong>Editor de espacios</strong> · inyectá cada habitación con «➕ Habitación», arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque en «L».',
       })
     : sinEstructura;
 
@@ -308,9 +314,14 @@ function render(): void {
   // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo y
   // navegación por piso). El lienzo nunca queda vacío en ninguna rama.
   if (esPlantaUnica()) {
+    // HOMOLOGACIÓN DE BOTONES: el mapa de Almacenamiento expone el MISMO botón de
+    // creación de texto («➕ Habitación» / data-lienzo-crear) que el editor premium
+    // del Onboarding, en vez del botón gráfico heredado, para que la botonera de
+    // comandos se vea idéntica en todos los niveles de la app.
     refs.mapa.innerHTML = `<div class="casita-raiz">${renderPlantaUnica({
       apartamento: apartamentoDePlantaUnica(),
       rooms: roomsDePlantaUnica(),
+      etiquetaCrear: 'Habitación',
     })}</div>`;
     if (refs.badge) refs.badge.textContent = `Planta Única · ${estok?.nombre || 'Departamento'}`;
     return;
@@ -461,8 +472,12 @@ async function cargarYRefrescar(): Promise<boolean> {
   if (!conf) return false;
   estok = conf;
   await cargarDatos();
-  render();
-  enlazar();
+  // El re-render del lienzo NO debe mover el scroll del navegador (fix de jitter
+  // visual): se reafirma la posición vigente tras inyectar el marcado nuevo.
+  preservarScroll(() => {
+    render();
+    enlazar();
+  });
   notificarPlanta();
   return true;
 }

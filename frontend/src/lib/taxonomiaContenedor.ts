@@ -97,6 +97,15 @@ export function esMuebleInmueble(pieza: PiezaTaxonomica | null | undefined): boo
 }
 
 /**
+ * MUEBLE MÓVIL (mudable): ropero espejo, archivador, cama cucheta. Es un mueble
+ * CONTENEDOR mudable —el único tipo de mueble admitido en la bandeja lateral de
+ * «Elementos por ubicar»— y nunca una estructura fija.
+ */
+export function esMuebleMovil(pieza: PiezaTaxonomica | null | undefined): boolean {
+  return tipoFisico(pieza) === TIPO_MUEBLE_MOVIL && pieza?.es_inmueble !== true;
+}
+
+/**
  * ANCLADA: estructura fija que nunca se muda (CONJUNTO o MUEBLE_INMUEBLE).
  * Espejo de `services.taxonomia_contenedor.es_anclado`.
  */

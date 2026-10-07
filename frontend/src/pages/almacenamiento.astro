@@ -37,7 +37,7 @@ import '../styles/almacenamiento-portales.css';
        completa del asistente reemplaza al panel ordinario (data-estok-panel). -->
   <OnboardingBienvenida />
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-36" data-estok-panel>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:pr-80" data-estok-panel>
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
@@ -152,22 +152,22 @@ import '../styles/almacenamiento-portales.css';
     </section>
 
     <!-- =========================================================================
-         BANDEJA INFERIOR DE ELEMENTOS POR UBICAR (permanente, fixed bottom)
-         Lista Contenedores Pequeños y Objetos sin casillero asignado. Es origen
-         de arrastre hacia los casilleros Y Drop Zone de extracción viva.
+         BANDEJA LATERAL DE ELEMENTOS POR UBICAR (panel vertical flotante derecho)
+         Anclada al lateral derecho (md:w-80 h-full fixed right-0). Lista en
+         CASCADA MOVIBLE: objetos sueltos, cajas sueltas, objetos ubicados, cajas
+         ubicadas y muebles móviles. Es origen de arrastre hacia los casilleros y
+         Drop Zone de extracción viva. Lógica en src/lib/bandejaSinUbicar.ts.
          ========================================================================= -->
-    <section id="bandejaSinUbicar" class="bandeja-fixed" aria-label="Bandeja de elementos por ubicar">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="bandeja-inner">
-          <div class="flex items-center gap-3 flex-wrap mb-2">
-            <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
-            <span id="contadorBandeja" class="bandeja-contador">0</span>
-            <span class="bandeja-hint">Arrastralos hacia un casillero del Visor o de un espacio, o soltá un elemento de un casillero acá para extraerlo.</span>
-          </div>
-          <div id="bandejaContenido" class="bandeja-contenido"></div>
-        </div>
+    <aside id="bandejaSinUbicar"
+      class="bandeja-lateral fixed right-0 top-0 h-full w-64 sm:w-72 md:w-80 z-40"
+      aria-label="Bandeja lateral de elementos por ubicar">
+      <div class="bandeja-lateral-cab">
+        <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
+        <span id="contadorBandeja" class="bandeja-contador">0</span>
       </div>
-    </section>
+      <p class="bandeja-hint">Arrastrá cada elemento hacia un casillero del Visor o de un espacio. Soltá uno de un casillero acá para extraerlo.</p>
+      <div id="bandejaContenido" class="bandeja-contenido"></div>
+    </aside>
   </div>
 
     <!-- Modal: Editar entidad (Ubicación / Contenedor) -->

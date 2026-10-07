@@ -35,6 +35,8 @@ import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
 import type { ItemElastico } from './lienzoElastico';
 import { renderLienzoElastico } from './mapaPlantaUnica';
+// Fix de jitter visual: cada refresco asíncrono del visor conserva el scroll.
+import { preservarScroll } from './scrollPreservado';
 import {
   ETIQUETAS_PARED,
   cuerpoConParedesHtml,
@@ -802,9 +804,11 @@ export function initVisor(): void {
       return;
     }
     void cargarContenido().then(() => {
-      renderVisor();
-      enlazarVisor();
-      aplicarMuebleActivo();
+      preservarScroll(() => {
+        renderVisor();
+        enlazarVisor();
+        aplicarMuebleActivo();
+      });
     });
   });
   // Sincroniza el resaltado del panel izquierdo cuando la selección se dispara
@@ -818,9 +822,11 @@ export function initVisor(): void {
   window.addEventListener('estok:espacios-cambiados', () => {
     if (roomActual) {
       void cargarContenido().then(() => {
-        renderVisor();
-        enlazarVisor();
-        aplicarMuebleActivo();
+        preservarScroll(() => {
+          renderVisor();
+          enlazarVisor();
+          aplicarMuebleActivo();
+        });
       });
     } else {
       // Sin habitación seleccionada: re-pintar los minimapas iniciales de plantas.
