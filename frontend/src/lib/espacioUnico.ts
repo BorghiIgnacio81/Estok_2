@@ -51,3 +51,12 @@ export function leerEspacioUnico(id: string): boolean {
   const input = document.getElementById(id) as HTMLInputElement | null;
   return Boolean(input?.checked);
 }
+
+/**
+ * LEYENDA DE GUÍA del control (micro-texto que acompaña al checkbox en los
+ * paneles del flujo de portales de Almacenamiento).
+ */
+export const GUIA_ESPACIO_UNICO =
+  'Para guardar objetos directamente aquí, declaralo como Espacio Único. ' +
+  'Si preferís subdividirlo en estantes o cajones, dejalo destildado';
+

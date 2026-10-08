@@ -28,6 +28,9 @@ import '../styles/almacenamiento-carga-fina.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
+// Motor de portales recursivos: física dual, bloques monolíticos, grilla directa
+// de objetos y responsive híbrido dual de la canasta (Web flotante ⇄ Móvil abajo).
+import '../styles/portales-recursivos.css';
 ---
 
 <AuthGuard />
@@ -37,7 +40,10 @@ import '../styles/almacenamiento-portales.css';
        completa del asistente reemplaza al panel ordinario (data-estok-panel). -->
   <OnboardingBienvenida />
 
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:pr-80" data-estok-panel>
+  <!-- Responsive híbrido dual: PADDING IZQUIERDO CERO (el mapa interactivo se apoya
+       contra el borde y no queda pisado por el panel derecho) y reserva md:pr-80
+       para la canasta lateral flotante. En celulares la canasta baja al pie. -->
+  <div class="max-w-7xl mx-auto py-8 pl-0 pr-4 md:pr-80" data-estok-panel>
     <!-- Encabezado -->
     <div class="mb-6">
       <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
@@ -94,7 +100,13 @@ import '../styles/almacenamiento-portales.css';
             </div>
             <!-- Nivel 4: el canvas de la caja/estante reemplaza al plano en la izquierda -->
             <div id="cajaCanvas" class="hidden mt-1"></div>
+            <!-- BLOQUE MONOLÍTICO del «Espacio Único»: cuando el nodo activo es un
+                 bloque sin subdivisiones, el modelador geométrico queda BLOQUEADO y
+                 este host ocupa la izquierda con el control + su leyenda de guía. -->
+            <div id="bloqueMonoliticoPanel" class="hidden mt-1"></div>
             <!-- En Nivel 2 el #visorHabitacion se reubica aquí desde el panel derecho -->
+            <!-- En niveles de contenedor, el #visorContenedorGrande se reubica aquí
+                 para dibujar la sub-grilla elástica interna del nodo (recursivo ∞) -->
           </div>
         </div>
 
@@ -146,6 +158,15 @@ import '../styles/almacenamiento-portales.css';
             <div id="cargaFinaPanel" class="hidden mt-1"></div>
             <!-- Nivel 4: listado fino de objetos de la caja activa -->
             <div id="cajaObjetos" class="hidden mt-1"></div>
+            <!-- =================================================================
+                 HOSTS DEL MOTOR DE PORTALES RECURSIVOS (Panel DERECHO)
+                 La derecha TRANSMUTA en cada nivel: habitaciones con mini-mapas
+                 internos ⇄ interior jerárquico del nodo ⇄ grilla directa de
+                 objetos reales (fin de cadena «Espacio Único»).
+                 ================================================================= -->
+            <div id="listaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
+            <div id="listaContenedoresPanel" class="hidden mt-1 min-w-0"></div>
+            <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>
           </div>
         </div>
       </div>
@@ -159,14 +180,29 @@ import '../styles/almacenamiento-portales.css';
          Drop Zone de extracción viva. Lógica en src/lib/bandejaSinUbicar.ts.
          ========================================================================= -->
     <aside id="bandejaSinUbicar"
-      class="bandeja-lateral fixed right-0 top-0 h-full w-64 sm:w-72 md:w-80 z-40"
+      class="bandeja-lateral hidden md:flex fixed right-0 top-0 h-full w-64 sm:w-72 md:w-80 z-40"
       aria-label="Bandeja lateral de elementos por ubicar">
       <div class="bandeja-lateral-cab">
         <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
-        <span id="contadorBandeja" class="bandeja-contador">0</span>
+        <span id="contadorBandeja" data-contador-bandeja class="bandeja-contador">0</span>
       </div>
-      <p class="bandeja-hint">Arrastrá cada elemento hacia un casillero del Visor o de un espacio. Soltá uno de un casillero acá para extraerlo.</p>
+      <p class="bandeja-hint">Arrastrá cada elemento hacia un contenedor, un casillero del Visor o el bloque de la izquierda. Soltá uno de un casillero acá para extraerlo.</p>
       <div id="bandejaContenido" class="bandeja-contenido"></div>
+    </aside>
+
+    <!-- =========================================================================
+         CANASTA DE CELULARES (block md:hidden): el panel derecho flotante se apaga
+         por completo y la canasta vuelve al MARGEN INFERIOR como barra horizontal
+         fija. Misma lógica y mismos chips (src/lib/bandejaSinUbicar.ts).
+         ========================================================================= -->
+    <aside id="bandejaSinUbicarMovil"
+      class="bandeja-movil md:hidden fixed bottom-0 left-0 right-0 z-40"
+      aria-label="Canasta inferior de elementos por ubicar">
+      <div class="bandeja-movil-cab">
+        <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
+        <span data-contador-bandeja class="bandeja-contador">0</span>
+      </div>
+      <div id="bandejaContenidoMovil" class="bandeja-contenido bandeja-contenido-movil"></div>
     </aside>
   </div>
 
@@ -325,7 +361,11 @@ import '../styles/almacenamiento-portales.css';
     // =========================================================================
     // ARRANQUE DE MÓDULOS
     // =========================================================================
-    initBandeja({ contenedor: document.getElementById('bandejaContenido') });
+    initBandeja({
+      contenedor: document.getElementById('bandejaContenido'),
+      // Responsive dual: el MISMO módulo alimenta la barra horizontal del pie en celulares.
+      contenedorMovil: document.getElementById('bandejaContenidoMovil'),
+    });
     initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });
     initMapaCasita({
       mapa: document.getElementById('mapaEstokPanel'),

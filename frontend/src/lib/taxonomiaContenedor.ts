@@ -139,3 +139,20 @@ export function esPiezaPorUbicar(pieza: PiezaTaxonomica | null | undefined): boo
   return esCajaMovil(pieza) || esObjetoFisico(pieza);
 }
 
+/**
+ * BULTO MOVIBLE REAL admitido en la canasta lateral de «Elementos por ubicar».
+ *
+ * PURGA ESTRICTA DE NODOS JERÁRQUICOS: sólo CAJAS móviles que NO ofician de
+ * padre estructurador de nivel superior (una caja con sub-contenedores propios
+ * ya es una estructura, no un bulto transportable). Los OBJETOS terminales
+ * sueltos se admiten por su propia vía (registro `Objeto`).
+ *
+ * Quedan TERMINANTEMENTE EXCLUIDOS: los CONJUNTOS (estanterías, cajoneras), los
+ * muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE) y las zonas geográficas de nivel
+ * superior («PC Setup», «Zona Indoor», «Departamento»).
+ */
+export function esBultoMovibleDeBandeja(pieza: PiezaTaxonomica | null | undefined): boolean {
+  if (!esCajaMovil(pieza)) return false;
+  return Number(pieza?.subcontenedores_count ?? 0) === 0;
+}
+
