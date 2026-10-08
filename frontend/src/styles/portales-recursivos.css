@@ -143,18 +143,6 @@ body.portales-canasta-oculta [data-estok-panel] {
   border-style: dashed;
   background: #fbfdff;
 }
-.portal-tarjeta-monolitica {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-.portal-tarjeta-ramificada {
-  border-color: #bfdbfe;
-}
-.portal-tarjeta-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
 .portal-badge {
   font-size: 10.5px;
   font-weight: 700;
@@ -341,4 +329,57 @@ body.portales-canasta-oculta [data-estok-panel] {
 }
 .portal-objeto-arrastrando {
   opacity: 0.45;
+}
+
+/* -----------------------------------------------------------------------------
+   6. LIENZO ELÁSTICO DEL INTERIOR (Panel Derecho recursivo)
+   El marco calca el MISMO aspecto del `viewBox` (aspect-ratio inyectado por
+   lib/lienzoHijos.ts) para que los rótulos caigan clavados sobre su silueta.
+   --------------------------------------------------------------------------- */
+.portal-lienzo-interior {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.portal-lienzo-tip {
+  font-size: 11.5px;
+  color: #6b7280;
+}
+/* Bultos guardados dentro de una pieza sin estante fino asignado. */
+.portal-lienzo-alerta {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  background: #fef2f2;
+  font-size: 11.5px;
+  color: #b91c1c;
+}
+.portal-lienzo-marco {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  overflow: hidden;
+}
+.portal-lienzo-marco svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Silueta navegable: clic = bajar de nivel (PORTAL) · drop = guardar adentro. */
+.portal-lienzo-marco .minimapa-sector-clicable {
+  cursor: pointer;
+}
+.portal-lienzo-marco.portal-drop-activo {
+  outline: 2px dashed #f97316;
+  outline-offset: -4px;
+}
+/* «✏️ Editar» deshabilitado: el nivel activo es monolítico (no hay modelador). */
+.portales-modo-boton[data-modo-editar][data-modelador='0'] {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

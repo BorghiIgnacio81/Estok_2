@@ -54,6 +54,7 @@ import {
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { cabecerasDe, hostsDe, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { sincronizarBarraComandos } from './barraComandosPortales';
 import { listaHabitacionesHtml } from './tarjetasHabitaciones';
 import { listaHijosHtml } from './tarjetasContenedores';
 import type { FichaHijo } from './tarjetasContenedores';
@@ -160,6 +161,9 @@ export function transicionar(): void {
 
   renderMinimapa();
   syncBotones();
+  // Barra de comandos: el «✏️ Editar» se re-sincroniza en CADA nivel (visible y
+  // operativo a cualquier profundidad de la pila de nodos).
+  sincronizarBarraComandos();
   // FIN DE CADENA: en la grilla directa de objetos la canasta flotante se apaga
   // y el contenedor principal recupera el ancho completo (nada pisa el canvas).
   document.body.classList.toggle('portales-canasta-oculta', paneles.derecho === 'grillaObjetos');
@@ -298,7 +302,11 @@ async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<vo
   if (paneles.derecho === 'listaContenedores') {
     const host = el('listaContenedoresPanel');
     if (host) {
-      host.innerHTML = listaHijosHtml(await fichasDe(interior.piezas), aspectoDelLienzo(), nodo.nombre);
+      const fichas = await fichasDe(interior.piezas);
+      const aspecto = aspectoDelLienzo();
+      // El Panel Derecho dibuja EL MISMO mapa elástico del interior, con los
+      // nombres e iconos de cada sub-espacio rotulados sobre su silueta real.
+      host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);
     }
     return;
   }

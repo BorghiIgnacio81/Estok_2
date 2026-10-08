@@ -51,6 +51,10 @@ export interface PiezaTaxonomica {
   es_inmueble?: boolean | null;
   parent_contenedor?: string | null;
   subcontenedores_count?: number | null;
+  /** Geometría elástica del plano (null / cero = pieza sin lugar clavado). */
+  ui_left?: string | null;
+  ui_top?: string | null;
+  ui_height?: string | null;
 }
 
 /**
@@ -140,6 +144,43 @@ export function esPiezaPorUbicar(pieza: PiezaTaxonomica | null | undefined): boo
 }
 
 /**
+ * ARQUITECTURA FIJA DEL PLANO: valores de `ui_*` que significan «sin geometría»
+ * (default del modelo o cero exacto). Espejo de `VALORES_SIN_GEOMETRIA`
+ * (`inventario/services/taxonomia_contenedor.py`).
+ */
+export const VALORES_SIN_GEOMETRIA: readonly string[] = [
+  '',
+  '0',
+  '0%',
+  '0px',
+  'auto',
+  '0.0',
+  '0.0%',
+  '0.00',
+  '0.00%',
+];
+
+/** Campos posicionales del plano que declaran una pieza como arquitectura fija. */
+export const CAMPOS_GEOMETRIA_FIJA = ['ui_left', 'ui_top', 'ui_height'] as const;
+
+/**
+ * GEOMETRÍA FIJA EN UN PLANO: la pieza tiene coordenadas geométricas propias
+ * (`ui_left`/`ui_top` fuera del origen, o una altura MODELADA distinta de
+ * 'auto'), o sea que está CLAVADA en el lienzo de su cuarto o mueble.
+ *
+ * Es una pieza de ARQUITECTURA: un «Espacio», una división interna o un mueble
+ * modelado NUNCA es un bulto transportable, aunque su tipo sea CAJA y no tenga
+ * sub-divisiones. Regla matemática estricta compartida con el backend
+ * (`inventario/services/taxonomia_contenedor.tiene_geometria_de_plano`).
+ */
+export function tieneGeometriaDePlano(pieza: PiezaTaxonomica | null | undefined): boolean {
+  return CAMPOS_GEOMETRIA_FIJA.some((campo) => {
+    const crudo = String(pieza?.[campo] ?? '').trim().toLowerCase();
+    return !VALORES_SIN_GEOMETRIA.includes(crudo);
+  });
+}
+
+/**
  * BULTO MOVIBLE REAL admitido en la canasta lateral de «Elementos por ubicar».
  *
  * PURGA ESTRICTA DE NODOS JERÁRQUICOS: sólo CAJAS móviles que NO ofician de
@@ -147,12 +188,16 @@ export function esPiezaPorUbicar(pieza: PiezaTaxonomica | null | undefined): boo
  * ya es una estructura, no un bulto transportable). Los OBJETOS terminales
  * sueltos se admiten por su propia vía (registro `Objeto`).
  *
- * Quedan TERMINANTEMENTE EXCLUIDOS: los CONJUNTOS (estanterías, cajoneras), los
- * muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE) y las zonas geográficas de nivel
- * superior («PC Setup», «Zona Indoor», «Departamento»).
+ * PURGA INVENCIBLE DE ARQUITECTURA FIJA: cualquier pieza con geometría propia
+ * en un plano (`tieneGeometriaDePlano`) queda excluida de raíz, así que los
+ * «Espacios» de las habitaciones —que son CAJA sin sub-divisiones— jamás
+ * contaminan la canasta. Quedan TERMINANTEMENTE EXCLUIDOS además los CONJUNTOS
+ * (estanterías, cajoneras), los muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE) y las
+ * zonas geográficas de nivel superior («PC Setup», «Zona Indoor»).
  */
 export function esBultoMovibleDeBandeja(pieza: PiezaTaxonomica | null | undefined): boolean {
   if (!esCajaMovil(pieza)) return false;
+  if (tieneGeometriaDePlano(pieza)) return false;
   return Number(pieza?.subcontenedores_count ?? 0) === 0;
 }
 

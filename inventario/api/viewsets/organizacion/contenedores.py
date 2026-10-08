@@ -20,9 +20,11 @@ from ....models import Ubicacion, Contenedor, Objeto
 from ...paginacion import EstokPaginacion
 from ...serializers import ContenedorSerializer
 from ....services.taxonomia_contenedor import (
+    CAMPOS_GEOMETRIA_FIJA,
     TIPO_CAJA,
     TIPO_MUEBLE_MOVIL,
     TIPOS,
+    VALORES_SIN_GEOMETRIA,
     es_anclado,
     es_caja_movil,
     es_pieza_estructural,
@@ -31,6 +33,20 @@ from ..base import HasRolePermission
 from ..fusion_espacial import ids_del_grupo
 from .acciones_contenedor import AccionesContenedorMixin
 from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia
+
+
+def _qe_geometria_de_plano():
+    """
+    Q ORM de «la pieza posee geometría FIJA en un plano».
+
+    Espejo exacto de `services.taxonomia_contenedor.tiene_geometria_de_plano`:
+    cualquier `ui_*` posicional distinto de cero/nulo (o una altura modelada
+    distinta de 'auto') marca la pieza como arquitectura clavada en el lienzo.
+    """
+    qe = Q()
+    for campo in CAMPOS_GEOMETRIA_FIJA:
+        qe |= Q(**{f'{campo}__isnull': False}) & ~Q(**{f'{campo}__in': VALORES_SIN_GEOMETRIA})
+    return qe
 
 
 class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, viewsets.ModelViewSet):
@@ -79,6 +95,13 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         moviles = self.request.query_params.get('movibles')
         if moviles and moviles.lower() in ('true', '1', 'yes'):
             qs = qs.filter(es_inmueble=False, tipo__in=(TIPO_CAJA, TIPO_MUEBLE_MOVIL))
+            # PURGA INVENCIBLE DE ARQUITECTURA FIJA: toda pieza con coordenadas
+            # geométricas propias en un plano (ui_left/ui_top fuera del origen o
+            # altura modelada ≠ 'auto') está CLAVADA en el lienzo de su cuarto o
+            # mueble, así que jamás puede listarse como bulto movible. Sin esta
+            # regla los «Espacios» internos de las habitaciones (tipo=CAJA sin
+            # sub-divisiones) contaminaban la canasta de «Elementos por ubicar».
+            qs = qs.exclude(_qe_geometria_de_plano())
 
         # Optimización de payload: en el listado, los conteos de sub-contenedores
         # y objetos activos se resuelven con UN solo COUNT agrupado por página

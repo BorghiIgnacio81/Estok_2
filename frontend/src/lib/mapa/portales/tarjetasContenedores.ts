@@ -1,31 +1,33 @@
 // =============================================================================
 // TARJETAS DEL INTERIOR JERÁRQUICO (Panel Derecho recursivo) · RENDER PURO
 // -----------------------------------------------------------------------------
-// Cada hijo directo del nodo activo se dibuja como una tarjeta que:
-//   1. Es PORTAL: tocarla la traslada al Panel Izquierdo y abre su propio nivel
-//      (`data-portal-abrir`) — recursión sin límite de profundidad.
-//   2. Es DROP ZONE (`data-portal-drop`): soltar un chip de la canasta acá
-//      guarda el bulto DENTRO de esa pieza. Si la pieza tiene divisiones
-//      internas y no se eligió estante, el backend la marca «En Tránsito
-//      Interno» (ver transitoInterno.ts). Si es «Espacio Único», entra directo.
-//   3. Muestra el MINI-MAPA de su propio interior (geometría real de sus hijos).
+// MODO 100% VISUAL: cada hijo directo del nodo activo se dibuja DENTRO del mapa
+// elástico del interior (./lienzoHijos.ts), sobre su silueta geométrica real y
+// con su NOMBRE e ICONO rotulados encima. Se eliminó el listado plano de texto
+// («📦 Espacio 1 → 📦 Espacio 2 →») que desperdiciaba la pantalla en web y
+// arruinaba el responsive móvil.
+//
+// Este módulo queda como la ÚNICA autoridad de la FICHA del hijo: traduce cada
+// `NodoPortal` + sus contadores reales del padrón a la `PiezaLienzo` que consume
+// el lienzo (icono de taxonomía, etiqueta rotulada, divisiones propias y
+// geometría). Cada silueta es PORTAL (`data-portal-abrir`) y DROP ZONE
+// (`data-portal-drop`): soltar un chip de la canasta la guarda DENTRO de esa
+// pieza («En Tránsito Interno» si tiene divisiones internas).
 //
 // Módulo PURO: el clic y el drop los conecta el orquestador por delegación.
 // =============================================================================
 
-import { escapeHtml } from '../../mapaJerarquico';
-import { ASPECTO_LIENZO } from '../../minimapa';
-import { renderMinimapasAnidados } from '../../minimapasAnidados';
-import { sectoresDeItems } from '../../sectoresMinimapa';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import { esCajaMovil } from '../../taxonomiaContenedor';
 import { etiquetaTransitoInternoHtml } from './transitoInterno';
+import { estadoVacioInteriorHtml, lienzoInteriorHtml } from './lienzoHijos';
+import type { PiezaLienzo } from './lienzoHijos';
 import type { NodoPortal } from './estadoPortales';
 
 /** Pieza del interior activo con todo lo que la tarjeta necesita mostrar. */
 export interface FichaHijo {
   nodo: NodoPortal;
-  /** Geometría real de los hijos de ESTE hijo (su mini-mapa interno). */
+  /** Geometría real de los hijos de ESTE hijo (contador de sub-divisiones). */
   nietos: ItemGeometria[];
   /** Sub-contenedores directos (contador real del padrón). */
   subconteo: number;
@@ -40,7 +42,7 @@ export interface FichaHijo {
 }
 
 /** Icono contextual de la pieza según su taxonomía física. */
-function iconoDePieza(ficha: FichaHijo): string {
+export function iconoDePieza(ficha: FichaHijo): string {
   if (esCajaMovil({ tipo: ficha.tipo, es_inmueble: ficha.esInmueble })) return '📦';
   if (ficha.tipo === 'OBJETO') return '🧸';
   if (ficha.esInmueble) return '📌';
@@ -49,77 +51,56 @@ function iconoDePieza(ficha: FichaHijo): string {
   return '🧺';
 }
 
-/** Mini-mapa del interior de la pieza (sus hijos reales en silueta proporcional). */
-function minimapaHijoHtml(ficha: FichaHijo, aspecto: number): string {
-  const sectores = sectoresDeItems(ficha.nietos, null);
-  if (!sectores.length) return '';
-  return renderMinimapasAnidados(
-    [
-      {
-        tipo: 'mueble',
-        nombre: ficha.nodo.nombre,
-        id: ficha.nodo.id,
-        sectores,
-        aspecto: aspecto || ASPECTO_LIENZO,
-      },
-    ],
-    { hermanas: true },
-  );
+/**
+ * Rótulo que se estampa sobre la silueta: nombre REAL de la pieza + sus
+ * contadores del padrón. Así el plano elástico sigue siendo 100% visual sin
+ * perder la información operativa que antes vivía en las tarjetas de texto.
+ */
+function etiquetaDeFicha(ficha: FichaHijo, subdivisiones: number): string {
+  const extras: string[] = [];
+  if (subdivisiones) extras.push(`${subdivisiones} sub`);
+  if (ficha.objetos) extras.push(`${ficha.objetos} obj`);
+  if (ficha.enTransito) extras.push(`🔴 ${ficha.enTransito}`);
+  return extras.length ? `${ficha.nodo.nombre} · ${extras.join(' · ')}` : ficha.nodo.nombre;
 }
 
-/** Tarjeta de un hijo directo: portal + drop zone + mini-mapa interno. */
-export function tarjetaHijoHtml(ficha: FichaHijo, aspecto: number): string {
-  const { nodo } = ficha;
-  const clases = [
-    'portal-tarjeta',
-    'portal-tarjeta-hijo',
-    ficha.espacioUnico ? 'portal-tarjeta-monolitica' : '',
-    nodo.conDivisiones ? 'portal-tarjeta-ramificada' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-  const badges: string[] = [];
-  if (ficha.subconteo) badges.push(`<span class="portal-badge">${ficha.subconteo} sub</span>`);
-  if (ficha.objetos) badges.push(`<span class="portal-badge">${ficha.objetos} obj</span>`);
-  if (ficha.espacioUnico) badges.push('<span class="portal-badge portal-badge-monolitico">🧱 Espacio Único</span>');
-  const transito = ficha.enTransito
-    ? `<span class="portal-badge portal-badge-transito">${etiquetaTransitoInternoHtml()} · ${ficha.enTransito}</span>`
-    : '';
-  const ayuda = nodo.conDivisiones
-    ? 'Soltá un bulto acá para dejarlo dentro: sin estante fino queda «En Tránsito Interno».'
-    : 'Soltá un bulto acá para guardarlo directamente adentro.';
-  return `<article class="${clases}"
-    data-portal-abrir="${escapeHtml(nodo.id)}"
-    data-portal-tipo="contenedor"
-    data-portal-nombre="${escapeHtml(nodo.nombre)}"
-    data-portal-drop="${escapeHtml(nodo.id)}"
-    data-portal-divisiones="${nodo.conDivisiones ? '1' : '0'}"
-    title="«${escapeHtml(nodo.nombre)}» · ${escapeHtml(ayuda)}">
-    <div class="portal-tarjeta-cab">
-      <span class="portal-tarjeta-ico" aria-hidden="true">${iconoDePieza(ficha)}</span>
-      <span class="portal-tarjeta-nombre">${escapeHtml(nodo.nombre)}</span>
-      <span class="portal-tarjeta-flecha" aria-hidden="true">→</span>
-    </div>
-    ${minimapaHijoHtml(ficha, aspecto)}
-    <div class="portal-tarjeta-badges">${badges.join('')}${transito}</div>
-  </article>`;
+/** Traduce una ficha del padrón a la pieza que dibuja el lienzo del interior. */
+export function piezaDeFicha(ficha: FichaHijo, geometria: ItemGeometria | null): PiezaLienzo {
+  return {
+    id: ficha.nodo.id,
+    nombre: ficha.nodo.nombre,
+    etiqueta: etiquetaDeFicha(ficha, ficha.subconteo || ficha.nietos.length),
+    icono: iconoDePieza(ficha),
+    geometria,
+    conDivisiones: ficha.nodo.conDivisiones,
+  };
 }
 
 /**
- * Listado del interior jerárquico de un nodo. Estado vacío explicativo cuando la
- * pieza no tiene hijos todavía (invita a fundar el primero en la izquierda).
+ * LIENZO del interior jerárquico de un nodo (Panel Derecho, recursivo).
+ *
+ * `geometria` es la geometría REAL de esos hijos dentro del lienzo del padre
+ * (`InteriorNodo.geometriaHijos`): con ella el plano elástico replica las
+ * proporciones reales de cada sub-espacio y los rótulos caen sobre su silueta.
+ * Sin hijos devuelve el estado vacío explicativo (nunca un panel mudo).
  */
 export function listaHijosHtml(
   fichas: FichaHijo[],
   aspecto: number,
   nombrePadre: string,
+  geometria: ItemGeometria[] = [],
 ): string {
-  if (!fichas.length) {
-    return `<div class="portal-vacio">
-      <span class="portal-vacio-ico" aria-hidden="true">🧺</span>
-      <p class="portal-vacio-texto">«${escapeHtml(nombrePadre)}» todavía no tiene sub-contenedores. Fundá un estante en la grilla de la izquierda o soltá una caja desde la canasta para que aparezca acá.</p>
-    </div>`;
-  }
-  const tarjetas = fichas.map((f) => tarjetaHijoHtml(f, aspecto)).join('');
-  return `<div class="portal-lista portal-lista-hijos">${tarjetas}</div>`;
+  if (!fichas.length) return estadoVacioInteriorHtml(nombrePadre);
+  const porId = new Map<string, ItemGeometria>(
+    geometria.map((g) => [String(g.id ?? ''), g]),
+  );
+  const enTransito = fichas.reduce((total, ficha) => total + (ficha.enTransito ? 1 : 0), 0);
+  const alerta = enTransito
+    ? `<p class="portal-lienzo-alerta">${etiquetaTransitoInternoHtml()} · ${enTransito} elemento(s) guardado(s) dentro de una pieza sin estante fino asignado.</p>`
+    : '';
+  return `${alerta}${lienzoInteriorHtml(
+    fichas.map((ficha) => piezaDeFicha(ficha, porId.get(ficha.nodo.id) ?? null)),
+    aspecto,
+    nombrePadre,
+  )}`;
 }

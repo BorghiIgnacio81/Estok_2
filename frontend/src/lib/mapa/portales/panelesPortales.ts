@@ -70,6 +70,19 @@ export function panelesDe(nodo: NodoPortal | null): Paneles {
   };
 }
 
+/**
+ * ¿El nivel activo admite el MODELADOR geométrico? Es decir: ¿su Panel Izquierdo
+ * expone un lienzo elástico capaz de inyectar celdas nuevas (`data-lienzo-crear`)?
+ *
+ * Autoridad PURA que consulta la barra de comandos para habilitar el interruptor
+ * «✏️ Editar» a CUALQUIER profundidad de la pila (`ruta: NodoPortal[]`). El único
+ * nivel sin modelador es el bloque monolítico («Espacio Único»), que por
+ * definición no se subdivide.
+ */
+export function tieneModeladorGeometrico(paneles: Paneles): boolean {
+  return paneles.izquierdo !== 'bloqueMonolitico';
+}
+
 /** Leyendas de cabecera de cada par de paneles del flujo. */
 export interface CabeceraPaneles {
   tituloIzq: string;

@@ -35,6 +35,10 @@ export function modoLienzoActual(): ModoLienzo {
   return modo;
 }
 
+/** Botones de modo: CUALQUIER barra de comandos los declara con estos atributos. */
+const SEL_EDITAR = '[data-modo-editar]';
+const SEL_GUARDAR = '[data-modo-guardar]';
+
 /** Selectores de los asideros que SOLO tienen sentido en modo edición. */
 const SELECTOR_EDICION = [
   '[data-libre-drag]',
@@ -48,16 +52,49 @@ const SELECTOR_EDICION = [
 ].join(',');
 
 /**
- * Arranca el controlador de modo: conecta los botones de TODOS los cabezales y
- * deja el lienzo naciendo en modo NAVEGACIÓN (bloqueado, clic = portal).
+ * Sincroniza la visibilidad de TODOS los botones de modo del documento con el
+ * modo vigente. Idempotente y re-invocable: cuando la cascada de Portales
+ * repinta el lienzo de un nivel nuevo (innerHTML), los botones recién
+ * inyectados quedan al instante en el estado correcto — sin esto el interruptor
+ * «✏️ Editar» quedaba inerte en cualquier profundidad distinta de la primera.
+ */
+export function refrescarBotonesModo(): void {
+  document.querySelectorAll<HTMLElement>(SEL_EDITAR).forEach((btn) => {
+    btn.classList.toggle('hidden', modo === 'edicion');
+  });
+  document.querySelectorAll<HTMLElement>(SEL_GUARDAR).forEach((btn) => {
+    btn.classList.toggle('hidden', modo !== 'edicion');
+  });
+}
+
+/**
+ * Arranca el controlador de modo. Los clics se atienden por DELEGACIÓN sobre el
+ * documento (`closest`), de modo que el ✏️ Editar sigue operativo en CUALQUIER
+ * profundidad de la pila de nodos, incluso en las barras de comandos que se
+ * inyectan después. El lienzo nace en modo NAVEGACIÓN (clic = portal).
  */
 export function iniciarModoLienzo(): void {
-  document.querySelectorAll<HTMLElement>('[data-modo-editar]').forEach((btn) => {
-    btn.addEventListener('click', () => aplicarModo('edicion'));
+  document.addEventListener('click', (ev) => {
+    const objetivo = ev.target as Element | null;
+    if (!objetivo) return;
+    if (objetivo.closest(SEL_EDITAR)) {
+      aplicarModo('edicion');
+      return;
+    }
+    if (objetivo.closest(SEL_GUARDAR)) void guardarYBloquear();
   });
-  document.querySelectorAll<HTMLElement>('[data-modo-guardar]').forEach((btn) => {
-    btn.addEventListener('click', () => void guardarYBloquear());
-  });
+  // Vigía de marcado: cada vez que la cascada monta el nivel nuevo (o el visor
+  // vuelve a pintar su lienzo) los botones de modo se re-sincronizan solos. El
+  // re-sincronizado se agrupa en un frame para no castigar el render.
+  let pendiente = false;
+  new MutationObserver(() => {
+    if (pendiente) return;
+    pendiente = true;
+    requestAnimationFrame(() => {
+      pendiente = false;
+      refrescarBotonesModo();
+    });
+  }).observe(document.body, { childList: true, subtree: true });
   // Captura: en modo navegación el pointerdown de un asidero de edición se
   // detiene antes de llegar al motor de arrastre (el 'click' del portal queda
   // intacto porque es un evento distinto).
@@ -70,12 +107,7 @@ export function aplicarModo(nuevo: ModoLienzo): void {
   modo = nuevo;
   document.body.classList.toggle('modo-edicion', nuevo === 'edicion');
   document.body.classList.toggle('modo-navegacion', nuevo === 'navegacion');
-  document.querySelectorAll<HTMLElement>('[data-modo-editar]').forEach((el) => {
-    el.classList.toggle('hidden', nuevo === 'edicion');
-  });
-  document.querySelectorAll<HTMLElement>('[data-modo-guardar]').forEach((el) => {
-    el.classList.toggle('hidden', nuevo !== 'edicion');
-  });
+  refrescarBotonesModo();
   window.dispatchEvent(new CustomEvent('estok:modo-lienzo', { detail: { modo: nuevo } }));
 }
 

@@ -200,3 +200,47 @@ def es_pieza_estructural(pieza):
     saber qué sección del minimapa resaltar.
     """
     return es_anclado(pieza) or es_mueble(pieza)
+
+
+# =====================================================================
+# ARQUITECTURA FIJA EN UN PLANO (geometría elástica persistida)
+# ---------------------------------------------------------------------
+# Un contenedor que TIENE coordenadas geométricas propias dentro de un plano
+# (ui_left/ui_top fuera del origen, o una altura MODELADA distinta de 'auto')
+# es una pieza FIJA de la arquitectura: ocupa un lugar clavado en el lienzo de
+# su cuarto/mueble y por lo tanto NUNCA es un bulto transportable. Los
+# «Espacios» de las habitaciones nacen así (tipo=CAJA sin sub-divisiones con
+# ui_left='6%', ui_top='8%', ui_height='24%'), y sin esta regla contaminaban
+# la canasta de «Elementos por ubicar».
+#
+# `ui_width` queda FUERA del veredicto a propósito: su default de modelo es
+# '100%' (no cero) en TODOS los contenedores, así que no distingue una pieza
+# modelada de un bulto suelto; la POSICIÓN (ui_left/ui_top) y la ALTURA
+# modelada sí lo hacen.
+# =====================================================================
+CAMPOS_GEOMETRIA_FIJA = ('ui_left', 'ui_top', 'ui_height')
+
+# Valores que significan «sin geometría»: default del modelo o cero exacto.
+VALORES_SIN_GEOMETRIA = (
+    '', '0', '0%', '0px', 'auto',
+    '0.0', '0.0%', '0.00', '0.00%',
+)
+
+
+def tiene_geometria_de_plano(pieza):
+    """
+    True si la pieza posee coordenadas geométricas FIJAS en un plano.
+
+    Regla matemática estricta: cualquier `ui_*` posicional distinto de
+    cero/nulo (o una altura modelada distinta de 'auto') declara la pieza como
+    ARQUITECTURA FIJA del lienzo, excluida de las bandejas de elementos
+    movibles. Espejo exacto del cliente
+    (`lib/taxonomiaContenedor.tieneGeometriaDePlano`).
+    """
+    def desviado(valor):
+        crudo = str(valor if valor is not None else '').strip().lower()
+        return crudo not in VALORES_SIN_GEOMETRIA
+
+    return any(
+        desviado(getattr(pieza, campo, None)) for campo in CAMPOS_GEOMETRIA_FIJA
+    )

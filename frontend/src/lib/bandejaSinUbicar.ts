@@ -25,7 +25,14 @@
 // «PC Setup» o «Zona Indoor»). La canasta expone pura y exclusivamente BULTOS
 // MOVIBLES REALES (cajas móviles sin sub-divisiones propias) u OBJETOS
 // TERMINALES sueltos. La purga corre DOS veces: en la consulta a PostgreSQL
-// (`?tipo=CAJA&movibles=true`) y en el cliente (`esBultoMovibleDeBandeja`).
+// (`?tipo=CAJA&movibles=true`, que además descarta la arquitectura fija por
+// geometría) y en el cliente (`esBultoMovibleDeBandeja`).
+//
+// PURGA INVENCIBLE DE ARQUITECTURA FIJA: cualquier contenedor con coordenadas
+// geométricas propias en un plano (ui_left/ui_top fuera del origen o altura
+// modelada ≠ 'auto') está CLAVADO en el lienzo de su cuarto —los «Espacios» de
+// las habitaciones son exactamente eso—, así que queda EXCLUIDO de la canasta y
+// sólo se listan bultos y objetos realmente sueltos.
 //
 // Doble rol de Drag & Drop:
 //   1. ORIGEN de arrastre: los chips van a los casilleros finos del Visor, a las
@@ -50,6 +57,10 @@ interface ContenedorBandeja {
   /** Sub-divisiones propias: una caja con hijos es estructura, no bulto. */
   subcontenedores_count: number;
   ubicacion: string | null;
+  /** Geometría del plano: si tiene coordenadas propias es arquitectura fija. */
+  ui_left: string | null;
+  ui_top: string | null;
+  ui_height: string | null;
 }
 
 interface ObjetoBandeja {
@@ -102,6 +113,11 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
     es_inmueble: Boolean(c.es_inmueble),
     subcontenedores_count: Number(c.subcontenedores_count) || 0,
     ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
+    // Geometría del plano: la purga de arquitectura fija la necesita EN EL
+    // CLIENTE (`esBultoMovibleDeBandeja`), así que viaja normalizada.
+    ui_left: c.ui_left != null ? String(c.ui_left) : null,
+    ui_top: c.ui_top != null ? String(c.ui_top) : null,
+    ui_height: c.ui_height != null ? String(c.ui_height) : null,
   };
 }
 
@@ -123,10 +139,11 @@ async function cargar(): Promise<void> {
   if (!hosts.length) return;
   try {
     const [contData, objData] = await Promise.all([
-      // PURGA DE RAÍZ (PostgreSQL): SOLO CAJA no inmueble y con la whitelist
-      // física aplicada en el servidor. Toda estructura fija (CONJUNTO /
-      // MUEBLE_INMUEBLE) y todo mueble (MUEBLE_MOVIL) queda EXCLUIDO de la
-      // consulta: jamás se listan como bultos de la canasta.
+      // PURGA DE RAÍZ (PostgreSQL): SOLO CAJA no inmueble, con la whitelist
+      // física aplicada en el servidor Y sin geometría fija de plano. Toda
+      // estructura fija (CONJUNTO / MUEBLE_INMUEBLE), todo mueble (MUEBLE_MOVIL)
+      // y todo «Espacio» modelado queda EXCLUIDO de la consulta: jamás se listan
+      // como bultos de la canasta.
       fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&tipo=CAJA&movibles=true`),
       fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000`),
     ]);
