@@ -74,6 +74,8 @@ export interface OpcionesLienzo {
   tip: string;
   /** Atributos `data-*` de cada silueta navegable (portal y/o zona de suelta). */
   atributosSector: (pieza: PiezaLienzo) => string;
+  /** Id del sector que va resaltado en NARANJA (Ley 2: selección in-place). */
+  activoId?: string | null;
 }
 
 /**
@@ -104,6 +106,8 @@ export function lienzoAmpliadoHtml(
     ancho: ANCHO_LIENZO_INTERIOR,
     responsive: true,
     clicable: true,
+    // Resalte naranja del nodo seleccionado (por identidad, no por posición).
+    activoId: opts.activoId ?? null,
     // Rótulos de lectura (icono + nombre) encima de CADA silueta real.
     etiquetas: true,
     // Atributos de la silueta navegable, resueltos por identidad de la pieza.

@@ -21,6 +21,8 @@ import type { NodoPortal } from './estadoPortales';
 export type PanelIzquierdo =
   /** Nivel raíz: plano general de la planta activa. */
   | 'planoPlanta'
+  /** Ancla: mapa de habitaciones de la planta (padre = planta). */
+  | 'listaHabitaciones'
   /** Habitación abierta: Visor de Habitación (lienzo elástico del cuarto). */
   | 'visorHabitacion'
   /** Contenedor con divisiones: sub-grilla elástica interna + Drop Zones F·C. */
@@ -43,31 +45,34 @@ export interface Paneles {
 }
 
 /**
- * ÚNICA autoridad de la física de pantallas de Almacenamiento.
+ * ÚNICA autoridad de la física de pantallas de Almacenamiento (Leyes de Ignacio).
  *
  *   ruta vacía        → Izq = plano de la Planta · Der = habitaciones (mini-mapas)
- *   habitación        → Izq = Visor de Habitación · Der = espacios/muebles del cuarto
- *   contenedor (+)    → Izq = sub-grilla del propio nodo · Der = interior jerárquico
- *   contenedor (∞)    → Izq = bloque monolítico       · Der = grilla de objetos reales
+ *   habitación        → Izq = mapa de la PLANTA (ancla) · Der = interior del cuarto
+ *   contenedor (+)    → Izq = mapa del CONTENEDOR padre  · Der = interior jerárquico
+ *   contenedor (∞)    → Izq = mapa del CONTENEDOR padre  · Der = grilla de objetos
+ *
+ * LEY 1 (Asimetría Rígida): la IZQUIERDA es SIEMPRE el plano del CONTENEDOR (el
+ * padre) y la DERECHA el interior del SELECCIONADO. Jamás comparten nodo.
+ * LEY 4 (Espacio Único): la derecha salta a la grilla directa de objetos reales.
  */
-export function panelesDe(nodo: NodoPortal | null): Paneles {
+export function panelesDe(nodo: NodoPortal | null, padre: NodoPortal | null = null): Paneles {
   if (!nodo) return { izquierdo: 'planoPlanta', derecho: 'listaHabitaciones' };
-  // DISYUNTOR DE ESTRUCTURA (aplica a CUALQUIER nodo: cuarto o contenedor): un
-  // «Espacio Único» bloquea el modelador geométrico y la derecha va directo a la
-  // grilla de objetos reales.
-  if (nodo.espacioUnico) {
-    return { izquierdo: 'bloqueMonolitico', derecho: 'grillaObjetos' };
-  }
-  if (nodo.tipo === 'habitacion') {
-    return { izquierdo: 'visorHabitacion', derecho: 'listaContenedores' };
-  }
-  // Contenedor (a cualquier profundidad): sin divisiones todavía, también es fin
-  // de cadena (bloque monolítico + objetos directos).
-  const sinDivisiones = esNodoMonolitico(nodo);
-  return {
-    izquierdo: sinDivisiones ? 'bloqueMonolitico' : 'grillaNodo',
-    derecho: sinDivisiones ? 'grillaObjetos' : 'listaContenedores',
-  };
+  const izquierdo: PanelIzquierdo = anclaDe(padre);
+  const derecho: PanelDerecho = esNodoMonolitico(nodo) ? 'grillaObjetos' : 'listaContenedores';
+  return { izquierdo, derecho };
+}
+
+/**
+ * Ancla izquieda del flujo: el mapa del CONTENEDOR (padre) del seleccionado.
+ *
+ *   padre = planta (sin nodo) → mapa de habitaciones de la planta
+ *   padre = cuarto            → lienzo interior del cuarto (muebles)
+ *   padre = contenedor        → sub-grilla interior del contenedor
+ */
+function anclaDe(padre: NodoPortal | null): PanelIzquierdo {
+  if (!padre) return 'listaHabitaciones';
+  return padre.tipo === 'habitacion' ? 'visorHabitacion' : 'grillaNodo';
 }
 
 /**
@@ -79,8 +84,10 @@ export function panelesDe(nodo: NodoPortal | null): Paneles {
  * nivel sin modelador es el bloque monolítico («Espacio Único»), que por
  * definición no se subdivide.
  */
-export function tieneModeladorGeometrico(paneles: Paneles): boolean {
-  return paneles.izquierdo !== 'bloqueMonolitico';
+export function tieneModeladorGeometrico(nodo: NodoPortal | null): boolean {
+  // El modelador geométrico sólo se bloquea cuando el nodo SELECCIONADO es un
+  // «Espacio Único» / fin de cadena (no admite subdivisiones internas).
+  return !esNodoMonolitico(nodo);
 }
 
 /** Leyendas de cabecera de cada par de paneles del flujo. */
@@ -91,7 +98,7 @@ export interface CabeceraPaneles {
   descDer: string;
 }
 
-/** Cabeceras (títulos + micro-ayudas) del nivel activo. */
+/** Cabeceras (títulos + micro-ayudas) del nivel activo (física asimétrica). */
 export function cabecerasDe(nodo: NodoPortal | null, paneles: Paneles): CabeceraPaneles {
   if (!nodo) {
     return {
@@ -104,29 +111,30 @@ export function cabecerasDe(nodo: NodoPortal | null, paneles: Paneles): Cabecera
   }
   if (paneles.derecho === 'grillaObjetos') {
     return {
-      tituloIzq: '🧱 Espacio Único (bloque monolítico)',
+      tituloIzq: '🧱 Espacio Único (ancla del contenedor)',
       tituloDer: '🔎 Objetos guardados directamente acá',
-      descIzq: `«${nodo.nombre}» es un bloque monolítico: no se subdivide, el modelador geométrico queda bloqueado y los objetos se guardan de forma directa.`,
+      descIzq: `Mapa del contenedor con «${nodo.nombre}» resaltado en naranja. Es un bloque monolítico: no se subdivide y el modelador geométrico queda bloqueado.`,
       descDer:
         'Grilla directa de los objetos reales que aloja este bloque. Arrastrá uno desde la canasta para guardarlo acá sin celda fina.',
     };
   }
   if (nodo.tipo === 'habitacion') {
     return {
-      tituloIzq: '🧭 Visor de Habitación',
+      tituloIzq: '🧭 Plano de la planta (ancla)',
       tituloDer: '📦 Espacios, Muebles y Cajas del cuarto',
-      descIzq: 'Interior de la habitación activa: acomodá los espacios en el lienzo elástico.',
+      descIzq:
+        'Plano del contenedor: el cuarto seleccionado queda resaltado en naranja entre sus hermanos de la planta.',
       descDer:
-        'Interior jerárquico del cuarto. Elegí un espacio para que pase al panel izquierdo y abra sus divisiones.',
+        'Interior jerárquico del cuarto. Tocá un espacio para abrir su interior fino en la derecha.',
     };
   }
   return {
-    tituloIzq: `🧰 Organización interna de «${nodo.nombre}»`,
-    tituloDer: '🧺 Sub-contenedores, estantes y cajas',
+    tituloIzq: '🧭 Plano del contenedor (ancla)',
+    tituloDer: `🧺 Interior de «${nodo.nombre}»`,
     descIzq:
-      'Sub-grilla elástica del contenedor activo. Tocá una pieza para descender a su interior de forma recursiva.',
+      'Plano del contenedor padre: la pieza seleccionada queda resaltada en naranja entre sus hermanas.',
     descDer:
-      'Interior jerárquico del contenedor activo. Elegí una pieza para que se traslade a la izquierda y abra su propio nivel.',
+      'Interior jerárquico de la pieza activa. Tocá un elemento para abrir su interior de forma recursiva.',
   };
 }
 

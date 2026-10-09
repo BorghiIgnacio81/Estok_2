@@ -16,8 +16,7 @@
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import { modoLienzoActual } from '../../modoLienzo';
-import { cargarHabitacionesDePlanta, invalidarCachePortales } from './datosNodosPortales';
-import { panelesDe } from './panelesPortales';
+import { invalidarCachePortales } from './datosNodosPortales';
 import { el, slotDer, slotIzq } from './domPortales';
 import {
   desapilarHasta,
@@ -26,6 +25,7 @@ import {
   nodoActual,
   profundidad,
 } from './estadoPortales';
+import type { NodoPortal } from './estadoPortales';
 import {
   estaRefrescando,
   interiorDelNivel,
@@ -34,7 +34,7 @@ import {
   portalANodo,
   refrescarNivel,
   renderMinimapaDelNivel,
-  roomDeCache,
+  seleccionarNodo,
   volverARaiz,
   volverNivel,
 } from './portalesAlmacenamiento';
@@ -45,37 +45,48 @@ import type { DestinoCiego } from './transitoInterno';
 // CLIC EN TARJETAS (portales recursivos)
 // -----------------------------------------------------------------------------
 
-/** Abre el nodo de una tarjeta tocada (habitación o contenedor de cualquier nivel). */
-async function abrirNodoPorId(id: string, tipo: string): Promise<void> {
-  if (estaRefrescando() || !id) return;
-  if (tipo === 'habitacion') {
-    const rooms = await cargarHabitacionesDePlanta(null);
-    const room = rooms.find((r) => String(r.id) === id) ?? roomDeCache(id);
-    if (!room) return;
-    // Se publica el evento público de siempre: el Visor de Habitación dibuja el
-    // cuarto y la máquina de portales lo traslada al Panel Izquierdo.
-    window.dispatchEvent(new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }));
-    return;
-  }
-  const nodo = await nodoDeContenedor(id);
+/** Resuelve el nodo de portal de un id real (habitación o contenedor). */
+async function nodoDelPortal(id: string, tipo: string): Promise<NodoPortal | null> {
+  if (!id) return null;
+  return tipo === 'habitacion' ? nodoDeHabitacion(id) : nodoDeContenedor(id);
+}
+
+/**
+ * LEY 3 · CLIC EN EL PANEL DERECHO (Traslación + Descenso N+1): el mapa que estaba
+ * a la derecha pasa al Panel Izquierdo como ancla, el elemento pulsado queda en
+ * NARANJA y la derecha avanza al interior jerárquico del nodo.
+ */
+async function descenderDesdeDerecha(id: string, tipo: string): Promise<void> {
+  if (estaRefrescando()) return;
+  const nodo = await nodoDelPortal(id, tipo);
   if (nodo) await portalANodo(nodo);
 }
 
-/** Conecta los clics por delegación (tarjetas de la derecha y grillas de la izquierda). */
+/**
+ * LEY 2 · CLIC EN EL PANEL IZQUIERDO (Selección In-Place): el ancla NO se mueve,
+ * el elemento se resalta en NARANJA y la derecha transmuta al interior fino de
+ * ESE nodo (sin bajar de nivel el ancla izquierda).
+ */
+async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
+  if (estaRefrescando()) return;
+  const nodo = await nodoDelPortal(id, tipo);
+  if (nodo) await seleccionarNodo(nodo);
+}
+
+/** Conecta los clics por delegación de AMBOS paneles del flujo asimétrico. */
 function conectarPortalesPorDelegacion(): void {
+  // LEY 3: la derecha desciende (el mapa viaja al ancla izquierda).
   slotDer()?.addEventListener('click', (ev) => {
     const carta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-portal-abrir]');
     if (!carta) return;
-    void abrirNodoPorId(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+    void descenderDesdeDerecha(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
   });
-  // Grillas del Panel Izquierdo (modo NAVEGACIÓN): tocar una pieza adentro baja
-  // un nivel más, de forma recursiva, sin límite de profundidad.
+  // LEY 2: la izquierda selecciona in-place (el ancla queda quieta).
   slotIzq()?.addEventListener('click', (ev) => {
     if (modoLienzoActual() !== 'navegacion') return;
-    const objetivo = ev.target as HTMLElement | null;
-    const carta = objetivo?.closest<HTMLElement>('[data-inplace-card][data-id]');
-    if (!carta || !carta.closest('#visorContenedorGrande')) return;
-    void abrirNodoPorId(String(carta.dataset.id ?? ''), 'contenedor');
+    const carta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-portal-abrir]');
+    if (!carta) return;
+    void seleccionarEnIzquierda(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
   });
 }
 
@@ -136,8 +147,7 @@ function destinoCiegoDe(): DestinoCiego | null {
   if (nodo.tipo === 'habitacion') {
     return { tipo: 'ubicacion', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: nodo.conDivisiones };
   }
-  const paneles = panelesDe(nodo);
-  if (paneles.izquierdo === 'bloqueMonolitico') {
+  if (nodo.espacioUnico) {
     return { tipo: 'contenedor', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: false };
   }
   return { tipo: 'contenedor', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: nodo.conDivisiones };
@@ -181,6 +191,26 @@ function alSeleccionarPlanta(e: Event): void {
   void refrescarNivel();
 }
 
+/**
+ * ¿El último clic partió del Panel Izquierdo? Ley 2: ese gesto es SELECCIÓN
+ * in-place (el ancla queda quieta), no un descenso de nivel.
+ */
+let clicEnIzquierda = false;
+
+/** Marca el origen del clic en fase de CAPTURA sobre el ancla izquierda. */
+function vigilarOrigenDelClic(): void {
+  slotIzq()?.addEventListener(
+    'click',
+    () => {
+      clicEnIzquierda = true;
+      setTimeout(() => {
+        clicEnIzquierda = false;
+      }, 0);
+    },
+    true,
+  );
+}
+
 function alSeleccionarHabitacion(e: Event): void {
   if (estaRefrescando()) return;
   const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
@@ -191,7 +221,8 @@ function alSeleccionarHabitacion(e: Event): void {
       return;
     }
     const nodo = await nodoDeHabitacion(String(room.id));
-    if (nodo) await portalANodo(nodo);
+    if (!nodo) return;
+    await (clicEnIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
   })();
 }
 
@@ -210,7 +241,7 @@ function alSeleccionarMueble(e: Event): void {
     const nodo = await nodoDeContenedor(id);
     if (!nodo) return;
     if (detalle.nombre) nodo.nombre = detalle.nombre;
-    await portalANodo(nodo);
+    await (clicEnIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
   })();
 }
 
@@ -233,6 +264,7 @@ export function iniciarPortalesAlmacenamiento(): void {
   el('btnVolverEscena')?.addEventListener('click', () => volverNivel());
   el('btnOrganizarEscena4')?.addEventListener('click', () => organizarContenido());
   conectarPortalesPorDelegacion();
+  vigilarOrigenDelClic();
   conectarDropTarjetas();
   const izquierda = slotIzq();
   if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);

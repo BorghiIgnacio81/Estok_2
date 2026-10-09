@@ -19,7 +19,7 @@
 
 import { aplicarModo, modoLienzoActual, refrescarBotonesModo } from '../../modoLienzo';
 import { nodoActual, profundidad } from './estadoPortales';
-import { panelesDe, tieneModeladorGeometrico } from './panelesPortales';
+import { tieneModeladorGeometrico } from './panelesPortales';
 
 /** Estado resuelto de la barra tras sincronizar el nivel recién pintado. */
 export interface EstadoBarraComandos {
@@ -38,8 +38,7 @@ const TITULO_MONOLITICO =
  * resuelto (`nivel` + `modelable`) para que el orquestador pueda informarlo.
  */
 export function sincronizarBarraComandos(): EstadoBarraComandos {
-  const paneles = panelesDe(nodoActual());
-  const modelable = tieneModeladorGeometrico(paneles);
+  const modelable = tieneModeladorGeometrico(nodoActual());
   // Sin modelador no hay nada que editar: el lienzo vuelve a modo navegación
   // para que el clic siga siendo disparador de PORTAL.
   if (!modelable && modoLienzoActual() === 'edicion') aplicarModo('navegacion');

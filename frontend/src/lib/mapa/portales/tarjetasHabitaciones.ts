@@ -63,6 +63,7 @@ export function listaHabitacionesHtml(
   espaciosPorRoom: Map<string, ContenedorDto[]>,
   aspecto: number,
   nombrePlanta: string | null = null,
+  activoId: string | null = null,
 ): string {
   if (!rooms.length) {
     return `<div class="portal-vacio">
@@ -74,6 +75,7 @@ export function listaHabitacionesHtml(
   const piezas = rooms.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
   return `<div class="portal-lienzo-planta">${lienzoAmpliadoHtml(piezas, aspecto, planta, {
     tip: `🗺️ <strong>Mini-mapa ampliado de «${escapeHtml(planta)}»</strong>: tocá la silueta de una habitación para entrar a su interior.`,
+    activoId,
     atributosSector: (pieza) => [
       `data-portal-abrir="${escapeHtml(pieza.id)}"`,
       'data-portal-tipo="habitacion"',

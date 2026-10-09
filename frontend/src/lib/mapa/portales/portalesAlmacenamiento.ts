@@ -1,38 +1,23 @@
 // =============================================================================
-// ORQUESTADOR DE PORTALES RECURSIVOS (Miller Columns INFINITO)
+// ORQUESTADOR DE PORTALES RECURSIVOS (máquina de pantallas asimétrica)
 // -----------------------------------------------------------------------------
-// Máquina de pantallas de la sección Almacenamiento. Reemplaza la escala fija de
-// niveles (0..4) por una PILA de nodos de profundidad libre:
+// Pila de nodos de profundidad libre (Miller Columns ∞). La decisión de pantalla
+// vive en estadoPortales.ts + panelesPortales.ts (puros); acá se mueven los hosts
+// del DOM, se cargan datos y se delega el render a los módulos puros.
 //
-//   · El nodo elegido en el Panel Derecho se traslada DE INMEDIATO al Panel
-//     Izquierdo, donde se dibuja su sub-grilla elástica interna de divisiones.
-//   · El Panel Derecho TRANSMUTA y abre el interior jerárquico de ese nodo
-//     (sub-contenedores, estantes, cajones o cajas) de forma recursiva.
-//   · Disyuntor «Espacio Único»: se bloquea el modelador de la izquierda y la
-//     derecha pasa a la GRILLA DIRECTA de objetos reales (fin de cadena).
-//   · Drop a ciegas sobre el nodo activo → «En Tránsito Interno» nativo.
-//
-// La decisión de pantalla vive en estadoPortales.ts + panelesPortales.ts (puros);
-// acá sólo se mueven los hosts del DOM, se cargan los datos y se delega el render
-// a los módulos puros (tarjetasHabitaciones / tarjetasContenedores /
-// grillaObjetosDirectos).
-//
+// LEY 1 (Asimetría): el Panel Izquierdo dibuja el PLANO DEL CONTENEDOR (padre) con
+// el nodo seleccionado resaltado en naranja; el derecho abre el interior del
+// seleccionado. LEY 4: «Espacio Único» → derecha a la grilla directa de objetos.
 // Los visores históricos (mapa Estok, Visor de Habitación y Visor Contenedor
-// Grande) se siguen usando como PLANO del Panel Izquierdo: la máquina los mueve y
-// les avisa con los MISMOS eventos públicos de siempre (estok:habitacion-seleccionada
-// / estok:mueble-seleccionado), así que ningún módulo existente cambia su API.
+// Grande) siguen siendo el PLANO del Panel Izquierdo por sus eventos públicos.
 // =============================================================================
 
 import { renderMinimapasAnidados } from '../../minimapasAnidados';
 import type { NodoRuta } from '../../minimapasAnidados';
 import { sectoresDeItems } from '../../sectoresMinimapa';
-import type { UbicacionPlano } from '../../mapaJerarquico';
 import {
   cargarHabitacionesDePlanta,
-  cargarPlantas,
-  cargarUbicaciones,
   contenedoresRaizDeUbicacion,
-  datosDeNivelPlanta,
   guardarEspacioUnico,
   objetosDeContenedor,
   cargarContenedores,
@@ -48,14 +33,15 @@ import {
   limpiarRuta,
   migas,
   nodoActual,
+  nodoPadre,
   profundidad,
   reemplazarNodoActual,
   empujarNodo,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { cabecerasDe, hostsDe, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
-import { listaHabitacionesHtml } from './tarjetasHabitaciones';
 import { listaHijosHtml } from './tarjetasContenedores';
 import type { FichaHijo } from './tarjetasContenedores';
 import {
@@ -63,7 +49,15 @@ import {
   grillaObjetosDirectosHtml,
   initGrillaObjetosDirectos,
 } from './grillaObjetosDirectos';
-import { aspectoDelLienzo, el, moverPanel, setTexto, slotDer, slotIzq } from './domPortales';
+import {
+  aspectoDelLienzo,
+  el,
+  moverPanel,
+  resaltarSeleccionIzquierda,
+  setTexto,
+  slotDer,
+  slotIzq,
+} from './domPortales';
 
 /** Interior (hijos + objetos) del nodo activo, cacheado para los botones. */
 let interiorActual: InteriorNodo | null = null;
@@ -100,10 +94,7 @@ export async function nodoDeHabitacion(id: string): Promise<NodoPortal | null> {
   return nodoDesdeHabitacion(room, espacios);
 }
 
-/** Ubicación real (habitación o planta) desde la caché del nivel raíz. */
-export function roomDeCache(id: string): UbicacionPlano | null {
-  return cacheUbicacionesLocal?.find((u) => String(u.id) === id) ?? null;
-}
+// NOTA: `roomDeCache` ahora vive en nivelRaizPortales.ts (se importa arriba).
 
 // -----------------------------------------------------------------------------
 // MINIMAPAS ANIDADOS DE LA CADENA (migas reales de la pila)
@@ -147,7 +138,7 @@ function renderMinimapa(): void {
 /** Aplica la física dual: apaga todos los hosts y enciende los DOS del nivel. */
 export function transicionar(): void {
   const nodo = nodoActual();
-  const paneles = panelesDe(nodo);
+  const paneles = panelesDe(nodo, nodoPadre());
   for (const id of TODOS_LOS_HOSTS) el(id)?.classList.add('hidden');
   const [idIzq, idDer] = hostsDe(paneles);
   moverPanel(el(idIzq), slotIzq());
@@ -200,6 +191,15 @@ export async function portalANodo(nodo: NodoPortal): Promise<void> {
   await refrescarNivel();
 }
 
+/**
+ * LEY 2 · SELECCIÓN IN-PLACE: el elemento pulsado vive en el plano del CONTENEDOR
+ * (mismo padre que el tope de la pila). Se REEMPLAZA el tope (no se empuja nivel)
+ * para que el ancla izquierda quede QUIETA y sólo cambie el interior de la derecha.
+ */
+export async function seleccionarNodo(nodo: NodoPortal): Promise<void> {
+  if (profundidad() > 0) desapilarHasta(profundidad() - 1);
+  await portalANodo(nodo);
+}
 
 /** «⬅ Volver de Nivel»: desapila UN nivel a cualquier profundidad. */
 export function volverNivel(): void {
@@ -229,34 +229,8 @@ export async function volverARaiz(): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------
-// RENDER DEL NIVEL RAÍZ (plano general + habitaciones con mini-mapas internos)
+// NIVEL RAÍZ Y ANCLA: ver nivelRaizPortales.ts (renderNivelRaiz / pintarAncla)
 // -----------------------------------------------------------------------------
-
-/** Caché local de ubicaciones del último nivel raíz resuelto. */
-let cacheUbicacionesLocal: UbicacionPlano[] | null = null;
-
-/** Id real de la división (planta) activa, resuelto por su fila del macro-plano. */
-async function plantaIdActiva(): Promise<string | null> {
-  const fila = estadoPortales.planta?.fila;
-  if (!fila) return null;
-  const plantas = await cargarPlantas();
-  const div = plantas.find((p) => (p.parent_grid_row || 1) === fila);
-  return div ? String(div.id) : null;
-}
-
-/** Pinta el Panel Derecho del nivel raíz: MINI-MAPA AMPLIADO de la planta. */
-async function renderNivelRaiz(): Promise<void> {
-  const plantaId = await plantaIdActiva();
-  const datos = await datosDeNivelPlanta(plantaId);
-  cacheUbicacionesLocal = await cargarUbicaciones();
-  const host = el('listaHabitacionesPanel');
-  if (host) {
-    // MURIÓ EL TEXTO PLANO: la derecha dibuja el polígono REAL de cada habitación.
-    host.innerHTML = listaHabitacionesHtml(
-      datos.rooms, datos.espaciosPorRoom, aspectoDelLienzo(), datos.plant?.nombre ?? null,
-    );
-  }
-}
 
 // -----------------------------------------------------------------------------
 // RENDER DEL INTERIOR (Panel Derecho recursivo + bloque monolítico)
@@ -295,51 +269,49 @@ async function alternarEspacioUnico(nodo: NodoPortal, valor: boolean): Promise<v
 }
 
 /**
- * Pinta los DOS paneles del nivel activo. La decisión la toma panelesDe(): si el
- * nodo es «Espacio Único» / sin divisiones, la izquierda monta el bloque
- * monolítico y la derecha la grilla directa de objetos reales.
+ * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe(): si el
+ * nodo es «Espacio Único» / sin divisiones, la derecha salta a la grilla directa
+ * de objetos reales (fin de cadena). La izquierda la pinta `pintarAncla`.
  */
 async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<void> {
-  const paneles = panelesDe(nodo);
+  const paneles = panelesDe(nodo, nodoPadre());
   if (paneles.derecho === 'listaContenedores') {
     const host = el('listaContenedoresPanel');
     if (host) {
       const fichas = await fichasDe(interior.piezas);
       const aspecto = aspectoDelLienzo();
-      // El Panel Derecho dibuja EL MISMO mapa elástico del interior, con los
-      // nombres e iconos de cada sub-espacio rotulados sobre su silueta real.
+      // El Panel Derecho dibuja el mapa elástico del interior del SELECCIONADO,
+      // con los nombres e iconos de cada sub-espacio sobre su silueta real.
       host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);
     }
     return;
   }
-  const host = el('grillaObjetosPanel');
-  if (host) host.innerHTML = grillaObjetosDirectosHtml(nodo, interior.objetos);
+  // Fin de cadena / Espacio Único: grilla directa + disyuntor (Ley 4).
   iniciarGrillaDirecta(nodo, interior);
 }
 
-/** Bloque monolítico del Panel Izquierdo + grilla directa del derecho. */
+/**
+ * LEY 4 · Fin de cadena: la DERECHA monta la grilla directa de objetos reales y
+ * el disyuntor «Espacio Único» viaja a su encabezado (la izquierda ya no es el
+ * bloque monolítico: es el plano del contenedor con la silueta en naranja).
+ */
 function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
-  const izquierda = el('bloqueMonoliticoPanel');
-  if (izquierda) {
-    const enTransito = interior.objetos.filter((o) => o.en_transito_interno).length;
-    izquierda.innerHTML = bloqueMonoliticoHtml(nodo, enTransito);
-    // Disyuntor de estructura: destildar «Espacio Único» devuelve el modelador.
-    izquierda.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {
-      const chk = ev.target as HTMLInputElement;
-      void alternarEspacioUnico(nodo, chk.checked);
-    });
-  }
+  const host = el('grillaObjetosPanel');
+  if (!host) return;
+  const enTransito = interior.objetos.filter((o) => o.en_transito_interno).length;
+  const disyuntor = nodo.espacioUnico ? bloqueMonoliticoHtml(nodo, enTransito) : '';
+  host.innerHTML = disyuntor + grillaObjetosDirectosHtml(nodo, interior.objetos);
   initGrillaObjetosDirectos({
-    contenedor: el('grillaObjetosPanel'),
+    contenedor: host,
     nodo,
     alCambiarEspacioUnico: (valor) => void alternarEspacioUnico(nodo, valor),
   });
 }
 
 /**
- * REFRESCO DEL NIVEL ACTIVO: re-resuelve el nodo contra el padrón real, avisa a
- * los visores históricos para que dibujen el PLANO de la izquierda, carga el
- * interior jerárquico y repinta la derecha. Conserva siempre la profundidad.
+ * REFRESCO DEL NIVEL ACTIVO: re-resuelve el nodo SELECCIONADO contra el padrón,
+ * dibuja el PLANO DEL CONTENEDOR (padre) en la izquierda con el seleccionado en
+ * NARANJA, carga su interior jerárquico y repinta la derecha. Conserva la pila.
  */
 export async function refrescarNivel(): Promise<void> {
   if (refrescando) return;
@@ -363,26 +335,14 @@ export async function refrescarNivel(): Promise<void> {
     const activo = nodoActual();
     if (!activo) return;
 
-    // 2) Los visores históricos dibujan el PLANO del Panel Izquierdo: el nodo se
-    //    traslada a la izquierda con su sub-grilla elástica interna. Con el
-    //    modelador BLOQUEADO (bloque monolítico) no se pide ningún render.
-    const paneles = panelesDe(activo);
-    if (paneles.izquierdo === 'visorHabitacion') {
-      const room = roomDeCache(activo.id);
-      if (room) {
-        window.dispatchEvent(
-          new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }),
-        );
-      }
-    } else if (paneles.izquierdo === 'grillaNodo') {
-      window.dispatchEvent(
-        new CustomEvent('estok:mueble-seleccionado', {
-          detail: { id: activo.id, nombre: activo.nombre, hermanos: activo.hijos },
-        }),
-      );
-    }
+    // 2) LEY 1 (Asimetría Rígida): la IZQUIERDA dibuja el PLANO DEL CONTENEDOR
+    //    (el padre) con el seleccionado resaltado en naranja. NUNCA el interior
+    //    del propio seleccionado → se mata el espejo entre ambos cuadrantes.
+    const padre = nodoPadre();
+    const paneles = panelesDe(activo, padre);
+    await pintarAncla(paneles.izquierdo, padre, activo);
 
-    // 3) Interior jerárquico del nodo activo (hijos + objetos reales).
+    // 3) Interior jerárquico del nodo SELECCIONADO (derecha).
     interiorActual = await cargarInteriorDeNodo(activo);
     reemplazarNodoActual({
       hijos: interiorActual.geometriaHijos,
@@ -391,9 +351,15 @@ export async function refrescarNivel(): Promise<void> {
       columnasPorFila: interiorActual.columnasPorFila,
     });
 
-    // 4) Paneles del nivel + física dual.
-    await pintarNivel(nodoActual() ?? activo, interiorActual);
+    // 4) Paneles del nivel + física dual + resalte naranja del seleccionado.
+    const actual = nodoActual() ?? activo;
+    await pintarNivel(actual, interiorActual);
     transicionar();
+    resaltarSeleccionIzquierda(actual.id);
+    // El Visor de Habitación (cuando oficia de ancla) destaca la silueta elegida.
+    if (paneles.izquierdo === 'visorHabitacion') {
+      window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: actual.id } }));
+    }
   } finally {
     refrescando = false;
   }

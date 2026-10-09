@@ -385,3 +385,16 @@ body.modo-edicion [data-inplace-card] {
   padding: 10px;
   text-align: center;
 }
+
+/* Ley 2 (Ignacio): el nodo elegido en el Panel Izquierdo se pinta en NARANJA (ancla). */
+.portal-seleccion-naranja {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.portal-seleccion-naranja rect,
+.portal-seleccion-naranja path {
+  fill: #f97316 !important;
+  stroke: #c2410c !important;
+}
+

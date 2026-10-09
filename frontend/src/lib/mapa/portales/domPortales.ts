@@ -41,3 +41,23 @@ export function aspectoDelLienzo(): number {
   if (!rect || rect.width <= 0 || rect.height <= 0) return ASPECTO_LIENZO;
   return Math.max(0.35, Math.min(1.8, rect.height / rect.width));
 }
+
+/**
+ * LEY 2 · Resalta en NARANJA (#f97316) el nodo seleccionado dentro del Panel
+ * Izquierdo (ancla). Cubre tanto las siluetas SVG del mapa como las tarjetas
+ * HTML de los visores históricos (`[data-inplace-card][data-id]`). Quita el
+ * resalte anterior antes de pintar el nuevo.
+ */
+export function resaltarSeleccionIzquierda(id: string | null): void {
+  const slot = slotIzq();
+  if (!slot) return;
+  slot
+    .querySelectorAll<HTMLElement>('.portal-seleccion-naranja')
+    .forEach((nodo) => nodo.classList.remove('portal-seleccion-naranja'));
+  if (!id) return;
+  const esc = CSS.escape(id);
+  const objetivo = slot.querySelector<HTMLElement>(
+    `[data-inplace-card][data-id="${esc}"], [data-ubicacion="${esc}"], [data-portal-abrir="${esc}"]`,
+  );
+  objetivo?.classList.add('portal-seleccion-naranja');
+}
