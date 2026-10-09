@@ -82,67 +82,13 @@ body.portales-canasta-oculta .bandeja-lateral {
 }
 body.portales-canasta-oculta [data-estok-panel] {
   padding-right: 1rem;
+}
+
 /* -----------------------------------------------------------------------------
-   3. TARJETAS DEL FLUJO DE PORTALES (cascada recursiva)
-   ----------------------------------------------------------------------------- */
-.portal-lista {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-}
-.portal-tarjeta {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.12s;
-}
-.portal-tarjeta:hover {
-  border-color: #fdba74;
-  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.14);
-  transform: translateY(-1px);
-}
-.portal-tarjeta-cab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.portal-tarjeta-ico {
-  font-size: 18px;
-  line-height: 1;
-}
-.portal-tarjeta-nombre {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: #1f2937;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.portal-tarjeta-flecha {
-  font-size: 13px;
-  font-weight: 800;
-  color: #f97316;
-}
-.portal-tarjeta-minimapa {
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 6px;
-}
-.portal-tarjeta-detalle {
-  font-size: 11px;
-  color: #6b7280;
-}
-.portal-tarjeta-vacia {
-  border-style: dashed;
-  background: #fbfdff;
-}
+   3. BADGES, ESTADOS VACÍOS Y ZONAS DE SUELTA DEL FLUJO DE PORTALES
+   (las tarjetas de texto del nivel inicial murieron: ese nivel ahora dibuja el
+   mini-mapa ampliado rotulado de la planta → ver §7 .portal-lienzo-planta)
+   --------------------------------------------------------------------------- */
 .portal-badge {
   font-size: 10.5px;
   font-weight: 700;
@@ -192,7 +138,6 @@ body.portales-canasta-oculta [data-estok-panel] {
   border-radius: 14px;
 }
 
-}
 @media (min-width: 768px) {
   body.portales-canasta-oculta [data-estok-panel] {
     padding-right: 2rem;
@@ -382,4 +327,14 @@ body.portales-canasta-oculta [data-estok-panel] {
 .portales-modo-boton[data-modo-editar][data-modelador='0'] {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* -----------------------------------------------------------------------------
+   7. MINI-MAPA AMPLIADO DEL NIVEL INICIAL (Planta ➔ Habitaciones)
+   El lienzo del nivel raíz usa el MISMO motor gráfico del interior recursivo,
+   pero a la escala máxima y a todo el ancho del panel derecho: el operador
+   navega TOCANDO los polígonos rotulados (nombre + icono encima de cada uno).
+   --------------------------------------------------------------------------- */
+.portal-lienzo-planta .portal-lienzo-marco {
+  max-width: 100%;
 }

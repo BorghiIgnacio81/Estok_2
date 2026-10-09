@@ -244,17 +244,19 @@ async function plantaIdActiva(): Promise<string | null> {
   return div ? String(div.id) : null;
 }
 
-/** Pinta el Panel Derecho del nivel raíz: habitaciones + mini-mapas internos. */
+/** Pinta el Panel Derecho del nivel raíz: MINI-MAPA AMPLIADO de la planta. */
 async function renderNivelRaiz(): Promise<void> {
   const plantaId = await plantaIdActiva();
   const datos = await datosDeNivelPlanta(plantaId);
   cacheUbicacionesLocal = await cargarUbicaciones();
   const host = el('listaHabitacionesPanel');
   if (host) {
-    host.innerHTML = listaHabitacionesHtml(datos.rooms, datos.espaciosPorRoom, aspectoDelLienzo());
+    // MURIÓ EL TEXTO PLANO: la derecha dibuja el polígono REAL de cada habitación.
+    host.innerHTML = listaHabitacionesHtml(
+      datos.rooms, datos.espaciosPorRoom, aspectoDelLienzo(), datos.plant?.nombre ?? null,
+    );
   }
 }
-
 
 // -----------------------------------------------------------------------------
 // RENDER DEL INTERIOR (Panel Derecho recursivo + bloque monolítico)

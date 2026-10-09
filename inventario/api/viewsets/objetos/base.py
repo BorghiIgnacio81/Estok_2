@@ -205,6 +205,25 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         if categoria:
             qs = qs.filter(categoria_id=categoria)
 
+        # ------------------------------------------------------------------
+        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`),
+        # espejo exacto del filtro homónimo de Contenedores: la canasta lista los
+        # OBJETOS que todavía necesitan reubicación.
+        #   1. Objetos SUELTOS: sin hogar espacial (ni contenedor ni habitación).
+        #   2. MÁS los que arrastran `en_transito_interno=True` (guardados dentro
+        #      de un mueble sin estante fino: reubicación urgente).
+        #   3. MÁS los que viven dentro de un CONTENEDOR o de una HABITACIÓN
+        #      declarada «Espacio Único» (bloque monolítico sin casillero fino).
+        # ------------------------------------------------------------------
+        bandeja = self.request.query_params.get('bandeja')
+        if bandeja and bandeja.lower() in ('true', '1', 'yes'):
+            qs = qs.filter(
+                Q(contenedor__isnull=True, ubicacion__isnull=True)
+                | Q(en_transito_interno=True)
+                | Q(contenedor__espacio_unico=True)
+                | Q(ubicacion__espacio_unico=True)
+            )
+
         decision = self.request.query_params.get('decision')
         if decision:
             decision = decision.strip().lower()

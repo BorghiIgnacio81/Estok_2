@@ -103,6 +103,33 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             # sub-divisiones) contaminaban la canasta de «Elementos por ubicar».
             qs = qs.exclude(_qe_geometria_de_plano())
 
+        # ------------------------------------------------------------------
+        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`)
+        # ------------------------------------------------------------------
+        # ÚNICA autoridad de la regla de RECUPERABILIDAD de la canasta lateral:
+        # lista los bultos que el operador todavía tiene que reubicar.
+        #   1. Cajas SUELTAS: sin ubicación general (comportamiento base).
+        #   2. MÁS las que, estando ubicadas, arrastran la bandera nativa
+        #      `en_transito_interno=True` (guardadas dentro de un mueble sin
+        #      estante fino: reubicación urgente).
+        #   3. MÁS las que viven dentro de una UBICACIÓN o de un CONTENEDOR
+        #      declarado «Espacio Único» (bloque monolítico: no admiten casillero
+        #      fino, así que su contenido queda pendiente de reubicar).
+        # La PURGA ESTRICTA de arquitectura fija sigue vigente y es PREVIA: toda
+        # pieza con coordenadas propias en el plano (los «Espacios» de las
+        # habitaciones, las estanterías modeladas y los muebles encastrados en el
+        # lienzo) queda EXCLUIDA aunque cumpla alguna de las condiciones de arriba.
+        bandeja = self.request.query_params.get('bandeja')
+        if bandeja and bandeja.lower() in ('true', '1', 'yes'):
+            qs = qs.filter(es_inmueble=False, tipo=TIPO_CAJA)
+            qs = qs.exclude(_qe_geometria_de_plano())
+            qs = qs.filter(
+                Q(ubicacion__isnull=True)
+                | Q(en_transito_interno=True)
+                | Q(parent_contenedor__espacio_unico=True)
+                | Q(ubicacion__espacio_unico=True)
+            )
+
         # Optimización de payload: en el listado, los conteos de sub-contenedores
         # y objetos activos se resuelven con UN solo COUNT agrupado por página
         # (anotación) en lugar de 2 queries N+1 por fila.

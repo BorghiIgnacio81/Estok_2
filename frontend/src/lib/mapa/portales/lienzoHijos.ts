@@ -68,18 +68,30 @@ export function estadoVacioInteriorHtml(nombrePadre: string): string {
     </div>`;
 }
 
+/** Opciones del lienzo ampliado: es lo ÚNICO que cambia entre niveles. */
+export interface OpcionesLienzo {
+  /** Micro-texto de ayuda del nivel (siempre en español). */
+  tip: string;
+  /** Atributos `data-*` de cada silueta navegable (portal y/o zona de suelta). */
+  atributosSector: (pieza: PiezaLienzo) => string;
+}
+
 /**
- * LIENZO ELÁSTICO DEL INTERIOR: dibuja los sub-espacios del nodo activo sobre su
- * geometría real, rotulados con icono + nombre, clicables (portal) y listos para
- * recibir un Drop de la canasta. Si no hay geometría que dibujar cae al estado
- * vacío explicativo.
+ * LIENZO ELÁSTICO AMPLIADO: motor ÚNICO del Panel Derecho a CUALQUIER nivel (el
+ * interior recursivo de los contenedores y el nivel inicial de la Planta).
+ *
+ * Dibuja las siluetas sobre su geometría real en la escala máxima del motor
+ * (`ANCHO_LIENZO_INTERIOR`), con el NOMBRE y el ICONO de cada pieza rotulados
+ * ENCIMA de su polígono, clicables y con los atributos que el nivel necesite.
+ * Sin piezas cae al estado vacío explicativo.
  */
-export function lienzoInteriorHtml(
+export function lienzoAmpliadoHtml(
   piezas: PiezaLienzo[],
   aspecto: number,
-  nombrePadre: string,
+  nombreNivel: string,
+  opts: OpcionesLienzo,
 ): string {
-  if (!piezas.length) return estadoVacioInteriorHtml(nombrePadre);
+  if (!piezas.length) return estadoVacioInteriorHtml(nombreNivel);
   const porId = new Map<string, PiezaLienzo>(piezas.map((p) => [p.id, p]));
   const sectores = sectoresDeItems(
     itemsDelLienzo(piezas),
@@ -94,26 +106,46 @@ export function lienzoInteriorHtml(
     clicable: true,
     // Rótulos de lectura (icono + nombre) encima de CADA silueta real.
     etiquetas: true,
-    // Atributos de la silueta navegable: portal + zona de suelta + metadatos.
+    // Atributos de la silueta navegable, resueltos por identidad de la pieza.
     atributosSector: (sector) => {
       const pieza = porId.get(sector.id);
-      // El nombre viaja LIMPIO (sin los contadores de la etiqueta) para los avisos.
-      const nombre = pieza?.nombre ?? sector.nombre;
-      return [
-        `data-portal-abrir="${escapeHtml(sector.id)}"`,
-        'data-portal-tipo="contenedor"',
-        `data-portal-nombre="${escapeHtml(nombre)}"`,
-        `data-portal-drop="${escapeHtml(sector.id)}"`,
-        `data-portal-divisiones="${pieza?.conDivisiones ? '1' : '0'}"`,
-      ].join(' ');
+      return pieza ? opts.atributosSector(pieza) : '';
     },
   });
-  if (!svg) return estadoVacioInteriorHtml(nombrePadre);
+  if (!svg) return estadoVacioInteriorHtml(nombreNivel);
   // El marco impone el MISMO aspecto del `viewBox`: el SVG lo llena al 100% y las
   // etiquetas caen clavadas sobre su silueta (sin letterboxing ni desalineación).
   const ratio = 1 / (aspecto > 0 ? aspecto : ASPECTO_LIENZO);
-  return `<div class="portal-lienzo-interior" data-portal-lienzo="${escapeHtml(nombrePadre)}">
-      <p class="portal-lienzo-tip">🗺️ <strong>Plano elástico del interior</strong>: tocá una silueta para bajar de nivel y soltá un bulto de la canasta encima para guardarlo adentro.</p>
+  return `<div class="portal-lienzo-interior" data-portal-lienzo="${escapeHtml(nombreNivel)}">
+      <p class="portal-lienzo-tip">${opts.tip}</p>
       <div class="portal-lienzo-marco" style="aspect-ratio:${ratio.toFixed(3)} / 1">${svg}</div>
     </div>`;
+}
+
+/** Micro-texto del interior jerárquico (idéntico al del Lote 11). */
+const TIP_INTERIOR =
+  '🗺️ <strong>Plano elástico del interior</strong>: tocá una silueta para bajar de nivel y soltá un bulto de la canasta encima para guardarlo adentro.';
+
+/**
+ * LIENZO ELÁSTICO DEL INTERIOR: wrapper del motor para los sub-espacios del nodo
+ * activo. Cada silueta es PORTAL (`data-portal-abrir`) y DROP ZONE
+ * (`data-portal-drop`, con «En Tránsito Interno» si la pieza tiene divisiones
+ * internas y no se eligió estante fino).
+ */
+export function lienzoInteriorHtml(
+  piezas: PiezaLienzo[],
+  aspecto: number,
+  nombrePadre: string,
+): string {
+  return lienzoAmpliadoHtml(piezas, aspecto, nombrePadre, {
+    tip: TIP_INTERIOR,
+    atributosSector: (pieza) => [
+      `data-portal-abrir="${escapeHtml(pieza.id)}"`,
+      'data-portal-tipo="contenedor"',
+      // El nombre viaja LIMPIO (sin los contadores de la etiqueta) para los avisos.
+      `data-portal-nombre="${escapeHtml(pieza.nombre)}"`,
+      `data-portal-drop="${escapeHtml(pieza.id)}"`,
+      `data-portal-divisiones="${pieza.conDivisiones ? '1' : '0'}"`,
+    ].join(' '),
+  });
 }

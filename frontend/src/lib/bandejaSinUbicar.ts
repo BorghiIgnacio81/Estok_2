@@ -14,25 +14,27 @@
 //     y la canasta viaja al pie de la página.
 //
 // CONTENIDO (cascada movible en este orden secuencial EXACTO):
-//   1) Objetos sueltos   → objetos sin ubicación (huérfanos).
-//   2) Cajas sueltas     → cajas móviles sin ubicación.
-//   3) Objetos ubicados  → objetos con ubicación (viven en un espacio, sin caja).
-//   4) Cajas ubicadas    → cajas móviles con ubicación (se pueden reciclar).
+//   1) Objetos sueltos      → sin ningún hogar espacial (huérfanos).
+//   2) Cajas sueltas        → cajas móviles sin ubicación general.
+//   3) Objetos a reubicar   → objetos ubicados que requieren reubicación urgente.
+//   4) Cajas a reubicar     → cajas ubicadas que requieren reubicación urgente.
 //
-// PURGA ESTRICTA DE NODOS JERÁRQUICOS: queda TERMINANTEMENTE PROHIBIDO listar
-// contenedores que actúen como PADRES ESTRUCTURADORES de nivel superior
-// (CONJUNTOS/estanterías, muebles de cualquier tipo y zonas geográficas tipo
-// «PC Setup» o «Zona Indoor»). La canasta expone pura y exclusivamente BULTOS
-// MOVIBLES REALES (cajas móviles sin sub-divisiones propias) u OBJETOS
-// TERMINALES sueltos. La purga corre DOS veces: en la consulta a PostgreSQL
-// (`?tipo=CAJA&movibles=true`, que además descarta la arquitectura fija por
-// geometría) y en el cliente (`esBultoMovibleDeBandeja`).
+// REGLA DE RECUPERABILIDAD (una sola autoridad: PostgreSQL). La canasta lista los
+// bultos RECUPERABLES del Estok activo, que son:
+//   · los SUELTOS sin ubicación general (comportamiento base),
+//   · MÁS los que, estando ubicados, arrastran `en_transito_interno = True`
+//     (guardados sin estante fino: reubicación urgente),
+//   · MÁS los que viven dentro de una ubicación o de un contenedor «Espacio
+//     Único» (bloque monolítico: no admiten casillero fino posible).
+// La resuelve `?bandeja=true` en el servidor
+// (viewsets/organizacion/contenedores.py y viewsets/objetos/base.py).
 //
-// PURGA INVENCIBLE DE ARQUITECTURA FIJA: cualquier contenedor con coordenadas
-// geométricas propias en un plano (ui_left/ui_top fuera del origen o altura
-// modelada ≠ 'auto') está CLAVADO en el lienzo de su cuarto —los «Espacios» de
-// las habitaciones son exactamente eso—, así que queda EXCLUIDO de la canasta y
-// sólo se listan bultos y objetos realmente sueltos.
+// PURGA INVENCIBLE DE ARQUITECTURA FIJA: la canasta NUNCA lista la arquitectura
+// clavada en el plano — habitaciones, «Espacios», estanterías y muebles con
+// coordenadas propias (`ui_left`/`ui_top`/`ui_height` fuera del origen) — ni
+// contenedores con sub-divisiones propias. El servidor la descarta por geometría
+// y el cliente la re-verifica con `esBultoMovibleDeBandeja` (defensa en
+// profundidad).
 //
 // Doble rol de Drag & Drop:
 //   1. ORIGEN de arrastre: los chips van a los casilleros finos del Visor, a las
@@ -77,6 +79,8 @@ interface ChipBandeja {
   nombre: string;
   tipo: 'contenedor' | 'objeto';
   img: string;
+  /** 🔴 Ubicado y pendiente: entró por «reubicación urgente» (tránsito interno o bloque monolítico). */
+  urgente: boolean;
 }
 
 let contenedores: ContenedorBandeja[] = [];
@@ -139,23 +143,24 @@ async function cargar(): Promise<void> {
   if (!hosts.length) return;
   try {
     const [contData, objData] = await Promise.all([
-      // PURGA DE RAÍZ (PostgreSQL): SOLO CAJA no inmueble, con la whitelist
-      // física aplicada en el servidor Y sin geometría fija de plano. Toda
-      // estructura fija (CONJUNTO / MUEBLE_INMUEBLE), todo mueble (MUEBLE_MOVIL)
-      // y todo «Espacio» modelado queda EXCLUIDO de la consulta: jamás se listan
-      // como bultos de la canasta.
-      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&tipo=CAJA&movibles=true`),
-      fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000`),
+      // CONSULTA DE LA CANASTA (PostgreSQL, autoridad única): el servidor aplica
+      // la whitelist física (CAJA no inmueble), la purga de arquitectura fija por
+      // geometría y la regla de RECUPERABILIDAD (sueltas + En Tránsito Interno +
+      // dentro de «Espacio Único»). Ver ContenedorViewSet.get_queryset.
+      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&bandeja=true`),
+      // Objetos: misma regla de recuperabilidad, resuelta en el ObjetoViewSet.
+      fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000&bandeja=true`),
     ]);
-    // PURGA EN EL CLIENTE (defensa en profundidad): misma whitelist de bultos.
+    // PURGA ESTRUCTURAL EN EL CLIENTE (defensa en profundidad): una caja con
+    // sub-divisiones propias o con geometría de plano es estructura, no bulto.
     contenedores = (contData as Record<string, unknown>[])
       .map(normalizarContenedor)
       .filter(esBultoMovibleDeBandeja);
-    // Los objetos con `contenedor` asignado ya tienen hogar espacial y NO van en
-    // la canasta (evita chips fantasma duplicados de un mueble).
+    // Los objetos ya vienen filtrados por el servidor (recuperabilidad estricta):
+    // acá sólo se descartan los registros borrados (soft-delete).
     objetos = (objData as Record<string, unknown>[])
       .map(normalizarObjeto)
-      .filter((o) => !o.deleted_at && !o.contenedor);
+      .filter((o) => !o.deleted_at);
   } catch {
     contenedores = [];
     objetos = [];
@@ -170,16 +175,28 @@ function esCaja(c: ContenedorBandeja): boolean {
 
 function chipContenedor(c: ContenedorBandeja): ChipBandeja {
   // La canasta sólo expone cajas móviles reales: no hay rama de mueble.
-  return { id: c.id, nombre: c.nombre, tipo: 'contenedor', img: IMG_CONTENEDOR_PEQUENO };
+  return {
+    id: c.id,
+    nombre: c.nombre,
+    tipo: 'contenedor',
+    img: IMG_CONTENEDOR_PEQUENO,
+    urgente: c.ubicacion != null,
+  };
 }
 
 function chipObjeto(o: ObjetoBandeja): ChipBandeja {
-  return { id: o.id, nombre: o.nombre, tipo: 'objeto', img: IMG_OBJETO };
+  return {
+    id: o.id,
+    nombre: o.nombre,
+    tipo: 'objeto',
+    img: IMG_OBJETO,
+    urgente: o.ubicacion != null,
+  };
 }
 
 /**
- * Segmentos de la cascada en ORDEN EXACTO. `ubicado` distingue los elementos con
- * hogar espacial (ubicacion != null) de los huérfanos («sueltos»).
+ * Segmentos de la cascada en ORDEN EXACTO. `ubicacion` distingue los elementos
+ * con hogar espacial (recuperables por reubicación) de los huérfanos («sueltos»).
  * El grupo de MUEBLES MÓVILES fue ELIMINADO por la purga estricta de nodos
  * jerárquicos: la canasta sólo muestra bultos movibles y objetos terminales.
  */
@@ -197,13 +214,13 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
       chips: cajas.filter((c) => c.ubicacion == null).map(chipContenedor),
     },
     {
-      clave: 'objetos-ubicados',
-      titulo: '3 · Objetos ubicados',
+      clave: 'objetos-reubicar',
+      titulo: '3 · Objetos a reubicar',
       chips: objetos.filter((o) => o.ubicacion != null).map(chipObjeto),
     },
     {
-      clave: 'cajas-ubicadas',
-      titulo: '4 · Cajas ubicadas',
+      clave: 'cajas-reubicar',
+      titulo: '4 · Cajas a reubicar',
       chips: cajas.filter((c) => c.ubicacion != null).map(chipContenedor),
     },
   ];
@@ -213,9 +230,15 @@ function chipHtml(chip: ChipBandeja): string {
   const claseImg =
     chip.tipo === 'objeto' ? 'bandeja-chip-img bandeja-chip-img-objeto' : 'bandeja-chip-img';
   const eco = chip.tipo === 'contenedor' ? '📦' : '🧸';
-  return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" title="Arrastrá «${escapeHtml(chip.nombre)}» hacia un contenedor, un casillero o el bloque de la izquierda para ubicarlo">
+  // Los elementos ubicados entran a la canasta por REUBICACIÓN URGENTE: el
+  // tooltip lo explica para que el operador sepa POR QUÉ está listado.
+  const pendiente = chip.urgente ? ' 🔴' : '';
+  const ayuda = chip.urgente
+    ? `«${chip.nombre}» está ubicado pero necesita reubicación urgente (en tránsito interno o dentro de un bloque monolítico): arrastralo a un contenedor, a un casillero o al bloque de la izquierda.`
+    : `Arrastrá «${chip.nombre}» hacia un contenedor, un casillero o el bloque de la izquierda para ubicarlo.`;
+  return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" title="${escapeHtml(ayuda)}">
     <img src="${chip.img}" alt="" class="${claseImg}" draggable="false" />
-    <span class="bandeja-chip-nombre">${eco} ${escapeHtml(chip.nombre)}</span>
+    <span class="bandeja-chip-nombre">${eco} ${escapeHtml(chip.nombre)}${pendiente}</span>
   </span>`;
 }
 

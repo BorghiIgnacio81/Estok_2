@@ -96,10 +96,10 @@ export function cabecerasDe(nodo: NodoPortal | null, paneles: Paneles): Cabecera
   if (!nodo) {
     return {
       tituloIzq: '🏠 Plano general de la Planta',
-      tituloDer: '🚪 Habitaciones de la planta',
+      tituloDer: '🗺️ Mini-mapa ampliado de la planta',
       descIzq: 'Plano general de la planta activa. Tocá una habitación para abrir su interior.',
       descDer:
-        'Habitaciones de la planta con el mini-mapa de sus espacios internos. Elegí una para entrar a su interior.',
+        'Mini-mapa ampliado de la planta: cada polígono es una habitación real, rotulada con su nombre y su icono. Tocá una silueta para entrar a su interior jerárquico.',
     };
   }
   if (paneles.derecho === 'grillaObjetos') {
