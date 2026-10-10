@@ -19,7 +19,7 @@
 // el borde HTTP en mudanzaApi.ts.
 // =============================================================================
 
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 import { filtrosActivos, FILTROS_ORIGEN } from './mudanzaFiltros';
 import type { FiltroOrigen } from './mudanzaFiltros';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';

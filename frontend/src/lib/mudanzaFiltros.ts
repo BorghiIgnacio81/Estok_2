@@ -11,7 +11,7 @@
 // ocultar o mostrar elementos en el cliente, SIN nuevas peticiones al servidor.
 // =============================================================================
 
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 
 export type FiltroOrigen = 'OBJETO' | 'MUEBLE' | 'CAJA';
 export type FiltroDestino = 'HABITACION' | 'MUEBLE' | 'ESPACIO';

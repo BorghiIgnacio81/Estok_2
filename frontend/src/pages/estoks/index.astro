@@ -8,9 +8,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import AuthGuard from '../../components/AuthGuard.astro';
 import LoadingState from '../../components/LoadingState.astro';
 import ErrorState from '../../components/ErrorState.astro';
-// Estilos del Wizard "Mapa de Estok" (reutiliza .num-btn/.macro-input-label de mapa-espacial.css)
-import '../../styles/mapa-espacial.css';
-import '../../styles/mapa-estok-wizard.css';
+// Alta CANÓNICA del Estok: el MISMO componente que el Paso 1 del Onboarding
+// (funda el inquilinato con las reglas limpias de plantas/layout/seeding).
+import Paso1Estok from '../../components/onboarding/Paso1Estok.astro';
 ---
 
 <AuthGuard />
@@ -58,44 +58,8 @@ import '../../styles/mapa-estok-wizard.css';
           <div class="border border-gray-200 rounded-lg p-5">
             <h3 class="font-semibold text-gray-900 mb-1">Crear nuevo Estok</h3>
             <p class="text-sm text-gray-500 mb-4">Creá un espacio de inventario nuevo y sé su administrador.</p>
-            <form id="crearForm" class="space-y-3">
-              <div>
-                <label for="nombreEstok" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Estok</label>
-                <input
-                  id="nombreEstok"
-                  type="text"
-                  required
-                  placeholder="Ej: Casa, Oficina, Taller..."
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-                />
-              </div>
-              <div>
-                <label for="pisosEstok" class="block text-sm font-medium text-gray-700 mb-1">¿Cuántas plantas (pisos) tiene su inmueble?</label>
-                <input
-                  id="pisosEstok"
-                  type="number"
-                  min="1"
-                  max="99"
-                  step="1"
-                  value="1"
-                  required
-                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
-                />
-                <p class="mt-1 text-xs text-gray-500">Con <strong>1 planta</strong> se activa el Modo Planta Única (departamento continuo, sin techo). Con <strong>2 o más</strong>, el Modo Casa con techo.</p>
-              </div>
-              <div id="crearError" class="hidden text-sm text-red-600"></div>
-              <button
-                id="crearBtn"
-                type="submit"
-                class="w-full py-2.5 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <span id="crearBtnText">Crear Estok</span>
-                <svg id="crearBtnSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              </button>
-            </form>
+            <!-- ALTA CANÓNICA: mismo componente que el Paso 1 del asistente. -->
+            <Paso1Estok />
           </div>
 
           <!-- Unirse con código -->
@@ -132,8 +96,6 @@ import '../../styles/mapa-estok-wizard.css';
     </div>
   </div>
 
-  <!-- Contenedor raíz del Wizard "Mapa de Estok": se inyecta al confirmar el alta del Estok -->
-  <div id="mapaEstokWizardRoot"></div>
 </BaseLayout>
 
 <script>
@@ -141,9 +103,8 @@ import '../../styles/mapa-estok-wizard.css';
   // MANEJO DE LA PÁGINA DE ESTOKS
   // ===========================================================================
 
-  import { fetchCurrentUser, crearEstok, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
+  import { fetchCurrentUser, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
   import type { EstokInfo } from '../../types';
-  import { MapaEstokWizardUI } from '../../lib/mapaEstokWizardUI';
 
   // ===========================================================================
   // REFERENCIAS DOM
@@ -157,14 +118,6 @@ import '../../styles/mapa-estok-wizard.css';
   const sinEstoksSection = document.getElementById('sinEstoksSection')!;
   const listaEstoksSection = document.getElementById('listaEstoksSection')!;
   const estoksList = document.getElementById('estoksList')!;
-
-  // Formulario crear
-  const crearForm = document.getElementById('crearForm') as HTMLFormElement;
-  const nombreEstok = document.getElementById('nombreEstok') as HTMLInputElement;
-  const crearBtn = document.getElementById('crearBtn') as HTMLButtonElement;
-  const crearBtnText = document.getElementById('crearBtnText')!;
-  const crearBtnSpinner = document.getElementById('crearBtnSpinner')!;
-  const crearError = document.getElementById('crearError')!;
 
   // Formulario unirse
   const unirseForm = document.getElementById('unirseForm') as HTMLFormElement;
@@ -338,61 +291,17 @@ import '../../styles/mapa-estok-wizard.css';
   // FORMULARIO: CREAR ESTOK
   // ===========================================================================
 
-  const mapaEstokWizardRoot = document.getElementById('mapaEstokWizardRoot')!;
-  const pisosEstok = document.getElementById('pisosEstok') as HTMLInputElement | null;
-
-  crearForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    hideError(crearError);
-
-    const nombre = nombreEstok.value.trim();
-    if (!nombre) {
-      showError(crearError, 'Por favor, ingresá un nombre para el Estok.');
-      return;
-    }
-
-    // PREGUNTA INICIAL OBLIGATORIA: "¿Cuántas plantas (pisos) tiene su inmueble?"
-    const cantidadPisos = Math.max(1, Math.floor(Number(pisosEstok?.value) || 1));
-
-    setLoading(crearBtn, crearBtnText, crearBtnSpinner, true);
-
-    try {
-      const nuevoEstok = await crearEstok(nombre, { cantidad_pisos: cantidadPisos });
-
-      // Establecer el nuevo Estok como activo (para que getAuthHeaders() envíe
-      // X-Estok-Id) y DESPLEGAR el wizard "Mapa de Estok" en vez de cerrar el flujo.
-      try {
-        await cambiarEstokActivo(nuevoEstok.id);
-      } catch (err: any) {
-        // El estok se creó correctamente aunque cambiarEstokActivo falle
-        console.warn('Estok creado pero falló cambiar activo:', err);
-      }
-
-      (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado. Ahora modelá su mapa espacial.`);
-      const wizard = new MapaEstokWizardUI(mapaEstokWizardRoot);
-      wizard.abrir(
-        { id: nuevoEstok.id, nombre: nuevoEstok.nombre },
-        {
-          cantidadPisos,
-          tipoLayout: cantidadPisos > 1 ? 'CASA_2_PISOS' : 'VISTA_PLANTA_UNICA',
-          // Persistencia confirmada por el backend → cerrar y entrar al dashboard
-          onGuardado: () => {
-            (window as any).showSuccess?.(`✅ Estok "${nuevoEstok.nombre}" creado con su mapa espacial`);
-            window.location.href = '/';
-          },
-          // El usuario cerró el modal sin guardar → el Estok ya existe igualmente
-          onCerrar: () => {
-            (window as any).showInfo?.(`ℹ️ Estok "${nuevoEstok.nombre}" creado sin mapa. Podés modelarlo después desde Almacenamiento.`);
-            window.location.href = '/';
-          },
-        },
-      );
-    } catch (err: any) {
-      showError(crearError, err?.error || 'Error al crear el Estok');
-      console.error('Error al crear Estok:', err);
-    } finally {
-      setLoading(crearBtn, crearBtnText, crearBtnSpinner, false);
-    }
+  // ===========================================================================
+  // ALTA CANÓNICA DEL ESTOK
+  // ---------------------------------------------------------------------------
+  // El formulario vive en el componente Paso1Estok (la MISMA fuente que usa el
+  // Paso 1 del Onboarding): al fundar el Estok emite `estok:paso1-completado`.
+  // Acá sólo se confirma y se entra al Dashboard, donde vive el motor elástico
+  // de plantas (el modelado deja de depender del wizard de grilla de la Fase 3).
+  // ===========================================================================
+  window.addEventListener('estok:paso1-completado', () => {
+    (window as any).showSuccess?.('✅ Estok creado y activo. Ya podés modelar su mapa desde Almacenamiento.');
+    window.location.href = '/';
   });
 
   // ===========================================================================

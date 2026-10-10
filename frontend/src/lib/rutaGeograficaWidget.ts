@@ -35,8 +35,7 @@ export interface WidgetRutaOpciones {
  * Fuente ÚNICA del ícono: SVG compacto de pin de mapa en rojo estricto
  * (`text-red-600` = #dc2626), alineado verticalmente con el texto
  * (`inline-flex items-center mr-1.5`). Lo consumen tanto este widget (render
- * dinámico del cliente) como components/inventario/RutaJerarquicaInteractiva.astro
- * (SSR), garantizando SIMETRÍA ABSOLUTA sin duplicar el marcado.
+ * dinámico del cliente), garantizando SIMETRÍA ABSOLUTA sin duplicar el marcado.
  */
 export const PIN_UBICACION_HTML =
   '<span class="inline-flex items-center mr-1.5 shrink-0 align-middle" aria-hidden="true">'

@@ -24,7 +24,7 @@ import { ASPECTO_LIENZO, minimapaSectoresSvg } from './minimapa';
 import type { SectorMinimapa } from './minimapa';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 import { habitacionesDe, htmlVacio } from './mudanzaInventario';
 import type { ContenedorDto, UbicacionDto } from './mudanzaApi';
 import type { FiltroDestino } from './mudanzaFiltros';

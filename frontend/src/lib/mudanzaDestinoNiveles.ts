@@ -35,7 +35,7 @@
 import { minimapaCasitaSvg } from './minimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 import {
   PISO_DEFECTO,
   etiquetaPlanta,

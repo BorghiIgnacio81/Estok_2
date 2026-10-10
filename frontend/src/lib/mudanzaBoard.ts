@@ -21,7 +21,7 @@
 
 import { getEstokActivoId } from '../services/auth';
 import type { EstokInfo } from '../types';
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 import { cargarInventarioOrigen, cargarPlanoDestino, enviarMudanza } from './mudanzaApi';
 import type { ContenedorDto, ItemMudanza, ObjetoDto, UbicacionDto } from './mudanzaApi';
 import { MudanzaDndTactil } from './mudanzaDnd';

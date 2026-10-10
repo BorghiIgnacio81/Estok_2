@@ -82,7 +82,9 @@ export class AsistenteBienvenida {
   }
 
   iniciar(): void {
-    this.q<HTMLFormElement>('#onbFormEstok')?.addEventListener('submit', (e) => void this.fundar(e));
+    // El alta del Estok la resuelve el componente canónico Paso1Estok (fuente
+    // única, compartida con el panel admin): acá sólo se reacciona a su evento.
+    window.addEventListener('estok:paso1-completado', (e) => this.alFundarPaso1(e));
     this.q<HTMLElement>('#onbOmitirTutorial')?.addEventListener('click', () => void this.omitirTutorial());
     this.q<HTMLElement>('#onbCerrarSesion')?.addEventListener('click', () => this.cerrarSesion());
     this.q<HTMLElement>('#onbVolver')?.addEventListener('click', () => this.irAPaso(this.paso - 1));
@@ -155,46 +157,23 @@ export class AsistenteBienvenida {
     this.q<HTMLElement>('#onbVolver')?.classList.toggle('hidden', this.paso === 0);
   }
 
-  // ── PASO 1 — FUNDAR EL ESTOK (OBLIGATORIO) ────────────────────────────────
+  // ── PASO 1 — ALTA CANÓNICA (la resuelve el componente Paso1Estok) ──────────
+  // El componente Paso1Estok llama al inicializador canónico fundarEstok() y
+  // emite `estok:paso1-completado` con la ficha creada. Acá sólo se sincroniza
+  // el estado del asistente (estok + plantas) y se navega al Paso 2.
 
-  private async fundar(e: Event): Promise<void> {
-    e.preventDefault();
-    if (this.ocupado) return;
-
-    const nombre = (this.q<HTMLInputElement>('#onbNombreEstok')?.value || '').trim();
-    if (nombre.length < 2) {
-      this.error('onbErrorPaso1', 'Escribí un nombre para tu Estok (mínimo 2 caracteres).');
-      return;
-    }
-    const pisos = Number(this.q<HTMLSelectElement>('#onbCantidadPisos')?.value || 1);
-    const btn = this.q<HTMLButtonElement>('#onbFundarBtn');
-
-    this.error('onbErrorPaso1', null);
-    this.ocupado = true;
-    this.cargando(btn, true, 'Fundando Estok…');
-    try {
-      const estok = await fundarEstok(nombre, Number.isFinite(pisos) && pisos > 0 ? pisos : 1);
-      this.estok = estok;
-      // El Paso 2 se bifurca según las plantas elegidas: 1 sola → modelador 2D.
-      this.pisos = Number.isFinite(pisos) && pisos > 0 ? pisos : 1;
-      // Contrato del requerimiento: el ID del nuevo Estok queda en localStorage
-      // (clave 'estok_activo_id' → header X-Estok-Id) y se avisa al estado global.
-      setEstokActivoId(estok.id);
-      window.dispatchEvent(new CustomEvent('estok:estok-fundado', { detail: estok }));
-      avisoGlobal(`✅ Estok «${estok.nombre}» fundado. ¡Acceso concedido!`);
-
-      const ok = this.q<HTMLElement>('#onbPaso1Ok');
-      if (ok) {
-        ok.textContent = `✅ «${estok.nombre}» quedó fundado y activo. Seguí con los pasos opcionales o tocá «Omitir Tutorial».`;
-        ok.classList.remove('hidden');
-      }
-      this.irAPaso(1);
-    } catch (err) {
-      this.error('onbErrorPaso1', mensajeDe(err, 'No se pudo fundar el Estok. Reintentá.'));
-    } finally {
-      this.ocupado = false;
-      this.cargando(btn, false, '🏠 Fundar Estok');
-    }
+  private alFundarPaso1(evento: Event): void {
+    const detalle = (evento as CustomEvent<{ estok: EstokInfo; pisos: number }>).detail;
+    if (!detalle?.estok) return;
+    this.estok = detalle.estok;
+    // El Paso 2 se bifurca según las plantas elegidas: 1 sola → modelador 2D.
+    this.pisos = detalle.pisos > 0 ? detalle.pisos : 1;
+    // Contrato del requerimiento: el ID del nuevo Estok queda en localStorage
+    // (clave 'estok_activo_id' → header X-Estok-Id) y se avisa al estado global.
+    setEstokActivoId(detalle.estok.id);
+    window.dispatchEvent(new CustomEvent('estok:estok-fundado', { detail: detalle.estok }));
+    avisoGlobal(`✅ Estok «${detalle.estok.nombre}» fundado. ¡Acceso concedido!`);
+    this.irAPaso(1);
   }
 
   // ── OMITIR TUTORIAL — BYPASS CON ACCESO INMEDIATO ─────────────────────────

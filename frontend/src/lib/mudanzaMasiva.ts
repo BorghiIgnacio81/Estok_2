@@ -14,7 +14,7 @@
 // del inventario en mudanzaInventario.ts: acá sólo hay UI + estado del modal.
 // =============================================================================
 
-import { escapeHtml } from './mapaEstokWizard';
+import { escapeHtml } from './mapaJerarquico';
 import { agruparMoviles } from './mudanzaInventario';
 import type { ElementoMudable } from './mudanzaInventario';
 import type { ContenedorDto, ObjetoDto, ResultadoMudanza } from './mudanzaApi';

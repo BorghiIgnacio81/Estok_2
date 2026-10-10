@@ -125,9 +125,8 @@ export function tarjetaObjetoHtml(
   const ubicacion = ubicacionTexto(obj);
   const dueno = nombreDueno(obj);
   // RUTA JERÁRQUICA INTERACTIVA: texto con flechas que despliega los minimapas
-  // al hacer clic (mismo widget que el listado y, en el servidor, el componente
-  // components/inventario/RutaJerarquicaInteractiva.astro). Sin ruta real se
-  // conserva el estado textual de siempre (nunca un plano falso).
+  // al hacer clic (el MISMO widget rutaGeograficaWidget.ts que usa el listado).
+  // Sin ruta real se conserva el estado textual de siempre (nunca un plano falso).
   const ruta = rutaGeograficaCardHtml({
     id: obj.id,
     ubicacion: obj.ubicacion ?? null,
