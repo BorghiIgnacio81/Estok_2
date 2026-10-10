@@ -60,6 +60,20 @@
   cursor: grabbing;
 }
 
+/* --- Modal «🚚 Mudar Todo el Stock»: fila marcada para PURGA FÍSICA ---
+   El operador destildó el ítem (o usó «Eliminar de la mudanza»): en vez de
+   viajar al Estok destino, se borra definitivamente del origen. El resaltado
+   rojo con tachado hace inequívoco el destino final del registro. */
+.mudanza-masiva-fila-excluida {
+  background-color: #fef2f2; /* rojo 50 */
+}
+
+.mudanza-masiva-fila-excluida .mudanza-masiva-datos {
+  color: #b91c1c; /* rojo 700 */
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
 .mudanza-dragging {
   opacity: 0.4;
 }

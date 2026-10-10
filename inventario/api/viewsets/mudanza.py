@@ -18,14 +18,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ...models import Estok, Ubicacion, Contenedor, Objeto, Membresia
-from ...services.mudanza_service import MudanzaService
+from ...services.mudanza_service import MudanzaService, asegurar_ubicacion_limbo
 from ..serializers import MudanzaSerializer
-
-# Habitación «limbo» del Estok destino: receptora estática de los elementos que
-# el usuario deja sin ubicación física (zona «En Tránsito» del tablero).
-NOMBRE_LIMBO = 'En Tránsito'
-# Nombre histórico del mismo limbo (compatibilidad: no duplicar habitaciones).
-NOMBRE_LIMBO_LEGACY = 'Zona de Mudanza'
 
 
 def _validar_membresia(user, estok_id):
@@ -43,36 +37,6 @@ def _detalle_error(exc):
     if isinstance(detalle, dict):
         return '; '.join(f"{k}: {v}" for k, v in detalle.items())
     return str(detalle)
-
-
-def _ubicacion_limbo(estok_destino):
-    """
-    Habitación limbo del Estok destino (zona «En Tránsito»).
-
-    Los elementos que el operador suelta en «En Tránsito» no van a una
-    habitación real: esperan en este espacio del inquilinato destino hasta que
-    los ubique desde el visor ordinario (Almacenamiento). Se reutiliza la
-    ubicación ya existente (incluida la histórica «Zona de Mudanza») para no
-    acumular limbos duplicados.
-    """
-    ubicacion = Ubicacion.objects.filter(
-        nombre=NOMBRE_LIMBO, estok=estok_destino,
-    ).first()
-    if ubicacion is None:
-        ubicacion = Ubicacion.objects.filter(
-            nombre=NOMBRE_LIMBO_LEGACY, estok=estok_destino,
-        ).first()
-    if ubicacion is None:
-        ubicacion = Ubicacion.objects.create(
-            nombre=NOMBRE_LIMBO,
-            estok=estok_destino,
-            piso='PLANTA_BAJA',
-            grid_filas=1,
-            grid_columnas=1,
-            grid_colspan=1,
-            grid_rowspan=1,
-        )
-    return ubicacion
 
 
 class MudanzaView(APIView):
@@ -115,7 +79,7 @@ class MudanzaView(APIView):
             # Los contenedores aterrizan en la habitación limbo (`Contenedor.ubicacion`
             # es NOT NULL) y los objetos quedan huérfanos (`ubicacion=None`) dentro
             # del inquilinato destino, listos para ubicar desde el visor ordinario.
-            ubicacion_destino = _ubicacion_limbo(estok_destino)
+            ubicacion_destino = asegurar_ubicacion_limbo(estok_destino)
         elif data.get('contenedor_destino_id'):
             contenedor_destino = get_object_or_404(
                 Contenedor.objects.select_related('ubicacion__estok'),
@@ -133,7 +97,7 @@ class MudanzaView(APIView):
                 raise PermissionDenied("La ubicación destino no pertenece al Estok destino.")
         else:
             # Sin destino espacial: limbo del inquilinato destino.
-            ubicacion_destino = _ubicacion_limbo(estok_destino)
+            ubicacion_destino = asegurar_ubicacion_limbo(estok_destino)
 
         # ------------------------------------------------------------------
         # TRANSFERENCIA (contenedor XOR objeto — garantizado por el serializer)

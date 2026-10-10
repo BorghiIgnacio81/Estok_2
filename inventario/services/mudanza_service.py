@@ -40,8 +40,43 @@ MUTACIÓN ATÓMICA (PostgreSQL)
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from ..models import Contenedor, Objeto
+from ..models import Contenedor, Objeto, Ubicacion
 from .taxonomia_contenedor import es_movible
+
+# Habitación «limbo» del Estok: receptora estática de los elementos que viajan
+# SIN ubicación física real (zona «En Tránsito» del tablero de mudanzas).
+NOMBRE_LIMBO = 'En Tránsito'
+# Nombre histórico del mismo limbo (compatibilidad: no duplicar habitaciones).
+NOMBRE_LIMBO_LEGACY = 'Zona de Mudanza'
+
+
+def asegurar_ubicacion_limbo(estok_destino):
+    """
+    Habitación limbo «En Tránsito» del Estok indicado (la crea si no existe).
+
+    Fuente ÚNICA del concepto en el backend: la usan la mudanza individual (un
+    elemento) y la migración masiva («Mudar Todo el Stock»). Se reutiliza la
+    ubicación ya existente —incluida la histórica «Zona de Mudanza»— para no
+    acumular limbos duplicados en el inquilinato.
+    """
+    ubicacion = Ubicacion.objects.filter(
+        nombre=NOMBRE_LIMBO, estok=estok_destino,
+    ).first()
+    if ubicacion is None:
+        ubicacion = Ubicacion.objects.filter(
+            nombre=NOMBRE_LIMBO_LEGACY, estok=estok_destino,
+        ).first()
+    if ubicacion is None:
+        ubicacion = Ubicacion.objects.create(
+            nombre=NOMBRE_LIMBO,
+            estok=estok_destino,
+            piso='PLANTA_BAJA',
+            grid_filas=1,
+            grid_columnas=1,
+            grid_colspan=1,
+            grid_rowspan=1,
+        )
+    return ubicacion
 
 
 def _estok_de_contenedor(contenedor):

@@ -30,6 +30,7 @@ from .viewsets import (
 )
 
 from .viewsets.mudanza import MudanzaView
+from .viewsets.mudanza_masiva import MudanzaMasivaView
 from .viewsets.decisiones_publicas import ObjetoRemotoDecisionView
 
 
@@ -76,6 +77,8 @@ urlpatterns = [
     path('ai/models/', AiModelsView.as_view(), name='ai-models'),
     # Mudanza Inter-Estok (transferencia hermética de contenedores/objetos)
     path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),
+    # Migración MASIVA «Mudar Todo el Stock» (bloque + purga de estructuras)
+    path('inventario/mudanza/todo/', MudanzaMasivaView.as_view(), name='mudanza-masiva'),
     # Captura PÚBLICA de decisiones remotas del dueño (puente del 403).
     # AllowAny: la única credencial es el token FIRMADO de un solo uso.
     path('public/objeto-remoto-decision/',

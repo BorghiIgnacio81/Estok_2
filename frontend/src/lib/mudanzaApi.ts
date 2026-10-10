@@ -189,3 +189,35 @@ export async function enviarMudanza(
   }
   return { ok: true, mensaje: data?.mensaje || '✅ Mudanza completada.' };
 }
+
+/**
+ * Migración MASIVA («🚚 Mudar Todo el Stock»): transfiere EN BLOQUE el
+ * inventario móvil del Estok ORIGEN hacia `estokDestinoId`, dejando los
+ * elementos «en tránsito» en el inquilinato destino y purgando físicamente los
+ * `excluirIds` (los ítems que el operador destildó en el modal).
+ *
+ * El Estok ORIGEN viaja como header `X-Estok-Id` (no en el cuerpo): así la
+ * operación es hermética respecto del Estok elegido en la columna Origen del
+ * tablero, aunque el inquilinato activo del usuario sea otro.
+ */
+export async function enviarMudanzaMasiva(
+  estokOrigenId: string,
+  estokDestinoId: string,
+  excluirIds: string[],
+): Promise<ResultadoMudanza> {
+  const response = await fetch(`${API_BASE_URL}/inventario/mudanza/todo/`, {
+    method: 'POST',
+    headers: { ...headersParaEstok(estokOrigenId), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ estok_destino_id: estokDestinoId, excluir_ids: excluirIds }),
+  });
+
+  if (response.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Sesión expirada.');
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { ok: false, mensaje: data?.error || `Error del servidor (${response.status}).` };
+  }
+  return { ok: true, mensaje: data?.mensaje || '🚚 Mudanza general completada.' };
+}

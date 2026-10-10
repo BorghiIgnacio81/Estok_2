@@ -44,3 +44,22 @@ class MudanzaSerializer(serializers.Serializer):
         # El destino espacial es opcional. Si llega `contenedor_destino_id`,
         # la ubicación destino se resuelve desde ese contenedor en la vista.
         return attrs
+
+
+class MudanzaMasivaSerializer(serializers.Serializer):
+    """
+    Valida la solicitud de migración MASIVA («Mudar Todo el Stock»).
+
+    Reglas:
+      - `estok_destino_id` es obligatorio.
+      - El Estok ORIGEN no viaja en el cuerpo: es el inquilinato ACTIVO del
+        request (header X-Estok-Id), validado por membresía en la vista.
+      - `excluir_ids` es una lista OPCIONAL de elementos que el operador destildó
+        en el modal de previsualización. NO se mudan: se purgan físicamente del
+        Estok origen (basura arquitectónica de la Fase 3).
+    """
+
+    estok_destino_id = serializers.UUIDField(required=True)
+    excluir_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list,
+    )

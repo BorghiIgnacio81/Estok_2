@@ -117,6 +117,21 @@ import '../styles/mudanza-mapa.css';
         </svg>
       </button>
 
+      <!-- ================================================================
+           BOTÓN MAESTRO «🚚 MUDAR TODO EL STOCK»
+           Migración MASIVA del inventario móvil del Origen al Destino con
+           modal de previsualización y purga de estructuras obsoletas.
+           Flota ABSOLUTO sobre el hueco central, DEBAJO del FLIP, para no
+           romper las dos columnas lado a lado (en móvil sólo muestra el icono).
+           ================================================================ -->
+      <button id="mudanzaMudarTodoBtn" type="button"
+        class="absolute left-1/2 top-[70px] z-20 inline-flex -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 shadow-sm outline-none transition-base hover:bg-emerald-100 hover:shadow-md focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 active:scale-95 disabled:cursor-wait disabled:opacity-60 sm:top-36 sm:px-4 sm:py-2 sm:text-sm"
+        title="Mudar TODO el stock móvil del Estok Origen al Destino (previsualización + purga de basura arquitectónica)"
+        aria-label="Mudar todo el stock del Estok Origen al Estok Destino">
+        <span aria-hidden="true">🚚</span>
+        <span class="hidden sm:inline">Mudar Todo el Stock</span>
+      </button>
+
       <!-- COLUMNA DERECHA: ESTOK DESTINO -->
       <section
         class="mudanza-col flex h-[calc(100vh-160px)] max-h-full min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:rounded-2xl sm:p-4 md:h-auto md:max-h-none">
@@ -193,11 +208,18 @@ import '../styles/mudanza-mapa.css';
       desde Almacenamiento. Usá las barras de <b>filtros</b> para acotar qué querés mudar (objetos
       sueltos, muebles, cajas) y a qué escala querés soltarlo (habitación completa, un mueble o un estante).
     </div>
+
+    <!-- Host del MODAL «🚚 Mudar Todo el Stock»: la página lo rellena en caliente
+         (lib/mudanzaMasiva.ts) al presionar el botón maestro y lo vacía al cerrar. -->
+    <div id="mudanzaMasivaModal"></div>
   </div>
 
   <script>
     import { getCachedUser, fetchCurrentUser } from '../services/auth';
     import { MudanzaBoard } from '../lib/mudanzaBoard';
+    // Migración MASIVA: borde HTTP (mudanzaApi) + modal de previsualización/purga.
+    import { cargarInventarioOrigen, enviarMudanzaMasiva } from '../lib/mudanzaApi';
+    import { montarAvisoMudanzaMasiva, montarModalMudanzaMasiva } from '../lib/mudanzaMasiva';
 
     const loadingState = document.getElementById('loadingState')!;
     const errorState = document.getElementById('errorState')!;
@@ -218,6 +240,53 @@ import '../styles/mudanza-mapa.css';
     const volverDestino = document.getElementById('mudanzaDestinoVolver') as HTMLButtonElement;
     const paginaMudanza = document.getElementById('mudanzaPage')!;
     const swapBtn = document.getElementById('mudanzaSwapBtn') as HTMLButtonElement | null;
+    const mudarTodoBtn = document.getElementById('mudanzaMudarTodoBtn') as HTMLButtonElement | null;
+    const masivaModal = document.getElementById('mudanzaMasivaModal')!;
+
+    // =========================================================================
+    // BOTÓN MAESTRO «🚚 MUDAR TODO EL STOCK» (migración masiva + purga)
+    // -------------------------------------------------------------------------
+    // La página orquesta el flujo SIN tocar el tablero: lee el Origen/Destino
+    // vigentes de los <select> del split-view, trae una foto fresca del
+    // inventario móvil del Origen y abre el modal de previsualización
+    // (lib/mudanzaMasiva.ts). Al confirmar, el modal despacha el POST
+    // (lib/mudanzaApi.enviarMudanzaMasiva) y — tras el éxito — refresca la
+    // pantalla completa con el patrón `window.location.reload` del layout base.
+    // =========================================================================
+
+    /** Rótulo legible del Estok seleccionado en un `<select>` del tablero. */
+    function nombreEstok(select: HTMLSelectElement): string {
+      return select.options[select.selectedIndex]?.text?.trim() || 'Estok';
+    }
+
+    async function abrirMudanzaMasiva(): Promise<void> {
+      const origenId = origenSel.value;
+      const destinoId = destinoSel.value;
+      if (!origenId || !destinoId || origenId === destinoId || masivaModal.innerHTML) return;
+      mudarTodoBtn?.setAttribute('disabled', 'disabled');
+      try {
+        const { contenedores, objetos } = await cargarInventarioOrigen(origenId);
+        montarModalMudanzaMasiva(masivaModal, {
+          origenNombre: nombreEstok(origenSel),
+          destinoNombre: nombreEstok(destinoSel),
+          contenedores,
+          objetos,
+          ejecutar: (excluirIds) => enviarMudanzaMasiva(origenId, destinoId, excluirIds),
+          alExito: () => window.location.reload(),
+        });
+      } catch (err: any) {
+        montarAvisoMudanzaMasiva(
+          masivaModal,
+          '⚠️',
+          'No se pudo abrir la mudanza masiva',
+          err?.error || err?.message || 'Revisá tu conexión e intentá de nuevo.',
+        );
+      } finally {
+        mudarTodoBtn?.removeAttribute('disabled');
+      }
+    }
+
+    mudarTodoBtn?.addEventListener('click', () => void abrirMudanzaMasiva());
 
     // =========================================================================
     // CONTENCIÓN DEL VIEWPORT TÁCTIL (solo móvil < 768px)
