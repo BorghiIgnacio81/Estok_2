@@ -73,13 +73,36 @@ async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
   if (nodo) await seleccionarNodo(nodo);
 }
 
+/** Controles del editor elástico que NO disparan un portal al tocarlos. */
+const CONTROLES_EDITOR =
+  '[data-fusion-check],[data-eliminar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize]';
+
+/**
+ * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO de un cuarto (Panel Derecho)
+ * como portal de contenedor: en modo NAVEGACIÓN cada rectángulo navega a su
+ * interior jerárquico; en modo EDICIÓN el clic edita (arrastrar/estirar/fusionar).
+ */
+function contenedorDeEditor(objetivo: HTMLElement | null): string | null {
+  if (modoLienzoActual() !== 'navegacion') return null;
+  if (!objetivo || objetivo.closest(CONTROLES_EDITOR)) return null;
+  const card = objetivo.closest<HTMLElement>('[data-lienzo-pu] [data-inplace-card][data-id]');
+  return card?.dataset.id ?? null;
+}
+
 /** Conecta los clics por delegación de AMBOS paneles del flujo asimétrico. */
 function conectarPortalesPorDelegacion(): void {
   // LEY 3: la derecha desciende (el mapa viaja al ancla izquierda).
   slotDer()?.addEventListener('click', (ev) => {
-    const carta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-portal-abrir]');
-    if (!carta) return;
-    void descenderDesdeDerecha(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+    const objetivo = ev.target as HTMLElement | null;
+    const carta = objetivo?.closest<HTMLElement>('[data-portal-abrir]');
+    if (carta) {
+      void descenderDesdeDerecha(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+      return;
+    }
+    // LEY 2 · El EDITOR ELÁSTICO del cuarto (derecha): en modo NAVEGACIÓN cada
+    // silueta es un portal que baja al interior jerárquico de esa división.
+    const idEditor = contenedorDeEditor(objetivo);
+    if (idEditor) void descenderDesdeDerecha(idEditor, 'contenedor');
   });
   // LEY 2: la izquierda selecciona in-place (el ancla queda quieta).
   slotIzq()?.addEventListener('click', (ev) => {

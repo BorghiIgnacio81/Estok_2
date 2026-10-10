@@ -43,7 +43,15 @@ function adaptadorDe(recurso: string): AdaptadorEspacios {
 
 /** Recurso REST del lienzo al que pertenece una tarjeta (para el PUT). */
 function recursoDeCarta(carta: HTMLElement): string | null {
-  if (carta.closest('#visorHabitacion') || carta.closest('#visorContenedorGrande')) return 'contenedores';
+  // El EDITOR ELÁSTICO del cuarto (Panel Derecho de Almacenamiento) persiste en
+  // Contenedores, igual que los visores históricos de muebles y estantes.
+  if (
+    carta.closest('#visorHabitacion') ||
+    carta.closest('#visorContenedorGrande') ||
+    carta.closest('#listaContenedoresPanel')
+  ) {
+    return 'contenedores';
+  }
   if (carta.closest('#mapaEstokPanel') || carta.closest('#onbPlanoUnico')) return 'ubicaciones';
   return null;
 }

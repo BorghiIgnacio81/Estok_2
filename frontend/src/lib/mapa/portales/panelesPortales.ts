@@ -59,8 +59,19 @@ export interface Paneles {
 export function panelesDe(nodo: NodoPortal | null, padre: NodoPortal | null = null): Paneles {
   if (!nodo) return { izquierdo: 'planoPlanta', derecho: 'listaHabitaciones' };
   const izquierdo: PanelIzquierdo = anclaDe(padre);
-  const derecho: PanelDerecho = esNodoMonolitico(nodo) ? 'grillaObjetos' : 'listaContenedores';
-  return { izquierdo, derecho };
+  return { izquierdo, derecho: derechoDe(nodo) };
+}
+
+/**
+ * LEY 2 · ¿Qué monta el Panel Derecho? Una HABITACIÓN viva SIEMPRE expone su
+ * EDITOR ELÁSTICO de divisiones (aunque todavía no tenga sub-zonas) para poder
+ * inyectarlas con «Crear Espacio» y declararla «Espacio Único». Los contenedores
+ * conservan el fin de cadena (grilla directa de objetos) cuando no tienen hijos
+ * propios o fueron declarados monolíticos (Ley 4).
+ */
+function derechoDe(nodo: NodoPortal): PanelDerecho {
+  if (nodo.tipo === 'habitacion' && !nodo.espacioUnico) return 'listaContenedores';
+  return esNodoMonolitico(nodo) ? 'grillaObjetos' : 'listaContenedores';
 }
 
 /**
@@ -85,8 +96,9 @@ function anclaDe(padre: NodoPortal | null): PanelIzquierdo {
  * definición no se subdivide.
  */
 export function tieneModeladorGeometrico(nodo: NodoPortal | null): boolean {
-  // El modelador geométrico sólo se bloquea cuando el nodo SELECCIONADO es un
-  // «Espacio Único» / fin de cadena (no admite subdivisiones internas).
+  // El modelador geométrico sólo se bloquea con un «Espacio Único» / fin de cadena;
+  // una HABITACIÓN viva lo expone SIEMPRE (aunque todavía no tenga sub-zonas).
+  if (nodo?.tipo === 'habitacion') return !nodo.espacioUnico;
   return !esNodoMonolitico(nodo);
 }
 

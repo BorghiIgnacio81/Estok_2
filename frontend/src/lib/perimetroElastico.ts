@@ -1,20 +1,10 @@
 // =============================================================================
 // PERÍMETRO ELÁSTICO DEL PLANO - contenedor perimetral redimensionable
 // -----------------------------------------------------------------------------
-// El recuadro texturizado que envuelve TODOS los ambientes (`.planta-unica-lienzo`)
-// deja de ser un contenedor rígido: en MODO EDICIÓN expone tiradores en el borde
-// derecho, en el borde inferior y en la esquina inferior derecha para ajustar el
-// ancho y el alto del plano COMPLETO de la casa/departamento.
-//
-// La medida se aplica EN CALIENTE sobre los estilos inline (feedback inmediato
-// mientras se arrastra) y al soltar se persiste con UN ÚNICO PUT
-// (ui_width/ui_height en px) sobre la Ubicación que oficia de perímetro: la
-// división «Departamento» en Modo Planta Única, o el contenedor padre del lienzo
-// en los visores anidados. Nunca se escribe un valor «auto».
-//
-// Módulo 100% geometría + DOM: la persistencia entra por `AdaptadorEspacios`
-// (auth centralizada) o por el callback `guardar` del consumidor, sin duplicar
-// fetch ni headers en cada pantalla.
+// El recuadro ámbar (`.planta-unica-lienzo`) expone en MODO EDICIÓN tiradores
+// (derecho, inferior y esquina) para estirar el plano de CUALQUIER planta: se
+// aplica EN CALIENTE y se persiste al soltar con UN ÚNICO PUT (ui_width/ui_height
+// px) sobre la Ubicación perimetral (persistencia vía `AdaptadorEspacios`/`guardar`).
 // =============================================================================
 
 import type { AdaptadorEspacios } from './lienzoElastico';
@@ -108,6 +98,17 @@ export function tiradoresPerimetro(): string {
         title="Arrastrá para cambiar el ANCHO y el ALTO del plano completo (se guarda solo)"></span>`;
 }
 
+/**
+ * Inyecta el perímetro elástico (marca `data-perimetro-elastico` + medida + tiradores)
+ * en un lienzo ya renderizado que no lo declaró (`renderLienzoElastico`), para que el
+ * borde ámbar sea estirable en CUALQUIER planta antes y después de guardar.
+ */
+export function inyectarPerimetroElastico(html: string, duenio: DuenioPerimetro | null): string {
+  const marca = 'data-lienzo-pu>';
+  if (!html.includes(marca)) return html;
+  return html.replace(marca, `data-lienzo-pu data-perimetro-elastico${estiloPerimetro(duenio)}>${tiradoresPerimetro()}`);
+}
+
 /** Aviso opcional de guardado (los consumidores refrescan su pantalla). */
 export interface OpcionesPerimetro {
   /** Subárbol donde viven los tiradores (el panel del plano). */
@@ -154,13 +155,8 @@ function aplicarMedida(lienzo: HTMLElement, medida: MedidaPerimetro): void {
 // =============================================================================
 // GEOMETRÍA ABSOLUTA DEL PERÍMETRO (las tarjetas NO se deforman al estirar)
 // -----------------------------------------------------------------------------
-// El marco exterior (recuadro ámbar) es el sistema de coordenadas (%) de las
-// tarjetas. Si solo cambiara su tamaño, TODAS las tarjetas escalarían de forma
-// proporcional (defecto: se achican/agrandan hacia adentro). Acá aplicamos un
-// REBASE ABSOLUTO Y ADITIVO: al estirar el marco, cada tarjeta conserva su
-// geometría en PÍXELES (posición y tamaño ORIGINALES) y el terreno nuevo queda
-// LIBRE a la derecha/abajo. En píxeles es aditivo: +Δ ancho = +Δ terreno;
-// en porcentaje se reexpresa multiplicando por el factor medida/base.
+// El marco ámbar es el sistema de coordenadas (%) de las tarjetas: REBASE ABSOLUTO
+// Y ADITIVO —cada tarjeta conserva sus PÍXELES y el terreno nuevo queda LIBRE—.
 // =============================================================================
 
 /** Caja en % del lienzo leída de los estilos inline de una tarjeta. */
@@ -218,11 +214,7 @@ function capturarTarjeta(card: HTMLElement): TarjetaBase | null {
   return { card, caja, tiles };
 }
 
-/**
- * Reexpresa la tarjeta sobre el nuevo marco conservando sus PÍXELES. Se calcula
- * SIEMPRE desde el snapshot original (nunca desde el DOM ya rebasado) para no
- * acumular el factor en cada movimiento del gesto.
- */
+/** Reexpresa la tarjeta conservando sus PÍXELES (base: el snapshot original). */
 function rebasarTarjeta(t: TarjetaBase, fx: number, fy: number): CajaPct {
   const caja: CajaPct = {
     left: red2(t.caja.left * fx),
@@ -272,9 +264,7 @@ function esBloqueFusionado(card: HTMLElement): boolean {
 }
 
 /**
- * Persiste la geometría rebasada de cada tarjeta para que el estado quede
- * coherente tras un re-render (la pantalla relee del backend). Ítem suelto → PUT
- * propio; bloque fusionado → UN ÚNICO PUT de grupo con todas sus partes.
+ * Persiste la geometría rebasada (ítem suelto → PUT propio; bloque → PUT de grupo).
  */
 async function persistirHijosRebasados(
   opts: OpcionesPerimetro,

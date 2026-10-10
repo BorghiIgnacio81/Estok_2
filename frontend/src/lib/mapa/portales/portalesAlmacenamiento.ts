@@ -18,7 +18,6 @@ import { sectoresDeItems } from '../../sectoresMinimapa';
 import {
   cargarHabitacionesDePlanta,
   contenedoresRaizDeUbicacion,
-  guardarEspacioUnico,
   objetosDeContenedor,
   cargarContenedores,
   cargarInteriorDeNodo,
@@ -44,6 +43,7 @@ import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
 import { listaHijosHtml } from './tarjetasContenedores';
 import type { FichaHijo } from './tarjetasContenedores';
+import { alternarEspacioUnico, pintarEditorDivisiones } from './editorDivisionesPortales';
 import {
   bloqueMonoliticoHtml,
   grillaObjetosDirectosHtml,
@@ -258,16 +258,6 @@ async function fichasDe(piezas: NodoPortal[]): Promise<FichaHijo[]> {
   return fichas;
 }
 
-/** Persiste el disyuntor «Espacio Único» y re-transiciona en caliente. */
-async function alternarEspacioUnico(nodo: NodoPortal, valor: boolean): Promise<void> {
-  // La habitación persiste su flag en Ubicación; los contenedores en Contenedor.
-  const recurso = nodo.tipo === 'habitacion' ? 'ubicaciones' : 'contenedores';
-  const ok = await guardarEspacioUnico(nodo.id, valor, recurso);
-  if (!ok) return;
-  reemplazarNodoActual({ espacioUnico: valor });
-  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
-}
-
 /**
  * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe(): si el
  * nodo es «Espacio Único» / sin divisiones, la derecha salta a la grilla directa
@@ -277,13 +267,17 @@ async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<vo
   const paneles = panelesDe(nodo, nodoPadre());
   if (paneles.derecho === 'listaContenedores') {
     const host = el('listaContenedoresPanel');
-    if (host) {
-      const fichas = await fichasDe(interior.piezas);
-      const aspecto = aspectoDelLienzo();
-      // El Panel Derecho dibuja el mapa elástico del interior del SELECCIONADO,
-      // con los nombres e iconos de cada sub-espacio sobre su silueta real.
-      host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);
+    if (!host) return;
+    // LEY 2 · La HABITACIÓN despliega su EDITOR ELÁSTICO de divisiones (botón
+    // «➕ Crear Espacio» + disyuntor «Espacio Único») en vez de un plano mudo.
+    if (nodo.tipo === 'habitacion') {
+      pintarEditorDivisiones(host, nodo, interior);
+      return;
     }
+    // Los CONTENEDORES conservan su mini-mapa de portales rotulado.
+    const fichas = await fichasDe(interior.piezas);
+    const aspecto = aspectoDelLienzo();
+    host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);
     return;
   }
   // Fin de cadena / Espacio Único: grilla directa + disyuntor (Ley 4).

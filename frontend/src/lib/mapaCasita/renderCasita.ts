@@ -16,6 +16,7 @@ import type { UbicacionPlano } from '../mapaJerarquico';
 import type { ItemElastico } from '../lienzoElastico';
 import { minimapaCasitaSvg } from '../minimapa';
 import { renderLienzoElastico } from '../mapaPlantaUnica';
+import { inyectarPerimetroElastico } from '../perimetroElastico';
 import { iconoDeHabitacion } from '../planoHabitaciones';
 import { checkboxEspacioUnicoHtml } from '../espacioUnico';
 import { habitacionesDePlanta, nombreDePlanta } from './dominioCasita';
@@ -97,16 +98,24 @@ export function renderHabitacionesHtml(params: {
         <p class="casita-hab-vacia-sub">Definí la sub-grilla de la planta desde el modelador del Mapa Estok al crear o editar tu Estok.</p>
       </div>`;
 
+  // PERÍMETRO ELÁSTICO UNIVERSAL: el lienzo del editor de habitaciones se envuelve
+  // con el marco ámbar redimensionable del dueño de la planta (`div`), de modo que
+  // el borde derecho/inferior/esquina se pueda estirar de forma IDÉNTICA en la
+  // Planta Baja y en la Planta Alta, antes y después de guardar (la medida general
+  // se persiste sobre esa división con `ui_width`/`ui_height` en px).
   const plano = div
-    ? renderLienzoElastico({
-        items,
-        etiquetaCrear: 'Habitación',
-        textoVacio:
-          'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
-        // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del
-        // Onboarding (idéntico motor 2D), para que la interfaz se vea consistente.
-        tip: '🧩 <strong>Editor de espacios</strong> · inyectá cada habitación con «➕ Habitación», arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque en «L».',
-      })
+    ? inyectarPerimetroElastico(
+        renderLienzoElastico({
+          items,
+          etiquetaCrear: 'Habitación',
+          textoVacio:
+            'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
+          // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del
+          // Onboarding (idéntico motor 2D), para que la interfaz se vea consistente.
+          tip: '🧩 <strong>Editor de espacios</strong> · inyectá cada habitación con «➕ Habitación», arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque en «L».',
+        }),
+        div,
+      )
     : sinEstructura;
 
   // DISYUNTOR CANÓNICO EN LA CABECERA DEL SUB-NIVEL: el mismo control
