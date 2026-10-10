@@ -18,6 +18,7 @@ import type { EstokInfo } from '../../types';
 import { fundarEstok } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
 import { avisoGlobal, mensajeDe } from './comunes';
+import { DESTINO_POST_ALTA } from './destinos';
 import { continuarPasoDivisiones, desmontarDivisiones, montarGuiaDivisiones } from './pasoDivisiones';
 import { limpiarRastroAmbientes } from './rastroAmbientes';
 import { iniciarPaso4Tutorial } from './pasoObjeto';
@@ -278,10 +279,13 @@ export class AsistenteBienvenida {
     limpiarRastroAmbientes();
     window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: estok }));
     document.documentElement.removeAttribute('data-estok-onboarding');
-    if (window.location.pathname === '/') {
+    // Destino canónico post-alta (FUENTE ÚNICA, lib/onboarding/destinos.ts):
+    // el asistente NUNCA deja al usuario en el Dashboard seco; lo manda al
+    // modelador interactivo. Si ya está ahí, sólo se refresca el panel.
+    if (window.location.pathname === DESTINO_POST_ALTA) {
       window.location.reload();
     } else {
-      window.location.href = '/';
+      window.location.href = DESTINO_POST_ALTA;
     }
   }
 }

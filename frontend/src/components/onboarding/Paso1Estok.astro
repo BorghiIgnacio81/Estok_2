@@ -14,6 +14,11 @@
 // Los ids (#onbNombreEstok / #onbCantidadPisos / #onbErrorPaso1 / #onbPaso1Ok /
 // #onbFundarBtn) son los canónicos: el asistente los usa para su mensajería
 // (omitirTutorial escribe el error en #onbErrorPaso1 dentro de su root).
+//
+// DESTINO POST-ALTA: este componente NO navega (el asistente necesita avanzar al
+// Paso 2 sin recargar). La pantalla de destino canónica vive en la FUENTE ÚNICA
+// `lib/onboarding/destinos.ts` → `DESTINO_POST_ALTA = '/almacenamiento'`, que la
+// consumen sus anfitriones (estoks/index.astro y lib/onboarding/wizard.ts).
 // =============================================================================
 ---
 

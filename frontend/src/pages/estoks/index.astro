@@ -105,6 +105,9 @@ import Paso1Estok from '../../components/onboarding/Paso1Estok.astro';
 
   import { fetchCurrentUser, unirseConCodigo, cambiarEstokActivo } from '../../services/auth';
   import type { EstokInfo } from '../../types';
+  // Destino canónico post-alta (FUENTE ÚNICA): manda al modelador interactivo
+  // en vez del Dashboard seco. Ver lib/onboarding/destinos.ts.
+  import { DESTINO_POST_ALTA } from '../../lib/onboarding/destinos';
 
   // ===========================================================================
   // REFERENCIAS DOM
@@ -296,12 +299,13 @@ import Paso1Estok from '../../components/onboarding/Paso1Estok.astro';
   // ---------------------------------------------------------------------------
   // El formulario vive en el componente Paso1Estok (la MISMA fuente que usa el
   // Paso 1 del Onboarding): al fundar el Estok emite `estok:paso1-completado`.
-  // Acá sólo se confirma y se entra al Dashboard, donde vive el motor elástico
-  // de plantas (el modelado deja de depender del wizard de grilla de la Fase 3).
+  // Acá sólo se confirma y se redirige al MODELADOR INTERACTIVO (Almacenamiento),
+  // donde vive el motor elástico de plantas (el modelado deja de depender del
+  // wizard de grilla de la Fase 3).
   // ===========================================================================
   window.addEventListener('estok:paso1-completado', () => {
     (window as any).showSuccess?.('✅ Estok creado y activo. Ya podés modelar su mapa desde Almacenamiento.');
-    window.location.href = '/';
+    window.location.href = DESTINO_POST_ALTA;
   });
 
   // ===========================================================================

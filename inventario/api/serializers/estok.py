@@ -5,9 +5,11 @@ Serializers de Estok, Membresía, Códigos de Invitación.
 import unicodedata
 import uuid
 
+from django.db import transaction
 from rest_framework import serializers
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role
+from ...services.seeding_plantas import sembrar_plantas_canonicas
 
 
 class MembresiaSerializer(serializers.ModelSerializer):
@@ -63,16 +65,27 @@ class EstokCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
     def create(self, validated_data):
+        """
+        Crea el Estok, su Membresía(Admin) y — si el inmueble tiene MÁS de una
+        planta — siembra de forma ATÓMICA las N divisiones raíz canónicas
+        («Planta Alta» / «Planta Baja» …) fijando `grid_filas = cantidad_pisos`.
+
+        Todo dentro de un único `transaction.atomic`: si el seeding fallara, el
+        alta completa se revierte y NO queda un Estok a medio construir.
+        """
         user = self.context['request'].user
         role_admin = Role.objects.get(name='Admin')
 
-        estok = Estok.objects.create(**validated_data)
+        with transaction.atomic():
+            estok = Estok.objects.create(**validated_data)
 
-        Membresia.objects.create(
-            usuario=user,
-            estok=estok,
-            role=role_admin,
-        )
+            Membresia.objects.create(
+                usuario=user,
+                estok=estok,
+                role=role_admin,
+            )
+
+            sembrar_plantas_canonicas(estok)
 
         return estok
 

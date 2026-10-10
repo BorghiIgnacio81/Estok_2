@@ -1,339 +1,103 @@
 // =============================================================================
-// LIENZO NAVEGABLE "MAPA ESTOK" - CASA CON TECHO PUNTIAGUDO (Nivel 1 → Nivel 2)
+// LIENZO NAVEGABLE «MAPA ESTOK» — ORQUESTADOR (Nivel Estok · casa ⇄ habitaciones)
 // -----------------------------------------------------------------------------
 // Reemplaza el mapa matricial con inputs numéricos por un lienzo puramente
-// gráfico, táctil y EDITABLE IN-PLACE por niveles en cascada:
-//   Nivel 1 (La Casa)  : silueta de casa con techo puntiagudo (trazado SVG).
-//                         Cada planta es una macro-división persistida en
-//                         PostgreSQL ("Primer Piso" arriba, "Planta Baja"
-//                         abajo). Al hacer clic se registra el estado activo
-//                         y se conmuta el mapa de forma reactiva.
-//   Nivel 2 (Habitaciones): minimapa de la casita en ULTRA-MINI (4× más chico)
-//                         con la planta seleccionada en NARANJA (#f97316) +
-//                         botón "⬅ Volver". Cada habitación se dibuja como
-//                         RECTÁNGULO ELÁSTICO LIBRE (unificado para TODOS los
-//                         Estoks, antiguos y nuevos) con su geometría nativa
-//                         ui_left/ui_top/ui_width/ui_height y su icono
-//                         contextual (🚽 🛏️ 🗄️ 🏠). Al hacer clic alimenta al
-//                         "Visor de la Habitación Seleccionada"
-//                         (visorHabitacion.ts) vía el evento
-//                         'estok:habitacion-seleccionada'.
-//                         EDICIÓN EN VIVO: el MISMO motor 2D de Planta Única
-//                         (plantaUnicaInteractivo.ts) permite renombrar al clic,
-//                         arrastrar/reacomodar, estirar por esquina y fusionar
-//                         en "L", SIN grilla matricial rígida.
-// Estado inicial forzado: la navegación NACE en el Nivel 1 y la casa se pinta
-// de forma SÍNCRONA al iniciar (el lienzo nunca queda vacío esperando datos).
+// gráfico, táctil y EDITABLE IN-PLACE por niveles en cascada. Este archivo es
+// sólo el ORQUESTADOR (estado + render + interacción + arranque); la física
+// vive modularizada en ./mapaCasita/ (límite estricto < 400 líneas por archivo):
+//   · estadoCasita.ts  → estado compartido (refs, divisiones, nivel activo…)
+//   · dominioCasita.ts → derivaciones PURAS (plantas, habitaciones, nombres…)
+//   · renderCasita.ts  → HTML de Nivel 1 (casa) y Nivel 2 (editor elástico)
+//   · cargaCasita.ts   → fetch/POST/PATCH contra Ubicaciones (multi-tenant)
+//
+// NIVEL ESTOK INICIAL (Ignacio): la navegación NACE en el EDITOR de la planta
+// activa — Panel Izquierdo = silueta perimetral de la casa con la planta
+// seleccionada en NARANJA (minimapa) y Panel Derecho = Editor Elástico de
+// Habitaciones (botonera + «➕ Habitación» + disyuntor «Espacio Único»).
+// «⬅ Volver» regresa a la vista general de la casa (Nivel 1).
+//
+// Modo Planta Única (cantidad_pisos == 1): perímetro continuo SIN techo.
 // =============================================================================
 
-import {
-  PISO_PRIMERO,
-  PISO_BAJA,
-  ETIQUETAS_PISO,
-  escapeHtml,
-  fetchEstokConfig,
-  fetchUbicacionesPlano,
-  esDivisionUbicacion,
-  crearDivisionUbicacion,
-  toast,
-} from './mapaJerarquico';
-import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
-import { minimapaCasitaSvg } from './minimapa';
-import { renderPlantaUnica, renderLienzoElastico } from './mapaPlantaUnica';
+import { fetchEstokConfig } from './mapaJerarquico';
+import { renderPlantaUnica } from './mapaPlantaUnica';
 import { conectarPlantaUnica } from './plantaUnicaInteractivo';
-import { iconoDeHabitacion } from './planoHabitaciones';
 import { adaptadorUbicaciones } from './lienzoElastico';
-import type { ItemElastico } from './lienzoElastico';
 import { modoLienzoActual } from './modoLienzo';
-// Fix de jitter visual: los refrescos asíncronos del mapa (arrastrar/redimensionar
-// una habitación → PUT + recarga) conservan la posición de scroll del usuario.
+// Fix de jitter visual: los refrescos asíncronos conservan la posición de scroll.
 import { preservarScroll } from './scrollPreservado';
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-
-// =============================================================================
-// ESTADO DEL LIENZO
-// =============================================================================
-
-interface RefsCasita {
-  mapa: HTMLElement | null;
-  badge: HTMLElement | null;
-}
-
-let refs: RefsCasita = { mapa: null, badge: null };
-let estok: EstokConfig | null = null;
-let divisiones: UbicacionPlano[] = [];
-let habitaciones: UbicacionPlano[] = [];
-/** Planta activa (parent_grid_row). null = vista general sin filtro. */
-let filaActiva: number | null = null;
-/** Nivel de navegación: 1 = casa general, 2 = habitaciones de una planta.
- *  NACE estrictamente en el Nivel 1 para que la casa se dibuje apenas carga. */
-let nivelActual: 1 | 2 = 1;
-
-// =============================================================================
-// HELPERS DE DOMINIO
-// =============================================================================
-
-function totalPlantas(): number {
-  const desdeDatos = divisiones.reduce(
-    (max, d) => Math.max(max, d.parent_grid_row || 1),
-    1,
-  );
-  return Math.max(estok?.grid_filas || desdeDatos, desdeDatos);
-}
-
-// =============================================================================
-// BIFURCACIÓN DEL MODELADOR: MODO CASA ⟷ MODO PLANTA ÚNICA
-// =============================================================================
-
-/** ¿El Estok activo es de 1 sola planta? → Modo Planta Única (sin techo). */
-function esPlantaUnica(): boolean {
-  if (!estok) return false;
-  const cantidad = Number(estok.cantidad_pisos) || 0;
-  if (cantidad > 0) return cantidad <= 1;
-  return estok.tipo_layout !== 'CASA_2_PISOS';
-}
-
-/** División contenedora del departamento (la planta 1 del macro-plano). */
-function apartamentoDePlantaUnica(): UbicacionPlano | null {
-  return divisiones.find((d) => d.parent_grid_row === 1) ?? divisiones[0] ?? null;
-}
-
-/** Espacios libres inyectados dentro del contenedor del departamento. */
-function roomsDePlantaUnica(): UbicacionPlano[] {
-  const apartamento = apartamentoDePlantaUnica();
-  if (!apartamento) return [];
-  return habitaciones.filter((h) => h.parent_ubicacion === apartamento.id);
-}
-
-/** Garantiza el contenedor «Departamento» antes de inyectar el primer espacio. */
-async function crearApartamentoSiFalta(): Promise<string | null> {
-  const existente = apartamentoDePlantaUnica();
-  if (existente) return existente.id;
-  const creada = await crearDivisionUbicacion('Departamento', 1, 1);
-  if (!creada) return null;
-  divisiones.push(creada);
-  return creada.id;
-}
-
-function nombreDePlanta(fila: number): string {
-  const div = divisiones.find((d) => d.parent_grid_row === fila);
-  if (div) return div.nombre;
-  if (fila === 1) return ETIQUETAS_PISO[PISO_PRIMERO];
-  if (fila === 2) return ETIQUETAS_PISO[PISO_BAJA];
-  return `División ${fila}`;
-}
-
-/** Habitaciones de una planta: encastradas en su división + sueltas legacy. */
-function habitacionesDePlanta(fila: number): UbicacionPlano[] {
-  const div = divisiones.find((d) => d.parent_grid_row === fila);
-  const divisionId = div?.id ?? '__sin_division__';
-  const encastradas = habitaciones.filter((h) => h.parent_ubicacion === divisionId);
-  const sueltas = habitaciones.filter((h) => !h.parent_ubicacion && h.parent_grid_row === fila);
-  return [...encastradas, ...sueltas].sort((a, b) => {
-    const ra = a.parent_grid_row || 0;
-    const rb = b.parent_grid_row || 0;
-    const ca = a.parent_grid_col || 0;
-    const cb = b.parent_grid_col || 0;
-    return ra - rb || ca - cb;
-  });
-}
-
-/**
- * Crea una habitación nueva (rectángulo elástico libre) dentro de la planta
- * activa. Reutiliza el MISMO motor 2D que el Modo Planta Única; la tarjeta
- * hereda iconografía contextual y se persiste multi-tenant (JWT + X-Estok-Id).
- */
-async function crearHabitacionEnPlanta(div: UbicacionPlano): Promise<boolean> {
-  const n = habitaciones.filter((h) => h.parent_ubicacion === div.id).length;
-  try {
-    const res = await fetch(`${API_BASE_URL}/ubicaciones/`, {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nombre: `Habitación ${n + 1}`,
-        parent_ubicacion: div.id,
-        piso: div.parent_grid_row === 1 ? PISO_PRIMERO : PISO_BAJA,
-        ui_left: `${6 + (n % 5) * 12}%`,
-        ui_top: `${8 + (n % 4) * 16}%`,
-        ui_width: '28%',
-        ui_height: '24%',
-      }),
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    if (res.ok) {
-      toast(`✅ «Habitación ${n + 1}» creada en «${div.nombre}».`);
-      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
-      return true;
-    }
-    const err = await res.json().catch(() => ({}));
-    toast('❌ ' + (err?.detail || err?.error || 'No se pudo crear la habitación.'));
-    return false;
-  } catch {
-    toast('❌ Error de conexión al crear la habitación.');
-    return false;
-  }
-}
-
-/** Dispara el evento de planta seleccionada para filtrar la cascada en caliente. */
-function notificarPlanta(): void {
-  const div = divisiones.find((d) => d.parent_grid_row === filaActiva);
-  window.dispatchEvent(
-    new CustomEvent('estok:planta-seleccionada', {
-      detail: {
-        fila: filaActiva,
-        nombre: filaActiva ? div?.nombre || nombreDePlanta(filaActiva) : null,
-        /** Total de plantas del inmueble (para la red de minimapas anidados). */
-        total: totalPlantas(),
-        /**
-         * Habitaciones REALES de la planta (geometría nativa ui_left/ui_top/
-         * ui_width/ui_height): el minimapa anidado de Nivel 1 dibuja las
-         * proporciones verdaderas de cada espacio, tanto en planta alta como
-         * en planta baja.
-         */
-        hermanas: habitacionesDePlanta(filaActiva || 1),
-      },
-    }),
-  );
-}
+import { estado } from './mapaCasita/estadoCasita';
+import {
+  apartamentoDePlantaUnica,
+  esPlantaUnica,
+  habitacionesDePlanta,
+  nombreDePlanta,
+  primeraPlanta,
+  roomsDePlantaUnica,
+  totalPlantas,
+} from './mapaCasita/dominioCasita';
+import { renderCasaHtml, renderHabitacionesHtml } from './mapaCasita/renderCasita';
+import {
+  cargarDatos,
+  crearApartamentoSiFalta,
+  crearHabitacionEnPlanta,
+  guardarEspacioUnicoDivision,
+} from './mapaCasita/cargaCasita';
 
 // =============================================================================
 // RENDER
 // =============================================================================
 
-/** Nivel 1: la casa con techo puntiagudo y sus plantas como botones. */
-function renderCasa(): string {
-  const total = totalPlantas();
-  const pisos: string[] = [];
-  for (let f = 1; f <= total; f++) {
-    const div = divisiones.find((d) => d.parent_grid_row === f);
-    const nombre = nombreDePlanta(f);
-    const habs = habitacionesDePlanta(f);
-    const meta = div
-      ? `${habs.length} hab${habs.length === 1 ? '' : 's'}`
-      : 'Sin estructura';
-    pisos.push(`
-      <button type="button" class="casita-piso${filaActiva === f ? ' casita-piso-activo' : ''}" data-casita-piso="${f}" title="Ver las habitaciones de «${escapeHtml(nombre)}»">
-        <span class="casita-piso-izq">
-          <span class="casita-piso-ico">${f === 1 ? '🛏️' : '🛋️'}</span>
-          <span class="casita-piso-titulo">${escapeHtml(nombre)}</span>
-        </span>
-        <span class="casita-piso-meta">${escapeHtml(meta)}<span class="casita-piso-flecha">›</span></span>
-      </button>`);
-  }
-  return `
-  <div class="casita-lienzo" data-vista="casa">
-    <div class="casita-silhouette">
-      <svg class="casita-techo-svg" viewBox="0 0 320 96" role="img" aria-label="Techo puntiagudo de la casa de Estok">
-        <defs>
-          <linearGradient id="casitaTechoGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#9a3412" />
-            <stop offset="100%" stop-color="#7c2d12" />
-          </linearGradient>
-        </defs>
-        <clipPath id="casitaTechoClip"><path d="M4 96 L160 6 L316 96 Z" /></clipPath>
-        <path d="M4 96 L160 6 L316 96 Z" fill="url(#casitaTechoGrad)" stroke="#5b1f0a" stroke-width="4" stroke-linejoin="round" />
-        <path d="M160 6 L160 96" stroke="rgba(255,255,255,0.16)" stroke-width="2" />
-        <g clip-path="url(#casitaTechoClip)">
-          <path d="M0 34 L320 34" stroke="rgba(255,255,255,0.14)" stroke-width="2" />
-          <path d="M0 58 L320 58" stroke="rgba(255,255,255,0.12)" stroke-width="2" />
-          <path d="M0 80 L320 80" stroke="rgba(255,255,255,0.10)" stroke-width="2" />
-        </g>
-      </svg>
-      <div class="casita-cuerpo">${pisos.join('')}</div>
-    </div>
-    <p class="casita-leyenda">Tocá una planta de la casa para navegar a sus habitaciones.</p>
-  </div>`;
-}
-
-async function cargarDatos(): Promise<void> {
-  const todas = await fetchUbicacionesPlano();
-  divisiones = todas.filter((u) => esDivisionUbicacion(u));
-  habitaciones = todas.filter((u) => !esDivisionUbicacion(u));
-}
-
-/** Nivel 2: minimapa ultra-mini de la casita + plano elástico de la planta. */
-function renderHabitaciones(): string {
-  const fila = filaActiva || 1;
-  const nombre = nombreDePlanta(fila);
-  const habs = habitacionesDePlanta(fila);
-  const total = totalPlantas();
-  const div = divisiones.find((d) => d.parent_grid_row === fila);
-
-  // UNIFICACIÓN DEL RENDERIZADO: TODAS las habitaciones (encastradas o legacy
-  // sin encastre matricial) se dibujan como RECTÁNGULOS ELÁSTICOS LIBRES con su
-  // geometría nativa ui_left/ui_top/ui_width/ui_height, mediante el MISMO motor
-  // 2D que las plantas. Se conservan los iconos contextuales (🚽 🛏️ 🗄️ 🏠).
-  const items: ItemElastico[] = habs.map((h) => ({
-    ...h,
-    icono: iconoDeHabitacion(h.nombre),
-  }));
-
-  const sinEstructura = `<div class="casita-hab-vacia">
-        <span class="casita-hab-vacia-ico">🛏️</span>
-        <p>Esta planta aún no tiene una división configurada.</p>
-        <p class="casita-hab-vacia-sub">Definí la sub-grilla de la planta desde el modelador del Mapa Estok al crear o editar tu Estok.</p>
-      </div>`;
-
-  const plano = div
-    ? renderLienzoElastico({
-        items,
-        etiquetaCrear: 'Habitación',
-        textoVacio:
-          'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
-        // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del
-        // Onboarding (idéntico motor 2D), para que la interfaz se vea consistente.
-        tip: '🧩 <strong>Editor de espacios</strong> · inyectá cada habitación con «➕ Habitación», arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque en «L».',
-      })
-    : sinEstructura;
-
-  return `
-  <div class="casita-lienzo" data-vista="habitaciones">
-    <div class="nav-jerarquica nav-jerarquica--extremos">
-      <button type="button" class="nav-volver" data-casita-volver title="Volver a la vista general de la casa">⬅ Volver</button>
-      <span class="nav-jerarquica__titulo">🏠 ${escapeHtml(nombre)}</span>
-    </div>
-    <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa está en naranja">
-      <div class="casita-minimapa-casilla">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</div>
-      <div class="casita-minimapa-info">
-        <span class="casita-minimapa-leyenda">Estás en</span>
-        <strong>${escapeHtml(nombre)}</strong>
-        <span class="casita-minimapa-hint">Tocá un piso del minimapa para saltar</span>
-      </div>
-    </div>
-    <div class="casita-plano">${plano}</div>
-  </div>`;
-}
-
 function render(): void {
+  const { refs, estok, divisiones, habitaciones, filaActiva, nivelActual } = estado;
   if (!refs.mapa) return;
 
   // BIFURCACIÓN DEL MODELADOR: 1 planta → Planta Única (rectángulo perimetral
-  // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo y
-  // navegación por piso). El lienzo nunca queda vacío en ninguna rama.
-  if (esPlantaUnica()) {
-    // HOMOLOGACIÓN DE BOTONES: el mapa de Almacenamiento expone el MISMO botón de
-    // creación de texto («➕ Habitación» / data-lienzo-crear) que el editor premium
-    // del Onboarding, en vez del botón gráfico heredado, para que la botonera de
-    // comandos se vea idéntica en todos los niveles de la app.
+  // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo).
+  if (esPlantaUnica(estok)) {
     refs.mapa.innerHTML = `<div class="casita-raiz">${renderPlantaUnica({
-      apartamento: apartamentoDePlantaUnica(),
-      rooms: roomsDePlantaUnica(),
+      apartamento: apartamentoDePlantaUnica(divisiones),
+      rooms: roomsDePlantaUnica(divisiones, habitaciones),
       etiquetaCrear: 'Habitación',
     })}</div>`;
     if (refs.badge) refs.badge.textContent = `Planta Única · ${estok?.nombre || 'Departamento'}`;
     return;
   }
 
-  refs.mapa.innerHTML = `<div class="casita-raiz">${nivelActual === 1 ? renderCasa() : renderHabitaciones()}</div>`;
+  const total = totalPlantas(estok, divisiones);
+  const html =
+    nivelActual === 1
+      ? renderCasaHtml({ total, divisiones, habitaciones, filaActiva })
+      : renderHabitacionesHtml({ fila: filaActiva || 1, total, divisiones, habitaciones });
+  refs.mapa.innerHTML = `<div class="casita-raiz">${html}</div>`;
   if (refs.badge) {
     refs.badge.textContent =
       nivelActual === 1
         ? `Nivel 1 · ${estok?.nombre || 'Casa de Estok'}`
-        : `Nivel 2 · ${nombreDePlanta(filaActiva || 1)}`;
+        : `Nivel 2 · ${nombreDePlanta(divisiones, filaActiva || 1)}`;
   }
+}
+
+/** Dispara el evento de planta seleccionada para filtrar la cascada en caliente. */
+function notificarPlanta(): void {
+  const { estok, divisiones, habitaciones, filaActiva } = estado;
+  const div = divisiones.find((d) => d.parent_grid_row === filaActiva);
+  window.dispatchEvent(
+    new CustomEvent('estok:planta-seleccionada', {
+      detail: {
+        fila: filaActiva,
+        nombre: filaActiva ? div?.nombre || nombreDePlanta(divisiones, filaActiva) : null,
+        /** Total de plantas del inmueble (para la red de minimapas anidados). */
+        total: totalPlantas(estok, divisiones),
+        /**
+         * Habitaciones REALES de la planta (geometría nativa ui_left/ui_top/
+         * ui_width/ui_height): el minimapa anidado dibuja las proporciones
+         * verdaderas de cada espacio, tanto en planta alta como en planta baja.
+         */
+        hermanas: habitacionesDePlanta(divisiones, habitaciones, filaActiva || 1),
+      },
+    }),
+  );
 }
 
 // =============================================================================
@@ -341,14 +105,15 @@ function render(): void {
 // =============================================================================
 
 function enlazar(): void {
+  const { refs } = estado;
   if (!refs.mapa) return;
 
   // Rama Planta Única: inyección libre, arrastre/resizing elástico y fusión en "L".
-  if (esPlantaUnica()) {
+  if (esPlantaUnica(estado.estok)) {
     conectarPlantaUnica({
       scope: refs.mapa,
-      rooms: roomsDePlantaUnica,
-      apartamentoId: () => apartamentoDePlantaUnica()?.id ?? null,
+      rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),
+      apartamentoId: () => apartamentoDePlantaUnica(estado.divisiones)?.id ?? null,
       asegurarApartamento: crearApartamentoSiFalta,
       notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
     });
@@ -360,8 +125,8 @@ function enlazar(): void {
     el.addEventListener('click', () => {
       const fila = Number(el.dataset.casitaPiso);
       if (!fila) return;
-      filaActiva = fila;
-      nivelActual = 2;
+      estado.filaActiva = fila;
+      estado.nivelActual = 2;
       render();
       enlazar();
       notificarPlanta();
@@ -371,7 +136,7 @@ function enlazar(): void {
   // Nivel 2: botón "⬅ Volver" → regresa a la vista general de la casa.
   refs.mapa.querySelectorAll<HTMLElement>('[data-casita-volver]').forEach((el) => {
     el.addEventListener('click', () => {
-      nivelActual = 1;
+      estado.nivelActual = 1;
       render();
       enlazar();
       notificarPlanta();
@@ -382,13 +147,31 @@ function enlazar(): void {
   refs.mapa.querySelectorAll<HTMLElement>('[data-mini-fila]').forEach((el) => {
     el.addEventListener('click', () => {
       const fila = Number(el.getAttribute('data-mini-fila'));
-      if (!fila || fila === filaActiva) return;
-      filaActiva = fila;
+      if (!fila || fila === estado.filaActiva) return;
+      estado.filaActiva = fila;
       render();
       enlazar();
       notificarPlanta();
     });
   });
+
+  // Nivel 2: disyuntor canónico «Espacio Único» de la planta activa (cabecera).
+  refs.mapa
+    .querySelector<HTMLInputElement>('#casitaEspacioUnico')
+    ?.addEventListener('change', async (e) => {
+      const chk = e.currentTarget as HTMLInputElement;
+      const div = estado.divisiones.find((d) => d.parent_grid_row === estado.filaActiva);
+      if (!div) return;
+      chk.disabled = true;
+      const ok = await guardarEspacioUnicoDivision(div.id, chk.checked);
+      chk.disabled = false;
+      if (!ok) {
+        chk.checked = !chk.checked;
+        return;
+      }
+      div.espacio_unico = chk.checked;
+      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+    });
 
   // Nivel 2: clic en una habitación (rectángulo elástico) → alimenta el Visor.
   // En MODO EDICIÓN el clic edita in-place (arrastrar/estirar) y NO navega.
@@ -401,11 +184,18 @@ function enlazar(): void {
         if (modoLienzoActual() !== 'navegacion') return;
         const id = el.dataset.id;
         if (!id) return;
-        const room = habitaciones.find((h) => h.id === id);
+        const room = estado.habitaciones.find((h) => h.id === id);
         if (!room) return;
         window.dispatchEvent(
           new CustomEvent('estok:habitacion-seleccionada', {
-            detail: { room, hermanas: habitacionesDePlanta(filaActiva || 1) },
+            detail: {
+              room,
+              hermanas: habitacionesDePlanta(
+                estado.divisiones,
+                estado.habitaciones,
+                estado.filaActiva || 1,
+              ),
+            },
           }),
         );
       });
@@ -416,11 +206,14 @@ function enlazar(): void {
   // Mismo lienzo de rectángulos libres que las plantas: renombrar al clic,
   // arrastre/reacomodo, estiramiento por esquina y fusión en «L».
   // =========================================================================
-  const div = filaActiva ? divisiones.find((d) => d.parent_grid_row === filaActiva) ?? null : null;
-  if (nivelActual === 2 && div) {
+  const div = estado.filaActiva
+    ? estado.divisiones.find((d) => d.parent_grid_row === estado.filaActiva) ?? null
+    : null;
+  if (estado.nivelActual === 2 && div) {
     conectarPlantaUnica({
       scope: refs.mapa,
-      rooms: () => habitacionesDePlanta(filaActiva || 1),
+      rooms: () =>
+        habitacionesDePlanta(estado.divisiones, estado.habitaciones, estado.filaActiva || 1),
       adaptador: adaptadorUbicaciones(),
       apartamentoId: () => div.id,
       crearItem: () => crearHabitacionEnPlanta(div),
@@ -437,20 +230,20 @@ export function initMapaCasita(opts: {
   mapa?: HTMLElement | null;
   badge?: HTMLElement | null;
 }): void {
-  refs = { mapa: opts.mapa ?? null, badge: opts.badge ?? null };
-  if (!refs.mapa) return;
+  estado.refs = { mapa: opts.mapa ?? null, badge: opts.badge ?? null };
+  estado.primeraCarga = true;
+  if (!estado.refs.mapa) return;
 
-  // Estado inicial estricto: la navegación NACE en el Nivel 1 (casa general).
-  // La silueta con techo puntiagudo se dibuja de forma INSTANTÁNEA y luego,
-  // al llegar los datos del Estok activo, se re-renderiza con las divisiones
-  // raíz reales (Planta Alta arriba, Planta Baja abajo).
-  filaActiva = null;
-  nivelActual = 1;
+  // Estado inicial de arranque: la casa se pinta de forma SÍNCRONA (el lienzo
+  // nunca queda vacío) y, al llegar los datos reales del Estok activo, el Nivel
+  // Estok aterriza en el EDITOR de la planta activa (ver aterrizarNivelEstok).
+  estado.filaActiva = null;
+  estado.nivelActual = 1;
   pintarCasaInicial();
 
-  // Carga asíncrona de las macro-divisiones del Estok activo. Si el fetch
-  // falla de forma transitoria (p. ej. sesión aún restaurándose), se reintenta
-  // SIN que el lienzo quede vacío: la casa ya quedó pintada por defecto.
+  // Carga asíncrona de las macro-divisiones del Estok activo. Si el fetch falla
+  // de forma transitoria (p. ej. sesión restaurándose), se reintenta SIN que el
+  // lienzo quede vacío: la casa ya quedó pintada por defecto.
   void cargarConReintentos();
 
   // Refresco en vivo ante mutaciones externas (edición in-place del lienzo,
@@ -466,12 +259,29 @@ function pintarCasaInicial(): void {
   enlazar();
 }
 
+/**
+ * Aterrizaje del Nivel Estok inicial: en Modo Casa, la PRIMERA carga con datos
+ * reales deja al usuario en el EDITOR de la planta activa — panel izquierdo =
+ * silueta de la casa con la planta seleccionada en NARANJA (minimapa) y panel
+ * derecho = Editor Elástico de Habitaciones («➕ Habitación» + botonera +
+ * disyuntor «Espacio Único»). En Modo Planta Única no aplica.
+ */
+function aterrizarNivelEstok(): void {
+  if (esPlantaUnica(estado.estok) || estado.divisiones.length === 0) return;
+  estado.filaActiva = primeraPlanta(estado.divisiones);
+  estado.nivelActual = 2;
+}
+
 /** Carga config del Estok + divisiones/habitaciones y re-renderiza. */
 async function cargarYRefrescar(): Promise<boolean> {
   const conf = await fetchEstokConfig();
   if (!conf) return false;
-  estok = conf;
+  estado.estok = conf;
   await cargarDatos();
+  if (estado.primeraCarga) {
+    estado.primeraCarga = false;
+    aterrizarNivelEstok();
+  }
   // El re-render del lienzo NO debe mover el scroll del navegador (fix de jitter
   // visual): se reafirma la posición vigente tras inyectar el marcado nuevo.
   preservarScroll(() => {
@@ -488,7 +298,5 @@ async function cargarConReintentos(intentosMax = 6, esperaMs = 700): Promise<voi
     if (await cargarYRefrescar()) return;
     await new Promise((resolve) => setTimeout(resolve, esperaMs));
   }
-  if (refs.badge) refs.badge.textContent = 'Nivel 1 · Sin datos';
+  if (estado.refs.badge) estado.refs.badge.textContent = 'Nivel 1 · Sin datos';
 }
-
-
