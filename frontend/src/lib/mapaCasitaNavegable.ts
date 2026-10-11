@@ -32,7 +32,6 @@ import {
   esPlantaUnica,
   habitacionesDePlanta,
   nombreDePlanta,
-  primeraPlanta,
   roomsDePlantaUnica,
   totalPlantas,
 } from './mapaCasita/dominioCasita';
@@ -234,9 +233,25 @@ export function initMapaCasita(opts: {
   estado.primeraCarga = true;
   if (!estado.refs.mapa) return;
 
+  // SELECCIÓN DE PLANTA DESDE EL PANEL DERECHO (estado de espera): la tarjeta
+  // de planta dispara este gesto, el lienzo sube de nivel (planta fija a la
+  // izquierda con sus habitaciones) y notifica a la cascada de portales.
+  window.addEventListener('estok:planta-elegida', (e) => {
+    const fila = Number((e as CustomEvent<{ fila?: number }>).detail?.fila) || 0;
+    if (!fila) return;
+    estado.filaActiva = fila;
+    estado.nivelActual = 2;
+    preservarScroll(() => {
+      render();
+      enlazar();
+    });
+    notificarPlanta();
+  });
+
   // Estado inicial de arranque: la casa se pinta de forma SÍNCRONA (el lienzo
-  // nunca queda vacío) y, al llegar los datos reales del Estok activo, el Nivel
-  // Estok aterriza en el EDITOR de la planta activa (ver aterrizarNivelEstok).
+  // nunca queda vacío) en la vista general del Estok (Nivel 1). Los datos
+  // reales completan la silueta de las DOS plantas y la derecha arma los
+  // minimapas independientes, SIN descenso automático (ver cargarYRefrescar).
   estado.filaActiva = null;
   estado.nivelActual = 1;
   pintarCasaInicial();
@@ -259,19 +274,6 @@ function pintarCasaInicial(): void {
   enlazar();
 }
 
-/**
- * Aterrizaje del Nivel Estok inicial: en Modo Casa, la PRIMERA carga con datos
- * reales deja al usuario en el EDITOR de la planta activa — panel izquierdo =
- * silueta de la casa con la planta seleccionada en NARANJA (minimapa) y panel
- * derecho = Editor Elástico de Habitaciones («➕ Habitación» + botonera +
- * disyuntor «Espacio Único»). En Modo Planta Única no aplica.
- */
-function aterrizarNivelEstok(): void {
-  if (esPlantaUnica(estado.estok) || estado.divisiones.length === 0) return;
-  estado.filaActiva = primeraPlanta(estado.divisiones);
-  estado.nivelActual = 2;
-}
-
 /** Carga config del Estok + divisiones/habitaciones y re-renderiza. */
 async function cargarYRefrescar(): Promise<boolean> {
   const conf = await fetchEstokConfig();
@@ -279,8 +281,15 @@ async function cargarYRefrescar(): Promise<boolean> {
   estado.estok = conf;
   await cargarDatos();
   if (estado.primeraCarga) {
+    // ESTADO DE ESPERA INICIAL (Nivel Estok puro): SIN descenso automático.
+    // La navegación NACE en la vista general del Estok:
+    //   · Panel Izquierdo → silueta general de las DOS plantas (Nivel 1).
+    //   · Panel Derecho   → minimapas INDEPENDIENTES de cada planta.
+    // La planta sólo se fija (y la derecha desciende) cuando el operador la
+    // elige, ya sea desde la silueta izquierda o desde su tarjeta derecha.
     estado.primeraCarga = false;
-    aterrizarNivelEstok();
+    estado.filaActiva = null;
+    estado.nivelActual = 1;
   }
   // El re-render del lienzo NO debe mover el scroll del navegador (fix de jitter
   // visual): se reafirma la posición vigente tras inyectar el marcado nuevo.

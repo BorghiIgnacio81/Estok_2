@@ -274,6 +274,9 @@ export function nodoDesdeHabitacion(
     filas,
     columnasPorFila,
     hijos: geometriaDe(espaciosInternos),
+    // Dueño del perímetro ámbar: la medida general vive en la Ubicación real.
+    ui_width: room.ui_width ?? null,
+    ui_height: room.ui_height ?? null,
     celda: null,
   };
 }
@@ -292,6 +295,9 @@ export function nodoDesdeContenedor(
     filas: c.grid_filas,
     columnasPorFila: columnasPorFilaDeContenedor(c),
     hijos: [],
+    // Dueño del perímetro ámbar: la medida general vive en el Contenedor real.
+    ui_width: c.ui_width,
+    ui_height: c.ui_height,
     celda: celda ?? { fila: c.parent_grid_row, col: c.parent_grid_col },
   };
 }

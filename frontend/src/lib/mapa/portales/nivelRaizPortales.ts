@@ -14,8 +14,9 @@ import { aspectoDelLienzo, el } from './domPortales';
 import { estadoPortales } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { cargarPlantas, cargarUbicaciones, datosDeNivelPlanta } from './datosNodosPortales';
+import { datosDePlantasIndependientes } from './datosPlantasEspera';
 import type { PanelIzquierdo } from './panelesPortales';
-import { listaHabitacionesHtml } from './tarjetasHabitaciones';
+import { listaHabitacionesHtml, listaPlantasHtml } from './tarjetasHabitaciones';
 import type { UbicacionPlano } from '../../mapaJerarquico';
 
 /** Caché local de ubicaciones del último nivel raíz resuelto. */
@@ -36,26 +37,42 @@ async function plantaIdActiva(): Promise<string | null> {
 }
 
 /**
- * Pinta el host de habitaciones (`listaHabitacionesPanel`): mini-mapa ampliado
- * de la planta con las siluetas rotuladas. `activoId` marca en NARANJA el cuarto
- * seleccionado (Ley 2: selección in-place sin mover el ancla).
+ * Pinta el host de habitaciones (`listaHabitacionesPanel`).
+ *
+ * ESTADO DE ESPERA INICIAL: sin planta activa dibuja los minimapas
+ * INDEPENDIENTES de TODAS las plantas (nunca el clon de una sola), a la espera
+ * de selección. Con planta activa dibuja el mini-mapa ampliado de esa planta,
+ * con sus habitaciones navegables y `activoId` en NARANJA cuando corresponde
+ * (Ley 2: selección in-place sin mover el ancla).
  */
 export async function renderNivelRaiz(activoId: string | null = null): Promise<void> {
-  const plantaId = await plantaIdActiva();
-  const datos = await datosDeNivelPlanta(plantaId);
-  cacheUbicacionesLocal = await cargarUbicaciones();
   const host = el('listaHabitacionesPanel');
-  if (host) {
-    // MURIÓ EL TEXTO PLANO: la derecha/el ancla dibuja el polígono REAL de cada
-    // habitación, rotulado con su nombre e icono semántico.
-    host.innerHTML = listaHabitacionesHtml(
-      datos.rooms,
-      datos.espaciosPorRoom,
+  if (!host) return;
+  cacheUbicacionesLocal = await cargarUbicaciones();
+  const plantaId = await plantaIdActiva();
+
+  // SIN PLANTA ACTIVA → ESTADO DE ESPERA: un mini-mapa por planta.
+  if (!plantaId) {
+    const espera = await datosDePlantasIndependientes();
+    host.innerHTML = listaPlantasHtml(
+      espera.plantas,
+      espera.habitacionesPorPlanta,
+      espera.espaciosPorRoom,
       aspectoDelLienzo(),
-      datos.plant?.nombre ?? null,
-      activoId,
     );
+    return;
   }
+
+  const datos = await datosDeNivelPlanta(plantaId);
+  // MURIÓ EL TEXTO PLANO: el ancla dibuja el polígono REAL de cada habitación,
+  // rotulado con su nombre e icono semántico.
+  host.innerHTML = listaHabitacionesHtml(
+    datos.rooms,
+    datos.espaciosPorRoom,
+    aspectoDelLienzo(),
+    datos.plant?.nombre ?? null,
+    activoId,
+  );
 }
 
 /**

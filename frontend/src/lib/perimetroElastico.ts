@@ -125,10 +125,13 @@ export interface OpcionesPerimetro {
   alGuardar?: () => void;
 }
 
-/**
- * Tolerancia de arrastre: por debajo de 3 px el gesto se considera un clic
- * accidental y NO se dispara ningún PUT (evita escrituras ruidosas).
- */
+/** Persistencia canónica de la MEDIDA del perímetro (px) para un adaptador dado. */
+export const guardarMedidaCon =
+  (adaptador: AdaptadorEspacios) =>
+  (id: string, medida: MedidaPerimetro): Promise<boolean> =>
+    adaptador.guardarItem(id, { ui_width: `${medida.ancho}px`, ui_height: `${medida.alto}px` });
+
+/** Tolerancia de arrastre: < 3 px = clic accidental, sin PUT (evita ruido). */
 const UMBRAL_ARRASTRE_PX = 3;
 
 /** Persiste la medida general del plano con un PUT limpio (px). */
@@ -140,10 +143,7 @@ async function persistirMedida(opts: OpcionesPerimetro, medida: MedidaPerimetro)
   }
   if (opts.guardar) return opts.guardar(id, medida);
   if (!opts.adaptador) return false;
-  return opts.adaptador.guardarItem(id, {
-    ui_width: `${medida.ancho}px`,
-    ui_height: `${medida.alto}px`,
-  });
+  return guardarMedidaCon(opts.adaptador)(id, medida);
 }
 
 /** Aplica la medida en caliente sobre los estilos inline del perímetro. */

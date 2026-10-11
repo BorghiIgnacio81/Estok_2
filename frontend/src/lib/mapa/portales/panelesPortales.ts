@@ -114,11 +114,12 @@ export interface CabeceraPaneles {
 export function cabecerasDe(nodo: NodoPortal | null, paneles: Paneles): CabeceraPaneles {
   if (!nodo) {
     return {
-      tituloIzq: '🏠 Plano general de la Planta',
-      tituloDer: '🗺️ Mini-mapa ampliado de la planta',
-      descIzq: 'Plano general de la planta activa. Tocá una habitación para abrir su interior.',
+      tituloIzq: '🏠 Plano general del Estok (sus plantas)',
+      tituloDer: '🗺️ Mini-mapas independientes de cada planta',
+      descIzq:
+        'Silueta general del Estok. Tocá una planta para fijarla a la izquierda y desplegar sus habitaciones.',
       descDer:
-        'Mini-mapa ampliado de la planta: cada polígono es una habitación real, rotulada con su nombre y su icono. Tocá una silueta para entrar a su interior jerárquico.',
+        'Un mini-mapa por planta, a la espera de selección. Tocá una tarjeta para desplegar sus habitaciones a la izquierda.',
     };
   }
   if (paneles.derecho === 'grillaObjetos') {

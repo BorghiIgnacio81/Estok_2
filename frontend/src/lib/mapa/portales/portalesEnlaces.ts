@@ -73,14 +73,20 @@ async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
   if (nodo) await seleccionarNodo(nodo);
 }
 
-/** Controles del editor elástico que NO disparan un portal al tocarlos. */
+/**
+ * Controles del EDITOR ELÁSTICO —compartido por habitaciones y por CUALQUIER
+ * contenedor con sub-divisiones (recursivo ∞)— que NO disparan un portal al
+ * tocarlos: fusionar, eliminar, renombrar, estirar una tarjeta interna y los
+ * TIRADORES DEL PERÍMETRO ámbar (ancho/alto del marco completo).
+ */
 const CONTROLES_EDITOR =
-  '[data-fusion-check],[data-eliminar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize]';
+  '[data-fusion-check],[data-eliminar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-unico]';
 
 /**
- * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO de un cuarto (Panel Derecho)
- * como portal de contenedor: en modo NAVEGACIÓN cada rectángulo navega a su
- * interior jerárquico; en modo EDICIÓN el clic edita (arrastrar/estirar/fusionar).
+ * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO del Panel Derecho (habitación
+ * o contenedor con sub-divisiones) como portal de contenedor: en modo NAVEGACIÓN
+ * cada rectángulo navega a su interior jerárquico; en modo EDICIÓN el clic edita
+ * (arrastrar/estirar/fusionar/estirar el perímetro).
  */
 function contenedorDeEditor(objetivo: HTMLElement | null): string | null {
   if (modoLienzoActual() !== 'navegacion') return null;
@@ -110,6 +116,20 @@ function conectarPortalesPorDelegacion(): void {
     const carta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-portal-abrir]');
     if (!carta) return;
     void seleccionarEnIzquierda(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+  });
+  // ESTADO DE ESPERA INICIAL: la tarjeta de PLANTA del Panel Derecho elige esa
+  // planta → el orquestador del lienzo sube de nivel (planta fija a la
+  // izquierda con sus habitaciones + derecha a la espera de una habitación).
+  slotDer()?.addEventListener('click', (ev) => {
+    const tarjeta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-planta-fila]');
+    if (!tarjeta) return;
+    const fila = Number(tarjeta.dataset.plantaFila);
+    if (!fila) return;
+    window.dispatchEvent(
+      new CustomEvent('estok:planta-elegida', {
+        detail: { fila, nombre: tarjeta.dataset.plantaNombre ?? '' },
+      }),
+    );
   });
 }
 

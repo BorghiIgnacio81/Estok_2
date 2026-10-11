@@ -127,7 +127,12 @@ function renderMinimapa(): void {
       aspecto,
     });
   }
-  cont.innerHTML = renderMinimapasAnidados(nodos);
+  // RESALTE NARANJA DE LA RUTA (migas de pan): el nodo activo de la pila
+  // (`ruta: NodoPortal[]`) se marca por IDENTIDAD → su miniatura va en naranja
+  // (#f97316) y, dentro del minimapa de su padre, el sector REAL de la habitación
+  // o del espacio donde está parado el usuario también se pinta en naranja.
+  const activoId = nodoActual()?.id ?? null;
+  cont.innerHTML = renderMinimapasAnidados(nodos, { activoId });
   cont.classList.toggle('hidden', nodos.length === 0);
 }
 
@@ -268,13 +273,16 @@ async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<vo
   if (paneles.derecho === 'listaContenedores') {
     const host = el('listaContenedoresPanel');
     if (!host) return;
-    // LEY 2 · La HABITACIÓN despliega su EDITOR ELÁSTICO de divisiones (botón
-    // «➕ Crear Espacio» + disyuntor «Espacio Único») en vez de un plano mudo.
-    if (nodo.tipo === 'habitacion') {
+    // LEY 2 · DESCENSO RECURSIVO INFINITO: tanto una HABITACIÓN como CUALQUIER
+    // CONTENEDOR con sub-divisiones propias despliegan su EDITOR ELÁSTICO (botón
+    // «➕ Crear Espacio» + disyuntor «Espacio Único») en vez de un plano mudo. La
+    // regla es idéntica a cualquier profundidad de la pila (Nivel N+1, N+2, …).
+    if (nodo.tipo === 'habitacion' || nodo.conDivisiones) {
       pintarEditorDivisiones(host, nodo, interior);
       return;
     }
-    // Los CONTENEDORES conservan su mini-mapa de portales rotulado.
+    // Un CONTENEDOR sin sub-divisiones conserva su mini-mapa de portales rotulado
+    // (fallback de fin de cadena: nunca llega acá si el nodo tiene hijos propios).
     const fichas = await fichasDe(interior.piezas);
     const aspecto = aspectoDelLienzo();
     host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);

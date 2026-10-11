@@ -83,3 +83,58 @@ export function listaHabitacionesHtml(
     ].join(' '),
   })}</div>`;
 }
+
+/**
+ * Tarjeta del ESTADO DE ESPERA: UN mini-mapa INDEPENDIENTE por planta. La
+ * silueta completa (con sus habitaciones) es la zona de selección: al tocarla,
+ * el orquestador del lienzo fija esa planta a la izquierda y desciende la
+ * derecha al nivel de habitaciones.
+ */
+function tarjetaPlantaEsperaHtml(
+  plant: UbicacionPlano,
+  rooms: UbicacionPlano[],
+  espaciosPorRoom: Map<string, ContenedorDto[]>,
+  aspecto: number,
+): string {
+  const fila = plant.parent_grid_row || 1;
+  const nombre = String(plant.nombre ?? 'Planta');
+  const piezas = rooms.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
+  const contador = rooms.length === 1 ? '1 habitación' : `${rooms.length} habitaciones`;
+  return `<section class="portal-planta-espera" data-planta-fila="${fila}" data-planta-nombre="${escapeHtml(nombre)}"
+      title="Tocá para fijar «${escapeHtml(nombre)}» en el plano de la izquierda">
+    <header class="portal-planta-espera-cab">
+      <span class="portal-planta-espera-ico" aria-hidden="true">🏠</span>
+      <span class="portal-planta-espera-titulo">${escapeHtml(nombre)}</span>
+      <span class="portal-planta-espera-meta">${escapeHtml(contador)} ›</span>
+    </header>
+    <div class="portal-lienzo-planta">${lienzoAmpliadoHtml(piezas, aspecto, nombre, {
+      tip: `🗺️ Mini-mapa independiente de «${escapeHtml(nombre)}».`,
+      atributosSector: () => '',
+    })}</div>
+  </section>`;
+}
+
+/**
+ * Panel Derecho del ESTADO DE ESPERA INICIAL: un mini-mapa INDEPENDIENTE por
+ * cada planta del Estok, a la espera de selección (nunca un plano clonado).
+ */
+export function listaPlantasHtml(
+  plantas: UbicacionPlano[],
+  habitacionesPorPlanta: Map<string, UbicacionPlano[]>,
+  espaciosPorRoom: Map<string, ContenedorDto[]>,
+  aspecto: number,
+): string {
+  if (!plantas.length) {
+    return `<div class="portal-vacio">
+      <span class="portal-vacio-ico" aria-hidden="true">🏠</span>
+      <p class="portal-vacio-texto">Este Estok todavía no tiene plantas configuradas. Modelá su estructura desde el plano de la izquierda.</p>
+    </div>`;
+  }
+  const tarjetas = plantas.map((p) =>
+    tarjetaPlantaEsperaHtml(p, habitacionesPorPlanta.get(String(p.id)) ?? [], espaciosPorRoom, aspecto),
+  );
+  return `<div class="portal-plantas-espera">
+    <p class="portal-planta-espera-guia">🏗️ <strong>Estado de espera</strong>: elegí una planta —acá o en el plano de la izquierda— para desplegar sus habitaciones.</p>
+    ${tarjetas.join('')}
+  </div>`;
+}

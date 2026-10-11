@@ -67,8 +67,3 @@ export function habitacionesDePlanta(
     return ra - rb || ca - cb;
   });
 }
-
-/** Primera planta real del inmueble (fila mínima, 1-based). 1 si no hay datos. */
-export function primeraPlanta(divisiones: UbicacionPlano[]): number {
-  return divisiones.reduce((min, d) => Math.min(min, d.parent_grid_row || 1), 1);
-}

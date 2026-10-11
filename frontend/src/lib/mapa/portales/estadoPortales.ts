@@ -43,6 +43,13 @@ export interface NodoPortal {
   columnasPorFila: number[];
   /** Geometría REAL de los hijos directos (ui_left/ui_top/ui_width/ui_height). */
   hijos: ItemGeometria[];
+  /**
+   * Medida general persistida del PERÍMETRO propio del nodo (px). El nodo oficia
+   * de dueño del marco ámbar redimensionable en CUALQUIER nivel de la cascada:
+   * se reutiliza el motor de la Planta (`perimetroElastico.ts`) sin duplicarlo.
+   */
+  ui_width?: string | null;
+  ui_height?: string | null;
   /** Casillero F·C heredado cuando el nodo provino de una celda del padre. */
   celda: CeldaFina | null;
 }
