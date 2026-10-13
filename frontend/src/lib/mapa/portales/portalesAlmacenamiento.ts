@@ -18,12 +18,10 @@ import { sectoresDeItems } from '../../sectoresMinimapa';
 import {
   cargarHabitacionesDePlanta,
   contenedoresRaizDeUbicacion,
-  objetosDeContenedor,
   cargarContenedores,
   cargarInteriorDeNodo,
   nodoDesdeContenedor,
   nodoDesdeHabitacion,
-  geometriaDe,
 } from './datosNodosPortales';
 import type { InteriorNodo } from './datosNodosPortales';
 import {
@@ -41,8 +39,6 @@ import type { NodoPortal } from './estadoPortales';
 import { cabecerasDe, hostsDe, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
-import { listaHijosHtml } from './tarjetasContenedores';
-import type { FichaHijo } from './tarjetasContenedores';
 import { alternarEspacioUnico, pintarEditorDivisiones } from './editorDivisionesPortales';
 import {
   bloqueMonoliticoHtml,
@@ -241,51 +237,23 @@ export async function volverARaiz(): Promise<void> {
 // RENDER DEL INTERIOR (Panel Derecho recursivo + bloque monolítico)
 // -----------------------------------------------------------------------------
 
-/** Fichas del interior activo: hijos + contadores reales + geometría anidada. */
-async function fichasDe(piezas: NodoPortal[]): Promise<FichaHijo[]> {
-  const conts = await cargarContenedores();
-  const fichas: FichaHijo[] = [];
-  for (const nodo of piezas) {
-    const nietos = conts.filter((c) => c.parent_contenedor === nodo.id);
-    const objetos = await objetosDeContenedor(nodo.id);
-    const dto = conts.find((c) => c.id === nodo.id);
-    fichas.push({
-      nodo,
-      nietos: geometriaDe(nietos),
-      subconteo: nietos.length,
-      objetos: objetos.length,
-      enTransito: objetos.filter((o) => o.en_transito_interno).length,
-      tipo: dto?.tipo ?? '',
-      esInmueble: dto?.es_inmueble ?? false,
-      espacioUnico: nodo.espacioUnico,
-    });
-  }
-  return fichas;
-}
-
 /**
  * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe(): si el
- * nodo es «Espacio Único» / sin divisiones, la derecha salta a la grilla directa
- * de objetos reales (fin de cadena). La izquierda la pinta `pintarAncla`.
+ * nodo fue declarado «Espacio Único» la derecha salta a la grilla directa de
+ * objetos reales; en CUALQUIER otro caso monta el editor elástico recursivo. La
+ * izquierda la pinta `pintarAncla`.
  */
 async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<void> {
   const paneles = panelesDe(nodo, nodoPadre());
   if (paneles.derecho === 'listaContenedores') {
     const host = el('listaContenedoresPanel');
     if (!host) return;
-    // LEY 2 · DESCENSO RECURSIVO INFINITO: tanto una HABITACIÓN como CUALQUIER
-    // CONTENEDOR con sub-divisiones propias despliegan su EDITOR ELÁSTICO (botón
-    // «➕ Crear Espacio» + disyuntor «Espacio Único») en vez de un plano mudo. La
-    // regla es idéntica a cualquier profundidad de la pila (Nivel N+1, N+2, …).
-    if (nodo.tipo === 'habitacion' || nodo.conDivisiones) {
-      pintarEditorDivisiones(host, nodo, interior);
-      return;
-    }
-    // Un CONTENEDOR sin sub-divisiones conserva su mini-mapa de portales rotulado
-    // (fallback de fin de cadena: nunca llega acá si el nodo tiene hijos propios).
-    const fichas = await fichasDe(interior.piezas);
-    const aspecto = aspectoDelLienzo();
-    host.innerHTML = listaHijosHtml(fichas, aspecto, nodo.nombre, interior.geometriaHijos);
+    // LEY 2 · DESCENSO RECURSIVO INFINITO Y REVERSIBLE: TODO nivel NO monolítico
+    // (habitación, mueble, estante, caja o pieza VACÍA recién creada) despliega el
+    // MISMO editor elástico («➕ Crear Espacio» + disyuntor «Espacio Único»). Sólo
+    // un «Espacio Único» declarado salta a la grilla directa; destildarlo devuelve
+    // el editor en caliente a CUALQUIER profundidad de la pila.
+    pintarEditorDivisiones(host, nodo, interior);
     return;
   }
   // Fin de cadena / Espacio Único: grilla directa + disyuntor (Ley 4).

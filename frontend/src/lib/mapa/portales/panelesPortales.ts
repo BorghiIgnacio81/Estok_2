@@ -63,14 +63,16 @@ export function panelesDe(nodo: NodoPortal | null, padre: NodoPortal | null = nu
 }
 
 /**
- * LEY 2 · ¿Qué monta el Panel Derecho? Una HABITACIÓN viva SIEMPRE expone su
- * EDITOR ELÁSTICO de divisiones (aunque todavía no tenga sub-zonas) para poder
- * inyectarlas con «Crear Espacio» y declararla «Espacio Único». Los contenedores
- * conservan el fin de cadena (grilla directa de objetos) cuando no tienen hijos
- * propios o fueron declarados monolíticos (Ley 4).
+ * LEY 2 · ¿Qué monta el Panel Derecho? TODO nodo NO monolítico —planta, habitación,
+ * mueble, estante, caja o pieza VACÍA recién creada— expone su EDITOR ELÁSTICO de
+ * divisiones (aunque todavía no tenga sub-zonas) para poder inyectarlas con
+ * «Crear Espacio». El ÚNICO fin de cadena (grilla directa de objetos) es el
+ * «Espacio Único» declarado (`espacio_unico = true`), y es reversible (Ley 4).
  */
 function derechoDe(nodo: NodoPortal): PanelDerecho {
-  if (nodo.tipo === 'habitacion' && !nodo.espacioUnico) return 'listaContenedores';
+  // LEY 4 · REVERSIBLE: el ÚNICO disyuntor que manda el nivel a la grilla directa
+  // de objetos es «Espacio Único» (`espacio_unico = true`). Toda pieza NO monolítica
+  // —aunque todavía no tenga hijos— expone su editor elástico para subdividirla.
   return esNodoMonolitico(nodo) ? 'grillaObjetos' : 'listaContenedores';
 }
 
@@ -87,18 +89,15 @@ function anclaDe(padre: NodoPortal | null): PanelIzquierdo {
 }
 
 /**
- * ¿El nivel activo admite el MODELADOR geométrico? Es decir: ¿su Panel Izquierdo
- * expone un lienzo elástico capaz de inyectar celdas nuevas (`data-lienzo-crear`)?
+ * ¿El nivel activo admite el MODELADOR geométrico? Es decir: ¿expone un lienzo
+ * elástico capaz de inyectar celdas nuevas (`data-lienzo-crear`)?
  *
  * Autoridad PURA que consulta la barra de comandos para habilitar el interruptor
- * «✏️ Editar» a CUALQUIER profundidad de la pila (`ruta: NodoPortal[]`). El único
- * nivel sin modelador es el bloque monolítico («Espacio Único»), que por
- * definición no se subdivide.
+ * «✏️ Editar» a CUALQUIER profundidad de la pila (`ruta: NodoPortal[]`). El ÚNICO
+ * nivel sin modelador es el «Espacio Único» declarado (`espacio_unico = true`):
+ * cualquier otra pieza —aunque esté vacía— lo expone SIEMPRE (regla reversible).
  */
 export function tieneModeladorGeometrico(nodo: NodoPortal | null): boolean {
-  // El modelador geométrico sólo se bloquea con un «Espacio Único» / fin de cadena;
-  // una HABITACIÓN viva lo expone SIEMPRE (aunque todavía no tenga sub-zonas).
-  if (nodo?.tipo === 'habitacion') return !nodo.espacioUnico;
   return !esNodoMonolitico(nodo);
 }
 

@@ -103,14 +103,17 @@ export function migas(): NodoPortal[] {
 }
 
 /**
- * Fin de cadena estructural: el nodo NO expone una grilla de divisiones
- * navegable, sea porque fue declarado «Espacio Único» (bloque monolítico) o
- * porque directamente todavía no tiene ningún hijo propio. En ambos casos el
- * panel derecho debe mostrar la grilla DIRECTA de objetos reales.
+ * 🧱 DISYUNTOR «ESPACIO ÚNICO» (AUTORIDAD ÚNICA del fin de cadena): el nodo es
+ * monolítico —y por lo tanto NO admite modelador geométrico— SOLO si fue declarado
+ * explícitamente «Espacio Único» en la base (`espacio_unico = true`).
+ *
+ * La AUSENCIA de hijos YA NO lo vuelve monolítico: un ESPACIO/MUEBLE/CAJA vacío
+ * sigue siendo editable para poder inyectarle su primera sub-división. El
+ * disyuntor es REVERSIBLE: destildarlo devuelve el modelador en caliente.
  */
 export function esNodoMonolitico(nodo: NodoPortal | null): boolean {
   if (!nodo) return false;
-  return nodo.espacioUnico || !nodo.conDivisiones;
+  return nodo.espacioUnico;
 }
 
 // -----------------------------------------------------------------------------

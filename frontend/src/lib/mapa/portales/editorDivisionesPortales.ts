@@ -31,6 +31,7 @@ import {
 } from '../../perimetroElastico';
 import { reemplazarNodoActual } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
+import { reaccionarEspacioUnico } from './barraComandosPortales';
 import { guardarEspacioUnico } from './datosNodosPortales';
 import type { InteriorNodo } from './datosNodosPortales';
 
@@ -125,6 +126,11 @@ export async function alternarEspacioUnico(nodo: NodoPortal, valor: boolean): Pr
   const ok = await guardarEspacioUnico(nodo.id, valor, recurso);
   if (!ok) return;
   reemplazarNodoActual({ espacioUnico: valor });
+  // 🧱 DISYUNTOR REVERSIBLE EN CALIENTE: al destildar «Espacio Único» el botón
+  // «✏️ Editar» reaparece de inmediato (antes de que la cascada repinte el nivel)
+  // y al tildarlo se deshabilita + el lienzo vuelve a navegación. La grilla directa
+  // de objetos se destruye al re-transicionar la pantalla con el evento de abajo.
+  reaccionarEspacioUnico(valor);
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
 }
 

@@ -6,12 +6,13 @@
 // que la barra se re-sincroniza después de cada transición de nivel y el switch
 // sigue operativo en CUALQUIER posición de la pila (`ruta: NodoPortal[]`).
 //
-//   · Nivel con modelador (plano de planta, Visor de Habitación o sub-grilla de
-//     un contenedor) → «✏️ Editar» VISIBLE, OPERATIVO y FUNCIONAL: habilita la
-//     inyección de celdas elásticas (`data-lienzo-crear`) del lienzo de ESE
+//   · Nivel NO monolítico (planta, habitación, mueble, estante, caja o pieza
+//     VACÍA recién creada) → «✏️ Editar» VISIBLE, OPERATIVO y FUNCIONAL: habilita
+//     la inyección de celdas elásticas (`data-lienzo-crear`) del lienzo de ESE
 //     nivel, sin importar cuán hondo se haya descendido.
-//   · Bloque monolítico («Espacio Único») → «✏️ Editar» visible pero
-//     DESHABILITADO (no hay modelador que abrir) y el modo vuelve a navegación.
+//   · «Espacio Único» declarado (`espacio_unico = true`) → ÚNICO caso que apaga la
+//     edición: «✏️ Editar» queda DESHABILITADO y el modo vuelve a navegación.
+//     El disyuntor es REVERSIBLE: al DESTILDARLO el botón reaparece en caliente.
 //
 // No duplica listeners: el clic lo atiende la DELEGACIÓN de lib/modoLienzo.ts,
 // de modo que las barras inyectadas en caliente quedan vivas sin re-enlazar nada.
@@ -31,14 +32,18 @@ export interface EstadoBarraComandos {
 
 /** Micro-ayuda del botón de edición cuando el nivel activo es monolítico. */
 const TITULO_MONOLITICO =
-  '🧱 Espacio Único: este bloque es monolítico y no admite subdivisiones internas.';
+  '🧱 Espacio Único: este bloque es monolítico y no admite subdivisiones internas. Destildá «Espacio Único» para volver a dividirlo.';
 
 /**
- * Sincroniza la barra de comandos con el nivel activo. Devuelve el estado
- * resuelto (`nivel` + `modelable`) para que el orquestador pueda informarlo.
+ * Aplica la visibilidad/reactividad del interruptor «✏️ Editar» a TODAS las barras
+ * del documento según el disyuntor vigente. AUTORIDAD ÚNICA: mientras el nivel
+ * activo NO sea «Espacio Único» el botón queda habilitado; al declararlo monolítico
+ * se deshabilita y el lienzo vuelve a navegación (el clic vuelve a ser PORTAL).
+ *
+ * Idempotente y re-invocable: sirve tanto tras repintar el nivel como para
+ * reaccionar EN CALIENTE al tildar/destildar «Espacio Único».
  */
-export function sincronizarBarraComandos(): EstadoBarraComandos {
-  const modelable = tieneModeladorGeometrico(nodoActual());
+export function reflejarModoEdicion(modelable: boolean): void {
   // Sin modelador no hay nada que editar: el lienzo vuelve a modo navegación
   // para que el clic siga siendo disparador de PORTAL.
   if (!modelable && modoLienzoActual() === 'edicion') aplicarModo('navegacion');
@@ -51,5 +56,24 @@ export function sincronizarBarraComandos(): EstadoBarraComandos {
     btn.title = modelable ? btn.dataset.tituloBase : TITULO_MONOLITICO;
   });
   refrescarBotonesModo();
+}
+
+/**
+ * REACCIÓN EN CALIENTE AL DISYUNTOR «ESPACIO ÚNICO» (Lote 19): el ÚNICO estado que
+ * apaga «✏️ Editar» es `espacio_unico = true`. Al DESTILDARLO el botón reaparece de
+ * inmediato, sin esperar al refresco de la cascada. Se invoca desde
+ * `alternarEspacioUnico()` pasándole el valor tildado del checkbox.
+ */
+export function reaccionarEspacioUnico(espacioUnico: boolean): void {
+  reflejarModoEdicion(!espacioUnico);
+}
+
+/**
+ * Sincroniza la barra de comandos con el nivel activo. Devuelve el estado
+ * resuelto (`nivel` + `modelable`) para que el orquestador pueda informarlo.
+ */
+export function sincronizarBarraComandos(): EstadoBarraComandos {
+  const modelable = tieneModeladorGeometrico(nodoActual());
+  reflejarModoEdicion(modelable);
   return { nivel: profundidad(), modelable };
 }
