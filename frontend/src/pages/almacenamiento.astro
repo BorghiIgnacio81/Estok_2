@@ -34,6 +34,9 @@ import '../styles/portales-recursivos.css';
 // Estado de espera inicial del Nivel Estok: tarjetas de planta con minimapas
 // independientes (sin clonar planos) a la espera de selección.
 import '../styles/almacenamiento-espera.css';
+// Fuelle asimétrico (Lote 20): hosts separados por lado (ancla superior ⇄
+// explorador) y refuerzo del resaltado NARANJA del nodo seleccionado.
+import '../styles/almacenamiento-fuelle.css';
 ---
 
 <AuthGuard />
@@ -103,10 +106,10 @@ import '../styles/almacenamiento-espera.css';
             </div>
             <!-- Nivel 4: el canvas de la caja/estante reemplaza al plano en la izquierda -->
             <div id="cajaCanvas" class="hidden mt-1"></div>
-            <!-- BLOQUE MONOLÍTICO del «Espacio Único»: cuando el nodo activo es un
-                 bloque sin subdivisiones, el modelador geométrico queda BLOQUEADO y
-                 este host ocupa la izquierda con el control + su leyenda de guía. -->
-            <div id="bloqueMonoliticoPanel" class="hidden mt-1"></div>
+            <!-- ANCLA IZQUIERDA (NIVEL SUPERIOR): mapa de habitaciones de la planta
+                 con el cuarto seleccionado resaltado en NARANJA (#f97316). Host
+                 DEDICADO de la izquierda, JAMÁS compartido con el panel derecho. -->
+            <div id="anclaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
             <!-- En Nivel 2 el #visorHabitacion se reubica aquí desde el panel derecho -->
             <!-- En niveles de contenedor, el #visorContenedorGrande se reubica aquí
                  para dibujar la sub-grilla elástica interna del nodo (recursivo ∞) -->
@@ -167,6 +170,7 @@ import '../styles/almacenamiento-espera.css';
                  internos ⇄ interior jerárquico del nodo ⇄ grilla directa de
                  objetos reales (fin de cadena «Espacio Único»).
                  ================================================================= -->
+            <div id="listaPlantasPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaContenedoresPanel" class="hidden mt-1 min-w-0"></div>
             <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>

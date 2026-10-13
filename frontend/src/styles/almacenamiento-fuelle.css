@@ -1,0 +1,25 @@
+/* =============================================================================
+   ALMACENAMIENTO - FUELLE ASIMÉTRICO (Lote 20)
+   -----------------------------------------------------------------------------
+   Ley 1 (Ignacio): la IZQUIERDA conserva el mapa del NIVEL SUPERIOR con el HIJO
+   en NARANJA; la DERECHA avanza al interior del activo. Cada panel vive en un
+   HOST DOM EXCLUSIVO por lado (ancla ⇄ explorador), por lo que la izquierda y la
+   derecha nunca comparten contenedor: el clon en espejo queda bloqueado.
+   Se importa únicamente en src/pages/almacenamiento.astro.
+   ============================================================================= */
+
+/* Hosts del fuelle: flexibles y sin desborde horizontal dentro de su columna. */
+#anclaHabitacionesPanel,
+#listaPlantasPanel,
+#listaHabitacionesPanel,
+#listaContenedoresPanel,
+#grillaObjetosPanel {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* El ancla izquierda (mapa del nivel superior) se amolda a su columna. */
+#anclaHabitacionesPanel .portal-lienzo-planta {
+  width: 100%;
+}

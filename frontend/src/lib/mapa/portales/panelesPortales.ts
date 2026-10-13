@@ -1,15 +1,19 @@
 // =============================================================================
-// FÍSICA DUAL DE PANELES: quién se dibuja a la IZQUIERDA y quién a la DERECHA
+// FÍSICA DUAL ASIMÉTRICA DE PANELES (PADRE ancla ⇄ HIJO explorador)
 // -----------------------------------------------------------------------------
-// REGLA CANÓNICA (cascada asimétrica recursiva):
+// LEY 1 (ASIMETRÍA RÍGIDA · el fuelle de Ignacio):
+//   · El Panel IZQUIERDO CONSERVA SIEMPRE el mapa del NIVEL SUPERIOR (`superior`)
+//     y pinta al HIJO activo en NARANJA (#f97316). Es un ANCLA QUIETA: nunca
+//     dibuja el interior del nodo activo.
+//   · El Panel DERECHO AVANZA SIEMPRE al interior del nodo ACTIVO (`activo`), N+1.
+//   Como cada columna mira a un nodo DISTINTO, es imposible que compartan mapa.
+//   Además, cada panel tiene un HOST DOM EXCLUSIVO por lado (ver HOSTS): un
+//   mismo contenedor jamás salta de columna, por lo que el clon en espejo queda
+//   estructuralmente bloqueado.
 //
-//   · El nodo elegido en el Panel Derecho se traslada DE INMEDIATO al Panel
-//     Izquierdo, donde se dibuja su sub-grilla elástica interna de divisiones.
-//   · El Panel Derecho TRANSMUTA y abre el interior jerárquico de ese nodo
-//     (sus sub-contenedores, estantes o cajas) SIN límite de profundidad.
-//   · Si el nodo es «Espacio Único» / sin divisiones, se bloquea el modelador
-//     geométrico de la izquierda y la derecha pasa a la GRILLA DIRECTA de
-//     objetos reales (fin de cadena).
+// LEY 4 (Espacio Único, REVERSIBLE): el ÚNICO fin de cadena es `espacio_unico`.
+//   Si el ACTIVO es monolítico, la derecha salta a la grilla de objetos; destildarlo
+//   devuelve el modelador en caliente (`tieneModeladorGeometrico`).
 //
 // Módulo 100% PURO: decide y describe, nunca toca el DOM.
 // =============================================================================
@@ -17,27 +21,41 @@
 import { esNodoMonolitico } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 
-/** Paneles posibles del lado IZQUIERDO (el nodo activo y su grilla). */
+/** Paneles posibles del lado IZQUIERDO (ANCLA: el mapa del NIVEL SUPERIOR). */
 export type PanelIzquierdo =
-  /** Nivel raíz: plano general de la planta activa. */
+  /** Nivel raíz: silueta general del Estok con sus N plantas. */
   | 'planoPlanta'
-  /** Ancla: mapa de habitaciones de la planta (padre = planta). */
-  | 'listaHabitaciones'
-  /** Habitación abierta: Visor de Habitación (lienzo elástico del cuarto). */
+  /** Superior = PLANTA: mapa de habitaciones con el cuarto elegido en naranja. */
+  | 'plantaConHabitaciones'
+  /** Superior = CUARTO: lienzo interior del cuarto con el hijo elegido en naranja. */
   | 'visorHabitacion'
-  /** Contenedor con divisiones: sub-grilla elástica interna + Drop Zones F·C. */
-  | 'grillaNodo'
-  /** Espacio Único: bloque monolítico, modelador geométrico BLOQUEADO. */
-  | 'bloqueMonolitico';
+  /** Superior = CONTENEDOR: sub-grilla interna con el hijo elegido en naranja. */
+  | 'grillaNodo';
 
-/** Paneles posibles del lado DERECHO (el interior del nodo activo). */
+/** Paneles posibles del lado DERECHO (EXPLORADOR: el interior del nodo ACTIVO). */
 export type PanelDerecho =
-  /** Habitaciones de la planta, cada una con su mini-mapa de espacios internos. */
-  | 'listaHabitaciones'
-  /** Interior jerárquico: sub-contenedores/estantes/cajas del nodo activo. */
+  /** Espera raíz (sin planta): un mini-mapa independiente por planta del Estok. */
+  | 'plantasEnEspera'
+  /** Espera planta: habitaciones de la planta elegida, a la espera de un cuarto. */
+  | 'habitacionesEnEspera'
+  /** Explorador: interior jerárquico del nodo activo (editor elástico recursivo). */
   | 'listaContenedores'
-  /** Fin de cadena: grilla DIRECTA de los objetos reales del nodo activo. */
+  /** Fin de cadena (Ley 4): grilla DIRECTA de objetos del nodo activo monolítico. */
   | 'grillaObjetos';
+
+/**
+ * CONTEXTO RELACIONAL DEL NIVEL: aísla los DOS contextos que jamás deben
+ * mezclarse. Es la ÚNICA entrada de `panelesDe` → matemáticamente imposible el
+ * espejo entre cuadrantes.
+ */
+export interface ContextoNivel {
+  /** Tope de la pila (HIJO): lo dibuja el Panel Derecho. `null` = raíz. */
+  activo: NodoPortal | null;
+  /** Nivel N-1 (PADRE): lo mantiene el Panel Izquierdo. `null` = es la PLANTA. */
+  superior: NodoPortal | null;
+  /** ¿Hay una planta del Estok elegida (contexto del nivel raíz)? */
+  plantaFijada: boolean;
+}
 
 export interface Paneles {
   izquierdo: PanelIzquierdo;
@@ -47,45 +65,41 @@ export interface Paneles {
 /**
  * ÚNICA autoridad de la física de pantallas de Almacenamiento (Leyes de Ignacio).
  *
- *   ruta vacía        → Izq = plano de la Planta · Der = habitaciones (mini-mapas)
- *   habitación        → Izq = mapa de la PLANTA (ancla) · Der = interior del cuarto
- *   contenedor (+)    → Izq = mapa del CONTENEDOR padre  · Der = interior jerárquico
- *   contenedor (∞)    → Izq = mapa del CONTENEDOR padre  · Der = grilla de objetos
- *
- * LEY 1 (Asimetría Rígida): la IZQUIERDA es SIEMPRE el plano del CONTENEDOR (el
- * padre) y la DERECHA el interior del SELECCIONADO. Jamás comparten nodo.
- * LEY 4 (Espacio Único): la derecha salta a la grilla directa de objetos reales.
+ *   activo = null, sin planta → Izq = plano del Estok · Der = espera (plantas)
+ *   activo = null, con planta → Izq = plano del Estok · Der = espera (cuartos)
+ *   activo = habitación      → Izq = PLANTA (cuarto naranja) · Der = interior
+ *   activo = contenedor (+)  → Izq = mapa del PADRE      · Der = interior
+ *   activo = contenedor (∞)  → Izq = mapa del PADRE      · Der = grilla de objetos
  */
-export function panelesDe(nodo: NodoPortal | null, padre: NodoPortal | null = null): Paneles {
-  if (!nodo) return { izquierdo: 'planoPlanta', derecho: 'listaHabitaciones' };
-  const izquierdo: PanelIzquierdo = anclaDe(padre);
-  return { izquierdo, derecho: derechoDe(nodo) };
+export function panelesDe(ctx: ContextoNivel): Paneles {
+  return { izquierdo: anclaDe(ctx), derecho: exploradorDe(ctx) };
 }
 
 /**
- * LEY 2 · ¿Qué monta el Panel Derecho? TODO nodo NO monolítico —planta, habitación,
- * mueble, estante, caja o pieza VACÍA recién creada— expone su EDITOR ELÁSTICO de
- * divisiones (aunque todavía no tenga sub-zonas) para poder inyectarlas con
- * «Crear Espacio». El ÚNICO fin de cadena (grilla directa de objetos) es el
- * «Espacio Único» declarado (`espacio_unico = true`), y es reversible (Ley 4).
+ * LEY 1 · ¿Qué monta el Panel DERECHO? El interior del ACTIVO. TODO nodo NO
+ * monolítico —planta, habitación, mueble, estante, caja o pieza VACÍA recién
+ * creada— expone su EDITOR ELÁSTICO de divisiones (aunque todavía no tenga
+ * sub-zonas). El ÚNICO fin de cadena (grilla directa de objetos) es el «Espacio
+ * Único» declarado (`espacio_unico = true`); es reversible (Ley 4).
  */
-function derechoDe(nodo: NodoPortal): PanelDerecho {
-  // LEY 4 · REVERSIBLE: el ÚNICO disyuntor que manda el nivel a la grilla directa
-  // de objetos es «Espacio Único» (`espacio_unico = true`). Toda pieza NO monolítica
-  // —aunque todavía no tenga hijos— expone su editor elástico para subdividirla.
-  return esNodoMonolitico(nodo) ? 'grillaObjetos' : 'listaContenedores';
+function exploradorDe({ activo, plantaFijada }: ContextoNivel): PanelDerecho {
+  if (!activo) return plantaFijada ? 'habitacionesEnEspera' : 'plantasEnEspera';
+  return esNodoMonolitico(activo) ? 'grillaObjetos' : 'listaContenedores';
 }
 
 /**
- * Ancla izquieda del flujo: el mapa del CONTENEDOR (padre) del seleccionado.
- *
- *   padre = planta (sin nodo) → mapa de habitaciones de la planta
- *   padre = cuarto            → lienzo interior del cuarto (muebles)
- *   padre = contenedor        → sub-grilla interior del contenedor
+ * LEY 1 · ¿Qué monta el Panel IZQUIERDO (ancla)? SÓLO consulta al SUPERIOR:
+ *   activo = raíz          → silueta general del Estok con sus N plantas.
+ *   superior = PLANTA      → mapa de habitaciones (cuarto elegido en naranja).
+ *   superior = CUARTO      → lienzo interior del cuarto (hijo elegido en naranja).
+ *   superior = CONTENEDOR  → sub-grilla interna (hijo elegido en naranja).
+ * Jamás consulta al ACTIVO: por eso no puede reflejar el mismo mapa que la
+ * derecha (el clon en espejo queda estructuralmente bloqueado).
  */
-function anclaDe(padre: NodoPortal | null): PanelIzquierdo {
-  if (!padre) return 'listaHabitaciones';
-  return padre.tipo === 'habitacion' ? 'visorHabitacion' : 'grillaNodo';
+function anclaDe({ activo, superior }: ContextoNivel): PanelIzquierdo {
+  if (!activo) return 'planoPlanta';
+  if (!superior) return 'plantaConHabitaciones';
+  return superior.tipo === 'habitacion' ? 'visorHabitacion' : 'grillaNodo';
 }
 
 /**
@@ -110,65 +124,73 @@ export interface CabeceraPaneles {
 }
 
 /** Cabeceras (títulos + micro-ayudas) del nivel activo (física asimétrica). */
-export function cabecerasDe(nodo: NodoPortal | null, paneles: Paneles): CabeceraPaneles {
+export function cabecerasDe(ctx: ContextoNivel, paneles: Paneles): CabeceraPaneles {
+  const nodo = ctx.activo;
   if (!nodo) {
     return {
-      tituloIzq: '🏠 Plano general del Estok (sus plantas)',
-      tituloDer: '🗺️ Mini-mapas independientes de cada planta',
+      tituloIzq: '🏠 Silueta general del Estok (sus plantas)',
+      tituloDer: ctx.plantaFijada
+        ? '🗺️ Habitaciones de la planta elegida'
+        : '🗺️ Mini-mapas independientes de cada planta',
       descIzq:
-        'Silueta general del Estok. Tocá una planta para fijarla a la izquierda y desplegar sus habitaciones.',
-      descDer:
-        'Un mini-mapa por planta, a la espera de selección. Tocá una tarjeta para desplegar sus habitaciones a la izquierda.',
+        'Plano del Estok con sus N plantas, en estado de espera. Tocá una planta para fijarla a la izquierda y desplegar sus habitaciones a la derecha.',
+      descDer: ctx.plantaFijada
+        ? 'Habitaciones de la planta elegida, a la espera de que elijas un cuarto.'
+        : 'Un mini-mapa por planta, a la espera de selección. Tocá una planta para desplegar sus habitaciones.',
     };
   }
   if (paneles.derecho === 'grillaObjetos') {
     return {
-      tituloIzq: '🧱 Espacio Único (ancla del contenedor)',
-      tituloDer: '🔎 Objetos guardados directamente acá',
-      descIzq: `Mapa del contenedor con «${nodo.nombre}» resaltado en naranja. Es un bloque monolítico: no se subdivide y el modelador geométrico queda bloqueado.`,
+      tituloIzq: '🧱 Ancla del contenedor (nivel superior)',
+      tituloDer: `🔎 Objetos guardados en «${nodo.nombre}»`,
+      descIzq: `Ancla quieta: el mapa del nivel superior con «${nodo.nombre}» resaltado en naranja. Es un bloque monolítico (Espacio Único): no se subdivide.`,
       descDer:
-        'Grilla directa de los objetos reales que aloja este bloque. Arrastrá uno desde la canasta para guardarlo acá sin celda fina.',
+        'Lista de objetos guardados directamente acá. Arrastrá uno desde la canasta para guardarlo sin celda fina.',
     };
   }
-  if (nodo.tipo === 'habitacion') {
+  if (paneles.izquierdo === 'plantaConHabitaciones') {
     return {
       tituloIzq: '🧭 Plano de la planta (ancla)',
       tituloDer: '📦 Espacios, Muebles y Cajas del cuarto',
       descIzq:
-        'Plano del contenedor: el cuarto seleccionado queda resaltado en naranja entre sus hermanos de la planta.',
+        'Ancla quieta: el cuarto seleccionado queda resaltado en naranja entre sus hermanos de la planta.',
       descDer:
-        'Interior jerárquico del cuarto. Tocá un espacio para abrir su interior fino en la derecha.',
+        'Interior jerárquico del cuarto. Tocá un espacio para bajar a su interior fino.',
     };
   }
   return {
     tituloIzq: '🧭 Plano del contenedor (ancla)',
     tituloDer: `🧺 Interior de «${nodo.nombre}»`,
     descIzq:
-      'Plano del contenedor padre: la pieza seleccionada queda resaltada en naranja entre sus hermanas.',
+      'Ancla quieta: el mapa del nivel superior con la pieza seleccionada resaltada en naranja.',
     descDer:
       'Interior jerárquico de la pieza activa. Tocá un elemento para abrir su interior de forma recursiva.',
   };
 }
 
 /**
- * Ids DOM de los HOSTS que la cascada mueve entre columnas. Los hosts nuevos
- * viven en almacenamiento.astro y los reutilizados pertenecen a los módulos
- * históricos (mapa Estok, Visor de Habitación, Visor Contenedor Grande).
+ * Ids DOM de los HOSTS que la cascada mueve entre columnas. Cada panel tiene un
+ * host EXCLUSIVO por lado: la izquierda (ancla) y la derecha (explorador) nunca
+ * comparten contenedor → no hay clon en espejo entre cuadrantes.
  */
 export const HOSTS = {
-  /** Nivel raíz (izquierda): plano general de la planta. */
+  // ── IZQUIERDA (ANCLA: mapa del NIVEL SUPERIOR con el hijo en naranja) ──
+  /** Raíz: plano general del Estok (casa a dos aguas con sus plantas). */
   planoPlanta: 'mapaEstokPanel',
-  /** Habitación (izquierda): Visor de Habitación histórico. */
+  /** Superior = PLANTA: mapa de habitaciones (host DEDICADO de la izquierda). */
+  plantaConHabitaciones: 'anclaHabitacionesPanel',
+  /** Superior = CUARTO: Visor de Habitación histórico (lienzo interior del cuarto). */
   visorHabitacion: 'visorHabitacion',
-  /** Contenedor con divisiones (izquierda): sub-grilla histórica del visor. */
+  /** Superior = CONTENEDOR: Visor Contenedor Grande histórico (sub-grilla interna). */
   grillaNodo: 'visorContenedorGrande',
-  /** Espacio Único (izquierda): bloque monolítico nuevo. */
-  bloqueMonolitico: 'bloqueMonoliticoPanel',
-  /** Nivel raíz (derecha): habitaciones con mini-mapas internos. */
-  listaHabitaciones: 'listaHabitacionesPanel',
-  /** Interior jerárquico (derecha, recursivo). */
+  // ── DERECHA (EXPLORADOR: interior del nodo ACTIVO) ──
+  /** Espera raíz (sin planta): un mini-mapa por planta (host DEDICADO). */
+  plantasEnEspera: 'listaPlantasPanel',
+  /** Espera planta: habitaciones de la planta elegida. */
+  habitacionesEnEspera: 'listaHabitacionesPanel',
+  /** Explorador: interior jerárquico recursivo del nodo activo. */
   listaContenedores: 'listaContenedoresPanel',
-  /** Fin de cadena (derecha): objetos reales guardados directamente. */
+  /** Fin de cadena: grilla directa de objetos reales. */
   grillaObjetos: 'grillaObjetosPanel',
 } as const;
 

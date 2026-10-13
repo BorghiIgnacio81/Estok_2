@@ -1,13 +1,11 @@
 // =============================================================================
-// ANCLA Y NIVEL RAÍZ DE LOS PORTALES (plano del CONTENEDOR + minimapa ampliado)
+// ANCLA DEL NIVEL SUPERIOR Y ESPERA DEL NIVEL RAÍZ (hosts separados por lado)
 // -----------------------------------------------------------------------------
-// Resuelve la división (planta) activa del Estok, cachea las ubicaciones reales
-// y pinta el MINI-MAPA AMPLIADO con las siluetas rotuladas de cada habitación.
-//
-// LEY DE ASIMETRÍA (Ignacio): el Panel Izquierdo SIEMPRE dibuja el plano del
-// CONTENEDOR (el padre) con el nodo seleccionado entre sus hermanos; el sector
-// resaltado viaja por identidad (`activoId`, naranja #f97316). La derecha nunca
-// comparte nodo con la izquierda → se mata el espejo.
+// LEY 1 (Ignacio): el Panel Izquierdo SIEMPRE dibuja el mapa del NIVEL SUPERIOR
+// con el nodo seleccionado resaltado en NARANJA (#f97316). El Panel Derecho, en
+// el nivel raíz, queda a la ESPERA (mini-mapas independientes por planta o las
+// habitaciones de la planta elegida). Los hosts de ambos lados son DISTINTOS:
+// así un mismo mapa jamás aparece en las dos columnas (se mata el espejo).
 // =============================================================================
 
 import { aspectoDelLienzo, el } from './domPortales';
@@ -15,6 +13,7 @@ import { estadoPortales } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { cargarPlantas, cargarUbicaciones, datosDeNivelPlanta } from './datosNodosPortales';
 import { datosDePlantasIndependientes } from './datosPlantasEspera';
+import { HOSTS } from './panelesPortales';
 import type { PanelIzquierdo } from './panelesPortales';
 import { listaHabitacionesHtml, listaPlantasHtml } from './tarjetasHabitaciones';
 import type { UbicacionPlano } from '../../mapaJerarquico';
@@ -36,36 +35,17 @@ async function plantaIdActiva(): Promise<string | null> {
   return div ? String(div.id) : null;
 }
 
-/**
- * Pinta el host de habitaciones (`listaHabitacionesPanel`).
- *
- * ESTADO DE ESPERA INICIAL: sin planta activa dibuja los minimapas
- * INDEPENDIENTES de TODAS las plantas (nunca el clon de una sola), a la espera
- * de selección. Con planta activa dibuja el mini-mapa ampliado de esa planta,
- * con sus habitaciones navegables y `activoId` en NARANJA cuando corresponde
- * (Ley 2: selección in-place sin mover el ancla).
- */
-export async function renderNivelRaiz(activoId: string | null = null): Promise<void> {
-  const host = el('listaHabitacionesPanel');
+/** Dibuja el mapa de habitaciones de una planta en el host indicado. */
+async function pintarHabitacionesEn(
+  hostId: string,
+  plantaId: string,
+  activoId: string | null,
+): Promise<void> {
+  const host = el(hostId);
   if (!host) return;
-  cacheUbicacionesLocal = await cargarUbicaciones();
-  const plantaId = await plantaIdActiva();
-
-  // SIN PLANTA ACTIVA → ESTADO DE ESPERA: un mini-mapa por planta.
-  if (!plantaId) {
-    const espera = await datosDePlantasIndependientes();
-    host.innerHTML = listaPlantasHtml(
-      espera.plantas,
-      espera.habitacionesPorPlanta,
-      espera.espaciosPorRoom,
-      aspectoDelLienzo(),
-    );
-    return;
-  }
-
   const datos = await datosDeNivelPlanta(plantaId);
-  // MURIÓ EL TEXTO PLANO: el ancla dibuja el polígono REAL de cada habitación,
-  // rotulado con su nombre e icono semántico.
+  // El ancla (izquierda) y la espera (derecha) comparten el MISMO render puro,
+  // pero viven en hosts DISTINTOS → nunca se clonan entre columnas.
   host.innerHTML = listaHabitacionesHtml(
     datos.rooms,
     datos.espaciosPorRoom,
@@ -76,22 +56,48 @@ export async function renderNivelRaiz(activoId: string | null = null): Promise<v
 }
 
 /**
- * LEY 1 · Dibuja el PLANO DEL CONTENEDOR (padre) en el Panel Izquierdo. El nodo
- * seleccionado ya quedó como tope de la pila; su silueta se resalta aparte por
- * identidad (`resaltarSeleccionIzquierda`). No mueve la física de paneles.
+ * PANEL DERECHO EN ESPERA (nivel raíz, sin nodo activo).
+ *   · Sin planta elegida → mini-mapas INDEPENDIENTES de cada planta del Estok.
+ *   · Con planta elegida → habitaciones de ESA planta, a la espera de un cuarto.
+ */
+export async function renderNivelRaiz(): Promise<void> {
+  cacheUbicacionesLocal = await cargarUbicaciones();
+  const plantaId = await plantaIdActiva();
+  if (!plantaId) {
+    const host = el(HOSTS.plantasEnEspera);
+    if (!host) return;
+    const espera = await datosDePlantasIndependientes();
+    host.innerHTML = listaPlantasHtml(
+      espera.plantas,
+      espera.habitacionesPorPlanta,
+      espera.espaciosPorRoom,
+      aspectoDelLienzo(),
+    );
+    return;
+  }
+  await pintarHabitacionesEn(HOSTS.habitacionesEnEspera, plantaId, null);
+}
+
+/**
+ * LEY 1 · ANCLA IZQUIERDA: dibuja el mapa del NIVEL SUPERIOR. El nodo activo se
+ * resalta aparte por identidad (`resaltarSeleccionIzquierda`). NUNCA dibuja el
+ * interior del activo → se mata el espejo entre ambos cuadrantes.
  */
 export async function pintarAncla(
   izquierdo: PanelIzquierdo,
-  padre: NodoPortal | null,
-  seleccionado: NodoPortal,
+  superior: NodoPortal | null,
+  activo: NodoPortal,
 ): Promise<void> {
-  if (izquierdo === 'planoPlanta') return; // el mapa Estok ya está montado
-  if (izquierdo === 'listaHabitaciones') {
-    await renderNivelRaiz(seleccionado.id); // planta con el cuarto en naranja
+  if (izquierdo === 'planoPlanta') return; // el plano del Estok ya está montado
+  cacheUbicacionesLocal = await cargarUbicaciones();
+
+  if (izquierdo === 'plantaConHabitaciones') {
+    const plantaId = await plantaIdActiva();
+    if (plantaId) await pintarHabitacionesEn(HOSTS.plantaConHabitaciones, plantaId, activo.id);
     return;
   }
   if (izquierdo === 'visorHabitacion') {
-    const room = padre ? roomDeCache(padre.id) : null;
+    const room = superior ? roomDeCache(superior.id) : null;
     if (room) {
       window.dispatchEvent(
         new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }),
@@ -99,10 +105,10 @@ export async function pintarAncla(
     }
     return;
   }
-  if (izquierdo === 'grillaNodo' && padre) {
+  if (izquierdo === 'grillaNodo' && superior) {
     window.dispatchEvent(
       new CustomEvent('estok:mueble-seleccionado', {
-        detail: { id: padre.id, nombre: padre.nombre, hermanos: padre.hijos },
+        detail: { id: superior.id, nombre: superior.nombre, hermanos: superior.hijos },
       }),
     );
   }

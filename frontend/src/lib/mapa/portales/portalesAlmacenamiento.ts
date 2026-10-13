@@ -5,11 +5,12 @@
 // vive en estadoPortales.ts + panelesPortales.ts (puros); acá se mueven los hosts
 // del DOM, se cargan datos y se delega el render a los módulos puros.
 //
-// LEY 1 (Asimetría): el Panel Izquierdo dibuja el PLANO DEL CONTENEDOR (padre) con
-// el nodo seleccionado resaltado en naranja; el derecho abre el interior del
-// seleccionado. LEY 4: «Espacio Único» → derecha a la grilla directa de objetos.
-// Los visores históricos (mapa Estok, Visor de Habitación y Visor Contenedor
-// Grande) siguen siendo el PLANO del Panel Izquierdo por sus eventos públicos.
+// LEY 1 (Asimetría): el Panel Izquierdo CONSERVA el mapa del NIVEL SUPERIOR (el
+// padre) con el hijo seleccionado resaltado en naranja; el derecho avanza al
+// interior del seleccionado. LEY 4: «Espacio Único» → derecha a la grilla directa
+// de objetos. Los visores históricos (mapa Estok, Visor de Habitación y Visor
+// Contenedor Grande) siguen siendo el PLANO del Panel Izquierdo por sus eventos
+// públicos, pero ahora viven en un host EXCLUSIVO de la izquierda.
 // =============================================================================
 
 import { renderMinimapasAnidados } from '../../minimapasAnidados';
@@ -36,7 +37,8 @@ import {
   empujarNodo,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
-import { cabecerasDe, hostsDe, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { cabecerasDe, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
 import { alternarEspacioUnico, pintarEditorDivisiones } from './editorDivisionesPortales';
@@ -72,6 +74,20 @@ export function estaRefrescando(): boolean {
 /** Interior del nivel activo (lo consumen los botones de la barra de acciones). */
 export function interiorDelNivel(): InteriorNodo | null {
   return interiorActual;
+}
+
+/**
+ * LEY 1 · CONTEXTO RELACIONAL DEL NIVEL: aísla los DOS contextos que nunca deben
+ * mezclarse. `activo` (tope de la pila) lo dibuja el Panel Derecho; `superior`
+ * (nivel N-1) lo mantiene el Panel Izquierdo como ancla quieta. Cuando la pila
+ * tiene un solo nodo, el SUPERIOR es la PLANTA (`null`).
+ */
+export function contextoDeNivel(): ContextoNivel {
+  return {
+    activo: nodoActual(),
+    superior: nodoPadre(),
+    plantaFijada: Boolean(estadoPortales.planta?.fila),
+  };
 }
 
 /** Nodo de cascada de un contenedor real del padrón (a cualquier profundidad). */
@@ -125,27 +141,26 @@ function renderMinimapa(): void {
   }
   // RESALTE NARANJA DE LA RUTA (migas de pan): el nodo activo de la pila
   // (`ruta: NodoPortal[]`) se marca por IDENTIDAD → su miniatura va en naranja
-  // (#f97316) y, dentro del minimapa de su padre, el sector REAL de la habitación
-  // o del espacio donde está parado el usuario también se pinta en naranja.
+  // (#f97316) y, dentro del minimapa de su padre, el sector REAL también.
   const activoId = nodoActual()?.id ?? null;
   cont.innerHTML = renderMinimapasAnidados(nodos, { activoId });
   cont.classList.toggle('hidden', nodos.length === 0);
 }
 
 // -----------------------------------------------------------------------------
-// TRANSICIÓN DE PANTALLA (física dual)
+// TRANSICIÓN DE PANTALLA (física dual asimétrica)
 // -----------------------------------------------------------------------------
 
 /** Aplica la física dual: apaga todos los hosts y enciende los DOS del nivel. */
 export function transicionar(): void {
-  const nodo = nodoActual();
-  const paneles = panelesDe(nodo, nodoPadre());
+  const ctx = contextoDeNivel();
+  const paneles = panelesDe(ctx);
   for (const id of TODOS_LOS_HOSTS) el(id)?.classList.add('hidden');
   const [idIzq, idDer] = hostsDe(paneles);
   moverPanel(el(idIzq), slotIzq());
   moverPanel(el(idDer), slotDer());
 
-  const cab = cabecerasDe(nodo, paneles);
+  const cab = cabecerasDe(ctx, paneles);
   setTexto('tituloPanelIzquierdo', cab.tituloIzq);
   setTexto('descPanelIzquierdo', cab.descIzq);
   setTexto('tituloPanelDerecho', cab.tituloDer);
@@ -230,10 +245,6 @@ export async function volverARaiz(): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------
-// NIVEL RAÍZ Y ANCLA: ver nivelRaizPortales.ts (renderNivelRaiz / pintarAncla)
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
 // RENDER DEL INTERIOR (Panel Derecho recursivo + bloque monolítico)
 // -----------------------------------------------------------------------------
 
@@ -241,12 +252,12 @@ export async function volverARaiz(): Promise<void> {
  * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe(): si el
  * nodo fue declarado «Espacio Único» la derecha salta a la grilla directa de
  * objetos reales; en CUALQUIER otro caso monta el editor elástico recursivo. La
- * izquierda la pinta `pintarAncla`.
+ * izquierda (ancla del nivel superior) la pinta `pintarAncla` + `resaltarSeleccionIzquierda`.
  */
 async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<void> {
-  const paneles = panelesDe(nodo, nodoPadre());
+  const paneles = panelesDe(contextoDeNivel());
   if (paneles.derecho === 'listaContenedores') {
-    const host = el('listaContenedoresPanel');
+    const host = el(HOSTS.listaContenedores);
     if (!host) return;
     // LEY 2 · DESCENSO RECURSIVO INFINITO Y REVERSIBLE: TODO nivel NO monolítico
     // (habitación, mueble, estante, caja o pieza VACÍA recién creada) despliega el
@@ -262,11 +273,11 @@ async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<vo
 
 /**
  * LEY 4 · Fin de cadena: la DERECHA monta la grilla directa de objetos reales y
- * el disyuntor «Espacio Único» viaja a su encabezado (la izquierda ya no es el
- * bloque monolítico: es el plano del contenedor con la silueta en naranja).
+ * el disyuntor «Espacio Único» viaja a su encabezado. La IZQUIERDA conserva el
+ * mapa del NIVEL SUPERIOR con el nodo monolítico resaltado en naranja.
  */
 function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
-  const host = el('grillaObjetosPanel');
+  const host = el(HOSTS.grillaObjetos);
   if (!host) return;
   const enTransito = interior.objetos.filter((o) => o.en_transito_interno).length;
   const disyuntor = nodo.espacioUnico ? bloqueMonoliticoHtml(nodo, enTransito) : '';
@@ -280,8 +291,9 @@ function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
 
 /**
  * REFRESCO DEL NIVEL ACTIVO: re-resuelve el nodo SELECCIONADO contra el padrón,
- * dibuja el PLANO DEL CONTENEDOR (padre) en la izquierda con el seleccionado en
- * NARANJA, carga su interior jerárquico y repinta la derecha. Conserva la pila.
+ * dibuja el mapa del NIVEL SUPERIOR (el padre) en la izquierda con el
+ * seleccionado en NARANJA, carga su interior jerárquico y repinta la derecha.
+ * Conserva la pila (migas, geometría y profundidad).
  */
 export async function refrescarNivel(): Promise<void> {
   if (refrescando) return;
@@ -305,12 +317,12 @@ export async function refrescarNivel(): Promise<void> {
     const activo = nodoActual();
     if (!activo) return;
 
-    // 2) LEY 1 (Asimetría Rígida): la IZQUIERDA dibuja el PLANO DEL CONTENEDOR
-    //    (el padre) con el seleccionado resaltado en naranja. NUNCA el interior
-    //    del propio seleccionado → se mata el espejo entre ambos cuadrantes.
-    const padre = nodoPadre();
-    const paneles = panelesDe(activo, padre);
-    await pintarAncla(paneles.izquierdo, padre, activo);
+    // 2) LEY 1 (Asimetría Rígida): la IZQUIERDA CONSERVA el mapa del NIVEL
+    //    SUPERIOR con el seleccionado resaltado en naranja. NUNCA dibuja el
+    //    interior del propio seleccionado → se mata el espejo entre cuadrantes.
+    const ctx = contextoDeNivel();
+    const paneles = panelesDe(ctx);
+    await pintarAncla(paneles.izquierdo, ctx.superior, activo);
 
     // 3) Interior jerárquico del nodo SELECCIONADO (derecha).
     interiorActual = await cargarInteriorDeNodo(activo);
@@ -334,3 +346,4 @@ export async function refrescarNivel(): Promise<void> {
     refrescando = false;
   }
 }
+

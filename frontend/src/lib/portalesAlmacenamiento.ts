@@ -10,7 +10,7 @@
 //   - domPortales.ts            → helpers de DOM compartidos.
 //   - datosNodosPortales.ts     → capa de datos (jerarquía real por parent_id).
 //   - tarjetasHabitaciones.ts   → habitaciones con mini-mapa de espacios internos.
-//   - tarjetasContenedores.ts   → interior jerárquico recursivo (tarjetas).
+//   - editorDivisionesPortales.ts → editor elástico recursivo del interior.
 //   - grillaObjetosDirectos.ts  → Espacio Único: bloque + grilla directa.
 //   - transitoInterno.ts        → Drop → «En Tránsito Interno» nativo.
 //   - portalesAlmacenamiento.ts → máquina de la cascada (transición y refresco).

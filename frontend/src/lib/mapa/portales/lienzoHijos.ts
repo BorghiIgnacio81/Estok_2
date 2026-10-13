@@ -126,30 +126,7 @@ export function lienzoAmpliadoHtml(
     </div>`;
 }
 
-/** Micro-texto del interior jerárquico (idéntico al del Lote 11). */
-const TIP_INTERIOR =
-  '🗺️ <strong>Plano elástico del interior</strong>: tocá una silueta para bajar de nivel y soltá un bulto de la canasta encima para guardarlo adentro.';
-
-/**
- * LIENZO ELÁSTICO DEL INTERIOR: wrapper del motor para los sub-espacios del nodo
- * activo. Cada silueta es PORTAL (`data-portal-abrir`) y DROP ZONE
- * (`data-portal-drop`, con «En Tránsito Interno» si la pieza tiene divisiones
- * internas y no se eligió estante fino).
- */
-export function lienzoInteriorHtml(
-  piezas: PiezaLienzo[],
-  aspecto: number,
-  nombrePadre: string,
-): string {
-  return lienzoAmpliadoHtml(piezas, aspecto, nombrePadre, {
-    tip: TIP_INTERIOR,
-    atributosSector: (pieza) => [
-      `data-portal-abrir="${escapeHtml(pieza.id)}"`,
-      'data-portal-tipo="contenedor"',
-      // El nombre viaja LIMPIO (sin los contadores de la etiqueta) para los avisos.
-      `data-portal-nombre="${escapeHtml(pieza.nombre)}"`,
-      `data-portal-drop="${escapeHtml(pieza.id)}"`,
-      `data-portal-divisiones="${pieza.conDivisiones ? '1' : '0'}"`,
-    ].join(' '),
-  });
-}
+// NOTA (Lote 20): el wrapper `lienzoInteriorHtml` y su `TIP_INTERIOR` se
+// eliminaron junto con tarjetasContenedores.ts. El interior recursivo del nodo
+// activo lo pinta el EDITOR ELÁSTICO (editorDivisionesPortales.ts →
+// renderLienzoElastico), única autoridad del nivel N+1.
