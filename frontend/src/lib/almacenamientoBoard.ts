@@ -58,6 +58,8 @@ export interface ContenedorDnD {
   grid_filas_config?: number[] | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina desde la pantalla. */
   es_inmueble?: boolean;
+  /** Declaración explícita de movilidad (canasta de «Elementos por ubicar»). */
+  declarado_movible?: boolean | null;
   objetos_count: number;
   qr_code_url: string | null;
   largo?: string | number | null;
@@ -117,6 +119,8 @@ export interface EntidadEditable {
   grid_filas_config?: number[] | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina desde la pantalla. */
   es_inmueble?: boolean;
+  /** Declaración explícita de movilidad (checkbox del modal de edición). */
+  declarado_movible?: boolean | null;
 }
 
 // =============================================================================
@@ -1279,6 +1283,19 @@ export class AlmacenamientoBoard {
         inmuebleCheck.checked = false;
       }
     }
+    // DECLARACIÓN DE MOVILIDAD (canasta «Elementos por ubicar»): solo contenedores.
+    // Destildado = ARQUITECTURA del espacio → excluida de raíz de la canasta de movibles.
+    const movibleRow = document.getElementById('editarMovibleRow');
+    const movibleCheck = document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null;
+    if (movibleRow && movibleCheck) {
+      if (tipo === 'contenedor') {
+        movibleRow.classList.remove('hidden');
+        movibleCheck.checked = entidad.declarado_movible !== false;
+      } else {
+        movibleRow.classList.add('hidden');
+        movibleCheck.checked = false;
+      }
+    }
     this.precargarFoto(entidad.foto ?? null);
     const saveText = document.getElementById('editarSaveText');
     if (saveText) saveText.textContent = 'Guardar cambios';
@@ -1314,6 +1331,12 @@ export class AlmacenamientoBoard {
     inmuebleRow?.classList.remove('hidden');
     const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
     if (inmuebleCheck) inmuebleCheck.checked = false;
+    // Declaración de movilidad: un espacio NUEVO nace declarado MOVIBLE (default
+    // del modelo). El operador puede destildarlo si es arquitectura del cuarto.
+    const movibleRow = document.getElementById('editarMovibleRow');
+    movibleRow?.classList.remove('hidden');
+    const movibleCheck = document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null;
+    if (movibleCheck) movibleCheck.checked = true;
     const saveText = document.getElementById('editarSaveText');
     if (saveText) saveText.textContent = 'Crear espacio';
     const error = document.getElementById('editarFormError');
@@ -1339,6 +1362,9 @@ export class AlmacenamientoBoard {
     const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value;
     const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
     const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
+    // Declaración explícita de movilidad (canasta de «Elementos por ubicar»).
+    const declaradoMovible =
+      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? true;
 
     if (!nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
@@ -1357,6 +1383,7 @@ export class AlmacenamientoBoard {
     if (gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    formData.append('declarado_movible', declaradoMovible ? 'true' : 'false');
     const foto = (document.getElementById('editarFotoInput') as HTMLInputElement).files?.[0];
     if (foto) formData.append('foto', foto);
     const estokId = getEstokActivoId();
@@ -1410,6 +1437,10 @@ export class AlmacenamientoBoard {
     const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value;
     const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
     const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
+    // DECLARACIÓN EXPLÍCITA DE MOVILIDAD: destildado excluye la pieza de la
+    // canasta lateral de «Elementos por ubicar» (arquitectura del espacio).
+    const declaradoMovible =
+      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? true;
 
     if (!nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
@@ -1426,6 +1457,9 @@ export class AlmacenamientoBoard {
     if (tipo === 'contenedor' && gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (tipo === 'contenedor' && gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     if (tipo === 'contenedor') formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    if (tipo === 'contenedor') {
+      formData.append('declarado_movible', declaradoMovible ? 'true' : 'false');
+    }
 
     // Al cambiar las filas globales en el modal se reescala la configuración
     // asimétrica (grid_filas_config) para no perder las columnas por fila.
@@ -1489,6 +1523,7 @@ export class AlmacenamientoBoard {
             if (gridColumnas !== '') c.grid_columnas = Number(gridColumnas);
             if (configNuevo) c.grid_filas_config = configNuevo;
             c.es_inmueble = esInmueble;
+            c.declarado_movible = declaradoMovible;
           }
         }
 

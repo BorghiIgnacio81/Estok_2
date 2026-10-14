@@ -102,6 +102,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             # regla los «Espacios» internos de las habitaciones (tipo=CAJA sin
             # sub-divisiones) contaminaban la canasta de «Elementos por ubicar».
             qs = qs.exclude(_qe_geometria_de_plano())
+            # DECLARACIÓN EXPLÍCITA DEL OPERADOR (checkbox del modal de edición):
+            # destildar «Declarar como Mueble Móvil / Objeto» expulsa la pieza de
+            # la whitelist de movibles aunque su tipo inferido sea CAJA.
+            qs = qs.filter(declarado_movible=True)
 
         # ------------------------------------------------------------------
         # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`)
@@ -123,6 +127,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
             qs = qs.filter(es_inmueble=False, tipo=TIPO_CAJA)
             qs = qs.exclude(_qe_geometria_de_plano())
+            # DECLARACIÓN EXPLÍCITA DEL OPERADOR: una pieza declarada como
+            # ARQUITECTURA del espacio (checkbox «Declarar como Mueble Móvil /
+            # Objeto» DESTILDADO) queda excluida de raíz de la canasta.
+            qs = qs.filter(declarado_movible=True)
             qs = qs.filter(
                 Q(ubicacion__isnull=True)
                 | Q(en_transito_interno=True)

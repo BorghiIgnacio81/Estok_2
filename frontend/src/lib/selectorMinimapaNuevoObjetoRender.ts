@@ -185,7 +185,7 @@ function planoHabitaciones(): CuerpoNivel {
   const habitaciones = habitacionesDePlanta();
   if (!habitaciones.length) {
     return sinSvg(
-      '👉 Esta planta todavía no tiene habitaciones. Usá «Nueva Ubicación» para crear una: aparecerá dibujada a escala en este plano.',
+      '👉 Esta planta todavía no tiene habitaciones: modelalas desde Almacenamiento (plano de la planta) y aparecerán dibujadas a escala en este plano.',
       'el plano de la planta activa',
     );
   }
@@ -208,7 +208,7 @@ function planoMuebles(): CuerpoNivel {
     return sinSvg(
       `👉 «${escapeHtml(
         habitacionActual()?.nombre || 'La habitación',
-      )}» no tiene muebles ni cajas. Podés guardar el objeto en la habitación completa o crear un contenedor con «Nuevo Contenedor».`,
+      )}» no tiene muebles ni cajas. Podés guardar el objeto en la habitación completa (tocá el fondo del plano) o modelar sus muebles desde Almacenamiento.`,
       'el plano de la habitación activa',
     );
   }
@@ -225,7 +225,7 @@ function planoCajas(): CuerpoNivel {
     return sinSvg(
       `👉 «${escapeHtml(
         muebleActual()?.nombre || 'El mueble',
-      )}» no tiene cajas internas. Podés guardar el objeto en el mueble completo o crear una caja con «Nuevo Contenedor».`,
+      )}» no tiene cajas internas. Podés guardar el objeto en el mueble completo (tocá el fondo del plano) o modelar sus cajas internas desde Almacenamiento.`,
       'el plano del mueble activo',
     );
   }

@@ -105,6 +105,22 @@ class Contenedor(models.Model):
         help_text="Si está activo, el mueble queda FIJO e inmóvil (mueble inmueble fijo): no puede arrastrarse ni eliminarse desde la pantalla de almacenamiento."
     )
     # =====================================================================
+    # DECLARACIÓN EXPLÍCITA DE MOVILIDAD (canasta «Elementos por ubicar»)
+    # ---------------------------------------------------------------------
+    # El operador declara con un checkbox si la pieza es un BULTO MOVIBLE
+    # («🎒 Declarar como Mueble Móvil / Objeto») o ARQUITECTURA del espacio.
+    # Destildado (False) la pieza queda EXCLUIDA DE RAÍZ de la canasta lateral
+    # de movibles aunque su tipo inferido sea CAJA: resuelve los casos que la
+    # heurística automática no puede distinguir por sí sola (ej: «Escritorio
+    # Pintura», «Zona Indoor»). Default True → ninguna pieza existente cambia
+    # su comportamiento actual al aplicar la migración.
+    # =====================================================================
+    declarado_movible = models.BooleanField(
+        default=True,
+        verbose_name="Declarado como Mueble Móvil / Objeto",
+        help_text="Declaración EXPLÍCITA del operador: activo = bulto movible (mueble móvil/objeto) listable en la canasta «Elementos por ubicar»; destildado = ARQUITECTURA del espacio, excluida de raíz de la canasta de movibles."
+    )
+    # =====================================================================
     # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO (5 tipos físicos)
     # El listado de la pestaña de Objetos filtra por este campo con el ORM:
     #   SECCIÓN 1 (Cajas e Inventario Interno) → tipo='CAJA' EXCLUSIVAMENTE.

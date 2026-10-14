@@ -20,6 +20,7 @@ import { LADO_MIN, type Caja } from './compactacionPlanta';
 import { partesTrasEscalar, partesTrasMover } from './plantaUnicaGrupo';
 import { acotar, aplicarCaja, esGrupo, leerCaja, pct } from './lienzoCajas';
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
+import { crearGuardadoProgramado, crearNotificadorDebounced } from './debounceGuardado';
 
 // =============================================================================
 // CONTRATO COMPARTIDO CON EL ORQUESTADOR (plantaUnicaInteractivo.ts)
@@ -81,6 +82,19 @@ function rebotar(card: HTMLElement, cajaValida: Caja): void {
   window.setTimeout(() => card.classList.remove('pu-rebote'), 300);
 }
 
+/**
+ * NOTIFICACIÓN DE CAMBIOS DEBOUNCED (500 ms): el re-render pesado de la cascada
+ * —releer el padrón, repintar los dos paneles y re-enlazar TODOS los controles— es
+ * el verdadero cuello de botella, no el PUT. Agrupando ráfagas, varios gestos
+ * encadenados (mover + estirar + mover) recargan la pantalla UNA sola vez.
+ */
+const notificarDebounced = crearNotificadorDebounced();
+
+/** Avisa del cambio al consumidor agrupando ráfagas de gestos. */
+function notificarCambios(opts: OpcionesPlantaUnica): void {
+  notificarDebounced(opts.notificarCambios);
+}
+
 // =============================================================================
 // ARRASTRE LIBRE (espacios sueltos + bloques fusionados)
 // =============================================================================
@@ -101,6 +115,12 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       const base = leerCaja(card);
       let movido = false;
       card.classList.add('pu-arrastrando');
+      // DEBOUNCE ANTI-LAG · 500 ms: el arrastre corre a 60 FPS en el CLIENTE y la
+      // persistencia se AGENDA (el reloj se reinicia en cada píxel). Mientras el
+      // puntero se mueve NO viaja ningún PUT; si el gesto se detiene, el checkpoint
+      // silencioso consolida lo modelado y al SOLTAR se cancela y se envía el PUT
+      // final: un único guardado consolidado hacia la API de Django.
+      const guardado = crearGuardadoProgramado(() => persistirMovimiento(card, base, opts, true));
 
       const enMovimiento = (m: PointerEvent): void => {
         const dL = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
@@ -115,12 +135,14 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
           width: base.width,
           height: base.height,
         });
+        guardado.programar();
       };
 
       seguirPuntero(enMovimiento, () => {
         card.classList.remove('pu-arrastrando');
+        guardado.cancelar();
         if (!movido) return;
-        void persistirMovimiento(card, base, opts);
+        void persistirMovimiento(card, base, opts, false);
       });
     });
   });
@@ -131,6 +153,8 @@ async function persistirMovimiento(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,
+  /** Checkpoint silencioso: guarda sin rebote, sin toast y sin recargar la pantalla. */
+  silencioso = false,
 ): Promise<void> {
   const id = card.dataset.id ?? '';
   const nueva = leerCaja(card);
@@ -141,24 +165,27 @@ async function persistirMovimiento(
   if (esGrupo(card)) {
     const ok = await adaptadorDe(opts).guardarGrupo(id, { partes: partesTrasMover(card, dL, dT) });
     if (!ok) {
+      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo mover el espacio fusionado.');
       return;
     }
-    toast('🔗 Bloque fusionado reubicado: todas sus partes en un solo PUT.');
+    if (!silencioso) toast('🔗 Bloque fusionado reubicado: todas sus partes en un solo PUT.');
   } else {
     const valores = { ui_left: pct(nueva.left), ui_top: pct(nueva.top) };
     const ok = await adaptadorDe(opts).guardarItem(id, valores);
     if (!ok) {
+      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo guardar la posición del espacio.');
       return;
     }
     const room = opts.rooms().find((r) => r.id === id);
     if (room) Object.assign(room, valores);
-    toast('✅ Espacio reubicado.');
+    if (!silencioso) toast('✅ Espacio reubicado.');
   }
-  opts.notificarCambios();
+  // El checkpoint silencioso NO recarga la pantalla: el gesto sigue vivo.
+  if (!silencioso) notificarCambios(opts);
 }
 
 // =============================================================================
@@ -188,6 +215,9 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         const base = leerCaja(card);
         let cambio = false;
         card.classList.add('pu-redimensionando');
+        // DEBOUNCE ANTI-LAG · 500 ms: el estirado también corre a 60 FPS en el
+        // cliente; el PUT se agenda y se consolida al soltar el tirador.
+        const guardado = crearGuardadoProgramado(() => persistirTamano(card, base, opts, true));
 
         const enMovimiento = (m: PointerEvent): void => {
           const dW = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
@@ -201,12 +231,14 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
             width: acotar(base.width + dW, LADO_MIN, Math.max(LADO_MIN, 100 - base.left)),
             height: acotar(base.height + dH, LADO_MIN, Math.max(LADO_MIN, 100 - base.top)),
           });
+          guardado.programar();
         };
 
         seguirPuntero(enMovimiento, () => {
           card.classList.remove('pu-redimensionando');
+          guardado.cancelar();
           if (!cambio) return;
-          void persistirTamano(card, base, opts);
+          void persistirTamano(card, base, opts, false);
         });
       });
     });
@@ -217,6 +249,8 @@ async function persistirTamano(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,
+  /** Checkpoint silencioso: guarda sin rebote, sin toast y sin recargar la pantalla. */
+  silencioso = false,
 ): Promise<void> {
   const id = card.dataset.id ?? '';
   if (!id) return;
@@ -231,22 +265,27 @@ async function persistirTamano(
     const partes = partesTrasEscalar(card, { left: base.left, top: base.top }, escala);
     const ok = await adaptadorDe(opts).guardarGrupo(id, { partes });
     if (!ok) {
+      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo redimensionar el bloque fusionado.');
       return;
     }
-    toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
+    if (!silencioso) {
+      toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
+    }
   } else {
     const valores = { ui_width: pct(nueva.width), ui_height: pct(nueva.height) };
     const ok = await adaptadorDe(opts).guardarItem(id, valores);
     if (!ok) {
+      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo guardar el nuevo tamaño.');
       return;
     }
     const room = opts.rooms().find((r) => r.id === id);
     if (room) Object.assign(room, valores);
-    toast(`✅ Tamaño actualizado (${pct(nueva.width)} × ${pct(nueva.height)}).`);
+    if (!silencioso) toast(`✅ Tamaño actualizado (${pct(nueva.width)} × ${pct(nueva.height)}).`);
   }
-  opts.notificarCambios();
+  // El checkpoint silencioso NO recarga la pantalla: el gesto sigue vivo.
+  if (!silencioso) notificarCambios(opts);
 }

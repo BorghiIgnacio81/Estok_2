@@ -87,6 +87,11 @@ export interface NodoCaja {
   nombre: string;
   contenido: any[];
   es_inmueble: boolean;
+  /**
+   * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 22): `false` = arquitectura fija
+   * del espacio, expulsada de la vista de objetos.
+   */
+  declarado_movible?: boolean | null;
   material: string | null;
   subcontenedores_count: number;
   objetos_count: number;

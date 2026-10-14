@@ -56,6 +56,8 @@ interface ContenedorBandeja {
   nombre: string;
   tipo: string;
   es_inmueble: boolean;
+  /** DECLARACIÓN EXPLÍCITA del operador: `false` = arquitectura, fuera de la canasta. */
+  declarado_movible: boolean;
   /** Sub-divisiones propias: una caja con hijos es estructura, no bulto. */
   subcontenedores_count: number;
   ubicacion: string | null;
@@ -115,6 +117,9 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
     nombre: String(c.nombre || 'Contenedor'),
     tipo: String(c.tipo || '').toUpperCase(),
     es_inmueble: Boolean(c.es_inmueble),
+    // El flag viaja normalizado: la purga por declaración explícita también se
+    // re-verifica en el cliente (defensa en profundidad).
+    declarado_movible: c.declarado_movible === false ? false : true,
     subcontenedores_count: Number(c.subcontenedores_count) || 0,
     ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
     // Geometría del plano: la purga de arquitectura fija la necesita EN EL

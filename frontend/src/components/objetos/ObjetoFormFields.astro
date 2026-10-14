@@ -123,15 +123,6 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
               Navegá las siluetas del Estok: planta → habitación → mueble → caja.
             </p>
           </div>
-          <!-- Creación rápida in-place: los modales viven en nuevo.astro (sin recargar la
-               página). Los botones de texto fueron reemplazados por imágenes físicas
-               locales; los ids kebab-case se corresponden con los listeners de nuevo.astro. -->
-          <div class="flex flex-wrap items-center gap-4">
-            <img src="/nueva ubicacion.png" alt="Nueva Ubicación" id="btn-nueva-ubicacion"
-              class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-            <img src="/Nuevo Contenedor.png" alt="Nuevo Contenedor" id="btn-nuevo-contenedor"
-              class="h-20 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
-          </div>
         </div>
         <MinimapaModuloUnificado
           modo="interactivo"

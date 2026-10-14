@@ -66,13 +66,27 @@ function imagenContenedor(nodo: NodoContenedor): string {
 }
 
 /**
+ * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 22): `declarado_movible === false`
+ * marca la pieza como ARQUITECTURA del espacio (ej. «Ropero Empotrado», «PC
+ * Setup») y la expulsa DE RAÍZ de la pantalla de objetos, aunque su tipo sea
+ * CAJA o MUEBLE_MOVIL. Espejo del filtro ORM del backend
+ * (inventario/services/arbol_inventario_datos.py).
+ */
+export function declaradoNoMovible(nodo: NodoContenedor): boolean {
+  return nodo.declarado_movible === false;
+}
+
+/**
  * SECCIÓN 1 · Caja móvil menor admisible en la cima del inventario.
  * Regla de descarte ABSOLUTA: SOLO `tipo_contenedor === 'CAJA'` con
- * `es_inmueble = false`. Cualquier estructura fija (Armario Empotrado,
- * Setup PC, etc.) queda removida de este primer bloque.
+ * `es_inmueble = false` y DECLARADA movible (`declarado_movible !== false`).
+ * Cualquier estructura fija (Armario Empotrado, Setup PC, etc.) queda removida
+ * de este primer bloque.
  */
 export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
-  return nodo.tipo_contenedor === 'CAJA' && !esInmueble(nodo);
+  return nodo.tipo_contenedor === 'CAJA'
+    && !esInmueble(nodo)
+    && !declaradoNoMovible(nodo);
 }
 
 /**
@@ -82,7 +96,9 @@ export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
  * `tipo='CAJA'` jamás entran acá.
  */
 export function esMuebleMovil(nodo: NodoContenedor): boolean {
-  return String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL' && !esInmueble(nodo);
+  return String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL'
+    && !esInmueble(nodo)
+    && !declaradoNoMovible(nodo);
 }
 
 // ---------------------------------------------------------------------------

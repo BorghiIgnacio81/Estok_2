@@ -2,8 +2,8 @@
 // ENLACES DEL MOTOR DE PORTALES (delegación, Drop y eventos públicos)
 // -----------------------------------------------------------------------------
 // Une el DOM con la máquina de la cascada (portalesAlmacenamiento.ts):
-//   · CLIC en una tarjeta del Panel Derecho  → portal N → N+1 (recursivo).
-//   · CLIC en una pieza de la grilla izquierda → descenso recursivo.
+//   · CLIC en una tarjeta del Panel Derecho   → portal N → N+1 (recursivo).
+//   · CLIC en un vecino del Panel Izquierdo   → salto rápido IN-PLACE (naranja).
 //   · DROP sobre una tarjeta con divisiones  → «En Tránsito Interno» nativo.
 //   · DROP a ciegas sobre el nodo activo     → ubicación general (sin celda).
 //   · Eventos públicos históricos (estok:*)  → alimentan la pila de niveles.
@@ -95,6 +95,33 @@ function contenedorDeEditor(objetivo: HTMLElement | null): string | null {
   return card?.dataset.id ?? null;
 }
 
+/**
+ * SALTO ÁGIL INTER-ESPACIOS · Resuelve el VECINO seleccionable que el operador tocó
+ * dentro del Panel Izquierdo (ancla). Cubre los TRES contratos del ancla para que la
+ * izquierda NUNCA sea un cuadrante muerto:
+ *   · siluetas de habitación del mapa de la planta → `[data-portal-abrir]`
+ *   · piezas elásticas del ancla (muebles/divisiones) → `[data-inplace-card][data-id]`
+ *   · fichas y chips del Visor Contenedor Grande → `[data-mueble-abrir]`/`[data-mueble-chip]`
+ */
+function vecinoDelAncla(objetivo: HTMLElement | null): { id: string; tipo: string } | null {
+  if (!objetivo) return null;
+  const portal = objetivo.closest<HTMLElement>('[data-portal-abrir]');
+  if (portal) {
+    return {
+      id: portal.dataset.portalAbrir ?? '',
+      tipo: portal.dataset.portalTipo ?? 'contenedor',
+    };
+  }
+  const ficha = objetivo.closest<HTMLElement>('[data-mueble-abrir], [data-mueble-chip]');
+  if (ficha) {
+    const id = ficha.dataset.muebleAbrir ?? ficha.dataset.muebleChip ?? '';
+    return id ? { id, tipo: 'contenedor' } : null;
+  }
+  const pieza = objetivo.closest<HTMLElement>('[data-inplace-card][data-id]');
+  const id = pieza?.dataset.id ?? '';
+  return id ? { id, tipo: 'contenedor' } : null;
+}
+
 /** Conecta los clics por delegación de AMBOS paneles del flujo asimétrico. */
 function conectarPortalesPorDelegacion(): void {
   // LEY 3: la derecha desciende (el mapa viaja al ancla izquierda).
@@ -110,12 +137,16 @@ function conectarPortalesPorDelegacion(): void {
     const idEditor = contenedorDeEditor(objetivo);
     if (idEditor) void descenderDesdeDerecha(idEditor, 'contenedor');
   });
-  // LEY 2: la izquierda selecciona in-place (el ancla queda quieta).
+  // LEY 2 · SALTO ÁGIL INTER-ESPACIOS: el Panel Izquierdo (ancla) es INTERACTIVO.
+  // Un clic directo sobre la silueta/tarjeta de un VECINO visible en el mapa de la
+  // izquierda dispara un SALTO RÁPIDO IN-PLACE: el vecino se repinta en NARANJA a
+  // la izquierda y la derecha muta al instante a su interior fino, SIN obligar al
+  // operador a retroceder de nivel con «⬅ Volver».
   slotIzq()?.addEventListener('click', (ev) => {
     if (modoLienzoActual() !== 'navegacion') return;
-    const carta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-portal-abrir]');
-    if (!carta) return;
-    void seleccionarEnIzquierda(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+    const destino = vecinoDelAncla(ev.target as HTMLElement | null);
+    if (!destino) return;
+    void seleccionarEnIzquierda(destino.id, destino.tipo);
   });
   // ESTADO DE ESPERA INICIAL: la tarjeta de PLANTA del Panel Derecho elige esa
   // planta → el orquestador del lienzo sube de nivel (planta fija a la

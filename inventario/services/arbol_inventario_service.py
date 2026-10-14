@@ -32,121 +32,21 @@ Ese espejo se EXCLUYE del desglose interior para no autoduplicar la caja/armario
 como objeto contenido en sí mismo.
 """
 
-import re
-
-from django.db.models import Q
-
-from ..models import Contenedor, Objeto
 from ..api.serializers import ObjetoListSerializer
 from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
-
-# ---------------------------------------------------------------------------
-# Helpers de orden "natural" (Caja 1 < Caja 02 < Caja 03 < Caja 10)
-# ---------------------------------------------------------------------------
-
-_NUMERICO_RE = re.compile(r'(\d+)')
-
-
-def _clave_orden_natural(nombre):
-    """Clave de orden que respeta el valor numérico de los sufijos/nombres."""
-    nombre = nombre or ''
-    return [
-        int(parte) if parte.isdigit() else parte.lower()
-        for parte in _NUMERICO_RE.split(nombre)
-    ]
-
-
-def _decimal_a_float(valor):
-    """Decimal → float serializable a JSON (o None si el campo está vacío)."""
-    return float(valor) if valor is not None else None
-
-
-def _foto_url(instancia, request):
-    """
-    URL absoluta de la FOTO FÍSICA de un contenedor (o None si no tiene).
-
-    La ficha técnica del frontend (modal «Editar» de las tarjetas) la usa para
-    previsualizar la fotografía actual antes de reemplazarla por multipart.
-    """
-    archivo = getattr(instancia, 'foto', None)
-    if not archivo:
-        return None
-    try:
-        url = archivo.url
-    except ValueError:
-        return None
-    if request is not None:
-        return request.build_absolute_uri(url)
-    return url
-
-
-# ---------------------------------------------------------------------------
-# Regla de espejo (DUALIDAD Contenedor + Objeto)
-# ---------------------------------------------------------------------------
-
-def _es_registro_espejo(objeto_data, contenedor):
-    """
-    Detecta el registro ESPEJO que el backend crea automáticamente al crear un
-    mueble/caja raíz mudable (Contenedor + Objeto con el mismo nombre).
-
-    Solo puede existir espejo para contenedores RAÍZ (sin parent_contenedor) y
-    MUDABLES (es_inmueble=False). El espejo tiene el MISMO nombre que el
-    contenedor y NO posee coordenadas de casillero (parent_grid_row/col nulos).
-    """
-    if contenedor.es_inmueble or contenedor.parent_contenedor_id is not None:
-        return False
-    if (
-        objeto_data.get('parent_grid_row') is not None
-        or objeto_data.get('parent_grid_col') is not None
-    ):
-        return False
-    return (objeto_data.get('nombre') or '') == (contenedor.nombre or '')
-
-
-# ---------------------------------------------------------------------------
-# Consulta de objetos (mismos filtros que el listado de /api/objetos/)
-# ---------------------------------------------------------------------------
-
-def _objetos_del_estok(
-    estok_id,
-    categoria=None,
-    decision=None,
-    publicado_ml=None,
-    search=None,
-):
-    """Objetos activos del Estok con prefetch óptimo y filtros opcionales."""
-    from ..api.viewsets.objetos.base import ObjetoViewSetBase  # evita ciclos
-
-    qs = Objeto.objects.select_related(
-        'ubicacion', 'contenedor', 'categoria', 'objeto_padre',
-    ).prefetch_related('fotos')
-    qs = qs.filter(estok_id=estok_id, deleted_at__isnull=True)
-
-    if categoria:
-        qs = qs.filter(categoria_id=categoria)
-
-    if decision:
-        decision = str(decision).strip().lower()
-        if decision == 'sin_decision':
-            qs = qs.filter(owner_action__isnull=True)
-        elif decision in dict(Objeto.OWNER_ACTION_CHOICES):
-            qs = qs.filter(owner_action=decision)
-
-    if publicado_ml:
-        publicado_ml = str(publicado_ml).strip().lower()
-        if publicado_ml in ('true', '1', 'si', 'publicado'):
-            qs = qs.filter(ObjetoViewSetBase._q_publicado_ml())
-        elif publicado_ml in ('false', '0', 'no', 'no_publicado'):
-            qs = qs.exclude(ObjetoViewSetBase._q_publicado_ml())
-
-    if search:
-        qs = qs.filter(
-            Q(nombre__icontains=search) | Q(descripcion__icontains=search)
-        )
-
-    # Orden estable por defecto del modelo (más recientes primero).
-    return qs.order_by('-fecha_registro')
-
+# Capa de DATOS del árbol de inventario (consultas ORM con la taxonomía estricta
+# y utilidades puras de serialización). Se importa con los nombres PRIVADOS del
+# servicio para preservar los sitios de llamada ya existentes.
+from .arbol_inventario_datos import (
+    cajas_del_estok,
+    clave_orden_natural as _clave_orden_natural,
+    decimal_a_float as _decimal_a_float,
+    es_registro_espejo as _es_registro_espejo,
+    foto_url as _foto_url,
+    mapa_padres_del_estok,
+    muebles_raiz_del_estok,
+    objetos_del_estok as _objetos_del_estok,
+)
 
 # ---------------------------------------------------------------------------
 # Construcción del payload jerárquico
@@ -175,48 +75,15 @@ def construir_arbol_estok(
     internas/estanterías NO se incluyen nunca (filtro ORM estricto).
     """
     # ------------------------------------------------------------------
-    # 1) MUEBLES del Estok (SECCIÓN 3 · filtro ORM estricto)
-    #
-    # REGLA TAXONÓMICA ESTRICTA DE LA PESTAÑA DE OBJETOS:
-    #   - SECCIÓN 3 (Muebles y Estructuras Móviles): SOLO `tipo='MUEBLE_MOVIL'`
-    #     y `es_inmueble=False`. Los muebles fijos quedan excluidos de forma
-    #     absoluta.
-    #   - Los `tipo='CONJUNTO'` (estructuras internas) NUNCA se consultan:
-    #     son estructura interna del mueble, no ítems de inventario.
-    #   El filtro es ORM (no en memoria) para que PostgreSQL jamás devuelva
-    #   filas fuera de la taxonomía.
+    # 1) MUEBLES (SECCIÓN 3) y 1bis) CAJAS (SECCIÓN 1): el acceso a datos vive
+    #    en arbol_inventario_datos.py, donde se aplica la taxonomía ORM estricta
+    #    (tipo + es_inmueble) y la DECLARACIÓN EXPLÍCITA `declarado_movible=True`
+    #    que expulsa de raíz la arquitectura fija del espacio (Lote 22).
     # ------------------------------------------------------------------
-    muebles = list(
-        Contenedor.objects.select_related('ubicacion')
-        .filter(
-            ubicacion__estok_id=estok_id,
-            parent_contenedor__isnull=True,
-            tipo=TIPO_MUEBLE_MOVIL,
-            es_inmueble=False,
-        )
-        .order_by('ubicacion__nombre', 'nombre')
-    )
+    muebles = list(muebles_raiz_del_estok(estok_id))
     contenedores_por_id = {str(c.id): c for c in muebles}
 
-    # ------------------------------------------------------------------
-    # 1bis) CAJAS del Estok (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO)
-    #
-    #   SOLO `tipo='CAJA'` MÓVILES (`es_inmueble=False`), a cualquier nivel:
-    #   raíz o guardada dentro de un ropero/archivador. Queda estrictamente
-    #   prohibido devolver muebles o estanterías en este bloque, y los
-    #   contenedores con flag de inmueble fijo (armario empotrado, setup PC,
-    #   etc.) se DESCARTAN de forma absoluta: por ser estructuras fijas no
-    #   pertenecen a la cima del listado de cajas.
-    # ------------------------------------------------------------------
-    cajas = list(
-        Contenedor.objects.select_related('ubicacion')
-        .filter(
-            ubicacion__estok_id=estok_id,
-            tipo=TIPO_CAJA,
-            es_inmueble=False,
-        )
-        .order_by('ubicacion__nombre', 'nombre')
-    )
+    cajas = list(cajas_del_estok(estok_id))
     cajas_por_id = {str(c.id): c for c in cajas}
     cajas.sort(
         key=lambda c: (
@@ -225,16 +92,8 @@ def construir_arbol_estok(
         )
     )
 
-    # Mapa liviano de la jerarquía completa (id → parent_contenedor_id) del
-    # Estok: permite subir por la cadena de ancestros SIN devolver las
-    # sub-divisiones internas en el listado. Sirve para reasignar el inventario
-    # de una caja que vive dentro de una estantería a su Mueble Mayor raíz.
-    padres_por_id = {
-        str(cid): pid
-        for cid, pid in Contenedor.objects.filter(
-            ubicacion__estok_id=estok_id,
-        ).values_list('id', 'parent_contenedor_id')
-    }
+    # Mapa liviano de la jerarquía completa (id → parent_contenedor_id) del Estok.
+    padres_por_id = mapa_padres_del_estok(estok_id)
 
     # Cantidad REAL de sub-divisiones internas por Mueble Mayor (metadato de
     # ficha: NO se listan, sólo alimentan el conteo de la tarjeta del mueble).
@@ -380,6 +239,9 @@ def construir_arbol_estok(
                 contenedor.ubicacion.nombre if contenedor.ubicacion_id else None
             ),
             'es_inmueble': bool(contenedor.es_inmueble),
+            # Flag del Lote 22: el cliente re-verifica en caliente que la pieza
+            # no sea arquitectura fija (defensa en profundidad sobre el ORM).
+            'declarado_movible': bool(contenedor.declarado_movible),
             'material': contenedor.material or None,
             'largo': _decimal_a_float(contenedor.largo),
             'ancho': _decimal_a_float(contenedor.ancho),
@@ -421,6 +283,9 @@ def construir_arbol_estok(
                 caja.ubicacion.nombre if caja.ubicacion_id else None
             ),
             'es_inmueble': bool(caja.es_inmueble),
+            # Flag del Lote 22: el cliente re-verifica en caliente que la pieza
+            # no sea arquitectura fija (defensa en profundidad sobre el ORM).
+            'declarado_movible': bool(caja.declarado_movible),
             'material': caja.material or None,
             'largo': _decimal_a_float(caja.largo),
             'ancho': _decimal_a_float(caja.ancho),

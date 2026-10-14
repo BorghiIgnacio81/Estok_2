@@ -17,6 +17,11 @@ export interface NodoContenedor {
   id: string;
   nombre: string;
   contenido: Array<NodoContenedor | ObjetoArbol>;
+  /**
+   * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 22): `false` = arquitectura fija
+   * del espacio (ej. «Ropero Empotrado»), expulsada de la vista de objetos.
+   */
+  declarado_movible?: boolean | null;
 }
 
 export interface GrupoEstructura {

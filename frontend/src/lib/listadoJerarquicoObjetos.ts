@@ -213,6 +213,25 @@ async function cargarCategoriasFiltros(): Promise<void> {
   }
 }
 
+/**
+ * Inserta EN CALIENTE la categoría recién creada en el combobox de filtros, SIN
+ * recargar la página (elimina el F5 manual). El modal CategoriaCreator dispara el
+ * evento `categoriaCreada` tras el 201/200 del backend; acá se refleja al toque en
+ * el DOM del <select>. Si la opción ya existiera, no se duplica.
+ */
+function agregarCategoriaAlFiltro(
+  categoria: { id?: string; nombre?: string; icono?: string } | null,
+): void {
+  if (!filtroCategoria || !categoria || !categoria.id || !categoria.nombre) return;
+  const id = String(categoria.id);
+  const yaExiste = Array.from(filtroCategoria.options).some((opt) => opt.value === id);
+  if (yaExiste) return;
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = (categoria.icono || '🏷️') + ' ' + String(categoria.nombre);
+  filtroCategoria.appendChild(opt);
+}
+
 // ---------------------------------------------------------------------------
 // Eliminación de objetos sueltos (soft delete vía API)
 // ---------------------------------------------------------------------------
@@ -313,6 +332,14 @@ export function initListadoJerarquicoObjetos(): void {
   mostrar(seccionSueltos, false);
   mostrar(seccionMuebles, false);
   enlazarEventos();
+
+  // REFRESCO REACTIVO DEL COMBOBOX DE CATEGORÍAS: al crear una categoría desde
+  // el modal «Nueva Categoría» (CategoriaCreator.astro), su evento de éxito
+  // `categoriaCreada` inyecta la opción en caliente en el <select> de filtros,
+  // sin recargar la página ni exigir un F5 manual.
+  window.addEventListener('categoriaCreada', (event) => {
+    agregarCategoriaAlFiltro((event as CustomEvent).detail);
+  });
 
   // Capacidades operacionales de las tarjetas de contenedor: los botones
   // Mover/Editar/Eliminar abren micro-modales que persisten en la API y, al
