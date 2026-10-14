@@ -10,11 +10,12 @@
 //   · renderCasita.ts  → HTML de Nivel 1 (casa) y Nivel 2 (editor elástico)
 //   · cargaCasita.ts   → fetch/POST/PATCH contra Ubicaciones (multi-tenant)
 //
-// NIVEL ESTOK INICIAL (Ignacio): la navegación NACE en el EDITOR de la planta
-// activa — Panel Izquierdo = silueta perimetral de la casa con la planta
-// seleccionada en NARANJA (minimapa) y Panel Derecho = Editor Elástico de
-// Habitaciones (botonera + «➕ Habitación» + disyuntor «Espacio Único»).
-// «⬅ Volver» regresa a la vista general de la casa (Nivel 1).
+// NIVEL ESTOK INICIAL (Ignacio · fuelle asimétrico): la navegación NACE en el
+// PLANO GENERAL — Panel Izquierdo = silueta perimetral de la casa con la planta
+// seleccionada en NARANJA (ancla RÍGIDA: nunca desciende) y Panel Derecho =
+// EDITOR ELÁSTICO de Habitaciones (botonera + «➕ Habitación» + disyuntor
+// «Espacio Único» + arrastre/fusión). «⬅ Volver» suelta la planta y la derecha
+// regresa al estado de espera.
 //
 // Modo Planta Única (cantidad_pisos == 1): perímetro continuo SIN techo.
 // =============================================================================
@@ -27,6 +28,8 @@ import { modoLienzoActual } from './modoLienzo';
 // Fix de jitter visual: los refrescos asíncronos conservan la posición de scroll.
 import { preservarScroll } from './scrollPreservado';
 import { estado } from './mapaCasita/estadoCasita';
+// Host DOM EXCLUSIVO del Panel Derecho (fuente única de los ids de panel).
+import { HOSTS } from './mapa/portales/panelesPortales';
 import {
   apartamentoDePlantaUnica,
   esPlantaUnica,
@@ -48,9 +51,10 @@ import {
 // =============================================================================
 
 function render(): void {
-  const { refs, estok, divisiones, habitaciones, filaActiva, nivelActual } = estado;
+  const { refs, estok, divisiones, habitaciones, filaActiva } = estado;
   if (!refs.mapa) return;
 
+  // PANEL IZQUIERDO — ANCLA RÍGIDA: SIEMPRE el plano general del Estok.
   // BIFURCACIÓN DEL MODELADOR: 1 planta → Planta Única (rectángulo perimetral
   // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo).
   if (esPlantaUnica(estok)) {
@@ -64,17 +68,23 @@ function render(): void {
   }
 
   const total = totalPlantas(estok, divisiones);
-  const html =
-    nivelActual === 1
-      ? renderCasaHtml({ total, divisiones, habitaciones, filaActiva })
-      : renderHabitacionesHtml({ fila: filaActiva || 1, total, divisiones, habitaciones });
-  refs.mapa.innerHTML = `<div class="casita-raiz">${html}</div>`;
+  // El plano general NO cambia al elegir planta: sólo se resalta la planta activa
+  // en NARANJA (`casita-piso-activo`). El editor de habitaciones viaja SIEMPRE al
+  // Panel Derecho → el espejo de raíz es estructuralmente imposible.
+  refs.mapa.innerHTML = `<div class="casita-raiz">${renderCasaHtml({
+    total,
+    divisiones,
+    habitaciones,
+    filaActiva,
+  })}</div>`;
   if (refs.badge) {
-    refs.badge.textContent =
-      nivelActual === 1
-        ? `Nivel 1 · ${estok?.nombre || 'Casa de Estok'}`
-        : `Nivel 2 · ${nombreDePlanta(divisiones, filaActiva || 1)}`;
+    refs.badge.textContent = filaActiva
+      ? `Nivel 2 · ${nombreDePlanta(divisiones, filaActiva)}`
+      : `Nivel 1 · ${estok?.nombre || 'Casa de Estok'}`;
   }
+
+  // PANEL DERECHO — EDITOR ELÁSTICO DE HABITACIONES de la planta activa.
+  if (filaActiva) montarEditorHabitacionesDerecha();
 }
 
 /** Dispara el evento de planta seleccionada para filtrar la cascada en caliente. */
@@ -100,67 +110,58 @@ function notificarPlanta(): void {
 }
 
 // =============================================================================
-// INTERACCIÓN (registro de estado activo + conmutación reactiva)
+// PANEL DERECHO · EDITOR ELÁSTICO DE HABITACIONES (fuelle asimétrico)
 // =============================================================================
 
-function enlazar(): void {
-  const { refs } = estado;
-  if (!refs.mapa) return;
+/**
+ * MONTA EL EDITOR DE HABITACIONES EN EL PANEL DERECHO (host `listaHabitacionesPanel`).
+ *
+ * Con una planta activa, la IZQUIERDA queda RÍGIDA en el plano general y acá vive
+ * la interfaz completa de creación: «➕ Habitación», arrastre libre, resizing
+ * elástico, fusión en «L», disyuntor «Espacio Único» y salto de planta desde el
+ * minimapa. Reutiliza el MISMO motor 2D de las plantas (`conectarPlantaUnica`).
+ * Idempotente: cada refresco re-inyecta el marcado y re-enlaza sus controles.
+ */
+function montarEditorHabitacionesDerecha(): void {
+  const host = document.getElementById(HOSTS.habitacionesEnEspera);
+  const fila = estado.filaActiva;
+  const div = fila ? estado.divisiones.find((d) => d.parent_grid_row === fila) ?? null : null;
+  if (!host || !div || fila === null) return;
 
-  // Rama Planta Única: inyección libre, arrastre/resizing elástico y fusión en "L".
-  if (esPlantaUnica(estado.estok)) {
-    conectarPlantaUnica({
-      scope: refs.mapa,
-      rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),
-      apartamentoId: () => apartamentoDePlantaUnica(estado.divisiones)?.id ?? null,
-      asegurarApartamento: crearApartamentoSiFalta,
-      notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
-    });
-    return;
-  }
+  host.innerHTML = renderHabitacionesHtml({
+    fila,
+    total: totalPlantas(estado.estok, estado.divisiones),
+    divisiones: estado.divisiones,
+    habitaciones: estado.habitaciones,
+  });
 
-  // Nivel 1: clic en una planta → registra estado activo + conmuta al Nivel 2.
-  refs.mapa.querySelectorAll<HTMLElement>('[data-casita-piso]').forEach((el) => {
+  // «⬅ Volver»: suelta la planta activa → la derecha vuelve al estado de espera.
+  host.querySelectorAll<HTMLElement>('[data-casita-volver]').forEach((el) => {
     el.addEventListener('click', () => {
-      const fila = Number(el.dataset.casitaPiso);
-      if (!fila) return;
-      estado.filaActiva = fila;
-      estado.nivelActual = 2;
+      estado.filaActiva = null;
       render();
       enlazar();
       notificarPlanta();
     });
   });
 
-  // Nivel 2: botón "⬅ Volver" → regresa a la vista general de la casa.
-  refs.mapa.querySelectorAll<HTMLElement>('[data-casita-volver]').forEach((el) => {
+  // Salto de planta desde el minimapa ultra-mini de la casita.
+  host.querySelectorAll<HTMLElement>('[data-mini-fila]').forEach((el) => {
     el.addEventListener('click', () => {
-      estado.nivelActual = 1;
+      const filaDestino = Number(el.getAttribute('data-mini-fila'));
+      if (!filaDestino || filaDestino === estado.filaActiva) return;
+      estado.filaActiva = filaDestino;
       render();
       enlazar();
       notificarPlanta();
     });
   });
 
-  // Nivel 2: saltar a otra planta tocando el minimapa ultra-mini de la casita.
-  refs.mapa.querySelectorAll<HTMLElement>('[data-mini-fila]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const fila = Number(el.getAttribute('data-mini-fila'));
-      if (!fila || fila === estado.filaActiva) return;
-      estado.filaActiva = fila;
-      render();
-      enlazar();
-      notificarPlanta();
-    });
-  });
-
-  // Nivel 2: disyuntor canónico «Espacio Único» de la planta activa (cabecera).
-  refs.mapa
+  // Disyuntor canónico «Espacio Único» de la planta activa (cabecera).
+  host
     .querySelector<HTMLInputElement>('#casitaEspacioUnico')
     ?.addEventListener('change', async (e) => {
       const chk = e.currentTarget as HTMLInputElement;
-      const div = estado.divisiones.find((d) => d.parent_grid_row === estado.filaActiva);
-      if (!div) return;
       chk.disabled = true;
       const ok = await guardarEspacioUnicoDivision(div.id, chk.checked);
       chk.disabled = false;
@@ -172,11 +173,9 @@ function enlazar(): void {
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
     });
 
-  // Nivel 2: clic en una habitación (rectángulo elástico) → alimenta el Visor.
+  // Clic en una habitación (modo NAVEGACIÓN) → abre su interior en la cascada.
   // En MODO EDICIÓN el clic edita in-place (arrastrar/estirar) y NO navega.
-  // El evento viaja con las HERMANAS de la planta (geometría real ui_*) para que
-  // los minimapas de orientación dibujen las proporciones verdaderas de cada una.
-  refs.mapa
+  host
     .querySelectorAll<HTMLElement>('[data-lienzo-pu] .pu-celda, [data-lienzo-pu] .pu-grupo')
     .forEach((el) => {
       el.addEventListener('click', () => {
@@ -200,25 +199,58 @@ function enlazar(): void {
       });
     });
 
-  // =========================================================================
-  // MOTOR 2D ELÁSTICO UNIFICADO (plantaUnicaInteractivo.ts)
-  // Mismo lienzo de rectángulos libres que las plantas: renombrar al clic,
-  // arrastre/reacomodo, estiramiento por esquina y fusión en «L».
-  // =========================================================================
-  const div = estado.filaActiva
-    ? estado.divisiones.find((d) => d.parent_grid_row === estado.filaActiva) ?? null
-    : null;
-  if (estado.nivelActual === 2 && div) {
+  // MOTOR 2D ELÁSTICO UNIFICADO: renombrar al clic, arrastre/reacomodo, estirado
+  // por esquina y fusión en «L» sobre el adaptador real de Ubicaciones.
+  conectarPlantaUnica({
+    scope: host,
+    rooms: () =>
+      habitacionesDePlanta(estado.divisiones, estado.habitaciones, estado.filaActiva || 1),
+    adaptador: adaptadorUbicaciones(),
+    apartamentoId: () => div.id,
+    crearItem: () => crearHabitacionEnPlanta(div),
+    notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
+  });
+}
+
+// =============================================================================
+// INTERACCIÓN (registro de estado activo + conmutación reactiva)
+// =============================================================================
+
+function enlazar(): void {
+  const { refs } = estado;
+  if (!refs.mapa) return;
+
+  // Rama Planta Única: inyección libre, arrastre/resizing elástico y fusión en "L".
+  if (esPlantaUnica(estado.estok)) {
     conectarPlantaUnica({
       scope: refs.mapa,
-      rooms: () =>
-        habitacionesDePlanta(estado.divisiones, estado.habitaciones, estado.filaActiva || 1),
-      adaptador: adaptadorUbicaciones(),
-      apartamentoId: () => div.id,
-      crearItem: () => crearHabitacionEnPlanta(div),
+      rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),
+      apartamentoId: () => apartamentoDePlantaUnica(estado.divisiones)?.id ?? null,
+      asegurarApartamento: crearApartamentoSiFalta,
       notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
     });
+    return;
   }
+
+  // Nivel 1: clic en una planta → sólo registra el estado activo y publica el
+  // evento. ASIMETRÍA RÍGIDA (fuelle): la columna izquierda NO desciende —queda
+  // clavada en el PLANO GENERAL con la planta elegida en NARANJA
+  // (`casita-piso-activo`)—; la cascada de portales despliega las habitaciones en
+  // la DERECHA (`listaHabitacionesPanel`). Así se rompe el espejo de raíz.
+  refs.mapa.querySelectorAll<HTMLElement>('[data-casita-piso]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const fila = Number(el.dataset.casitaPiso);
+      if (!fila) return;
+      estado.filaActiva = fila;
+      render();
+      enlazar();
+      notificarPlanta();
+    });
+  });
+
+  // Modo Casa: la IZQUIERDA sólo SELECCIONA plantas (ancla rígida en el plano
+  // general, planta elegida en NARANJA). El editor de habitaciones vive en la
+  // DERECHA y lo monta `montarEditorHabitacionesDerecha` desde `render()`.
 }
 
 // =============================================================================
@@ -233,14 +265,15 @@ export function initMapaCasita(opts: {
   estado.primeraCarga = true;
   if (!estado.refs.mapa) return;
 
-  // SELECCIÓN DE PLANTA DESDE EL PANEL DERECHO (estado de espera): la tarjeta
-  // de planta dispara este gesto, el lienzo sube de nivel (planta fija a la
-  // izquierda con sus habitaciones) y notifica a la cascada de portales.
+  // SELECCIÓN DE PLANTA DESDE EL PANEL DERECHO (estado de espera): la tarjeta de
+  // planta fija la planta activa (NARANJA en el plano general de la izquierda) y
+  // notifica a la cascada de portales, que despliega las habitaciones a la DERECHA.
   window.addEventListener('estok:planta-elegida', (e) => {
     const fila = Number((e as CustomEvent<{ fila?: number }>).detail?.fila) || 0;
     if (!fila) return;
     estado.filaActiva = fila;
-    estado.nivelActual = 2;
+    // La izquierda queda RÍGIDA en el plano general: el despliegue de las
+    // habitaciones ocurre SIEMPRE en el panel derecho (fuelle asimétrico).
     preservarScroll(() => {
       render();
       enlazar();
@@ -253,7 +286,6 @@ export function initMapaCasita(opts: {
   // reales completan la silueta de las DOS plantas y la derecha arma los
   // minimapas independientes, SIN descenso automático (ver cargarYRefrescar).
   estado.filaActiva = null;
-  estado.nivelActual = 1;
   pintarCasaInicial();
 
   // Carga asíncrona de las macro-divisiones del Estok activo. Si el fetch falla
@@ -289,7 +321,6 @@ async function cargarYRefrescar(): Promise<boolean> {
     // elige, ya sea desde la silueta izquierda o desde su tarjeta derecha.
     estado.primeraCarga = false;
     estado.filaActiva = null;
-    estado.nivelActual = 1;
   }
   // El re-render del lienzo NO debe mover el scroll del navegador (fix de jitter
   // visual): se reafirma la posición vigente tras inyectar el marcado nuevo.

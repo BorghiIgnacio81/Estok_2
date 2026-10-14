@@ -75,7 +75,16 @@ export async function renderNivelRaiz(): Promise<void> {
     );
     return;
   }
-  await pintarHabitacionesEn(HOSTS.habitacionesEnEspera, plantaId, null);
+  // CON PLANTA FIJADA el Panel Derecho es el EDITOR ELÁSTICO de habitaciones
+  // («➕ Habitación», arrastre/fusión, «Espacio Único»): lo monta el orquestador
+  // del Mapa Estok (mapaCasitaNavegable → montarEditorHabitacionesDerecha) en el
+  // host `listaHabitacionesPanel`. La cascada sólo CONFIRMA que el host tenga
+  // contenido y, si por cualquier motivo todavía está vacío, cae al mini-mapa de
+  // lectura para que el panel NUNCA quede mudo.
+  const hostDerecho = el(HOSTS.habitacionesEnEspera);
+  if (hostDerecho && !hostDerecho.hasChildNodes()) {
+    await pintarHabitacionesEn(HOSTS.habitacionesEnEspera, plantaId, null);
+  }
 }
 
 /**

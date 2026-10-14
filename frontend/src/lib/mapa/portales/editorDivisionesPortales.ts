@@ -32,7 +32,7 @@ import {
 import { reemplazarNodoActual } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { reaccionarEspacioUnico } from './barraComandosPortales';
-import { guardarEspacioUnico } from './datosNodosPortales';
+import { cargarContenedores, guardarEspacioUnico } from './datosNodosPortales';
 import type { InteriorNodo } from './datosNodosPortales';
 
 /** Ayuda contextual del editor del cuarto (micro-texto en español). */
@@ -72,27 +72,51 @@ function adaptadorDelNodo(nodo: NodoPortal): AdaptadorEspacios {
 }
 
 /**
+ * Ubicación FÍSICA (habitación) que EXIGE el serializer de Django: `ubicacion` es
+ * un campo OBLIGATORIO del `ContenedorSerializer` (`required=True`,
+ * `allow_null=False`). Una HABITACIÓN la aporta por identidad; un CONTENEDOR la
+ * hereda del registro real de su padre en el padrón. Sin este campo el POST
+ * responde 400 «This field is required» ANTES de que `perform_create` pueda
+ * resolverla desde el padre.
+ */
+async function ubicacionDeNodo(nodo: NodoPortal): Promise<string | null> {
+  if (nodo.tipo === 'habitacion') return nodo.id;
+  const conts = await cargarContenedores();
+  return conts.find((c) => c.id === nodo.id)?.ubicacion ?? null;
+}
+
+/**
  * POST de una división interna (estructural: crear_espejo=false). RECURSIVO: la
  * habitación cuelga de su Ubicación (`ubicacion`); un contenedor con sub-divisiones
- * cuelga de su PADRE (`parent_contenedor`) y el backend hereda la ubicación del
- * padre (ContenedorViewSet.perform_create). Así el descenso interno es idéntico
- * en CUALQUIER nivel de la cascada (N+1, N+2, …).
+ * cuelga de su PADRE (`parent_contenedor`) y el backend reafirma la ubicación del
+ * padre (ContenedorViewSet.perform_create). El payload viaja SIEMPRE con
+ * `ubicacion` (campo obligatorio del serializer) para no romper la validación con
+ * un 400. Así el descenso interno es idéntico en CUALQUIER nivel (N+1, N+2, …).
  */
 async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean> {
   if (!nodo.id) return false;
+  const ubicacion = await ubicacionDeNodo(nodo);
+  if (!ubicacion) {
+    toast('❌ No se pudo resolver la habitación del nivel activo.');
+    return false;
+  }
   const cuerpo: Record<string, unknown> = {
     nombre: `Espacio ${n + 1}`,
     descripcion: '',
+    // OBLIGATORIO del serializer: Ubicación física del contenedor padre.
+    ubicacion,
     ui_left: `${6 + (n % 5) * 12}%`,
     ui_top: `${8 + (n % 4) * 16}%`,
     ui_width: '28%',
     ui_height: '24%',
     es_inmueble: false,
+    // Subdivisión estructural: geometría del mapa sin stock espejo.
     crear_espejo: false,
+    // Una DIVISIÓN interna nunca es monolítica: no nace como «Espacio Único».
     espacio_unico: false,
   };
-  if (nodo.tipo === 'habitacion') cuerpo.ubicacion = nodo.id;
-  else cuerpo.parent_contenedor = nodo.id;
+  // El CONTENEDOR cuelga de su PADRE jerárquico (frontera real del nivel N+1).
+  if (nodo.tipo !== 'habitacion') cuerpo.parent_contenedor = nodo.id;
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/`, {
       method: 'POST',

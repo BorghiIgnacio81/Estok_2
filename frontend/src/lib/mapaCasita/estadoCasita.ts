@@ -25,8 +25,6 @@ export interface EstadoCasita {
   habitaciones: UbicacionPlano[];
   /** Planta activa (parent_grid_row). null = vista general sin filtro. */
   filaActiva: number | null;
-  /** Nivel de navegación: 1 = casa general, 2 = habitaciones de una planta. */
-  nivelActual: 1 | 2;
   /** true mientras no se haya resuelto la PRIMERA carga con datos reales. */
   primeraCarga: boolean;
 }
@@ -37,6 +35,5 @@ export const estado: EstadoCasita = {
   divisiones: [],
   habitaciones: [],
   filaActiva: null,
-  nivelActual: 1,
   primeraCarga: true,
 };

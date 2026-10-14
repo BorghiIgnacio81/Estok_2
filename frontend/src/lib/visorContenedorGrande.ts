@@ -20,7 +20,6 @@ import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
 import type { ItemElastico } from './lienzoElastico';
-import { aplicarModo, modoLienzoActual } from './modoLienzo';
 import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
@@ -46,8 +45,6 @@ let muebles: MuebleVisor[] = [];
 let piezas: MuebleVisor[] = [];
 /** Contenedores RAÍZ de la habitación (alimentan el lienzo elástico vacío). */
 let raices: ItemElastico[] = [];
-/** ¿El MODO EDICIÓN fue activado automáticamente por una habitación vacía? */
-let autoEdicionVacia = false;
 let subContenedores: SubContVisor[] = [];
 let subObjetos: SubObjVisor[] = [];
 let rootEl: HTMLElement | null = null;
@@ -200,30 +197,14 @@ function render(): void {
     muebleActivoId,
     raices,
   });
-  sincronizarModoEdicionVacia();
   enlazar();
 }
 
-/**
- * REGLA DE INICIALIZACIÓN: al entrar a una habitación SIN muebles se activa el
- * MODO EDICIÓN por defecto, de modo que el botón «➕ Crear mueble aquí» quede
- * visible y los rectángulos sean arrastrables/estirables al instante. Al salir
- * de ese estado (otra habitación o vuelta a la planta) se restaura el modo
- * NAVEGACIÓN para que el clic sobre las tarjetas siga navegando por portales.
- */
-function sincronizarModoEdicionVacia(): void {
-  if (roomActual && !muebles.length) {
-    if (modoLienzoActual() === 'navegacion') {
-      aplicarModo('edicion');
-      autoEdicionVacia = true;
-    }
-    return;
-  }
-  if (autoEdicionVacia) {
-    aplicarModo('navegacion');
-    autoEdicionVacia = false;
-  }
-}
+// NOTA (Lote 21): se ELIMINÓ la auto-activación del Modo Edición al entrar en
+// una habitación vacía. El lienzo arranca SIEMPRE en modo PASIVO de NAVEGACIÓN
+// (el clic navega por portales); el modo edición sólo se conmuta si el operador
+// pulsa «✏️ Editar» de forma voluntaria y explícita. La autoridad del reset por
+// salto de nivel vive en portalesAlmacenamiento.transicionar().
 
 // =============================================================================
 // EVENTOS (DnD entre casilleros + fundación "➕" en celdas vacías)

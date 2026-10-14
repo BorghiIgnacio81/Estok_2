@@ -13,6 +13,7 @@
 // públicos, pero ahora viven en un host EXCLUSIVO de la izquierda.
 // =============================================================================
 
+import { aplicarModo } from '../../modoLienzo';
 import { renderMinimapasAnidados } from '../../minimapasAnidados';
 import type { NodoRuta } from '../../minimapasAnidados';
 import { sectoresDeItems } from '../../sectoresMinimapa';
@@ -61,6 +62,8 @@ import {
 let interiorActual: InteriorNodo | null = null;
 /** Aviso anticolisión: evita re-entradas cuando un refresco dispara eventos. */
 let refrescando = false;
+/** Firma del último nivel pintado (profundidad + nodo activo + planta). */
+let firmaNivel = '';
 
 // -----------------------------------------------------------------------------
 // PUENTES PÚBLICOS HACIA LOS ENLACES (portalesEnlaces.ts)
@@ -166,6 +169,17 @@ export function transicionar(): void {
   setTexto('tituloPanelDerecho', cab.tituloDer);
   setTexto('descPanelDerecho', cab.descDer);
 
+  // LEY 5 · ARRANQUE SIEMPRE EN NAVEGACIÓN: cada SALTO de la pila (cambio de
+  // profundidad, de nodo activo o de planta) devuelve el lienzo a modo
+  // navegación. El botón visible vuelve a ser «✏️ Editar» y el «💾 Guardar» SOLO
+  // aparece si el operador toca el lápiz de forma voluntaria. Un refresco del
+  // MISMO nivel (p. ej. tras arrastrar una tarjeta) conserva el modo vigente para
+  // no expulsar al operador de la edición.
+  const firma = `${profundidad()}|${ctx.activo?.id ?? ''}|${estadoPortales.planta?.fila ?? ''}`;
+  if (firma !== firmaNivel) {
+    firmaNivel = firma;
+    aplicarModo('navegacion');
+  }
   renderMinimapa();
   syncBotones();
   // Barra de comandos: el «✏️ Editar» se re-sincroniza en CADA nivel (visible y
