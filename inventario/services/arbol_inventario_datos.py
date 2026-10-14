@@ -5,27 +5,39 @@ Separa el ACCESO A POSTGRESQL del ensamblado en memoria
 (`arbol_inventario_service.py`). Concentra en UN único lugar la TAXONOMÍA
 ESTRICTA que alimenta `GET /api/contenedores/arbol/` (vista `/objetos`):
 
-  - `muebles_raiz_del_estok` (SECCIÓN 3): SOLO `tipo='MUEBLE_MOVIL'` RAÍZ, con
-    `es_inmueble=False` y `declarado_movible=True`.
-  - `cajas_del_estok` (SECCIÓN 1): SOLO `tipo='CAJA'`, con `es_inmueble=False`
-    y `declarado_movible=True`.
+  - `muebles_raiz_del_estok` (SECCIÓN 3): piezas RAÍZ con `es_inmueble=False` y
+    `declarado_movible=True` que son MUEBLES MÓVILES (`tipo='MUEBLE_MOVIL'`) O
+    ESPACIOS CONTENEDORES INTERMEDIOS que actúan como mueble (alojan
+    sub-divisiones propias: «Baúl», «Cama Cucheta»), aunque su tipo sea CAJA.
+  - `cajas_del_estok` (SECCIÓN 1): SOLO bultos chicos TERMINALES
+    (`tipo='CAJA'`, `es_inmueble=False`, `declarado_movible=True` y SIN
+    sub-divisiones propias), a cualquier nivel (raíz o dentro de un mueble).
   - `mapa_padres_del_estok`: 1 query liviana (id → parent_contenedor_id).
   - `objetos_del_estok`: 1 query de objetos activos con prefetch de fotos.
 
-DECLARACIÓN EXPLÍCITA DE MOVILIDAD (`declarado_movible`, Lote 22): es el
-checkbox «Declarar como Mueble Móvil / Objeto» del modal de edición. Destildado
-(False) la pieza es ARQUITECTURA del espacio (ej. «Ropero Empotrado», «PC
-Setup») y queda EXPULSADA DE RAÍZ de la pantalla de objetos, aunque su `tipo`
-inferido sea CAJA o MUEBLE_MOVIL. La vista `/objetos` lista SOLO bultos reales
-declarados movibles; los espacios fijos deben ser expulsados de raíz.
+DECLARACIÓN EXPLÍCITA DE MOVILIDAD (`declarado_movible`, Lotes 22/24): es el
+checkbox «Declarar como Mueble Móvil / Objeto» del modal de edición.
+
+  REGLA A · `False` → ARQUITECTURA del espacio (ej. «Escritorio Pintura»,
+  «Ropero Empotrado»): EXCLUIDA DE RAÍZ de toda la pantalla de objetos, sin
+  importar su `tipo`.
+
+  REGLA B · `True` → declarada movible; se BIFURCA por naturaleza: las CAJAS
+  terminales (sin sub-divisiones) van a la SECCIÓN 1 y los MUEBLES MÓVILES /
+  espacios contenedores intermedios van a la SECCIÓN 3.
 """
 
 import re
 
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 
 from ..models import Contenedor, Objeto
 from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
+
+
+def _tiene_subdivisiones():
+    """`Exists` ORM: la pieza aloja sub-divisiones propias (hijos directos)."""
+    return Exists(Contenedor.objects.filter(parent_contenedor=OuterRef('pk')))
 
 # ---------------------------------------------------------------------------
 # Utilidades puras de serialización
@@ -92,38 +104,44 @@ def es_registro_espejo(objeto_data, contenedor):
 
 def muebles_raiz_del_estok(estok_id):
     """
-    Muebles RAÍZ mudables del Estok (SECCIÓN 3 · filtro ORM estricto).
+    ESTRUCTURAS MÓVILES RAÍZ del Estok (SECCIÓN 3 · filtro ORM estricto).
 
-    SOLO `tipo='MUEBLE_MOVIL'` con `es_inmueble=False` y `declarado_movible=True`.
-    Los `tipo='CONJUNTO'` (estructura interna del mueble) y los
-    `tipo='MUEBLE_INMUEBLE'` (muebles fijos del cuarto) NUNCA se consultan: el
-    filtro es ORM (no en memoria) para que PostgreSQL jamás devuelva filas
-    fuera de la taxonomía.
+    Lista SOLO piezas RAÍZ con `es_inmueble=False` y `declarado_movible=True`
+    (REGLA A/B del Lote 24) que son:
+      - MUEBLES MÓVILES por tipo (`tipo='MUEBLE_MOVIL'`), o
+      - ESPACIOS CONTENEDORES INTERMEDIOS que actúan como mueble: piezas que
+        alojan sub-divisiones propias (ej. «Baúl», «Cama Cucheta») aunque su
+        tipo inferido sea CAJA.
+
+    Los `tipo='CONJUNTO'` (estructura interna) y `tipo='MUEBLE_INMUEBLE'`
+    (muebles fijos) quedan excluidos de raíz (por `parent_contenedor`/fijo).
+    El filtro es ORM (no en memoria): PostgreSQL nunca devuelve filas fuera de
+    la taxonomía.
     """
     return (
         Contenedor.objects.select_related('ubicacion')
         .filter(
             ubicacion__estok_id=estok_id,
             parent_contenedor__isnull=True,
-            tipo=TIPO_MUEBLE_MOVIL,
             es_inmueble=False,
             # DECLARACIÓN EXPLÍCITA DEL OPERADOR: destildar «Declarar como Mueble
-            # Móvil / Objeto» expulsa la pieza de la pantalla de objetos aunque
-            # su tipo inferido sea MUEBLE_MOVIL.
+            # Móvil / Objeto» (REGLA A) expulsa la pieza de la pantalla de objetos.
             declarado_movible=True,
         )
+        # REGLA B: mueble por tipo O espacio contenedor intermedio (con hijos).
+        .filter(Q(tipo=TIPO_MUEBLE_MOVIL) | Q(_tiene_subdivisiones()))
         .order_by('ubicacion__nombre', 'nombre')
     )
 
 
 def cajas_del_estok(estok_id):
     """
-    Cajas del Estok (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO).
+    CAJAS TERMINALES del Estok (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO).
 
-    SOLO `tipo='CAJA'` MÓVILES (`es_inmueble=False`) y DECLARADAS movibles
-    (`declarado_movible=True`), a cualquier nivel (raíz o guardada dentro de un
-    ropero/archivador). NUNCA se devuelven muebles, estanterías ni piezas con
-    flag de inmueble fijo (armario empotrado, PC Setup, etc.).
+    SOLO bultos chicos arrastrables: `tipo='CAJA'`, `es_inmueble=False`,
+    `declarado_movible=True` y SIN sub-divisiones propias. Una caja con hijos es
+    una ESTRUCTURA (va a la SECCIÓN 3 o es sub-división interna), nunca un bulto.
+    A cualquier nivel: raíz o guardada dentro de un ropero/archivador.
     """
     return (
         Contenedor.objects.select_related('ubicacion')
@@ -131,10 +149,12 @@ def cajas_del_estok(estok_id):
             ubicacion__estok_id=estok_id,
             tipo=TIPO_CAJA,
             es_inmueble=False,
-            # DECLARACIÓN EXPLÍCITA: excluye de raíz la arquitectura del espacio
-            # (ej. «Ropero Empotrado») aunque su tipo inferido sea CAJA.
+            # DECLARACIÓN EXPLÍCITA (REGLA A): excluye de raíz la arquitectura del
+            # espacio (ej. «Escritorio Pintura») aunque su tipo inferido sea CAJA.
             declarado_movible=True,
         )
+        # BULTO TERMINAL: sin sub-divisiones propias (si las tuviera, es estructura).
+        .filter(~Q(_tiene_subdivisiones()))
         .order_by('ubicacion__nombre', 'nombre')
     )
 

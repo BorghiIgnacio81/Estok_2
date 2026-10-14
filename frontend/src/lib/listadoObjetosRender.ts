@@ -79,24 +79,29 @@ export function declaradoNoMovible(nodo: NodoContenedor): boolean {
 /**
  * SECCIÓN 1 · Caja móvil menor admisible en la cima del inventario.
  * Regla de descarte ABSOLUTA: SOLO `tipo_contenedor === 'CAJA'` con
- * `es_inmueble = false` y DECLARADA movible (`declarado_movible !== false`).
- * Cualquier estructura fija (Armario Empotrado, Setup PC, etc.) queda removida
- * de este primer bloque.
+ * `es_inmueble = false`, DECLARADA movible (`declarado_movible !== false`) y
+ * SIN sub-divisiones propias (`subcontenedores_count === 0`): una caja con
+ * hijos es una ESTRUCTURA y vive en la SECCIÓN 3, no acá.
  */
 export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
   return nodo.tipo_contenedor === 'CAJA'
     && !esInmueble(nodo)
-    && !declaradoNoMovible(nodo);
+    && !declaradoNoMovible(nodo)
+    && numerico(nodo.subcontenedores_count) === 0;
 }
 
 /**
  * Mueble móvil de la SECCIÓN 3 (defensa en profundidad sobre el filtro ORM del
- * backend): SOLO `tipo_contenedor === 'MUEBLE_MOVIL'` y NUNCA un mueble inmueble
- * fijo (`es_inmueble = true`). Los `tipo='CONJUNTO'` (estructura interna) y
- * `tipo='CAJA'` jamás entran acá.
+ * backend): `tipo_contenedor === 'MUEBLE_MOVIL'` O ESPACIO CONTENEDOR
+ * INTERMEDIO que actúa como mueble (pieza RAÍZ con sub-divisiones propias, ej.
+ * «Baúl»/«Cama Cucheta») y NUNCA un mueble inmueble fijo (`es_inmueble = true`)
+ * ni una pieza con el checkbox «Declarar como Mueble Móvil / Objeto» destildado.
+ * Los `tipo='CONJUNTO'` (estructura interna) jamás entran acá.
  */
 export function esMuebleMovil(nodo: NodoContenedor): boolean {
-  return String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL'
+  const esTipoMueble = String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL';
+  const esEstructuraIntermedia = numerico(nodo.subcontenedores_count) > 0;
+  return (esTipoMueble || esEstructuraIntermedia)
     && !esInmueble(nodo)
     && !declaradoNoMovible(nodo);
 }

@@ -1,11 +1,12 @@
 ---
 // Listado jerárquico de objetos (inventario en cascada).
 // La pantalla se divide en TRES secciones descendentes que heredan de forma
-// continua la misma textura y paleta corporativa:
-//   SECCIÓN 1 · 📦 Cajas e Inventario Interno (mini-guía analítica asimétrica:
-//               casita a dos aguas + ambientes reales + mueble en naranja)
-//   SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
-//   SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye es_inmueble = true)
+// continua la misma textura y paleta corporativa. ORDEN VISUAL (Lote 24),
+// de arriba a abajo:
+//   SECCIÓN 1 (ARRIBA) · 🧸 Objetos Sueltos o sin Caja
+//   SECCIÓN 2 (CENTRO) · 📦 Cajas e Inventario Interno (mini-guía analítica
+//                        asimétrica: casita a dos aguas + ambientes + mueble naranja)
+//   SECCIÓN 3 (ABAJO)  · 🗄 Muebles y Estructuras Móviles
 // La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
 // Payload: GET /api/contenedores/arbol/ (backend optimizado, cero N+1).
 
@@ -126,26 +127,16 @@ import '../styles/minimapa-ruta.css';
 
     <!-- =====================================================================
          INVENTARIO JERÁRQUICO · tres bloques secuenciales descendentes que
-         heredan la MISMA textura y paleta corporativa (lienzo continuo):
-           SECCIÓN 1 · 📦 Cajas e Inventario Interno  (minimapa ULTRA-MINI naranja)
-           SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja
-           SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye es_inmueble)
+         heredan la MISMA textura y paleta corporativa (lienzo continuo).
+         ORDEN VISUAL (Lote 24), de arriba a abajo:
+           SECCIÓN 1 (ARRIBA) · 🧸 Objetos Sueltos o sin Caja
+           SECCIÓN 2 (CENTRO) · 📦 Cajas e Inventario Interno
+           SECCIÓN 3 (ABAJO)  · 🗄 Muebles y Estructuras Móviles
          El HTML lo inyecta src/lib/listadoJerarquicoObjetos.ts.
          ===================================================================== -->
     <div id="seccionesInventario" class="hidden secciones-inventario">
 
-      <!-- SECCIÓN 1 · Cajas e Inventario Interno -->
-      <section id="seccionCajas" class="hidden mb-10">
-        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">📦 Cajas e Inventario Interno</h2>
-            <p class="text-sm text-gray-500">Cajas del Estok activo (incluidas las guardadas dentro de muebles), con la ruta de minimapas Piso → Habitación → Mueble y su contenido cerrado por defecto</p>
-          </div>
-        </div>
-        <div id="cajasContainer" class="space-y-6"></div>
-      </section>
-
-      <!-- SECCIÓN 2 · Objetos Sueltos o sin Caja -->
+      <!-- SECCIÓN 1 (ARRIBA) · Objetos Sueltos o sin Caja -->
       <section id="seccionSueltos" class="hidden mb-10">
         <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
           <div>
@@ -156,12 +147,23 @@ import '../styles/minimapa-ruta.css';
         <div id="objetosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
       </section>
 
-      <!-- SECCIÓN 3 · Muebles y Estructuras Móviles -->
+      <!-- SECCIÓN 2 (CENTRO) · Cajas e Inventario Interno -->
+      <section id="seccionCajas" class="hidden mb-10">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">📦 Cajas e Inventario Interno</h2>
+            <p class="text-sm text-gray-500">Cajas del Estok activo (incluidas las guardadas dentro de muebles), con la ruta de minimapas Piso → Habitación → Mueble y su contenido cerrado por defecto</p>
+          </div>
+        </div>
+        <div id="cajasContainer" class="space-y-6"></div>
+      </section>
+
+      <!-- SECCIÓN 3 (ABAJO) · Muebles y Estructuras Móviles -->
       <section id="seccionMuebles" class="hidden">
         <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
           <div>
             <h2 class="text-2xl font-bold text-gray-900">🗄 Muebles y Estructuras Móviles</h2>
-            <p class="text-sm text-gray-500">Contenedores grandes mudables · los muebles fijos (es_inmueble) quedan excluidos</p>
+            <p class="text-sm text-gray-500">Muebles móviles y espacios contenedores declarados · los muebles fijos (es_inmueble) y la arquitectura (checkbox destildado) quedan excluidos</p>
           </div>
         </div>
         <div id="mueblesContainer" class="space-y-6"></div>
