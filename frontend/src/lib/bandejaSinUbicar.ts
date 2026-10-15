@@ -311,6 +311,17 @@ function enlazarExtraccion(): void {
 // ENTRADA (responsive híbrido dual: panel lateral ⇄ barra inferior)
 // =============================================================================
 
+/**
+ * REFRESCO PÚBLICO DE LA CANASTA (Lote 29): ÚNICA puerta de entrada para que otra
+ * pantalla pida repintar la bandeja SIN depender del latido global
+ * `estok:espacios-cambiados` (que además re-dispara el motor de portales). La usa
+ * el orquestador al abrir un «Espacio Único» (fin de cadena), donde la canasta es
+ * la fuente del arrastre hacia la grilla directa de objetos.
+ */
+export function refrescarBandeja(): void {
+  void cargar();
+}
+
 export function initBandeja(opts: {
   contenedor?: HTMLElement | null;
   /** Host de la barra horizontal inferior (celulares). */
@@ -318,9 +329,9 @@ export function initBandeja(opts: {
 }): void {
   hosts = [opts.contenedor, opts.contenedorMovil].filter((h): h is HTMLElement => Boolean(h));
   if (!hosts.length) return;
-  window.addEventListener('estok:espacios-cambiados', () => {
-    void cargar();
-  });
+  // Una sola vía de refresco: el latido global y el llamado explícito comparten
+  // exactamente la misma puerta pública.
+  window.addEventListener('estok:espacios-cambiados', refrescarBandeja);
   enlazarExtraccion();
   void cargar();
 }

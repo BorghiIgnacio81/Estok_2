@@ -57,6 +57,8 @@ import {
   slotDer,
   slotIzq,
 } from './domPortales';
+// Canasta derecha: refresco EXPLÍCITO del fin de cadena («Espacio Único», Ley 4).
+import { refrescarBandeja } from '../../bandejaSinUbicar';
 
 /** Interior (hijos + objetos) del nodo activo, cacheado para los botones. */
 let interiorActual: InteriorNodo | null = null;
@@ -185,9 +187,20 @@ export function transicionar(): void {
   // Barra de comandos: el «✏️ Editar» se re-sincroniza en CADA nivel (visible y
   // operativo a cualquier profundidad de la pila de nodos).
   sincronizarBarraComandos();
-  // FIN DE CADENA: en la grilla directa de objetos la canasta flotante se apaga
-  // y el contenedor principal recupera el ancho completo (nada pisa el canvas).
-  document.body.classList.toggle('portales-canasta-oculta', paneles.derecho === 'grillaObjetos');
+  // ---------------------------------------------------------------------------
+  // LEY 4 · LA CANASTA NUNCA SE APAGA EN EL ESPACIO ÚNICO (Lote 29)
+  // ---------------------------------------------------------------------------
+  // El fin de cadena («Espacio Único» o nodo todavía sin divisiones) es
+  // justamente el nivel donde el operador MÁS necesita la canasta: es la FUENTE
+  // del arrastre hacia la grilla directa de objetos. El motor la ocultaba con la
+  // clase `portales-canasta-oculta` (ver styles/portales-recursivos.css), así
+  // que el panel derecho quedaba vacío y no había nada que soltar sobre el
+  // bloque monolítico. Ahora la canasta queda SIEMPRE viva —el contenedor ya
+  // reserva su ancho con `md:pr-80`— y en este nivel se repinta de forma
+  // EXPLÍCITA (llamado directo, sin el latido global que re-dispara el motor)
+  // para que no arrastre el estado del nivel anterior.
+  document.body.classList.remove('portales-canasta-oculta');
+  if (paneles.derecho === 'grillaObjetos') refrescarBandeja();
 }
 
 /** Habilita/oculta los botones de navegación según la profundidad activa. */

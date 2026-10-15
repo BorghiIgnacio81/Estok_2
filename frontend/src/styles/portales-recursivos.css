@@ -83,18 +83,13 @@
 /* -----------------------------------------------------------------------------
    2. FIX DE MARGEN Y FIN DE CADENA
    ----------------------------------------------------------------------------- */
-/* El contenedor principal se apoya en el borde izquierdo y sólo reserva el ancho
-   del panel derecho mientras la canasta está visible. */
+/* El contenedor principal se apoya en el borde izquierdo y reserva el ancho del
+   panel derecho (`md:pr-80` en almacenamiento.astro) mientras la canasta está
+   visible. LOTE 29: la canasta NUNCA se oculta —ni siquiera en el fin de cadena
+   «Espacio Único», donde es la fuente del arrastre hacia la grilla directa—, así
+   que las reglas de `body.portales-canasta-oculta` murieron junto con la clase. */
 [data-estok-panel] {
   padding-left: 0;
-}
-/* Fin de cadena («Espacio Único»): la canasta se oculta y el canvas recupera todo
-   el ancho para que nada pise la grilla directa de objetos. */
-body.portales-canasta-oculta .bandeja-lateral {
-  display: none;
-}
-body.portales-canasta-oculta [data-estok-panel] {
-  padding-right: 1rem;
 }
 
 /* -----------------------------------------------------------------------------
@@ -151,11 +146,6 @@ body.portales-canasta-oculta [data-estok-panel] {
   border-radius: 14px;
 }
 
-@media (min-width: 768px) {
-  body.portales-canasta-oculta [data-estok-panel] {
-    padding-right: 2rem;
-  }
-}
 /* El botón flotante «+ Nuevo Objeto» de celulares se eleva sobre la barra nueva. */
 @media (max-width: 1023px) {
   .boton-accion-rapida--flotante-alta {
@@ -165,8 +155,11 @@ body.portales-canasta-oculta [data-estok-panel] {
 
 
 /* -----------------------------------------------------------------------------
-   4. BLOQUE MONOLÍTICO («Espacio Único» en el Panel Izquierdo)
-   ----------------------------------------------------------------------------- */
+   4. BLOQUE MONOLÍTICO («Espacio Único» del fin de cadena)
+   -----------------------------------------------------------------------------
+   El bloque viaja en el host `#grillaObjetosPanel` (PANEL DERECHO) junto a la
+   grilla directa de objetos: su encabezado declara el estado y TODO su cuerpo es
+   una ZONA DE SUELTA más del nodo activo (Lote 29). */
 .portal-monolitico {
   display: flex;
   flex-direction: column;
@@ -201,6 +194,20 @@ body.portales-canasta-oculta [data-estok-panel] {
   color: #a16207;
   border-left: 3px solid #fcd34d;
   padding-left: 8px;
+}
+/* -----------------------------------------------------------------------------
+   4.b LOTE 29 · EL BLOQUE MONOLÍTICO TAMBIÉN ES ZONA DE SUELTA
+   -----------------------------------------------------------------------------
+   El bloque entero recibe el Drop de la canasta (mismos ganchos que la grilla
+   directa: `[data-portal-objetos-drop]`), así que su estado activo usa el mismo
+   resalte naranja del motor, en punteado para que se lea como receptor. */
+.zona-drop-espacio {
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.zona-drop-espacio.portal-drop-activo {
+  border-style: dashed;
+  border-color: #f97316;
+  background: #fff7ed;
 }
 
 /* -----------------------------------------------------------------------------

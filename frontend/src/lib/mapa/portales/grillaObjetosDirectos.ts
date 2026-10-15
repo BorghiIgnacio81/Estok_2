@@ -20,12 +20,22 @@ import type { ObjetoDto } from './datosNodosPortales';
 
 const IMG_OBJETO = '/mueble.png';
 
-/** Bloque monolítico del Panel Izquierdo: sin modelador, con el disyuntor. */
+/** Bloque monolítico: sin modelador, con el disyuntor y ZONA DE SUELTA propia. */
 export function bloqueMonoliticoHtml(nodo: NodoPortal, enTransito: number): string {
   const transito = enTransito
     ? `<span class="portal-badge portal-badge-transito">${indicadorTransitoHtml('interno')} · ${enTransito}</span>`
     : '';
-  return `<div class="portal-monolitico">
+  // 🔒 LOTE 29 · ZONA DE SUELTA DEL ESPACIO ÚNICO: el bloque ENTERO acepta el
+  // Drop de la canasta (antes sólo la grilla de abajo lo hacía, y soltar sobre el
+  // bloque no disparaba nada). Usa los MISMOS ganchos estándar del motor, así que
+  // no duplica ninguna lógica:
+  //   · `data-portal-objetos-drop` → lo conecta initGrillaObjetosDirectos().
+  //   · `data-drop-destino`        → id del contenedor que recibe la carga.
+  //   · `zona-drop-espacio`        → gancho semántico de estilo.
+  return `<div class="portal-monolitico zona-drop-espacio"
+    data-portal-objetos-drop="${escapeHtml(nodo.id)}"
+    data-drop-destino="${escapeHtml(nodo.id)}"
+    title="Soltá acá una caja u objeto de la canasta para guardarlo directo en este espacio (sin estante ni casillero).">
     <div class="portal-monolitico-cab">
       <span class="portal-monolitico-ico" aria-hidden="true">🧱</span>
       <span class="portal-monolitico-nombre">${escapeHtml(nodo.nombre)}</span>
@@ -88,11 +98,17 @@ export function initGrillaObjetosDirectos(opts: {
   const host = opts.contenedor;
   if (!host) return;
 
-  // Drop de guardado directo dentro del nodo activo.
+  // Drop de guardado directo dentro del nodo activo. Los receptores pueden estar
+  // ANIDADOS (el bloque monolítico contiene a la grilla directa): la guarda
+  // `defaultPrevented` garantiza que sólo el receptor MÁS INTERNO procese la
+  // suelta, sin doble resalte ni doble mutación (mismo criterio que
+  // `transitoInterno.conectarDropCiego`).
   host.querySelectorAll<HTMLElement>('[data-portal-objetos-drop]').forEach((zona) => {
-    const nodoId = zona.dataset.portalObjetosDrop ?? opts.nodo.id;
+    const nodoId =
+      zona.dataset.dropDestino ?? zona.dataset.portalObjetosDrop ?? opts.nodo.id;
     zona.addEventListener('dragover', (e) => {
       const de = e as DragEvent;
+      if (de.defaultPrevented) return;
       e.preventDefault();
       if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
       zona.classList.add('portal-drop-activo');
@@ -100,8 +116,10 @@ export function initGrillaObjetosDirectos(opts: {
     zona.addEventListener('dragleave', () => zona.classList.remove('portal-drop-activo'));
     zona.addEventListener('drop', (e) => {
       const de = e as DragEvent;
-      e.preventDefault();
       zona.classList.remove('portal-drop-activo');
+      // El receptor interno ya procesó la suelta: se ignora el rebote hacia afuera.
+      if (de.defaultPrevented) return;
+      e.preventDefault();
       const carga = leerCargaArrastrada(de);
       if (!carga) return;
       // Guardado DIRECTO, sin estante y sin casillero. El backend jamás marca
