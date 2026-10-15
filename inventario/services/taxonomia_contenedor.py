@@ -31,6 +31,10 @@ acoplamiento circular; el sondeo de jerarquía contra la base vive en
 
 import re
 
+# Sólo el constructor `Q` del ORM: este módulo NO importa modelos del proyecto,
+# así que el aislamiento anti-circular del encabezado queda intacto.
+from django.db.models import Q
+
 TIPO_CONJUNTO = 'CONJUNTO'
 TIPO_MUEBLE_INMUEBLE = 'MUEBLE_INMUEBLE'
 TIPO_MUEBLE_MOVIL = 'MUEBLE_MOVIL'
@@ -244,3 +248,26 @@ def tiene_geometria_de_plano(pieza):
     return any(
         desviado(getattr(pieza, campo, None)) for campo in CAMPOS_GEOMETRIA_FIJA
     )
+
+
+# =====================================================================
+# ESPEJO ORM DEL PREDICADO ANTERIOR (para los `get_queryset` de los viewsets)
+# ---------------------------------------------------------------------
+# Misma regla matemática, expresada como `Q` de Django: la usan los filtros
+# `?movibles=true` y `?bandeja=true` de Contenedor para DESCARTAR en PostgreSQL
+# (no en Python) la arquitectura clavada en el lienzo. Se movió acá desde
+# viewsets/organizacion/contenedores.py (Lote 27) para que el predicado y su
+# espejo vivan juntos y para sostener el límite de 400 líneas de ese archivo.
+# =====================================================================
+
+def qe_geometria_de_plano():
+    """
+    Q ORM de «la pieza posee geometría FIJA en un plano».
+
+    Cualquier `ui_*` posicional distinto de cero/nulo (o una altura modelada
+    distinta de 'auto') marca la pieza como arquitectura clavada en el lienzo.
+    """
+    qe = Q()
+    for campo in CAMPOS_GEOMETRIA_FIJA:
+        qe |= Q(**{f'{campo}__isnull': False}) & ~Q(**{f'{campo}__in': VALORES_SIN_GEOMETRIA})
+    return qe

@@ -6,6 +6,15 @@ QUÉ HACE
   muebles mudables y objetos individuales sueltos— hacia el Estok destino, dentro
   de UNA sola transacción.
 
+ALCANCE: SÓLO LO DECLARADO MOVIBLE (Lote 27)
+  Las piezas RAÍZ de contenedor viajan ÚNICAMENTE si el operador las declaró con
+  el checkbox «🎒 Mueble Móvil / Objeto» (`declarado_movible=True`, Lotes 22/25).
+  Toda pieza NO declarada es la ARQUITECTURA fija del espacio («Ropero
+  Empotrado», «Escritorio Pintura», «Cama Cucheta»…) y queda INTACTA en el
+  origen: la mudanza general no puede mudar estructura. El resumen informa
+  cuántas piezas quedaron atrás (`arquitectura_intacta`). Los objetos sueltos no
+  tienen ese flag: viajan todos.
+
 LÓGICA «EN TRÁNSITO»
   Los elementos NO se anclan al plano del inquilinato destino: viajan sin
   coordenadas ni relaciones heredadas del origen y quedan pendientes de ubicar.
@@ -100,15 +109,32 @@ class MudanzaMasivaService:
         # 1) CONJUNTOS A MOVER (lecturas ANTES de cualquier mutación)
         # ------------------------------------------------------------------
         # Contenedores RAÍZ móviles del origen + su descendencia en cascada.
+        # 🔒 LOTE 27 · DISYUNTOR DE ARQUITECTURA (`declarado_movible`): la mudanza
+        # general SÓLO transporta piezas que el operador declaró movibles con el
+        # checkbox «🎒 Mueble Móvil / Objeto» (Lotes 22/25). Toda pieza NO
+        # declarada es la ARQUITECTURA fija del espacio («Ropero Empotrado»,
+        # «Escritorio Pintura», «Cama Cucheta»…) y queda INTACTA en el origen.
         raices_cont = {
             str(i) for i in Contenedor.objects.filter(
                 ubicacion__estok=estok_origen,
                 parent_contenedor__isnull=True,
                 es_inmueble=False,
+                declarado_movible=True,
                 tipo__in=TIPOS_MUDABLES,
             ).values_list('id', flat=True)
         } - excluidos
         arbol_cont = _descendencia_contenedores(raices_cont) - excluidos
+
+        # Cuenta de AUDITORÍA del freno: cuánta arquitectura fija quedó en el
+        # origen (misma taxonomía que la mudanza, con el flag APAGADO). Viaja en
+        # el resumen para que el operador entienda por qué no se movió todo.
+        arquitectura_intacta = Contenedor.objects.filter(
+            ubicacion__estok=estok_origen,
+            parent_contenedor__isnull=True,
+            es_inmueble=False,
+            declarado_movible=False,
+            tipo__in=TIPOS_MUDABLES,
+        ).count()
 
         # Objetos SUELTOS del origen (sin caja y sin objeto padre). Se incluyen
         # los huérfanos de FK `estok` que sí cuelgan de una habitación del
@@ -200,10 +226,15 @@ class MudanzaMasivaService:
             f' Se purgaron además {total_purgado} registro(s) obsoleto(s) del origen.'
             if total_purgado else ''
         )
+        aviso_arquitectura = (
+            f' {arquitectura_intacta} pieza(s) de arquitectura fija quedaron '
+            f'intactas en el origen (no declaradas movibles).'
+            if arquitectura_intacta else ''
+        )
         mensaje = (
             f'🚚 Mudanza general completada: {contenedores_movidos} contenedor(es) y '
             f'{objetos_movidos} objeto(s) viajaron EN TRÁNSITO a «{estok_destino.nombre}».'
-            f'{sufijo}'
+            f'{aviso_arquitectura}{sufijo}'
         )
 
         return {
@@ -213,6 +244,7 @@ class MudanzaMasivaService:
             'estok_destino_nombre': estok_destino.nombre,
             'contenedores_movidos': contenedores_movidos,
             'objetos_movidos': objetos_movidos,
+            'arquitectura_intacta': arquitectura_intacta,
             'objetos_purgados': objetos_purgados,
             'contenedores_purgados': contenedores_purgados,
             'total_purgado': total_purgado,

@@ -41,6 +41,21 @@ export function filtrosActivos<T extends string>(opciones: OpcionFiltro<T>[]): S
 }
 
 /**
+ * Copia del set de filtros con `valor` agregado o quitado según `activo`.
+ *
+ * El estado de los filtros vive en el tablero (mudanzaBoard) y es inmutable:
+ * cada `change` produce un set NUEVO, de modo que el repintado nunca arrastra
+ * el set anterior. Se movió acá desde mudanzaBoard.ts (Lote 27): es un helper
+ * de los filtros, su módulo natural.
+ */
+export function alternar<T extends string>(actual: Set<T>, valor: T, activo: boolean): Set<T> {
+  const copia = new Set(actual);
+  if (activo) copia.add(valor);
+  else copia.delete(valor);
+  return copia;
+}
+
+/**
  * Barra de checkboxes compacta.
  *
  * `conteos` alimenta el número entre paréntesis (cuántos elementos hay

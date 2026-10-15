@@ -19,34 +19,20 @@ from django.db.models import Count, Q
 from ....models import Ubicacion, Contenedor, Objeto
 from ...paginacion import EstokPaginacion
 from ...serializers import ContenedorSerializer
+from ....services.mudanza_service import NOMBRES_LIMBO
 from ....services.taxonomia_contenedor import (
-    CAMPOS_GEOMETRIA_FIJA,
     TIPO_CAJA,
     TIPO_MUEBLE_MOVIL,
     TIPOS,
-    VALORES_SIN_GEOMETRIA,
     es_anclado,
     es_caja_movil,
     es_pieza_estructural,
+    qe_geometria_de_plano,
 )
 from ..base import HasRolePermission
 from ..fusion_espacial import ids_del_grupo
 from .acciones_contenedor import AccionesContenedorMixin
 from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia
-
-
-def _qe_geometria_de_plano():
-    """
-    Q ORM de «la pieza posee geometría FIJA en un plano».
-
-    Espejo exacto de `services.taxonomia_contenedor.tiene_geometria_de_plano`:
-    cualquier `ui_*` posicional distinto de cero/nulo (o una altura modelada
-    distinta de 'auto') marca la pieza como arquitectura clavada en el lienzo.
-    """
-    qe = Q()
-    for campo in CAMPOS_GEOMETRIA_FIJA:
-        qe |= Q(**{f'{campo}__isnull': False}) & ~Q(**{f'{campo}__in': VALORES_SIN_GEOMETRIA})
-    return qe
 
 
 class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, viewsets.ModelViewSet):
@@ -101,7 +87,7 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             # mueble, así que jamás puede listarse como bulto movible. Sin esta
             # regla los «Espacios» internos de las habitaciones (tipo=CAJA sin
             # sub-divisiones) contaminaban la canasta de «Elementos por ubicar».
-            qs = qs.exclude(_qe_geometria_de_plano())
+            qs = qs.exclude(qe_geometria_de_plano())
             # DECLARACIÓN EXPLÍCITA DEL OPERADOR (checkbox del modal de edición):
             # destildar «Declarar como Mueble Móvil / Objeto» expulsa la pieza de
             # la whitelist de movibles aunque su tipo inferido sea CAJA.
@@ -119,6 +105,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         #   3. MÁS las que viven dentro de una UBICACIÓN o de un CONTENEDOR
         #      declarado «Espacio Único» (bloque monolítico: no admiten casillero
         #      fino, así que su contenido queda pendiente de reubicar).
+        #   4. MÁS las CAJAS MUDADAS «EN TRÁNSITO» (Lote 27): las que viajaron
+        #      entre Estoks y aterrizaron en la habitación limbo con
+        #      `parent_contenedor` nulo. Sin esta rama eran invisibles y el
+        #      operador no podía arrastrarlas al mapa nuevo.
         # La PURGA ESTRICTA de arquitectura fija sigue vigente y es PREVIA: toda
         # pieza con coordenadas propias en el plano (los «Espacios» de las
         # habitaciones, las estanterías modeladas y los muebles encastrados en el
@@ -126,7 +116,7 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         bandeja = self.request.query_params.get('bandeja')
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
             qs = qs.filter(es_inmueble=False, tipo=TIPO_CAJA)
-            qs = qs.exclude(_qe_geometria_de_plano())
+            qs = qs.exclude(qe_geometria_de_plano())
             # DECLARACIÓN EXPLÍCITA DEL OPERADOR: una pieza declarada como
             # ARQUITECTURA del espacio (checkbox «Declarar como Mueble Móvil /
             # Objeto» DESTILDADO) queda excluida de raíz de la canasta.
@@ -136,6 +126,12 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
                 | Q(en_transito_interno=True)
                 | Q(parent_contenedor__espacio_unico=True)
                 | Q(ubicacion__espacio_unico=True)
+                # 🔒 LOTE 27 · CAJAS MUDADAS «EN TRÁNSITO»: al viajar entre Estoks
+                # aterrizan en la habitación limbo (Contenedor.ubicacion es NOT
+                # NULL) con parent_contenedor nulo y en_transito_interno apagado,
+                # así que sin esta rama quedaban invisibles para la canasta y el
+                # operador no podía arrastrarlas al mapa nuevo.
+                | Q(parent_contenedor__isnull=True, ubicacion__nombre__in=NOMBRES_LIMBO)
             )
 
         # Optimización de payload: en el listado, los conteos de sub-contenedores

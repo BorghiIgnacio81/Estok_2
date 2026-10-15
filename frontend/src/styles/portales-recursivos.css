@@ -27,10 +27,6 @@
   .bandeja-lateral {
     display: flex;
   }
-  /* La canasta del pie desaparece en escritorio. */
-  .bandeja-movil {
-    display: none;
-  }
 }
 
 /* Barra horizontal del margen inferior (celulares). */
@@ -44,6 +40,23 @@
   border-top: 1px solid #e5e7eb;
   box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.08);
   overflow: hidden;
+}
+
+/* -----------------------------------------------------------------------------
+   1.b LOTE 27 · LA CANASTA DEL PIE SE APAGA ESTRICTAMENTE EN ESCRITORIO
+   -----------------------------------------------------------------------------
+   La regla va DESPUÉS de la base `.bandeja-movil` a propósito: las media queries
+   no suman especificidad, así que un `display:none` declarado ANTES pierde por
+   orden de fuente contra el `display:flex` de la base. Y este archivo va SIN
+   @layer (ver encabezado), de modo que el `md:hidden` de Tailwind —que vive en
+   @layer utilities— tampoco alcanza para apagarla. Sin este orden, la canasta
+   del pie y el panel lateral quedaban las DOS visibles en escritorio y la barra
+   flotante se duplicaba (abajo + a la derecha) en pantallas grandes.
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  .bandeja-movil {
+    display: none;
+  }
 }
 .bandeja-movil-cab {
   display: flex;

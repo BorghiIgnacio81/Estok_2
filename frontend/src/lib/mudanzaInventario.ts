@@ -25,7 +25,6 @@ import type { FiltroOrigen } from './mudanzaFiltros';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
 // TAXONOMÍA FÍSICA ÚNICA: caja móvil vs. mueble mudable con los 5 tipos reales.
 import { TIPO_CAJA, TIPO_MUEBLE_MOVIL, tipoFisico } from './taxonomiaContenedor';
-import { indicadorTransitoHtml } from './indicadorTransito';
 
 // Re-export de los DTOs: el resto del módulo de mudanzas los consume desde acá.
 export type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
@@ -84,9 +83,19 @@ export function esObjetoSuelto(o: ObjetoDto): boolean {
   return !o.deleted_at && !o.contenedor && !o.objeto_padre;
 }
 
-/** Contenedor mudable de forma independiente (caja o mueble móvil). */
+/**
+ * Contenedor mudable de forma independiente (caja o mueble móvil).
+ *
+ * 🔒 LOTE 27 · DECLARACIÓN EXPLÍCITA: SOLO viaja lo que el operador declaró
+ * movible con el checkbox «🎒 Mueble Móvil / Objeto» (Lotes 22/25). Cualquier
+ * otro valor (`false`/null/ausente) es la ARQUITECTURA fija del espacio
+ * («Ropero Empotrado», «Escritorio Pintura»…) y queda fuera de la mudanza y del
+ * modal «Mudar Todo el Stock»: espejo exacto del filtro ORM de la mudanza masiva
+ * (`mudanza_masiva_service.mudar_todo`).
+ */
 export function esContenedorMudable(c: ContenedorDto): boolean {
   if (c.es_inmueble) return false;
+  if (c.declarado_movible !== true) return false;
   const t = tipoFisico(c);
   return t === TIPO_CAJA || t === TIPO_MUEBLE_MOVIL;
 }
@@ -265,30 +274,4 @@ export function htmlInventarioMovil(
         </section>`;
     })
     .join('');
-}
-
-/**
- * Receptora estática «EN TRÁNSITO» del Estok destino.
- *
- * Se dibuja ARRIBA del plano de habitaciones y fuera de su scroll: siempre
- * visible para soltar (o tocar) un elemento que debe viajar al nuevo
- * inquilinato SIN ubicación física. El tablero la enlaza como zona de suelta
- * (`data-drop-transito`) y envía `en_transito: true`: el backend deja los
- * objetos huérfanos (`ubicacion=None`) y los contenedores en la habitación limbo.
- */
-export function htmlZonaTransito(): string {
-  return `
-    <div class="mudanza-transito estado-transito-zona"
-      data-drop-transito="1"
-      title="Soltá (o tocá) acá para mudar el elemento al Estok destino SIN ubicación física">
-      <div class="flex items-center gap-2">
-        ${indicadorTransitoHtml('general')}
-        <div class="min-w-0 flex-1">
-          <p class="min-w-0 flex-1 truncate text-[10px] leading-snug text-amber-700/90 sm:text-[11px]">
-            Limbo del destino: viaja sin ubicación física
-          </p>
-        </div>
-      </div>
-      <p class="mudanza-drop-hint mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">soltar acá</p>
-    </div>`;
 }

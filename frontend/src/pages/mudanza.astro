@@ -156,8 +156,8 @@ import '../styles/mudanza-mapa.css';
         <!-- ZONA ESTÁTICA «EN TRÁNSITO»: receptora de sueltas SIN ubicación
              física, fuera del scroll del plano para estar siempre visible. -->
         <div id="mudanzaTransito" class="mb-1.5 shrink-0 sm:mb-3">
-          <!-- Fallback previo a la init del tablero: mudanzaBoard lo reemplaza
-               en caliente con la zona completa (htmlZonaTransito()). -->
+          <!-- Fallback previo a la init del tablero: lib/mudanzaTransito.ts lo
+               reemplaza en caliente con la zona completa + sus chips del limbo. -->
           <IndicadorTransito tipo="general" />
         </div>
 

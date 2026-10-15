@@ -43,6 +43,10 @@ export interface ContenedorDto {
   parent_contenedor?: string | null;
   tipo?: string;
   es_inmueble?: boolean;
+  /** 🔒 Lote 27 · Declaración explícita del operador (checkbox «🎒 Mueble Móvil /
+   *  Objeto»): `true` = bulto mudable; `false`/ausente = ARQUITECTURA del espacio,
+   *  excluida de la mudanza general y del modal «Mudar Todo el Stock». */
+  declarado_movible?: boolean | null;
   objetos_count?: number;
   subcontenedores_count?: number;
   foto?: string | null;
@@ -154,6 +158,27 @@ export async function cargarPlanoDestino(
     listarTodo<ContenedorDto>(`${API_BASE_URL}/contenedores/?page_size=1000`, estokId),
   ]);
   return { ubicaciones, contenedores };
+}
+
+/**
+ * Bultos «EN TRÁNSITO» del Estok destino (Lote 27).
+ *
+ * Devuelve los OBJETOS que viajaron al limbo y todavía no tienen hogar físico:
+ * `ubicacion = None` y `contenedor = None` es la única marca real del estado (el
+ * proyecto no define una columna `en_transito`). Se excluyen los objetos
+ * contenidos en otro (`objeto_padre`), que viajan en cascada con su raíz y
+ * duplicarlos sería un error. La columna Destino los pinta dentro de la zona
+ * «En Tránsito» para dar feedback visual inmediato de cada suelta.
+ *
+ * Los CONTENEDORES no se listan acá a propósito: aterrizan en la habitación
+ * limbo (columna NOT NULL) y ya se dibujan dentro de ella en el plano.
+ */
+export async function cargarTransitoDestino(estokId: string): Promise<ObjetoDto[]> {
+  const objetos = await listarTodo<ObjetoDto>(
+    `${API_BASE_URL}/objetos/?page_size=1000&incluir_sin_estok=true`,
+    estokId,
+  );
+  return objetos.filter((o) => !o.deleted_at && !o.contenedor && !o.ubicacion && !o.objeto_padre);
 }
 
 /**

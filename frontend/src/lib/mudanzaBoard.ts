@@ -1,22 +1,16 @@
 // =============================================================================
 // TABLERO DE MUDANZA INTER-ESTOK — orquestación de UI (DnD + filtros + toque)
 // -----------------------------------------------------------------------------
-// Grilla de dos columnas lado a lado (también en móvil), cada una con:
-//   ORIGEN  : barra de filtros (Objetos sueltos · Muebles · Cajas) + índice de
-//             inventario móvil arrastrable.
-//   DESTINO : barra de filtros (Habitaciones · Muebles · Espacios / Estantes) +
-//             zona estática «En Tránsito» + plano receptor en dos escalas
-//             (suelta gruesa en la habitación y fina dentro de un mueble).
-//
+// Grilla de dos columnas lado a lado (también en móvil): ORIGEN (filtros +
+// inventario móvil arrastrable) y DESTINO (filtros + zona «En Tránsito» + plano
+// receptor en dos escalas: suelta gruesa en la habitación y fina en el mueble).
 // Los filtros son 100% REACTIVOS EN EL CLIENTE: marcar/desmarcar sólo repinta
 // los grupos desde el estado en memoria, sin nuevas peticiones al servidor.
 //
 // Responsabilidades delegadas (archivos chicos y testeables):
-//   mudanzaApi.ts              → DTOs, fetch paginado COMPLETO y POST.
-//   mudanzaInventario.ts       → clasificación y render de la columna Origen.
-//   mudanzaMapaDestino.ts      → MINIMAPAS INTERACTIVOS del Destino (vista).
-//   mudanzaMapaDestinoRender.ts→ render puro del plano (siluetas + zonas).
-//   mudanzaFiltros.ts          → definición y markup de las barras de checkboxes.
+//   mudanzaApi · mudanzaInventario · mudanzaFiltros · mudanzaDnd
+//   mudanzaMapaDestino · mudanzaDestinoVista · mudanzaTransito
+//   mudanzaSwap · mudanzaAvisos
 // =============================================================================
 
 import { getEstokActivoId } from '../services/auth';
@@ -24,30 +18,16 @@ import type { EstokInfo } from '../types';
 import { escapeHtml } from './mapaJerarquico';
 import { cargarInventarioOrigen, cargarPlanoDestino, enviarMudanza } from './mudanzaApi';
 import type { ContenedorDto, ItemMudanza, ObjetoDto, UbicacionDto } from './mudanzaApi';
+import { mensajeDe, notificar } from './mudanzaAvisos';
 import { MudanzaDndTactil } from './mudanzaDnd';
 import type { ZonaSuelta } from './mudanzaDnd';
-import {
-  contarOrigen,
-  htmlCargando,
-  htmlInventarioMovil,
-  htmlVacio,
-  htmlZonaTransito,
-} from './mudanzaInventario';
-import {
-  contarDestino,
-  htmlMapaDestino,
-  pintarCascadaDestino,
-  reiniciarVistaDestino,
-  resolverClickMapaDestino,
-} from './mudanzaMapaDestino';
-import {
-  FILTROS_DESTINO,
-  FILTROS_ORIGEN,
-  filtrosActivos,
-  filtrosOrigenEfectivos,
-  htmlBarraFiltros,
-  htmlToggleSoloCajas,
-} from './mudanzaFiltros';
+import { IntercambioEstoks } from './mudanzaSwap';
+import { pintarEstadoDestino, pintarMapaDestino } from './mudanzaDestinoVista';
+import type { EstadoMapaDestino, NodosDestino } from './mudanzaDestinoVista';
+import { ZonaTransitoDestino } from './mudanzaTransito';
+import { contarOrigen, htmlCargando, htmlInventarioMovil, htmlVacio } from './mudanzaInventario';
+import { contarDestino, reiniciarVistaDestino, resolverClickMapaDestino } from './mudanzaMapaDestino';
+import { FILTROS_DESTINO, FILTROS_ORIGEN, alternar, filtrosActivos, filtrosOrigenEfectivos, htmlBarraFiltros, htmlToggleSoloCajas } from './mudanzaFiltros';
 import type { FiltroDestino, FiltroOrigen } from './mudanzaFiltros';
 
 /** Nodos del DOM que el tablero gobierna (inyección explícita, sin búsquedas globales). */
@@ -59,30 +39,19 @@ export interface NodosMudanza {
   swapBtn: HTMLButtonElement | null;
   /** Contenedor estático de la zona «En Tránsito» (columna destino). */
   transito: HTMLElement;
-  /** Cabezal donde se inyecta la barra de filtros del Origen. */
+  /** Cabezales donde se inyectan las barras de filtros de cada columna. */
   filtrosOrigen: HTMLElement;
-  /** Cabezal donde se inyecta la barra de filtros del Destino. */
   filtrosDestino: HTMLElement;
   /** Host del componente global MinimapaRuta.astro con la red de minimapas
    *  COMPACTADOS de los niveles previos (cabezal de contexto en cascada). */
   rutaDestino: HTMLElement;
-  /** Botón «⬅ Volver» del cabezal: retrocede UN nivel exacto de la jerarquía. */
+  /** Botón «⬅ Volver» y contenedor del cabezal de contexto en cascada. */
   volverDestino: HTMLButtonElement;
-  /** Contenedor del cabezal de contexto (botón + minimapas compactados). */
   cascadaDestino: HTMLElement;
-  /** Host del PLANO UNIFICADO (componente global `<MinimapaRuta plano />`): el
-   *  tablero sólo escribe DENTRO de él y lo apaga si no hay plano que dibujar. */
+  /** Host del PLANO UNIFICADO (`<MinimapaRuta plano />`) + su detalle/cabecera:
+   *  el tablero sólo escribe DENTRO de ellos. */
   planoDestino: HTMLElement;
-  /** Cabecera, avisos y chips del plano (hermano del host). */
   detalleDestino: HTMLElement;
-}
-
-/** Devuelve una copia del set con `valor` agregado o quitado según `activo`. */
-function alternar<T extends string>(actual: Set<T>, valor: T, activo: boolean): Set<T> {
-  const copia = new Set(actual);
-  if (activo) copia.add(valor);
-  else copia.delete(valor);
-  return copia;
 }
 
 export class MudanzaBoard {
@@ -106,6 +75,12 @@ export class MudanzaBoard {
   private soloCajas = false;
   /** Motor de arrastre/suelta (mouse y toque) sobre las dos columnas. */
   private readonly dnd: MudanzaDndTactil;
+  /** Nodos de la columna Destino (los consume la vista pura del plano). */
+  private readonly nodosDestino: NodosDestino;
+  /** Zona «En Tránsito»: chips reales del limbo + feedback inmediato de la suelta. */
+  private readonly transitoZona: ZonaTransitoDestino;
+  /** Intercambio rápido (FLIP) Origen ⇄ Destino. */
+  private readonly swap: IntercambioEstoks;
 
   constructor(private readonly ui: NodosMudanza) {
     this.dnd = new MudanzaDndTactil({
@@ -114,6 +89,27 @@ export class MudanzaBoard {
       transito: ui.transito,
       estaMudando: () => this.mudando,
       alSoltar: (item, zona) => void this.mover(item, zona),
+    });
+    this.nodosDestino = {
+      plano: ui.planoDestino,
+      detalle: ui.detalleDestino,
+      ruta: ui.rutaDestino,
+      volver: ui.volverDestino,
+    };
+    this.transitoZona = new ZonaTransitoDestino({
+      host: ui.transito,
+      estokDestino: () => this.destinoId,
+    });
+    this.swap = new IntercambioEstoks({
+      boton: ui.swapBtn,
+      estaOcupado: () => this.intercambiando || this.mudando,
+      ids: () => ({ origenId: this.origenId, destinoId: this.destinoId }),
+      invertir: () => this.invertirEstoks(),
+      sincronizarSelects: () => this.renderSelects(),
+      recargar: () => this.recargarTodo(),
+      marcarOcupado: (ocupado) => {
+        this.intercambiando = ocupado;
+      },
     });
     // Navegación del mapa del destino: se registra UNA sola vez y en FASE DE
     // CAPTURA para resolver la navegación ANTES que la suelta por toque del
@@ -139,12 +135,23 @@ export class MudanzaBoard {
     this.destinoId = this.estoks.find((e) => e.id !== this.origenId)?.id || null;
     this.renderSelects();
     this.enlazarSelects();
-    this.enlazarSwap();
+    this.swap.enlazar();
     this.enlazarFiltros();
-    this.renderTransito();
+    this.transitoZona.montar();
     this.dnd.enlazarTransito();
     this.renderBarras();
     await this.recargarTodo();
+  }
+
+  // ---------------------------------------------------------------------------
+  // ESTADO DE LOS ESTOKS (swap atómico que consume lib/mudanzaSwap.ts)
+  // ---------------------------------------------------------------------------
+
+  /** Invierte las dos referencias de Estok (paso atómico del FLIP). */
+  private invertirEstoks(): void {
+    const previo = this.origenId;
+    this.origenId = this.destinoId;
+    this.destinoId = previo;
   }
 
   // ---------------------------------------------------------------------------
@@ -236,61 +243,11 @@ export class MudanzaBoard {
     this.render();
   }
 
-  // ---------------------------------------------------------------------------
-  // INTERCAMBIO RÁPIDO (FLIP) Origen ⇄ Destino
-  // ---------------------------------------------------------------------------
+  // El INTERCAMBIO RÁPIDO (FLIP) Origen ⇄ Destino vive en lib/mudanzaSwap.ts:
+  // este tablero sólo le presta el estado y el refresco en caliente.
 
-  private enlazarSwap(): void {
-    this.ui.swapBtn?.addEventListener('click', () => void this.intercambiar());
-  }
-
-  /**
-   * Invierte los Estoks (el Destino pasa a Origen y viceversa) y refresca ambos
-   * paneles en caliente. `recargarTodo()` limpia el estado en memoria e inyecta
-   * los placeholders de carga en las dos columnas ANTES de esperar la red, así
-   * el intercambio se percibe instantáneo aunque los endpoints tarden.
-   */
-  async intercambiar(): Promise<void> {
-    if (this.intercambiando || this.mudando || !this.origenId || !this.destinoId) return;
-    this.intercambiando = true;
-    if (this.ui.swapBtn) this.ui.swapBtn.disabled = true;
-
-    // FLIP: swap atómico de las dos referencias de Estok.
-    const origenPrevio = this.origenId;
-    this.origenId = this.destinoId;
-    this.destinoId = origenPrevio;
-
-    this.renderSelects(); // sincroniza ambos <select> con los IDs invertidos
-    this.animarSwap();
-    try {
-      await this.recargarTodo();
-    } finally {
-      this.intercambiando = false;
-      if (this.ui.swapBtn) this.ui.swapBtn.disabled = false;
-    }
-  }
-
-  /** Feedback visual: relanza la animación CSS del icono de flechas opuestas. */
-  private animarSwap(): void {
-    const icono = this.ui.swapBtn?.querySelector<SVGElement>('.mudanza-swap-icon');
-    if (!icono) return;
-    icono.classList.remove('mudanza-swap-animando');
-    void icono.getBoundingClientRect(); // fuerza reflow para reiniciar la animación
-    icono.classList.add('mudanza-swap-animando');
-  }
-
-  // ---------------------------------------------------------------------------
-  // ZONA «EN TRÁNSITO» (estática, fuera del scroll del plano de habitaciones)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Dibuja la receptora «En Tránsito» y delega su interacción al motor de
-   * arrastre (`enlazarTransito()`), que se enlaza UNA sola vez en `init()`
-   * porque la zona no se re-renderiza en cada hot reload.
-   */
-  private renderTransito(): void {
-    this.ui.transito.innerHTML = htmlZonaTransito();
-  }
+  // La ZONA «EN TRÁNSITO» (receptora estática + chips del limbo) vive en
+  // lib/mudanzaTransito.ts: el tablero sólo le pasa el host y el destino vigente.
 
   // ---------------------------------------------------------------------------
   // CARGA + HOT RELOAD (siempre vía mudanzaApi: listados PAGINADOS completos)
@@ -307,7 +264,8 @@ export class MudanzaBoard {
     }
     // Transición de carga limpia (Tailwind) en ambos paneles.
     this.ui.mapaOrigen.innerHTML = htmlCargando('Cargando inventario móvil…');
-    this.pintarEstadoDestino(htmlCargando('Cargando plano del destino…'));
+    pintarEstadoDestino(htmlCargando('Cargando plano del destino…'), this.nodosDestino);
+    this.transitoZona.mostrarCargando();
     this.contenedoresOrigen = [];
     this.objetosOrigen = [];
     this.ubicacionesDestino = [];
@@ -332,6 +290,9 @@ export class MudanzaBoard {
         .catch((err: unknown) => {
           this.errorDestino = mensajeDe(err);
         }),
+      // Bultos «En Tránsito» del destino: la zona se alimenta sola y NUNCA
+      // bloquea el refresco (captura sus propios errores de red).
+      this.transitoZona.cargar(this.destinoId),
     ]);
 
     this.render();
@@ -351,7 +312,7 @@ export class MudanzaBoard {
           // El atajo «Solo cajas» reescribe el set de grupos visibles del Origen.
           filtrosOrigenEfectivos(this.soloCajas, this.filtrosOrigen),
         );
-    this.pintarMapaDestino();
+    pintarMapaDestino(this.estadoDestino(), this.nodosDestino);
     this.renderBarras();
     this.enlazarDnD();
   }
@@ -361,44 +322,18 @@ export class MudanzaBoard {
     return this.estoks.find((e) => e.id === this.destinoId)?.nombre || 'Estok destino';
   }
 
-  /** Reparte el mapa en sus hosts: el SVG del nivel vigente (componente global,
-   *  que nunca se destruye), la cabecera/chips del nivel y el CABEZAL DE
-   *  CONTEXTO EN CASCADA con los minimapas compactados de los niveles previos. */
-  private pintarMapaDestino(): void {
-    const vista = this.errorDestino
-      ? {
-          plano: '',
-          detalle: htmlVacio('No se pudo cargar el plano del Estok destino', this.errorDestino),
-          cascada: '',
-          hayVolver: false,
-          casita: false,
-        }
-      : htmlMapaDestino(
-          this.ubicacionesDestino,
-          this.contenedoresDestino,
-          this.filtrosDestino,
-          this.nombreDestino(),
-        );
-    this.ui.planoDestino.innerHTML = vista.plano;
-    this.ui.planoDestino.classList.toggle('hidden', !vista.plano);
-    // La silueta de la casa (niveles 0 y 1) pide una caja cuadrada centrada.
-    this.ui.planoDestino.classList.toggle('mudanza-plano-casita', vista.casita);
-    this.ui.detalleDestino.innerHTML = vista.detalle;
-    pintarCascadaDestino(
-      this.ui.rutaDestino,
-      vista.cascada,
-      vista.hayVolver,
-      this.ui.volverDestino,
-    );
-  }
-
-  /** Estado transitorio del Destino (carga o mudanza en curso): apaga el mapa. */
-  private pintarEstadoDestino(detalle: string): void {
-    this.ui.planoDestino.innerHTML = '';
-    this.ui.planoDestino.classList.add('hidden');
-    this.ui.planoDestino.classList.remove('mudanza-plano-casita');
-    this.ui.detalleDestino.innerHTML = detalle;
-    pintarCascadaDestino(this.ui.rutaDestino, '', false, this.ui.volverDestino);
+  /**
+   * Estado vigente de la columna Destino, en el shape de la vista pura
+   * (lib/mudanzaDestinoVista.ts): plano, detalle y cabezal en cascada.
+   */
+  private estadoDestino(): EstadoMapaDestino {
+    return {
+      ubicaciones: this.ubicacionesDestino,
+      contenedores: this.contenedoresDestino,
+      filtros: this.filtrosDestino,
+      error: this.errorDestino,
+      nombre: this.nombreDestino(),
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -420,11 +355,15 @@ export class MudanzaBoard {
     if (!this.destinoId) return;
     this.mudando = true;
     const etiqueta = item.nombre ? `«${item.nombre}»` : 'el elemento';
-    this.pintarEstadoDestino(htmlCargando(`Mudando ${etiqueta}…`));
+    pintarEstadoDestino(htmlCargando(`Mudando ${etiqueta}…`), this.nodosDestino);
+    // FEEDBACK INMEDIATO: si la suelta es al limbo, el chip entra al DOM ya mismo
+    // (estado «mudando…»); el servidor lo confirma en el refresco posterior.
+    if (destino.enTransito) this.transitoZona.insertarOptimista(item);
 
     try {
       const resultado = await enviarMudanza(item, this.destinoId, destino);
       if (!resultado.ok) {
+        this.transitoZona.descartarOptimista(item);
         notificar('showError', resultado.mensaje);
         this.render();
         return;
@@ -433,6 +372,7 @@ export class MudanzaBoard {
       // HOT RELOAD: ambos paneles se refrescan sin recargar la página entera.
       await this.recargarTodo();
     } catch (err: unknown) {
+      this.transitoZona.descartarOptimista(item);
       notificar('showError', mensajeDe(err));
       this.render();
     } finally {
@@ -441,17 +381,4 @@ export class MudanzaBoard {
   }
 }
 
-// ---------------------------------------------------------------------------
-// HELPERS DE NOTIFICACIÓN / MENSAJES
-// ---------------------------------------------------------------------------
-
-/** Aviso flotante global del proyecto (definido en el layout base). */
-function notificar(tipo: 'showSuccess' | 'showError', mensaje: string): void {
-  const win = window as unknown as Partial<Record<'showSuccess' | 'showError', (m: string) => void>>;
-  win[tipo]?.(mensaje);
-}
-
-function mensajeDe(err: unknown): string {
-  if (err instanceof Error && err.message) return err.message;
-  return 'No se pudo completar la operación.';
-}
+// Los HELPERS DE AVISOS (`notificar` / `mensajeDe`) viven en lib/mudanzaAvisos.ts.

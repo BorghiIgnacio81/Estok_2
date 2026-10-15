@@ -48,6 +48,10 @@ from .taxonomia_contenedor import es_movible
 NOMBRE_LIMBO = 'En Tránsito'
 # Nombre histórico del mismo limbo (compatibilidad: no duplicar habitaciones).
 NOMBRE_LIMBO_LEGACY = 'Zona de Mudanza'
+# Los dos nombres vigentes en un único iterable: lo consumen las consultas ORM
+# que necesitan reconocer «esta pieza viajó SIN ubicación física» (canasta de
+# «Elementos por ubicar», Lote 27). Fuente única del concepto.
+NOMBRES_LIMBO = (NOMBRE_LIMBO, NOMBRE_LIMBO_LEGACY)
 
 
 def asegurar_ubicacion_limbo(estok_destino):
