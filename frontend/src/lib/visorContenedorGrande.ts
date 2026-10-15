@@ -135,6 +135,8 @@ async function cargar(): Promise<void> {
       parent_grid_col: c.parent_grid_col != null ? Number(c.parent_grid_col) : null,
       tipo: c.tipo != null ? String(c.tipo) : null,
       es_inmueble: Boolean(c.es_inmueble),
+      // Lote 25: declaración explícita de movilidad (icono del plano 2D).
+      declarado_movible: c.declarado_movible === true,
       espacio_lleno: Boolean(c.espacio_lleno),
       en_transito_interno: Boolean(c.en_transito_interno),
       subcontenedores_count: Number(c.subcontenedores_count) || 0,
@@ -167,6 +169,8 @@ async function cargar(): Promise<void> {
       ui_top: c.ui_top != null ? String(c.ui_top) : null,
       ui_width: c.ui_width != null ? String(c.ui_width) : null,
       ui_height: c.ui_height != null ? String(c.ui_height) : null,
+      // Lote 25: declaración explícita de movilidad (icono del plano 2D).
+      declarado_movible: c.declarado_movible === true,
       fusion_grupo: c.fusion_grupo != null ? String(c.fusion_grupo) : null,
     }));
 

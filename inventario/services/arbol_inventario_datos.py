@@ -15,12 +15,13 @@ ESTRICTA que alimenta `GET /api/contenedores/arbol/` (vista `/objetos`):
   - `mapa_padres_del_estok`: 1 query liviana (id → parent_contenedor_id).
   - `objetos_del_estok`: 1 query de objetos activos con prefetch de fotos.
 
-DECLARACIÓN EXPLÍCITA DE MOVILIDAD (`declarado_movible`, Lotes 22/24): es el
+DECLARACIÓN EXPLÍCITA DE MOVILIDAD (`declarado_movible`, Lotes 22/24/25): es el
 checkbox «Declarar como Mueble Móvil / Objeto» del modal de edición.
 
-  REGLA A · `False` → ARQUITECTURA del espacio (ej. «Escritorio Pintura»,
-  «Ropero Empotrado»): EXCLUIDA DE RAÍZ de toda la pantalla de objetos, sin
-  importar su `tipo`.
+  REGLA A · NO-True → ARQUITECTURA del espacio (ej. «Escritorio Pintura»,
+  «Ropero Empotrado», «Baúl», «Cama Cucheta»): EXCLUIDA DE RAÍZ de toda la
+  pantalla de objetos, sin importar su `tipo`. Desde el Lote 25 el default del
+  modelo es `False`: NADA se lista si el flag no es explícitamente `True`.
 
   REGLA B · `True` → declarada movible; se BIFURCA por naturaleza: las CAJAS
   terminales (sin sub-divisiones) van a la SECCIÓN 1 y los MUEBLES MÓVILES /

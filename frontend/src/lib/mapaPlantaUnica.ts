@@ -243,18 +243,34 @@ function centroGeometrico(g: GrupoFusion): { x: number; y: number } {
   return { x: acotarPct(pct(cx, g.caja.left, g.caja.width)), y: acotarPct(pct(cy, g.caja.top, g.caja.height)) };
 }
 
+/** ¿El operador declaró la pieza como Mueble Móvil / Objeto (Lote 25)? */
+function esMuebleMovilDeclarado(item: ItemElastico): boolean {
+  return item.declarado_movible === true;
+}
+
+/**
+ * BADGE 🗄️ del MUEBLE MÓVIL DECLARADO (Lote 25): icono de armario/cajonera que
+ * el plano 2D superpone a la pieza cuando `declarado_movible === true`, para
+ * que el operador distinga de un vistazo el mueble móvil de la arquitectura
+ * fija (espacio inmueble, sin badge).
+ */
+const BADGE_MUEBLE_MOVIL =
+  '<span class="pu-mueble-badge" title="Mueble Móvil / Objeto declarado: se lista en la pantalla de Objetos">🗄️</span>';
+
 function gruposHtml(grupos: GrupoFusion[]): string {
   return grupos
     .map((g) => {
       const centro = centroGeometrico(g);
+      const movible = esMuebleMovilDeclarado(g.base);
       return `
-    <div class="pu-grupo" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
+    <div class="pu-grupo${movible ? ' pu-grupo--mueble-movil' : ''}" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
          title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
       <div class="pu-grupo-malla">${superficieDeGrupo(g)}</div>
       <label class="pu-check" title="Seleccionar este bloque fusionado para ENCADENAR una fusión con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
       </label>
+      ${movible ? BADGE_MUEBLE_MOVIL : ''}
       <button type="button" data-eliminar-grupo data-id="${g.base.id}" data-nombre="${escapeHtml(g.base.nombre)}"
         class="pu-grupo-eliminar"
         title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas en PostgreSQL y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
@@ -272,6 +288,7 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
   return sueltas
     .map((item, i) => {
       const geo = geoDe(item, i);
+      const movible = esMuebleMovilDeclarado(item);
       const meta =
         item.meta ??
         [
@@ -281,12 +298,13 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
           .filter(Boolean)
           .join(' · ');
       return `
-    <div class="pu-celda" data-inplace-card data-id="${item.id}" data-libre-drag
+    <div class="pu-celda${movible ? ' pu-celda--mueble-movil' : ''}" data-inplace-card data-id="${item.id}" data-libre-drag
          style="left:${geo.left}%;top:${geo.top}%;width:${geo.width}%;height:${geo.height}%"
          title="Arrastrá para acomodar · Clic en el nombre para renombrar · Tirá de la esquina para estirar">
       <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${item.id}" />
       </label>
+      ${movible ? BADGE_MUEBLE_MOVIL : ''}
       ${item.protegido ? '' : `<button type="button" data-eliminar-item data-id="${item.id}" data-nombre="${escapeHtml(item.nombre)}"
         class="pu-celda-eliminar"
         title="Eliminar «${escapeHtml(item.nombre)}» de forma definitiva: su contenido se desancla hacia la bandeja inferior de «por ubicar».">🗑️</button>`}

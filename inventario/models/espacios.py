@@ -109,16 +109,17 @@ class Contenedor(models.Model):
     # ---------------------------------------------------------------------
     # El operador declara con un checkbox si la pieza es un BULTO MOVIBLE
     # («🎒 Declarar como Mueble Móvil / Objeto») o ARQUITECTURA del espacio.
-    # Destildado (False) la pieza queda EXCLUIDA DE RAÍZ de la canasta lateral
-    # de movibles aunque su tipo inferido sea CAJA: resuelve los casos que la
-    # heurística automática no puede distinguir por sí sola (ej: «Escritorio
-    # Pintura», «Zona Indoor»). Default True → ninguna pieza existente cambia
-    # su comportamiento actual al aplicar la migración.
+    # LOTE 25 · DEFAULT FALSE: toda pieza NACE como arquitectura (False). SOLO
+    # un True VOLUNTARIO del operador la lista en la canasta de movibles y en
+    # la pestaña de Objetos. Si el flag NO es explícitamente True, el sistema
+    # lo trata como False (espacio inmueble / arquitectura fija). Resuelve los
+    # casos que la heurística automática no distingue por sí sola (ej:
+    # «Escritorio Pintura», «Ropero Empotrado», «Baúl», «Cama Cucheta»).
     # =====================================================================
     declarado_movible = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="Declarado como Mueble Móvil / Objeto",
-        help_text="Declaración EXPLÍCITA del operador: activo = bulto movible (mueble móvil/objeto) listable en la canasta «Elementos por ubicar»; destildado = ARQUITECTURA del espacio, excluida de raíz de la canasta de movibles."
+        help_text="Declaración EXPLÍCITA del operador: tildado = bulto movible (mueble móvil/objeto) listable en la canasta «Elementos por ubicar» y en la pestaña de Objetos; destildado (default) = ARQUITECTURA del espacio, excluida de raíz."
     )
     # =====================================================================
     # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO (5 tipos físicos)

@@ -58,6 +58,8 @@ interface ContenedorVisor {
   parent_grid_col?: number | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina. */
   es_inmueble?: boolean;
+  /** Declaración de Mueble Móvil / Objeto (Lote 25): marca el icono del plano. */
+  declarado_movible?: boolean | null;
   /** Geometría elástica del mueble en el lienzo 2D de la habitación. */
   ui_left?: string | null;
   ui_top?: string | null;
@@ -254,6 +256,9 @@ function renderVisor(): void {
     ui_width: c.ui_width,
     ui_height: c.ui_height,
     fusion_grupo: c.fusion_grupo,
+    // MARCADO DE MUEBLE MÓVIL (Lote 25): el plano dibuja el icono/borde del
+    // mueble declarado (`declarado_movible === true`) frente a la arquitectura.
+    declarado_movible: c.declarado_movible === true,
     // Mueble inmueble fijo: el backend rechaza su DELETE → no se expone el 🗑️.
     protegido: c.es_inmueble === true,
     meta:

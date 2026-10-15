@@ -117,9 +117,10 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
     nombre: String(c.nombre || 'Contenedor'),
     tipo: String(c.tipo || '').toUpperCase(),
     es_inmueble: Boolean(c.es_inmueble),
-    // El flag viaja normalizado: la purga por declaración explícita también se
-    // re-verifica en el cliente (defensa en profundidad).
-    declarado_movible: c.declarado_movible === false ? false : true,
+    // Lote 25 · default False: SOLO un True explícito cuenta como movible. Un
+    // valor ausente/null/undefined se trata como False (arquitectura). La purga
+    // por declaración explícita también se re-verifica en el cliente.
+    declarado_movible: c.declarado_movible === true,
     subcontenedores_count: Number(c.subcontenedores_count) || 0,
     ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
     // Geometría del plano: la purga de arquitectura fija la necesita EN EL

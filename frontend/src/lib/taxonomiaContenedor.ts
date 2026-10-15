@@ -50,9 +50,9 @@ export interface PiezaTaxonomica {
   tipo?: string | null;
   es_inmueble?: boolean | null;
   /**
-   * DECLARACIÓN EXPLÍCITA del operador (checkbox del modal de edición): si es
-   * `false`, la pieza es ARQUITECTURA del espacio y queda EXCLUIDA de raíz de la
-   * canasta de movibles. `null`/`undefined` = sin declarar (se aplica la heurística).
+   * DECLARACIÓN EXPLÍCITA del operador (checkbox del modal de edición): sólo
+   * `true` marca la pieza como bulto movible. `false`/`null`/`undefined` = sin
+   * declarar → se trata como ARQUITECTURA del espacio (Lote 25, default False).
    */
   declarado_movible?: boolean | null;
   parent_contenedor?: string | null;
@@ -202,9 +202,10 @@ export function tieneGeometriaDePlano(pieza: PiezaTaxonomica | null | undefined)
  * zonas geográficas de nivel superior («PC Setup», «Zona Indoor»).
  */
 export function esBultoMovibleDeBandeja(pieza: PiezaTaxonomica | null | undefined): boolean {
-  // DECLARACIÓN EXPLÍCITA DEL OPERADOR: destildado el checkbox «Declarar como
-  // Mueble Móvil / Objeto» la pieza es arquitectura del espacio → fuera de raíz.
-  if (pieza?.declarado_movible === false) return false;
+  // DECLARACIÓN EXPLÍCITA DEL OPERADOR (Lote 25 · default False): SOLO un True
+  // voluntario del checkbox «Declarar como Mueble Móvil / Objeto» admite la
+  // pieza. Ausencia/null/undefined se trata como arquitectura del espacio.
+  if (pieza?.declarado_movible !== true) return false;
   if (!esCajaMovil(pieza)) return false;
   if (tieneGeometriaDePlano(pieza)) return false;
   return Number(pieza?.subcontenedores_count ?? 0) === 0;

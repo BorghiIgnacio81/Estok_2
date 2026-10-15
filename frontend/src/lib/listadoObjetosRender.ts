@@ -66,20 +66,21 @@ function imagenContenedor(nodo: NodoContenedor): string {
 }
 
 /**
- * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 22): `declarado_movible === false`
+ * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lotes 22/25): SOLO `declarado_movible
+ * === true` habilita la pieza. Cualquier otro valor (`false`/null/undefined)
  * marca la pieza como ARQUITECTURA del espacio (ej. «Ropero Empotrado», «PC
- * Setup») y la expulsa DE RAÍZ de la pantalla de objetos, aunque su tipo sea
- * CAJA o MUEBLE_MOVIL. Espejo del filtro ORM del backend
- * (inventario/services/arbol_inventario_datos.py).
+ * Setup», «Escritorio Pintura») y la expulsa DE RAÍZ de la pantalla de
+ * objetos, aunque su tipo sea CAJA o MUEBLE_MOVIL. Espejo del filtro ORM del
+ * backend (inventario/services/arbol_inventario_datos.py).
  */
 export function declaradoNoMovible(nodo: NodoContenedor): boolean {
-  return nodo.declarado_movible === false;
+  return nodo.declarado_movible !== true;
 }
 
 /**
  * SECCIÓN 1 · Caja móvil menor admisible en la cima del inventario.
  * Regla de descarte ABSOLUTA: SOLO `tipo_contenedor === 'CAJA'` con
- * `es_inmueble = false`, DECLARADA movible (`declarado_movible !== false`) y
+ * `es_inmueble = false`, DECLARADA movible (`declarado_movible === true`) y
  * SIN sub-divisiones propias (`subcontenedores_count === 0`): una caja con
  * hijos es una ESTRUCTURA y vive en la SECCIÓN 3, no acá.
  */

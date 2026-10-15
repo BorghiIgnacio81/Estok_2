@@ -1284,13 +1284,14 @@ export class AlmacenamientoBoard {
       }
     }
     // DECLARACIÓN DE MOVILIDAD (canasta «Elementos por ubicar»): solo contenedores.
-    // Destildado = ARQUITECTURA del espacio → excluida de raíz de la canasta de movibles.
+    // Lote 25 · default False: SOLO un True explícito marca el checkbox. Un valor
+    // ausente/null/undefined = ARQUITECTURA del espacio (fuera de la canasta).
     const movibleRow = document.getElementById('editarMovibleRow');
     const movibleCheck = document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null;
     if (movibleRow && movibleCheck) {
       if (tipo === 'contenedor') {
         movibleRow.classList.remove('hidden');
-        movibleCheck.checked = entidad.declarado_movible !== false;
+        movibleCheck.checked = entidad.declarado_movible === true;
       } else {
         movibleRow.classList.add('hidden');
         movibleCheck.checked = false;
@@ -1331,12 +1332,13 @@ export class AlmacenamientoBoard {
     inmuebleRow?.classList.remove('hidden');
     const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
     if (inmuebleCheck) inmuebleCheck.checked = false;
-    // Declaración de movilidad: un espacio NUEVO nace declarado MOVIBLE (default
-    // del modelo). El operador puede destildarlo si es arquitectura del cuarto.
+    // DECLARACIÓN DE MOVILIDAD (Lote 25 · default False): un espacio NUEVO nace
+    // como ARQUITECTURA del cuarto (checkbox DESTILDADO). El operador debe
+    // tildarlo voluntariamente para declararlo Mueble Móvil / Objeto.
     const movibleRow = document.getElementById('editarMovibleRow');
     movibleRow?.classList.remove('hidden');
     const movibleCheck = document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null;
-    if (movibleCheck) movibleCheck.checked = true;
+    if (movibleCheck) movibleCheck.checked = false;
     const saveText = document.getElementById('editarSaveText');
     if (saveText) saveText.textContent = 'Crear espacio';
     const error = document.getElementById('editarFormError');
@@ -1363,8 +1365,9 @@ export class AlmacenamientoBoard {
     const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
     const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
     // Declaración explícita de movilidad (canasta de «Elementos por ubicar»).
+    // Lote 25 · default False: ausencia = arquitectura (NO movible).
     const declaradoMovible =
-      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? true;
+      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? false;
 
     if (!nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');
@@ -1437,10 +1440,11 @@ export class AlmacenamientoBoard {
     const gridFilas = (document.getElementById('editarGridFilas') as HTMLInputElement).value;
     const gridColumnas = (document.getElementById('editarGridColumnas') as HTMLInputElement).value;
     const esInmueble = (document.getElementById('editarInmueble') as HTMLInputElement).checked;
-    // DECLARACIÓN EXPLÍCITA DE MOVILIDAD: destildado excluye la pieza de la
-    // canasta lateral de «Elementos por ubicar» (arquitectura del espacio).
+    // DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 25 · default False): SOLO tildado
+    // la pieza entra en la canasta lateral de «Elementos por ubicar». Ausencia o
+    // destildado = arquitectura del espacio.
     const declaradoMovible =
-      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? true;
+      (document.getElementById('editarDeclaradoMovible') as HTMLInputElement | null)?.checked ?? false;
 
     if (!nombre) {
       this.formError('editarFormError', 'El nombre es obligatorio.');

@@ -38,6 +38,14 @@ export interface ItemElastico {
    * renderiza como una división/bloque extra del lienzo.
    */
   contenido?: string | null;
+  /**
+   * DECLARACIÓN EXPLÍCITA DE MOVILIDAD (Lote 25): `true` = Mueble Móvil /
+   * Objeto declarado por el operador. El plano 2D lo marca con un icono de
+   * mueble (🗄️ armario/cajonera) y un borde distintivo para reconocerlo a
+   * simple vista frente a la arquitectura fija. Ausente/false = espacio
+   * inmueble.
+   */
+  declarado_movible?: boolean | null;
   /** Conteos opcionales: si no hay `meta`, la tarjeta los compone automáticamente. */
   objetos_count?: number;
   contenedores_count?: number;

@@ -360,6 +360,43 @@
   opacity: 1;
 }
 
+/* --- MUEBLE MÓVIL DECLARADO (Lote 25) ---------------------------------------
+   El operador declaró la pieza con el checkbox «Declarar como Mueble Móvil /
+   Objeto» (`declarado_movible === true`). El plano 2D la distingue de la
+   ARQUITECTURA FIJA (borde ámbar común): contorno punteado ESMERALDA + icono
+   🗄️ de armario/cajonera superpuesto en la esquina inferior izquierda.
+   Sin el flag, el espacio conserva su aspecto normal (inmueble). */
+.pu-celda--mueble-movil {
+  border-color: #059669;
+  border-style: dashed;
+}
+
+.pu-celda--mueble-movil:hover {
+  border-color: #047857;
+  box-shadow: 0 5px 12px rgba(5, 150, 105, 0.22);
+}
+
+/* Silueta del bloque fusionado declarado movible: mismo trazo, en esmeralda. */
+.pu-grupo--mueble-movil .pu-grupo-malla {
+  filter:
+    drop-shadow(1px 0 0 #059669)
+    drop-shadow(-1px 0 0 #059669)
+    drop-shadow(0 1px 0 #059669)
+    drop-shadow(0 -1px 0 #059669)
+    drop-shadow(0 3px 8px rgba(5, 150, 105, 0.18));
+}
+
+/* Badge 🗄️ del mueble móvil declarado (decorativo, no captura el puntero). */
+.pu-mueble-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  z-index: 6;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* Contenedor CENTRAL del nombre + ícono del bloque fusionado: se posiciona en el
    PUNTO MEDIO GEOMÉTRICO de la «L» (lo calcula mapaPlantaUnica.centroGeometrico)
    y centra el texto y el ícono sobre la superficie real del bloque. */

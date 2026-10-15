@@ -52,6 +52,8 @@ export interface SubContVisor {
    */
   tipo?: string | null;
   es_inmueble?: boolean;
+  /** Declaración de Mueble Móvil / Objeto (Lote 25): marca el icono del plano. */
+  declarado_movible?: boolean | null;
   /** Marca manual de clausura: el casillero F·C del mueble está físicamente lleno. */
   espacio_lleno?: boolean;
   /** Flag del backend: soltado en el mueble sin estante concreto («En Tránsito Interno»). */
@@ -176,6 +178,8 @@ function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
       ui_width: x.ui_width,
       ui_height: x.ui_height,
       fusion_grupo: x.fusion_grupo,
+      // MARCADO DE MUEBLE MÓVIL (Lote 25): icono/borde según la declaración.
+      declarado_movible: x.declarado_movible === true,
       // Estante inmueble fijo: el backend rechaza su DELETE → sin botón 🗑️.
       protegido: x.es_inmueble === true,
       meta: x.es_inmueble ? '📌 fijo' : null,
