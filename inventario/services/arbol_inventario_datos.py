@@ -32,16 +32,18 @@ checkbox «Declarar como Mueble Móvil / Objeto» del modal de edición.
 
 import re
 
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Q
 
 from ..models import Contenedor, Objeto
 from .mudanza_service import q_limbo_de_mudanza
+# Predicados ORM del disyuntor de stock: fuente ÚNICA compartida con la mudanza
+# masiva (Lote 30). El helper de sub-divisiones se importa con su nombre privado
+# histórico para no tocar los sitios de llamada ya existentes del árbol.
+from .stock_mudable import (
+    qe_estructura_del_espacio,
+    qe_tiene_subdivisiones as _tiene_subdivisiones,
+)
 from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
-
-
-def _tiene_subdivisiones():
-    """`Exists` ORM: la pieza aloja sub-divisiones propias (hijos directos)."""
-    return Exists(Contenedor.objects.filter(parent_contenedor=OuterRef('pk')))
 
 # ---------------------------------------------------------------------------
 # Utilidades puras de serialización
@@ -164,11 +166,13 @@ def cajas_del_estok(estok_id):
     quedaba fuera del listado —limbo invisible— y era imposible abrir su modal
     de edición para recuperarla. El listado resuelve ahora DOS canales ORM:
 
-      CANAL 1 · caja móvil DECLARADA (`declarado_movible=True`, REGLA A/B) con
-      tenencia resuelta: habitación física del Estok activo o limbo (la
-      definición del limbo vive en `mudanza_service.q_limbo_de_mudanza`). Se
-      mantiene la exigencia de bulto TERMINAL: una caja con sub-divisiones
-      propias es una ESTRUCTURA, no un bulto arrastrable.
+      CANAL 1 · caja móvil TERMINAL con tenencia resuelta: habitación física del
+      Estok activo o limbo (la definición del limbo vive en
+      `mudanza_service.q_limbo_de_mudanza`). Desde el Lote 30 viaja DECLARADA o
+      NO —es la liberación del stock interno que quedaba escondido dentro de los
+      espacios fijados—; se mantiene la exigencia de bulto TERMINAL (una caja con
+      sub-divisiones propias es ESTRUCTURA, no bulto) y se frena la ARQUITECTURA
+      DEL ESPACIO (raíz no declarada movible), espejo de `qe_stock_mudable`.
 
       CANAL 2 · 🔓 RESCATE DE EMERGENCIA: caja RAÍZ suelta y TERMINAL en el
       limbo (`parent_contenedor` nulo, sin sub-divisiones). Entra SIN exigir la
@@ -182,8 +186,12 @@ def cajas_del_estok(estok_id):
     """
     # TENENCIA: habitación física del Estok activo o limbo de mudanza (raíz).
     tenencia = Q(ubicacion__estok_id=estok_id) | q_limbo_de_mudanza(estok_id)
-    # CANAL 1 · bulto DECLARADO y TERMINAL, con tenencia resuelta.
-    declarada = Q(declarado_movible=True) & ~Q(_tiene_subdivisiones()) & tenencia
+    # CANAL 1 · bulto de STOCK TERMINAL con tenencia resuelta (Lote 30): viaja
+    # DECLARADO o NO —el operador quiere LIBERAR el stock interno que quedaba
+    # escondido dentro de los espacios fijados—, siempre que no sea la
+    # ARQUITECTURA DEL ESPACIO (raíz no declarada movible) ni una estructura
+    # (una pieza con sub-divisiones propias es mobiliario, no bulto).
+    declarada = ~Q(_tiene_subdivisiones()) & tenencia & ~qe_estructura_del_espacio()
     # CANAL 2 · 🔓 RESCATE: caja RAÍZ TERMINAL en el limbo (aunque no se declaró).
     rescate = q_limbo_de_mudanza(estok_id) & ~Q(_tiene_subdivisiones())
     return (

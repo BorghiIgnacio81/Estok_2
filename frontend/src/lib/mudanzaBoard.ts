@@ -129,7 +129,10 @@ export class MudanzaBoard {
 
   /** Inicializa selectores, filtros y carga el inventario móvil + el plano destino. */
   async init(estoks: EstokInfo[]): Promise<void> {
-    this.estoks = estoks;
+    // 🔓 LOTE 30 · UUID ESTRICTO: se descartan las entradas sin id válido
+    // (Estoks renombrados/borrados que quedaron cacheados) antes de poblar los
+    // combos; origen y destino se resuelven SIEMPRE por el id del inquilinato.
+    this.estoks = estoks.filter((e) => Boolean(e.id));
     const activo = getEstokActivoId();
     this.origenId = this.estoks.find((e) => e.id === activo)?.id || this.estoks[0]?.id || null;
     this.destinoId = this.estoks.find((e) => e.id !== this.origenId)?.id || null;

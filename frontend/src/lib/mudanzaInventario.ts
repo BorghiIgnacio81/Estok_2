@@ -84,20 +84,28 @@ export function esObjetoSuelto(o: ObjetoDto): boolean {
 }
 
 /**
- * Contenedor mudable de forma independiente (caja o mueble móvil).
+ * Contenedor mudable de forma independiente (caja terminal o estructura declarada).
  *
- * 🔒 LOTE 27 · DECLARACIÓN EXPLÍCITA: SOLO viaja lo que el operador declaró
- * movible con el checkbox «🎒 Mueble Móvil / Objeto» (Lotes 22/25). Cualquier
- * otro valor (`false`/null/ausente) es la ARQUITECTURA fija del espacio
- * («Ropero Empotrado», «Escritorio Pintura»…) y queda fuera de la mudanza y del
- * modal «Mudar Todo el Stock»: espejo exacto del filtro ORM de la mudanza masiva
- * (`mudanza_masiva_service.mudar_todo`).
+ * 🔓 LOTE 30 · DISYUNTOR ESTRICTO: el freno ya NO exige `declarado_movible` a
+ * TODO el inventario (eso escondía el stock que vive dentro de los espacios
+ * fijados). Espejo EXACTO del ORM `services.stock_mudable.qe_stock_mudable`
+ * (consistencia matemática Catálogo ↔ Mudanzas):
+ *   · SECCIÓN 1 · caja móvil TERMINAL (`tipo='CAJA'`, sin sub-divisiones
+ *     propias): viaja DECLARADA o NO, salvo que sea la ARQUITECTURA del espacio
+ *     (raíz con `declarado_movible=false`).
+ *   · SECCIÓN 3 · estructura DECLARADA movible (mueble móvil o pieza con
+ *     sub-divisiones propias): viaja con TODO su subárbol en cascada.
  */
 export function esContenedorMudable(c: ContenedorDto): boolean {
   if (c.es_inmueble) return false;
-  if (c.declarado_movible !== true) return false;
+  const declarada = c.declarado_movible === true;
   const t = tipoFisico(c);
-  return t === TIPO_CAJA || t === TIPO_MUEBLE_MOVIL;
+  const tieneHijos = (Number(c.subcontenedores_count) || 0) > 0;
+  // SECCIÓN 3 · estructura declarada movible (mueble móvil o con sub-divisiones).
+  if (declarada && (t === TIPO_MUEBLE_MOVIL || tieneHijos)) return true;
+  // SECCIÓN 1 · caja terminal: nunca la arquitectura del espacio (raíz sin declarar).
+  if (t === TIPO_CAJA && !tieneHijos) return declarada || Boolean(c.parent_contenedor);
+  return false;
 }
 
 // =============================================================================

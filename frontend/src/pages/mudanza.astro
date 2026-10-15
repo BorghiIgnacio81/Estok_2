@@ -229,7 +229,7 @@ import '../styles/mudanza-mapa.css';
   </div>
 
   <script>
-    import { getCachedUser, fetchCurrentUser } from '../services/auth';
+    import { getCachedUser, fetchCurrentUser, getEstokActivoId } from '../services/auth';
     import { MudanzaBoard } from '../lib/mudanzaBoard';
     // Migración MASIVA: borde HTTP (mudanzaApi) + modal de previsualización/purga.
     import { cargarInventarioOrigen, enviarMudanzaMasiva } from '../lib/mudanzaApi';
@@ -337,7 +337,16 @@ import '../styles/mudanza-mapa.css';
     async function iniciar() {
       try {
         let user = getCachedUser();
-        if (!user || (user.estoks?.length || 0) < 2) {
+        // 🔓 LOTE 30 · EL ORIGEN ES EL UUID REAL DEL TENANT: si el Estok activo
+        // no figura en la caché (Estok renombrado/borrado desde el Admin Global),
+        // se refresca la membresía para no filtrar por referencias muertas
+        // (devolvían listados vacíos: «solo 1 objeto suelto»).
+        const activoId = getEstokActivoId();
+        const cacheValida = Boolean(
+          user && (user.estoks?.length || 0) >= 2
+            && user.estoks!.some((e) => String(e.id) === String(activoId)),
+        );
+        if (!cacheValida) {
           user = await fetchCurrentUser();
         }
         // Requisito estricto: > 1 Estok activo en el arreglo de membresías.

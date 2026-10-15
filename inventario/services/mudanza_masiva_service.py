@@ -6,14 +6,17 @@ QUÉ HACE
   muebles mudables y objetos individuales sueltos— hacia el Estok destino, dentro
   de UNA sola transacción.
 
-ALCANCE: SÓLO LO DECLARADO MOVIBLE (Lote 27)
-  Las piezas RAÍZ de contenedor viajan ÚNICAMENTE si el operador las declaró con
-  el checkbox «🎒 Mueble Móvil / Objeto» (`declarado_movible=True`, Lotes 22/25).
-  Toda pieza NO declarada es la ARQUITECTURA fija del espacio («Ropero
-  Empotrado», «Escritorio Pintura», «Cama Cucheta»…) y queda INTACTA en el
-  origen: la mudanza general no puede mudar estructura. El resumen informa
-  cuántas piezas quedaron atrás (`arquitectura_intacta`). Los objetos sueltos no
-  tienen ese flag: viajan todos.
+ALCANCE: STOCK MÓVIL CON DISYUNTOR ESTRICTO (Lote 30)
+  Viaja TODO el stock: las CAJAS TERMINALES (`tipo='CAJA'`, `es_inmueble=False`,
+  sin sub-divisiones propias) declaradas o NO —es la liberación del inventario
+  que quedaba escondido dentro de los espacios fijados—, las ESTRUCTURAS
+  DECLARADAS (`declarado_movible=True` sobre un mueble o una pieza con
+  sub-divisiones propias) y TODOS los objetos del origen.
+  Queda INTACTA en el origen la ESTRUCTURA: el espacio base (raíz no declarada
+  movible) y el mobiliario con sub-divisiones propias («Ropero Empotrado»,
+  «Escritorio Pintura»…). El freno alcanza al NODO, nunca al stock que aloja: lo
+  que vive adentro viaja en cascada. El resumen informa cuántas estructuras
+  quedaron atrás (`arquitectura_intacta`).
 
 LÓGICA «EN TRÁNSITO»
   Los elementos NO se anclan al plano del inquilinato destino: viajan sin
@@ -43,12 +46,7 @@ from rest_framework.exceptions import ValidationError
 
 from ..models import Contenedor, Objeto
 from .mudanza_service import asegurar_ubicacion_limbo
-from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
-
-# Tipos de contenedor que entran en la migración masiva: cajas móviles y muebles
-# mudables. Los anclados (CONJUNTO, MUEBLE_INMUEBLE) NUNCA se mudan solos: su
-# descendencia viaja en cascada con el mueble raíz que los aloja.
-TIPOS_MUDABLES = (TIPO_CAJA, TIPO_MUEBLE_MOVIL)
+from .stock_mudable import qe_stock_mudable
 
 
 def _descendencia_contenedores(ids_raiz):
@@ -66,21 +64,6 @@ def _descendencia_contenedores(ids_raiz):
         hijos = {
             str(i) for i in Contenedor.objects
             .filter(parent_contenedor_id__in=frontera)
-            .values_list('id', flat=True)
-        }
-        frontera = list(hijos - todos)
-        todos |= hijos
-    return todos
-
-
-def _descendencia_objetos(ids_raiz):
-    """Ids de los objetos RAÍZ más todos sus objetos contenidos (BFS por nivel)."""
-    todos = {str(i) for i in ids_raiz}
-    frontera = list(todos)
-    while frontera:
-        hijos = {
-            str(i) for i in Objeto.objects
-            .filter(objeto_padre_id__in=frontera)
             .values_list('id', flat=True)
         }
         frontera = list(hijos - todos)
@@ -108,64 +91,79 @@ class MudanzaMasivaService:
         # ------------------------------------------------------------------
         # 1) CONJUNTOS A MOVER (lecturas ANTES de cualquier mutación)
         # ------------------------------------------------------------------
-        # Contenedores RAÍZ móviles del origen + su descendencia en cascada.
-        # 🔒 LOTE 27 · DISYUNTOR DE ARQUITECTURA (`declarado_movible`): la mudanza
-        # general SÓLO transporta piezas que el operador declaró movibles con el
-        # checkbox «🎒 Mueble Móvil / Objeto» (Lotes 22/25). Toda pieza NO
-        # declarada es la ARQUITECTURA fija del espacio («Ropero Empotrado»,
-        # «Escritorio Pintura», «Cama Cucheta»…) y queda INTACTA en el origen.
+        # 🔓 LOTE 30 · DISYUNTOR ESTRICTO (Catálogo ↔ Mudanzas). Se recorre TODO
+        # el Estok —no sólo las raíces— y se recoge el stock mudable esté al
+        # nivel que esté: CAJAS TERMINALES (declaradas o no) y ESTRUCTURAS
+        # DECLARADAS. La estructura del espacio (raíz no declarada) y el
+        # mobiliario con sub-divisiones propias quedan intactos, pero su stock
+        # interno VIAJA IGUAL en cascada: el inventario nunca se pierde.
+        semillas = {
+            str(i) for i in Contenedor.objects
+            .filter(ubicacion__estok=estok_origen)
+            .filter(qe_stock_mudable())
+            .values_list('id', flat=True)
+        }
+
+        # CASCADA: cada semilla arrastra TODO su subárbol (estantes, divisiones y
+        # los objetos de cada casillero) sin importar cómo esté armado adentro.
+        arbol_cont = _descendencia_contenedores(semillas)
+        # El subárbol de cada EXCLUSIÓN se retira en bloque: destildar un bulto en
+        # el modal sigue excluyendo también su contenido interno.
+        arbol_cont -= _descendencia_contenedores(excluidos)
+        arbol_cont -= excluidos
+
+        # RAÍCES DE TRASLADO: piezas que viajan y cuyo PADRE no viaja (o no
+        # tiene). Son las ÚNICAS que se sueltan del plano de origen y resetean sus
+        # casilleros. Sin este cálculo, una caja extraída de un espacio fijado
+        # quedaría colgando de un padre que SE QUEDA en el origen (FK cruzada
+        # entre Estoks). Reemplaza el `raices_cont` rígido del Lote 27.
+        padres_movidos = {
+            str(cid): (str(pid) if pid else None)
+            for cid, pid in Contenedor.objects.filter(id__in=arbol_cont)
+            .values_list('id', 'parent_contenedor_id')
+        }
         raices_cont = {
-            str(i) for i in Contenedor.objects.filter(
-                ubicacion__estok=estok_origen,
-                parent_contenedor__isnull=True,
-                es_inmueble=False,
-                declarado_movible=True,
-                tipo__in=TIPOS_MUDABLES,
-            ).values_list('id', flat=True)
-        } - excluidos
-        arbol_cont = _descendencia_contenedores(raices_cont) - excluidos
+            cid for cid, pid in padres_movidos.items()
+            if pid is None or pid not in arbol_cont
+        }
 
-        # Cuenta de AUDITORÍA del freno: cuánta arquitectura fija quedó en el
-        # origen (misma taxonomía que la mudanza, con el flag APAGADO). Viaja en
-        # el resumen para que el operador entienda por qué no se movió todo.
-        arquitectura_intacta = Contenedor.objects.filter(
-            ubicacion__estok=estok_origen,
-            parent_contenedor__isnull=True,
-            es_inmueble=False,
-            declarado_movible=False,
-            tipo__in=TIPOS_MUDABLES,
-        ).count()
+        # AUDITORÍA del freno: ESTRUCTURAS RAÍZ que quedaron intactas en el
+        # origen (habitaciones, «Espacio N» y mobiliario fijo sin declarar). Su
+        # stock interno SÍ viajó: la estructura se queda, el inventario no.
+        arquitectura_intacta = (
+            Contenedor.objects
+            .filter(ubicacion__estok=estok_origen, parent_contenedor__isnull=True)
+            .exclude(id__in=arbol_cont)
+            .count()
+        )
 
-        # Objetos SUELTOS del origen (sin caja y sin objeto padre). Se incluyen
-        # los huérfanos de FK `estok` que sí cuelgan de una habitación del
-        # inquilinato: son los mismos que lista la columna Origen del tablero.
+        # Objetos LIBERADOS del origen: TODO el stock de objetos activos que NO
+        # cuelga de un contenedor que viaja —sueltos o anidados dentro de una
+        # estructura fijada que se queda—. Se incluyen los huérfanos de FK `estok`
+        # que sí cuelgan de una habitación del inquilinato. Los objetos que viven
+        # dentro de una pieza que SÍ viaja se mueven con ella en cascada (paso 3).
         raices_obj = {
             str(i) for i in Objeto.objects.filter(
                 Q(estok=estok_origen)
                 | Q(estok__isnull=True, ubicacion__estok=estok_origen),
                 deleted_at__isnull=True,
-                contenedor__isnull=True,
-                objeto_padre__isnull=True,
-            ).values_list('id', flat=True)
+            ).exclude(contenedor_id__in=arbol_cont).values_list('id', flat=True)
         } - excluidos
-        arbol_obj = _descendencia_objetos(raices_obj) - excluidos
 
         # ------------------------------------------------------------------
-        # 2) OBJETOS SUELTOS → limbo del destino (sin ubicación física)
+        # 2) OBJETOS LIBERADOS → limbo del destino (sin ubicación física)
         # ------------------------------------------------------------------
+        # Sueltos, o sacados de una estructura que se queda: pierden TODO vínculo
+        # con el origen y quedan pendientes de ubicar en el inquilinato destino.
         objetos_movidos = 0
-        if arbol_obj:
-            objetos_movidos += Objeto.objects.filter(id__in=arbol_obj).update(
+        if raices_obj:
+            objetos_movidos += Objeto.objects.filter(id__in=raices_obj).update(
                 estok=estok_destino,
                 ubicacion=None,
-                en_transito_interno=False,
-                updated_at=ahora,
-            )
-        if raices_obj:
-            Objeto.objects.filter(id__in=raices_obj).update(
                 contenedor=None,
                 parent_grid_row=None,
                 parent_grid_col=None,
+                en_transito_interno=False,
                 updated_at=ahora,
             )
 
@@ -227,8 +225,8 @@ class MudanzaMasivaService:
             if total_purgado else ''
         )
         aviso_arquitectura = (
-            f' {arquitectura_intacta} pieza(s) de arquitectura fija quedaron '
-            f'intactas en el origen (no declaradas movibles).'
+            f' {arquitectura_intacta} estructura(s) del espacio quedaron '
+            f'intactas en el origen: su stock interno viajó igual en cascada.'
             if arquitectura_intacta else ''
         )
         mensaje = (

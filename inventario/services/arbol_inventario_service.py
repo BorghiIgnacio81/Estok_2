@@ -170,6 +170,12 @@ def construir_arbol_estok(
             # El objeto pertenece a una caja raíz: su hogar es la SECCIÓN 1.
             # No se duplica como contenido de mueble.
             continue
+        elif clave in cajas_por_id:
+            # 🔓 LOTE 30 · La CAJA ya es un bulto listado (SECCIÓN 1): su
+            # inventario viaja con ella. Aunque su ancestro sea la ARQUITECTURA
+            # del espacio (que no se lista ni se estructura), el objeto NO se
+            # degrada a «suelto» ni se marca `contenedor_ausente`.
+            continue
         else:
             od['contenedor_ausente'] = True
             objetos_sueltos.append(od)
