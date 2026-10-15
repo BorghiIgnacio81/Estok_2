@@ -42,7 +42,7 @@ import { cabecerasDe, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panel
 import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
-import { alternarEspacioUnico, pintarEditorDivisiones } from './editorDivisionesPortales';
+import { alternarEspacioUnico, alternarMuebleMovil, pintarEditorDivisiones } from './editorDivisionesPortales';
 import {
   bloqueMonoliticoHtml,
   grillaObjetosDirectosHtml,
@@ -300,6 +300,7 @@ function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
     contenedor: host,
     nodo,
     alCambiarEspacioUnico: (valor) => void alternarEspacioUnico(nodo, valor),
+    alCambiarMuebleMovil: (valor) => void alternarMuebleMovil(nodo, valor),
   });
 }
 

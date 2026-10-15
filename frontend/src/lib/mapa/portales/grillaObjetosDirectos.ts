@@ -12,6 +12,8 @@
 import { escapeHtml, toast } from '../../mapaJerarquico';
 import { indicadorTransitoHtml } from '../../indicadorTransito';
 import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO, ETIQUETA_ESPACIO_UNICO } from '../../espacioUnico';
+// 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
+import { lineaMuebleMovilHtml } from '../../muebleMovil';
 import { leerCargaArrastrada, guardarEnContenedor, guardarEnUbicacion } from './transitoInterno';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
@@ -32,6 +34,7 @@ export function bloqueMonoliticoHtml(nodo: NodoPortal, enTransito: number): stri
     </div>
     <p class="portal-monolitico-texto">Bloque monolítico: este contenedor no se subdivide en estantes ni cajones y el modelador geométrico queda bloqueado. Los objetos que aloja viven directo acá, en la grilla de la derecha.</p>
     ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnico', marcado: nodo.espacioUnico, valor: nodo.id })}
+    ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovil')}
     <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>
   </div>`;
 }
@@ -79,6 +82,8 @@ export function initGrillaObjetosDirectos(opts: {
   contenedor: HTMLElement | null;
   nodo: NodoPortal;
   alCambiarEspacioUnico: (valor: boolean) => void;
+  /** 🎒 Declaración de movilidad de la celda activa (PUT parcial al Contenedor). */
+  alCambiarMuebleMovil: (valor: boolean) => void;
 }): void {
   const host = opts.contenedor;
   if (!host) return;
@@ -142,6 +147,13 @@ export function initGrillaObjetosDirectos(opts: {
         ? '🧱 Marcado como Espacio Único: se bloquea el modelador y los objetos se guardan directo.'
         : '🧩 Destildado: ahora podés subdividirlo en estantes o cajones en la grilla de la izquierda.',
     );
+  });
+
+  // 🎒 Disyuntor de movilidad: vive DEBAJO de «Espacio Único» y persiste el flag
+  // del Contenedor activo (la Ubicación no tiene `declarado_movible`).
+  const chkMovible = host.querySelector<HTMLInputElement>('[data-mueble-movil]');
+  chkMovible?.addEventListener('change', () => {
+    opts.alCambiarMuebleMovil(chkMovible.checked);
   });
 }
 

@@ -24,6 +24,8 @@ import type { AdaptadorEspacios, ItemElastico } from '../../lienzoElastico';
 import { renderLienzoElastico } from '../../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../../plantaUnicaInteractivo';
 import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO } from '../../espacioUnico';
+// 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
+import { lineaMuebleMovilHtml } from '../../muebleMovil';
 import {
   conectarPerimetroElastico,
   guardarMedidaCon,
@@ -32,7 +34,9 @@ import {
 import { reemplazarNodoActual } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 import { reaccionarEspacioUnico } from './barraComandosPortales';
-import { cargarContenedores, guardarEspacioUnico } from './datosNodosPortales';
+import { cargarContenedores } from './datosNodosPortales';
+// Disyuntores del espacio: persistencia compartida (PUT parcial multi-tenant).
+import { guardarDeclaradoMovible, guardarEspacioUnico } from './disyuntoresPersistencia';
 import type { InteriorNodo } from './datosNodosPortales';
 
 /** Ayuda contextual del editor del cuarto (micro-texto en español). */
@@ -53,12 +57,18 @@ function itemsEditor(interior: InteriorNodo): ItemElastico[] {
   }));
 }
 
-/** Cabecera del nivel con el disyuntor canónico «Espacio Único». */
+/**
+ * Cabecera del nivel con los DOS disyuntores del espacio activo, apilados en
+ * este orden EXACTO (Lote 26): «Espacio Único» arriba y «🎒 Declarar como Mueble
+ * Móvil / Objeto» justo debajo, para que el operador configure la pieza en
+ * caliente MIENTRAS modela los ambientes de la habitación.
+ */
 function cabeceraHtml(nodo: NodoPortal): string {
   return `<div class="portal-grilla-cab">
     <span class="portal-grilla-titulo">🧱 Divisiones de «${escapeHtml(nodo.nombre)}»</span>
     ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnicoEditor', marcado: nodo.espacioUnico, valor: nodo.id })}
   </div>
+  ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovilEditor')}
   <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>`;
 }
 
@@ -114,6 +124,10 @@ async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean>
     crear_espejo: false,
     // Una DIVISIÓN interna nunca es monolítica: no nace como «Espacio Único».
     espacio_unico: false,
+    // MOVILIDAD EXPLÍCITA (Lote 25/26): la división NACE como ARQUITECTURA del
+    // espacio (false). El operador la declara «Mueble Móvil / Objeto» desde el
+    // disyuntor del panel, que es el que persiste el flag en caliente.
+    declarado_movible: false,
   };
   // El CONTENEDOR cuelga de su PADRE jerárquico (frontera real del nivel N+1).
   if (nodo.tipo !== 'habitacion') cuerpo.parent_contenedor = nodo.id;
@@ -159,6 +173,25 @@ export async function alternarEspacioUnico(nodo: NodoPortal, valor: boolean): Pr
 }
 
 /**
+ * Persiste el disyuntor «🎒 Mueble Móvil / Objeto» del CONTENEDOR activo (PUT
+ * parcial multi-tenant: la Ubicación no expone el campo) y refresca el padrón en
+ * memoria. El control vive SIEMPRE debajo de «Espacio Único» en el panel del
+ * nivel activo, así que la declaración viaja acoplada a esa celda.
+ */
+export async function alternarMuebleMovil(nodo: NodoPortal, valor: boolean): Promise<void> {
+  if (nodo.tipo !== 'contenedor') return;
+  const ok = await guardarDeclaradoMovible(nodo.id, valor);
+  if (!ok) return;
+  reemplazarNodoActual({ declaradoMovible: valor });
+  toast(
+    valor
+      ? '🎒 Mueble Móvil / Objeto declarado: se lista en «Elementos por ubicar» y en Objetos.'
+      : '🧱 Declaración retirada: la pieza vuelve a ser ARQUITECTURA del espacio.',
+  );
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+}
+
+/**
  * LEY 2 · Despliega el EDITOR ELÁSTICO de divisiones en el Panel Derecho para una
  * habitación viva o un contenedor con sub-divisiones (recursivo ∞): cabecera con
  * «Espacio Único» + lienzo elástico naranja de perímetro ámbar estirable
@@ -188,6 +221,11 @@ export function pintarEditorDivisiones(
   host.innerHTML = cabeceraHtml(nodo) + plano;
   host.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {
     void alternarEspacioUnico(nodo, (ev.currentTarget as HTMLInputElement).checked);
+  });
+  // 🎒 Disyuntor de movilidad: acopla la declaración a la CELDA ACTIVA con PUT
+  // parcial (mismo contrato que «Espacio Único») sin recargar la pantalla.
+  host.querySelector<HTMLInputElement>('[data-mueble-movil]')?.addEventListener('change', (ev) => {
+    void alternarMuebleMovil(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });
   conectarLienzoElastico({
     scope: host,

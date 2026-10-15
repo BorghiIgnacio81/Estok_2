@@ -338,3 +338,15 @@ body.portales-canasta-oculta [data-estok-panel] {
 .portal-lienzo-planta .portal-lienzo-marco {
   max-width: 100%;
 }
+
+/* -----------------------------------------------------------------------------
+   🎒 DISYUNTOR «MUEBLE MÓVIL / OBJETO» (Lote 26)
+   -----------------------------------------------------------------------------
+   Se apila SIEMPRE debajo del control «Espacio Único» del nivel activo, tanto
+   en la cabecera del editor elástico de divisiones como en el bloque monolítico
+   de la grilla directa. Mismo margen en toda la app.
+   --------------------------------------------------------------------------- */
+.portal-movible-linea {
+  margin-top: 8px;
+}
+

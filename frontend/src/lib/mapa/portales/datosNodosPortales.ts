@@ -15,7 +15,7 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../../../services/auth';
-import { toast, esDivisionUbicacion, filasInternasDe, columnasDeFilaInterna } from '../../mapaJerarquico';
+import { esDivisionUbicacion, filasInternasDe, columnasDeFilaInterna } from '../../mapaJerarquico';
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import type { NodoPortal } from './estadoPortales';
@@ -27,6 +27,8 @@ export interface ContenedorDto {
   tipo: string;
   es_inmueble: boolean;
   espacio_unico: boolean;
+  /** 🎒 Declaración de movilidad: `true` = bulto movible; `false` = arquitectura. */
+  declarado_movible: boolean;
   parent_contenedor: string | null;
   parent_grid_row: number | null;
   parent_grid_col: number | null;
@@ -123,6 +125,8 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorDto {
     es_inmueble: Boolean(c.es_inmueble),
     // 🧱 Disyuntor de estructura: bloque monolítico declarado en la base.
     espacio_unico: Boolean(c.espacio_unico),
+    // 🎒 Disyuntor de movilidad (Lote 25 · default False = arquitectura).
+    declarado_movible: Boolean(c.declarado_movible),
     parent_contenedor: texto(c.parent_contenedor),
     parent_grid_row: enteroONull(c.parent_grid_row),
     parent_grid_col: enteroONull(c.parent_grid_col),
@@ -270,6 +274,9 @@ export function nodoDesdeHabitacion(
     id: String(room.id),
     nombre: String(room.nombre ?? 'Habitación'),
     espacioUnico: Boolean(room.espacio_unico),
+    // La Ubicación (habitación/planta) NO tiene `declarado_movible` en el backend:
+    // el disyuntor de movilidad nunca se ofrece fuera de un Contenedor.
+    declaradoMovible: false,
     conDivisiones: espaciosInternos.length > 0,
     filas,
     columnasPorFila,
@@ -291,6 +298,7 @@ export function nodoDesdeContenedor(
     id: c.id,
     nombre: c.nombre,
     espacioUnico: c.espacio_unico,
+    declaradoMovible: c.declarado_movible,
     conDivisiones: c.subcontenedores_count > 0,
     filas: c.grid_filas,
     columnasPorFila: columnasPorFilaDeContenedor(c),
@@ -348,39 +356,8 @@ export async function datosDeNivelPlanta(plantaId: string | null): Promise<{
   return { plant, rooms, espaciosPorRoom };
 }
 
+// NOTA: la persistencia de los disyuntores `espacio_unico` y `declarado_movible`
+// vive en ./disyuntoresPersistencia.ts (mismo contrato de PUT parcial), para no
+// engordar este módulo de datos por encima del límite de mantenibilidad.
 
-
-// -----------------------------------------------------------------------------
-// PERSISTENCIA DEL DISYUNTOR «ESPACIO ÚNICO»
-// -----------------------------------------------------------------------------
-
-/**
- * Persiste el flag `espacio_unico` del nodo activo (Contenedor o Ubicación) con
- * PUT multi-tenant parcial: el backend acepta el payload de un solo campo y la
- * UI re-transiciona en caliente (bloque monolítico ⇄ grilla de divisiones).
- */
-export async function guardarEspacioUnico(
-  id: string,
-  valor: boolean,
-  recurso: 'contenedores' | 'ubicaciones' = 'contenedores',
-): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/${recurso}/${id}/`, {
-      method: 'PUT',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ espacio_unico: valor }),
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    if (res.ok) return true;
-    const err = await res.json().catch(() => ({}));
-    toast('❌ ' + (err?.detail || err?.error || 'No se pudo guardar «Espacio Único».'));
-    return false;
-  } catch {
-    toast('❌ Error de conexión al guardar «Espacio Único».');
-    return false;
-  }
-}
 

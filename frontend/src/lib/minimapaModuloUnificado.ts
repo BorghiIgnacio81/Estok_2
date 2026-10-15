@@ -261,3 +261,75 @@ export function renderSeccionModulo(
   seccion?.classList.remove('hidden');
   return true;
 }
+
+/**
+ * SECCIÓN con VARIAS celdas activas (misma grilla simétrica): la usa el detalle
+ * del contenedor para pintar TODOS los casilleros ocupados por objetos en
+ * NARANJA ESTRICTO (#f97316). Reutiliza el motor canónico `minimapaSectoresSvg`.
+ */
+export function sectoresSeccionMultiples(
+  filas: number,
+  columnas: number,
+  celdas: Array<{ fila: number; columna: number }>,
+): SectorMinimapa[] {
+  const f = Math.max(1, Math.floor(Number(filas) || 3));
+  const c = Math.max(1, Math.floor(Number(columnas) || 3));
+  const sectores = sectoresSeccion(f, c, null, null);
+  for (const celda of celdas) {
+    const indice =
+      (Math.max(1, Math.floor(Number(celda.fila) || 1)) - 1) * c +
+      (Math.max(1, Math.floor(Number(celda.columna) || 1)) - 1);
+    if (sectores[indice]) sectores[indice].activo = true;
+  }
+  return sectores;
+}
+
+/** Datos de la «sección» con varias celdas ocupadas (casilleros con objetos). */
+export interface DatosSeccionMultiple {
+  /** Filas de la grilla del contenedor (default 3). */
+  filas?: number;
+  /** Columnas de la grilla del contenedor (default 3). */
+  columnas?: number;
+  /** Celdas ocupadas (1-based) que se pintan en naranja. */
+  celdas?: Array<{ fila: number; columna: number }>;
+  /** Aspecto (alto/ancho) del plano (default ASPECTO_SECCION). */
+  aspecto?: number;
+}
+
+/** HTML de la sección con varias celdas activas ('' si no hay ninguna celda). */
+export function seccionPlanoMultiplesHtml(datos: DatosSeccionMultiple): string {
+  const celdas = datos.celdas ?? [];
+  if (!celdas.length) return '';
+  const filas = Math.max(1, Math.floor(Number(datos.filas) || 3));
+  const columnas = Math.max(1, Math.floor(Number(datos.columnas) || 3));
+  const aspecto = Number(datos.aspecto) > 0 ? Number(datos.aspecto) : ASPECTO_SECCION;
+  return minimapaSectoresSvg({
+    sectores: sectoresSeccionMultiples(filas, columnas, celdas),
+    aspecto,
+    responsive: true,
+  });
+}
+
+/**
+ * Rellena el host con la sección de varias celdas activas y alterna la
+ * visibilidad del bloque (`sectionId`). Devuelve true si hubo celdas reales.
+ */
+export function renderSeccionMultiples(
+  hostId: string,
+  sectionId: string | null,
+  datos: DatosSeccionMultiple,
+): boolean {
+  const host = document.getElementById(hostId);
+  if (!host) return false;
+  const seccion = sectionId ? document.getElementById(sectionId) : null;
+  host.innerHTML = '';
+  const html = seccionPlanoMultiplesHtml(datos);
+  if (!html) {
+    seccion?.classList.add('hidden');
+    return false;
+  }
+  host.innerHTML = html;
+  seccion?.classList.remove('hidden');
+  return true;
+}
+

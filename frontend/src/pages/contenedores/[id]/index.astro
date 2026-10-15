@@ -6,6 +6,9 @@
 
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../components/AuthGuard.astro';
+// MÓDULO UNIFICADO DE MINIMAPAS (componente global autónomo): única autoridad de
+// dibujo. En modo `visor` + `seccion` reemplaza al minimapa rígido de la Fase 3.
+import MinimapaModuloUnificado from '../../../components/MinimapaModuloUnificado.astro';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -91,16 +94,23 @@ export const prerender = false;
         </div>
       </div>
 
-      <!-- Minimapa de sección: posición en el contenedor padre + secciones internas -->
-      <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <!-- MÓDULO UNIFICADO DE MINIMAPAS · VISOR: celda F·C del contenedor dentro
+           de su PADRE + casilleros ocupados, en NARANJA ESTRICTO (#f97316). -->
+      <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
           Minimapa de sección
         </h2>
-        <div id="minimapaPadre" class="hidden"></div>
-        <div id="minimapaInterno"></div>
+        <!-- Celda F·C de este contenedor dentro de su contenedor PADRE (naranja). -->
+        <MinimapaModuloUnificado id="seccionModuloUnificado" modo="visor" tipo="seccion" />
+        <!-- Casilleros de ESTE contenedor ocupados por objetos (misma grilla real). -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <p class="text-sm font-medium text-gray-700 mb-2">Casilleros ocupados por objetos</p>
+          <MinimapaModuloUnificado id="seccionInternaModulo" modo="visor" tipo="seccion" />
+          <p id="seccionInternaDetalle" class="text-xs text-gray-400 mt-2"></p>
+        </div>
       </div>
 
       <!-- Lista de objetos dentro del contenedor -->
@@ -146,12 +156,19 @@ export const prerender = false;
   const detailContent = document.getElementById('detailContent')!;
 
   const minimapaSection = document.getElementById('minimapaSection')!;
-  const minimapaPadre = document.getElementById('minimapaPadre')!;
-  const minimapaInterno = document.getElementById('minimapaInterno')!;
+  const seccionInternaDetalle = document.getElementById('seccionInternaDetalle')!;
+  // Estado del visor: grilla real del contenedor + si hay celda dentro del PADRE.
+  let grillaInterna = { filas: 3, columnas: 3 };
+  let haySeccionPadre = false;
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
-  import { minimapaHtml, inyectarCssMinimapa, COLOR_NARANJA } from '../../../lib/minimapa';
-  inyectarCssMinimapa();
+  // MÓDULO UNIFICADO DE MINIMAPAS (modo visor): única autoridad de dibujo.
+  import {
+    celdasOcupadasDe,
+    detalleCasilleros,
+    pintarCasillerosOcupados,
+    pintarCeldaEnPadre,
+  } from '../../../lib/contenedorDetalleMinimapas';
 
   function getEstadoBadge(estado: string): string {
     const map: Record<string, string> = {
@@ -208,20 +225,24 @@ export const prerender = false;
         qrPlaceholder.classList.remove('hidden');
       }
 
-      // === Minimapa: posición de ESTE contenedor dentro de su contenedor padre ===
-      if (contenedor.parent_contenedor && contenedor.parent_grid_row && contenedor.parent_grid_col) {
-        minimapaPadre.innerHTML = minimapaHtml({
-          fila: contenedor.parent_grid_row,
-          columna: contenedor.parent_grid_col,
-          titulo: `Posición en «${contenedor.parent_contenedor_nombre || 'Contenedor padre'}»`,
-          color: COLOR_NARANJA,
-        });
-        minimapaPadre.classList.remove('hidden');
-        minimapaSection.classList.remove('hidden');
-      } else {
-        minimapaPadre.innerHTML = '';
-        minimapaPadre.classList.add('hidden');
-      }
+      // === MÓDULO UNIFICADO · SECCIÓN: celda F·C dentro del PADRE (naranja). Sin
+      //     casillero real el host queda vacío: nunca un plano inventado. ===
+      grillaInterna = {
+        filas: Number(contenedor.grid_filas) || 3,
+        columnas: Number(contenedor.grid_columnas) || 3,
+      };
+      const tieneCeldaPadre = Boolean(
+        contenedor.parent_contenedor && contenedor.parent_grid_row && contenedor.parent_grid_col,
+      );
+      haySeccionPadre = tieneCeldaPadre && pintarCeldaEnPadre({
+        filas: Number(contenedor.parent_grid_filas) || 3,
+        columnas: Number(contenedor.parent_grid_columnas) || 3,
+        fila: contenedor.parent_grid_row,
+        columna: contenedor.parent_grid_col,
+      });
+      if (!tieneCeldaPadre) pintarCeldaEnPadre({});
+      // `cargarObjetos()` re-evalúa la visibilidad con los casilleros internos.
+      minimapaSection.classList.toggle('hidden', !haySeccionPadre);
 
       // === Mostrar contenido ===
       loadingState.classList.add('hidden');
@@ -307,35 +328,16 @@ export const prerender = false;
         });
       });
 
-      // === Minimapa interno: casilleros de ESTE contenedor ocupados por objetos ===
-      const ocupados = new Set<string>();
-      let conCoords = 0;
-      for (const o of objetos) {
-        if (o.parent_grid_row && o.parent_grid_col) {
-          ocupados.add(`${o.parent_grid_row}-${o.parent_grid_col}`);
-          conCoords++;
-        }
-      }
-      if (conCoords > 0) {
-        minimapaInterno.innerHTML = `<div style="margin-top:16px;padding-top:16px;border-top:1px solid #f3f4f6;">${minimapaHtml({
-          filas: 3,
-          columnas: 3,
-          celdasAdicionales: Array.from(ocupados).map((clave) => {
-            const [f, cc] = clave.split('-').map(Number);
-            return { fila: f, columna: cc };
-          }),
-          titulo: 'Casilleros ocupados por objetos',
-          detalle: `${conCoords} objeto${conCoords > 1 ? 's' : ''} con casillero asignado`,
-          color: COLOR_NARANJA,
-        })}</div>`;
-        minimapaSection.classList.remove('hidden');
-      } else {
-        minimapaInterno.innerHTML = '';
-      }
+      // === MÓDULO UNIFICADO · SECCIÓN INTERNA: casilleros ocupados (naranja). ===
+      const celdas = celdasOcupadasDe(objetos);
+      const hayInterno = pintarCasillerosOcupados({
+        filas: grillaInterna.filas,
+        columnas: grillaInterna.columnas,
+        celdas,
+      });
+      seccionInternaDetalle.textContent = detalleCasilleros(hayInterno ? celdas.length : 0);
       // Mostrar la sección solo si hay al menos un minimapa (padre o interno)
-      const hayPadre = !minimapaPadre.classList.contains('hidden');
-      const hayInterno = minimapaInterno.innerHTML.trim() !== '';
-      minimapaSection.classList.toggle('hidden', !hayPadre && !hayInterno);
+      minimapaSection.classList.toggle('hidden', !haySeccionPadre && !hayInterno);
 
     } catch (err) {
       console.error('Error al cargar objetos:', err);

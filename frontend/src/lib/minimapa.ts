@@ -128,38 +128,16 @@ export function minimapaHtml(cfg: MinimapaConfig = {}): string {
 }
 
 // =============================================================================
-// CSS GLOBAL DEL MINIMAPA (se inyecta una sola vez por documento)
+// CSS GLOBAL DEL MINIMAPA: ELIMINADO (Lote 26)
+// -----------------------------------------------------------------------------
+// `inyectarCssMinimapa()` inyectaba en <head> la hoja del minimapa rígido de la
+// Fase 3 y su ÚNICO llamador era la vista `contenedores/[id]`, que ahora dibuja
+// con el MÓDULO UNIFICADO (components/MinimapaModuloUnificado.astro →
+// lib/minimapaModuloUnificado.ts). Al quedar sin usos se retiró para no dejar
+// código muerto; el resto del motor (`minimapaHtml`, `minimapaCasitaSvg`,
+// `minimapaSectoresSvg`) sigue vivo y sin cambios.
 // =============================================================================
 
-let minimapaCssInyectado = false;
-
-export function inyectarCssMinimapa(): void {
-  if (minimapaCssInyectado || typeof document === 'undefined') return;
-  minimapaCssInyectado = true;
-  const style = document.createElement('style');
-  style.textContent = `
-    /* Minimapa ULTRA-MINI (4× más chico): nitidez total en NARANJA #f97316 */
-    .minimapa { display: flex; flex-direction: column; gap: 2px; }
-    .minimapa-titulo { font-size: 5px; font-weight: 700; color: #374151; line-height: 1.2; }
-    .minimapa-grilla { display: flex; flex-direction: column; gap: 2px; max-width: 40px; }
-    .minimapa-fila { display: grid; gap: 2px; }
-    .minimapa-celda {
-      aspect-ratio: 1 / 1;
-      border-radius: 2px;
-      border: 0.5px solid #e5e7eb;
-      background: #f9fafb;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 5px; color: #9ca3af;
-      line-height: 1;
-    }
-    .minimapa-celda-activa {
-      font-weight: 700;
-    }
-    .minimapa-detalle { font-size: 5px; color: #6b7280; line-height: 1.2; }
-    .minimapa-detalle-activo { color: #ea580c; font-weight: 700; }
-  `;
-  document.head.appendChild(style);
-}
 
 
 // =============================================================================

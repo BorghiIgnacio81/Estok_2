@@ -35,6 +35,12 @@ export interface NodoPortal {
   nombre: string;
   /** 🧱 DISYUNTOR: bloque monolítico declarado «Espacio Único» en la base. */
   espacioUnico: boolean;
+  /**
+   * 🎒 DISYUNTOR DE MOVILIDAD: pieza declarada «Mueble Móvil / Objeto» en la
+   * base (`declarado_movible`). Destildado (default) = ARQUITECTURA del espacio.
+   * SÓLO los Contenedores tienen el campo: las Ubicaciones viajan siempre false.
+   */
+  declaradoMovible: boolean;
   /** Tiene al menos un hijo propio (estante/cajón/caja adentro). */
   conDivisiones: boolean;
   /** Grilla elástica propia del nodo (filas internas asimétricas). */
