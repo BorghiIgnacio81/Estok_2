@@ -38,6 +38,7 @@ MUTACIÓN ATÓMICA (PostgreSQL)
 """
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from ..models import Contenedor, Objeto, Ubicacion
@@ -50,8 +51,42 @@ NOMBRE_LIMBO = 'En Tránsito'
 NOMBRE_LIMBO_LEGACY = 'Zona de Mudanza'
 # Los dos nombres vigentes en un único iterable: lo consumen las consultas ORM
 # que necesitan reconocer «esta pieza viajó SIN ubicación física» (canasta de
-# «Elementos por ubicar», Lote 27). Fuente única del concepto.
+# «Elementos por ubicar» y árbol de Objetos, Lotes 27/28). Fuente única del
+# concepto, junto con su espejo ORM `q_limbo_de_mudanza`.
 NOMBRES_LIMBO = (NOMBRE_LIMBO, NOMBRE_LIMBO_LEGACY)
+
+
+def q_limbo_de_mudanza(estok_id, *, exigir_raiz=True):
+    """
+    Q ORM de «el CONTENEDOR quedó en el LIMBO de mudanza» (Lote 28).
+
+    Una caja mudada entre Estoks aterriza en la habitación limbo «En Tránsito»
+    (o «Zona de Mudanza») con `parent_contenedor` nulo, porque
+    `Contenedor.ubicacion` es NOT NULL y la zona de tránsito es un espacio
+    VIRTUAL del tablero, no una habitación física del plano. También cubre el
+    caso de un contenedor con `ubicacion` nula (registro huérfano del limbo).
+
+    `exigir_raiz=True` (default) exige `parent_contenedor` nulo: es la muda
+    RAÍZ suelta que dejó la mudanza. `exigir_raiz=False` reconoce el limbo a
+    CUALQUIER nivel de la jerarquía: lo usa el mapa de ancestros del árbol, que
+    necesita también la descendencia de una caja mudada.
+
+    AISLAMIENTO MULTI-TENANT: el nombre del limbo solo se acepta si la
+    habitación pertenece al Estok activo (limbo real de ese inquilinato) o si
+    NO declara Estok (limbo histórico huérfano). El limbo de OTRO Estok jamás
+    se filtra con este predicado.
+
+    Es la fuente ÚNICA del concepto en el backend: la consumen el árbol de
+    inventario (pestaña Objetos) y el filtro de la canasta de «Elementos por
+    ubicar» (`api/viewsets/organizacion/filtros_bandeja.py`).
+    """
+    en_limbo = Q(
+        Q(ubicacion__estok_id=estok_id) | Q(ubicacion__estok__isnull=True),
+        ubicacion__nombre__in=NOMBRES_LIMBO,
+    )
+    if exigir_raiz:
+        en_limbo &= Q(parent_contenedor__isnull=True)
+    return Q(ubicacion__isnull=True) | en_limbo
 
 
 def asegurar_ubicacion_limbo(estok_destino):

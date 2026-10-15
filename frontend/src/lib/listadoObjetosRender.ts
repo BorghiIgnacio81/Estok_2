@@ -34,6 +34,8 @@ import {
 } from './cajaOperativa';
 import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
+// Limbo de mudanza (Lote 28): única fuente del concepto en el cliente.
+import { esCajaEnLimbo } from './taxonomiaContenedor';
 
 // Re-export del contrato del payload y del escapador para los consumidores.
 export type { GrupoEstructura, NodoContenedor, ObjetoArbol, PayloadArbol } from './listadoObjetosPiezas';
@@ -85,10 +87,19 @@ export function declaradoNoMovible(nodo: NodoContenedor): boolean {
  * hijos es una ESTRUCTURA y vive en la SECCIÓN 3, no acá.
  */
 export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
-  return nodo.tipo_contenedor === 'CAJA'
-    && !esInmueble(nodo)
-    && !declaradoNoMovible(nodo)
-    && numerico(nodo.subcontenedores_count) === 0;
+  const cajaMovil = nodo.tipo_contenedor === 'CAJA' && !esInmueble(nodo);
+  if (!cajaMovil) return false;
+  // 🔓 RESCATE DE EMERGENCIA (Lote 28): una caja RAÍZ suelta y TERMINAL en el
+  // limbo de mudanza se lista SIEMPRE, aunque el flag `declarado_movible` haya
+  // quedado en False por una mudanza vieja. Es la ÚNICA vía para que el operador
+  // la vea, abra su modal de edición y le devuelva el flag de forma voluntaria.
+  // Espejo del canal de rescate del backend (`cajas_del_estok`); las piezas CON
+  // sub-divisiones se rescatan en la SECCIÓN 3 (`esMuebleMovil`), así que las
+  // dos secciones nunca muestran la misma pieza dos veces.
+  if (!nodo.parent_contenedor && esCajaEnLimbo(nodo)) {
+    return numerico(nodo.subcontenedores_count) === 0;
+  }
+  return !declaradoNoMovible(nodo) && numerico(nodo.subcontenedores_count) === 0;
 }
 
 /**
@@ -102,9 +113,13 @@ export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
 export function esMuebleMovil(nodo: NodoContenedor): boolean {
   const esTipoMueble = String(nodo.tipo_contenedor || '').toUpperCase() === 'MUEBLE_MOVIL';
   const esEstructuraIntermedia = numerico(nodo.subcontenedores_count) > 0;
-  return (esTipoMueble || esEstructuraIntermedia)
-    && !esInmueble(nodo)
-    && !declaradoNoMovible(nodo);
+  if ((!esTipoMueble && !esEstructuraIntermedia) || esInmueble(nodo)) return false;
+  // 🔓 RESCATE DE EMERGENCIA (Lote 28): estructura RAÍZ suelta en el limbo de
+  // mudanza —la contraparte NO terminal del rescate de la SECCIÓN 1— se lista
+  // aunque no esté declarada movible, para que el operador pueda verla,
+  // editarla y devolverle el flag. Espejo de `muebles_raiz_del_estok`.
+  if (!nodo.parent_contenedor && esCajaEnLimbo(nodo)) return true;
+  return !declaradoNoMovible(nodo);
 }
 
 // ---------------------------------------------------------------------------

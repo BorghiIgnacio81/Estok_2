@@ -9,9 +9,11 @@ ESTRICTA que alimenta `GET /api/contenedores/arbol/` (vista `/objetos`):
     `declarado_movible=True` que son MUEBLES MÓVILES (`tipo='MUEBLE_MOVIL'`) O
     ESPACIOS CONTENEDORES INTERMEDIOS que actúan como mueble (alojan
     sub-divisiones propias: «Baúl», «Cama Cucheta»), aunque su tipo sea CAJA.
-  - `cajas_del_estok` (SECCIÓN 1): SOLO bultos chicos TERMINALES
-    (`tipo='CAJA'`, `es_inmueble=False`, `declarado_movible=True` y SIN
-    sub-divisiones propias), a cualquier nivel (raíz o dentro de un mueble).
+  - `cajas_del_estok` (SECCIÓN 1): bultos chicos TERMINALES (`tipo='CAJA'`,
+    `es_inmueble=False`, `declarado_movible=True` y SIN sub-divisiones propias),
+    a cualquier nivel, MÁS el 🔓 RESCATE de emergencia de las cajas RAÍZ que
+    quedaron sueltas en el limbo de mudanza (Lote 28: sin declaración ni
+    terminalidad, para que el operador pueda verlas y recuperarlas).
   - `mapa_padres_del_estok`: 1 query liviana (id → parent_contenedor_id).
   - `objetos_del_estok`: 1 query de objetos activos con prefetch de fotos.
 
@@ -33,6 +35,7 @@ import re
 from django.db.models import Exists, OuterRef, Q
 
 from ..models import Contenedor, Objeto
+from .mudanza_service import q_limbo_de_mudanza
 from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
 
 
@@ -107,8 +110,9 @@ def muebles_raiz_del_estok(estok_id):
     """
     ESTRUCTURAS MÓVILES RAÍZ del Estok (SECCIÓN 3 · filtro ORM estricto).
 
-    Lista SOLO piezas RAÍZ con `es_inmueble=False` y `declarado_movible=True`
-    (REGLA A/B del Lote 24) que son:
+    Lista SOLO piezas RAÍZ con `es_inmueble=False` que además están DECLARADAS
+    movibles por el operador (REGLA A/B del Lote 24) —salvo el RESCATE de
+    emergencia del limbo (Lote 28), explicado más abajo— y que son:
       - MUEBLES MÓVILES por tipo (`tipo='MUEBLE_MOVIL'`), o
       - ESPACIOS CONTENEDORES INTERMEDIOS que actúan como mueble: piezas que
         alojan sub-divisiones propias (ej. «Baúl», «Cama Cucheta») aunque su
@@ -118,17 +122,26 @@ def muebles_raiz_del_estok(estok_id):
     (muebles fijos) quedan excluidos de raíz (por `parent_contenedor`/fijo).
     El filtro es ORM (no en memoria): PostgreSQL nunca devuelve filas fuera de
     la taxonomía.
+
+    🔒 LOTE 28 · VISIBILIDAD DEL LIMBO. Una estructura mudada entre Estoks
+    aterriza RAÍZ SUELTA en la habitación limbo «En Tránsito» (espacio VIRTUAL
+    del tablero de mudanzas, NO una habitación del plano). La tenencia se
+    resuelve con `q_limbo_de_mudanza` y se agrega el canal de RESCATE: una pieza
+    raíz en el limbo se lista aunque NO esté declarada movible, para que el
+    operador pueda verla y devolverle el flag. Su contraparte TERMINAL se
+    rescata en la SECCIÓN 1 (`cajas_del_estok`): las secciones nunca se
+    superponen.
     """
+    # TENENCIA: habitación física del Estok activo o limbo de mudanza (raíz).
+    tenencia = Q(ubicacion__estok_id=estok_id) | q_limbo_de_mudanza(estok_id)
+    # CANAL 1 · declaración explícita del operador (REGLA A).
+    declarada = Q(declarado_movible=True) & tenencia
+    # CANAL 2 · RESCATE: pieza RAÍZ suelta en el limbo (aunque no se declaró).
+    rescate = q_limbo_de_mudanza(estok_id)
     return (
         Contenedor.objects.select_related('ubicacion')
-        .filter(
-            ubicacion__estok_id=estok_id,
-            parent_contenedor__isnull=True,
-            es_inmueble=False,
-            # DECLARACIÓN EXPLÍCITA DEL OPERADOR: destildar «Declarar como Mueble
-            # Móvil / Objeto» (REGLA A) expulsa la pieza de la pantalla de objetos.
-            declarado_movible=True,
-        )
+        .filter(parent_contenedor__isnull=True, es_inmueble=False)
+        .filter(declarada | rescate)
         # REGLA B: mueble por tipo O espacio contenedor intermedio (con hijos).
         .filter(Q(tipo=TIPO_MUEBLE_MOVIL) | Q(_tiene_subdivisiones()))
         .order_by('ubicacion__nombre', 'nombre')
@@ -137,25 +150,46 @@ def muebles_raiz_del_estok(estok_id):
 
 def cajas_del_estok(estok_id):
     """
-    CAJAS TERMINALES del Estok (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO).
+    CAJAS DEL ESTOK (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO).
 
-    SOLO bultos chicos arrastrables: `tipo='CAJA'`, `es_inmueble=False`,
-    `declarado_movible=True` y SIN sub-divisiones propias. Una caja con hijos es
-    una ESTRUCTURA (va a la SECCIÓN 3 o es sub-división interna), nunca un bulto.
-    A cualquier nivel: raíz o guardada dentro de un ropero/archivador.
+    Bultos chicos arrastrables: `tipo='CAJA'`, `es_inmueble=False`,
+    `declarado_movible=True` y SIN sub-divisiones propias. A cualquier nivel:
+    raíz o guardada dentro de un ropero/archivador.
+
+    🔒 LOTE 28 · VISIBILIDAD DEL LIMBO. Una caja MUDADA entre Estoks aterriza en
+    la habitación limbo «En Tránsito» del inquilinato destino (o queda con
+    `ubicacion` nula) porque `Contenedor.ubicacion` es NOT NULL, y ese limbo es
+    un espacio VIRTUAL del tablero de mudanzas: NO es una habitación física del
+    plano. Al resolver la tenencia SOLO por `ubicacion__estok_id`, la pieza
+    quedaba fuera del listado —limbo invisible— y era imposible abrir su modal
+    de edición para recuperarla. El listado resuelve ahora DOS canales ORM:
+
+      CANAL 1 · caja móvil DECLARADA (`declarado_movible=True`, REGLA A/B) con
+      tenencia resuelta: habitación física del Estok activo o limbo (la
+      definición del limbo vive en `mudanza_service.q_limbo_de_mudanza`). Se
+      mantiene la exigencia de bulto TERMINAL: una caja con sub-divisiones
+      propias es una ESTRUCTURA, no un bulto arrastrable.
+
+      CANAL 2 · 🔓 RESCATE DE EMERGENCIA: caja RAÍZ suelta y TERMINAL en el
+      limbo (`parent_contenedor` nulo, sin sub-divisiones). Entra SIN exigir la
+      declaración de movilidad, porque es la ÚNICA vía para que el operador
+      vuelva a VERLA y le devuelva el flag `declarado_movible=True` de forma
+      voluntaria. Rompe el limbo de invisibilidad que dejó la mudanza (masiva o
+      individual): la mudanza valida la whitelist física `es_movible`, no el
+      disyuntor de arquitectura, así que una pieza NO declarada también puede
+      viajar. Las piezas CON sub-divisiones se rescatan en la SECCIÓN 3
+      (`muebles_raiz_del_estok`) para que ninguna sección se superponga.
     """
+    # TENENCIA: habitación física del Estok activo o limbo de mudanza (raíz).
+    tenencia = Q(ubicacion__estok_id=estok_id) | q_limbo_de_mudanza(estok_id)
+    # CANAL 1 · bulto DECLARADO y TERMINAL, con tenencia resuelta.
+    declarada = Q(declarado_movible=True) & ~Q(_tiene_subdivisiones()) & tenencia
+    # CANAL 2 · 🔓 RESCATE: caja RAÍZ TERMINAL en el limbo (aunque no se declaró).
+    rescate = q_limbo_de_mudanza(estok_id) & ~Q(_tiene_subdivisiones())
     return (
         Contenedor.objects.select_related('ubicacion')
-        .filter(
-            ubicacion__estok_id=estok_id,
-            tipo=TIPO_CAJA,
-            es_inmueble=False,
-            # DECLARACIÓN EXPLÍCITA (REGLA A): excluye de raíz la arquitectura del
-            # espacio (ej. «Escritorio Pintura») aunque su tipo inferido sea CAJA.
-            declarado_movible=True,
-        )
-        # BULTO TERMINAL: sin sub-divisiones propias (si las tuviera, es estructura).
-        .filter(~Q(_tiene_subdivisiones()))
+        .filter(tipo=TIPO_CAJA, es_inmueble=False)
+        .filter(declarada | rescate)
         .order_by('ubicacion__nombre', 'nombre')
     )
 
@@ -166,11 +200,17 @@ def mapa_padres_del_estok(estok_id):
     permite subir por la cadena de ancestros SIN devolver las sub-divisiones
     internas en el listado. Sirve para reasignar el inventario de una caja que
     vive dentro de una estantería a su Mueble Mayor raíz.
+
+    🔒 Lote 28: la tenencia incluye el LIMBO a cualquier nivel (`exigir_raiz
+    =False`), para que los objetos que viajaron DENTRO de una caja mudada
+    encuentren su contenedor en el mapa y NO se reporten como «contenedor
+    ausente» en la bandeja de sueltos.
     """
     return {
         str(cid): pid
         for cid, pid in Contenedor.objects.filter(
-            ubicacion__estok_id=estok_id,
+            Q(ubicacion__estok_id=estok_id)
+            | q_limbo_de_mudanza(estok_id, exigir_raiz=False),
         ).values_list('id', 'parent_contenedor_id')
     }
 

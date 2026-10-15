@@ -63,6 +63,44 @@ export interface PiezaTaxonomica {
   ui_height?: string | null;
 }
 
+// =============================================================================
+// LIMBO DE MUDANZA (Lote 28) · única fuente del concepto en el cliente
+// -----------------------------------------------------------------------------
+// La zona «En Tránsito» del tablero de mudanzas NO es un espacio físico del
+// plano: es la habitación VIRTUAL donde aterrizan las piezas que viajan entre
+// Estoks sin ubicación real (en el backend `Contenedor.ubicacion` es NOT NULL,
+// así que una caja mudada nunca queda con ubicación nula). Espejo exacto de
+// `NOMBRES_LIMBO` (inventario/services/mudanza_service.py).
+// =============================================================================
+
+/** Nombres vigentes de la habitación limbo de mudanza (actual + histórico). */
+export const NOMBRES_LIMBO: readonly string[] = ['En Tránsito', 'Zona de Mudanza'];
+
+/** ¿El rótulo de la habitación es el de la zona limbo de mudanza? */
+export function esHabitacionLimbo(nombre?: string | null): boolean {
+  return NOMBRES_LIMBO.includes(String(nombre ?? '').trim());
+}
+
+/** Procedencia espacial de un bulto: la aporta la API de contenedores. */
+export interface PiezaEnBandeja extends PiezaTaxonomica {
+  /** ID de la habitación que la aloja (`null` = limbo huérfano). */
+  ubicacion?: string | null;
+  /** Nombre de esa habitación (`null` = limbo huérfano). */
+  ubicacion_nombre?: string | null;
+}
+
+/**
+ * PIEZA EN EL LIMBO DE MUDANZA: sin habitación física real asignada.
+ *
+ * Una caja mudada entre Estoks aterriza en la habitación limbo «En Tránsito»
+ * (o queda huérfana con `ubicacion` nula), así que cada pantalla la trata como
+ * «suelta» y no como una pieza ubicada en un cuarto del plano.
+ */
+export function esCajaEnLimbo(pieza: PiezaEnBandeja | null | undefined): boolean {
+  if (pieza?.ubicacion == null) return true;
+  return esHabitacionLimbo(pieza.ubicacion_nombre);
+}
+
 /**
  * Tipo físico normalizado (mayúsculas) tolerando payloads legacy o parciales.
  *
@@ -201,12 +239,19 @@ export function tieneGeometriaDePlano(pieza: PiezaTaxonomica | null | undefined)
  * (estanterías, cajoneras), los muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE) y las
  * zonas geográficas de nivel superior («PC Setup», «Zona Indoor»).
  */
-export function esBultoMovibleDeBandeja(pieza: PiezaTaxonomica | null | undefined): boolean {
+export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined): boolean {
+  if (!esCajaMovil(pieza)) return false;
+  // 🔓 RESCATE DE EMERGENCIA (Lote 28): una caja RAÍZ suelta en el LIMBO de
+  // mudanza entra SIEMPRE —aunque `declarado_movible` esté en False por una
+  // mudanza vieja y aunque arrastre geometría residual del plano de origen—:
+  // es la única vía para que el operador la vea, la edite y le devuelva el flag.
+  // Espejo exacto del canal de rescate del backend
+  // (`api/viewsets/organizacion/filtros_bandeja.aplicar_filtro_bandeja`).
+  if (esCajaEnLimbo(pieza) && !pieza?.parent_contenedor) return true;
   // DECLARACIÓN EXPLÍCITA DEL OPERADOR (Lote 25 · default False): SOLO un True
   // voluntario del checkbox «Declarar como Mueble Móvil / Objeto» admite la
   // pieza. Ausencia/null/undefined se trata como arquitectura del espacio.
   if (pieza?.declarado_movible !== true) return false;
-  if (!esCajaMovil(pieza)) return false;
   if (tieneGeometriaDePlano(pieza)) return false;
   return Number(pieza?.subcontenedores_count ?? 0) === 0;
 }

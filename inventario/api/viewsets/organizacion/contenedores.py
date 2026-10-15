@@ -19,7 +19,6 @@ from django.db.models import Count, Q
 from ....models import Ubicacion, Contenedor, Objeto
 from ...paginacion import EstokPaginacion
 from ...serializers import ContenedorSerializer
-from ....services.mudanza_service import NOMBRES_LIMBO
 from ....services.taxonomia_contenedor import (
     TIPO_CAJA,
     TIPO_MUEBLE_MOVIL,
@@ -32,6 +31,7 @@ from ....services.taxonomia_contenedor import (
 from ..base import HasRolePermission
 from ..fusion_espacial import ids_del_grupo
 from .acciones_contenedor import AccionesContenedorMixin
+from .filtros_bandeja import aplicar_filtro_bandeja
 from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia
 
 
@@ -96,43 +96,13 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         # ------------------------------------------------------------------
         # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`)
         # ------------------------------------------------------------------
-        # ÚNICA autoridad de la regla de RECUPERABILIDAD de la canasta lateral:
-        # lista los bultos que el operador todavía tiene que reubicar.
-        #   1. Cajas SUELTAS: sin ubicación general (comportamiento base).
-        #   2. MÁS las que, estando ubicadas, arrastran la bandera nativa
-        #      `en_transito_interno=True` (guardadas dentro de un mueble sin
-        #      estante fino: reubicación urgente).
-        #   3. MÁS las que viven dentro de una UBICACIÓN o de un CONTENEDOR
-        #      declarado «Espacio Único» (bloque monolítico: no admiten casillero
-        #      fino, así que su contenido queda pendiente de reubicar).
-        #   4. MÁS las CAJAS MUDADAS «EN TRÁNSITO» (Lote 27): las que viajaron
-        #      entre Estoks y aterrizaron en la habitación limbo con
-        #      `parent_contenedor` nulo. Sin esta rama eran invisibles y el
-        #      operador no podía arrastrarlas al mapa nuevo.
-        # La PURGA ESTRICTA de arquitectura fija sigue vigente y es PREVIA: toda
-        # pieza con coordenadas propias en el plano (los «Espacios» de las
-        # habitaciones, las estanterías modeladas y los muebles encastrados en el
-        # lienzo) queda EXCLUIDA aunque cumpla alguna de las condiciones de arriba.
+        # ÚNICA autoridad de la regla: `aplicar_filtro_bandeja`
+        # (whitelist física + recuperabilidad declarada + purga de arquitectura
+        # fija + 🔓 RESCATE de las cajas mudadas al limbo, Lotes 27/28). La regla
+        # completa y su porqué viven documentados en `filtros_bandeja.py`.
         bandeja = self.request.query_params.get('bandeja')
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
-            qs = qs.filter(es_inmueble=False, tipo=TIPO_CAJA)
-            qs = qs.exclude(qe_geometria_de_plano())
-            # DECLARACIÓN EXPLÍCITA DEL OPERADOR: una pieza declarada como
-            # ARQUITECTURA del espacio (checkbox «Declarar como Mueble Móvil /
-            # Objeto» DESTILDADO) queda excluida de raíz de la canasta.
-            qs = qs.filter(declarado_movible=True)
-            qs = qs.filter(
-                Q(ubicacion__isnull=True)
-                | Q(en_transito_interno=True)
-                | Q(parent_contenedor__espacio_unico=True)
-                | Q(ubicacion__espacio_unico=True)
-                # 🔒 LOTE 27 · CAJAS MUDADAS «EN TRÁNSITO»: al viajar entre Estoks
-                # aterrizan en la habitación limbo (Contenedor.ubicacion es NOT
-                # NULL) con parent_contenedor nulo y en_transito_interno apagado,
-                # así que sin esta rama quedaban invisibles para la canasta y el
-                # operador no podía arrastrarlas al mapa nuevo.
-                | Q(parent_contenedor__isnull=True, ubicacion__nombre__in=NOMBRES_LIMBO)
-            )
+            qs = aplicar_filtro_bandeja(qs, estok_id)
 
         # Optimización de payload: en el listado, los conteos de sub-contenedores
         # y objetos activos se resuelven con UN solo COUNT agrupado por página

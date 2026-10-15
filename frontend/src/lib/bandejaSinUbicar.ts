@@ -15,7 +15,8 @@
 //
 // CONTENIDO (cascada movible en este orden secuencial EXACTO):
 //   1) Objetos sueltos      → sin ningún hogar espacial (huérfanos).
-//   2) Cajas sueltas        → cajas móviles sin ubicación general.
+//   2) Cajas sueltas        → cajas móviles sin ubicación general (incluye las
+//                             mudadas al limbo «En Tránsito», Lote 28).
 //   3) Objetos a reubicar   → objetos ubicados que requieren reubicación urgente.
 //   4) Cajas a reubicar     → cajas ubicadas que requieren reubicación urgente.
 //
@@ -25,9 +26,15 @@
 //   · MÁS los que, estando ubicados, arrastran `en_transito_interno = True`
 //     (guardados sin estante fino: reubicación urgente),
 //   · MÁS los que viven dentro de una ubicación o de un contenedor «Espacio
-//     Único» (bloque monolítico: no admiten casillero fino posible).
+//     Único» (bloque monolítico: no admiten casillero fino posible),
+//   · MÁS las CAJAS MUDADAS AL LIMBO (Lote 28): la mudanza inter-Estok deja la
+//     caja como RAÍZ SUELTA en la habitación limbo «En Tránsito» —espacio
+//     VIRTUAL del tablero, no un cuarto del plano—, así que entra por el canal
+//     de RESCATE sin exigir la declaración de movilidad ni la ausencia de
+//     geometría residual: tiene que poder verse, editarse y arrastrarse al
+//     plano nuevo. Se muestra en el grupo 2 · Cajas sueltas.
 // La resuelve `?bandeja=true` en el servidor
-// (viewsets/organizacion/contenedores.py y viewsets/objetos/base.py).
+// (viewsets/organizacion/filtros_bandeja.py y viewsets/objetos/base.py).
 //
 // PURGA INVENCIBLE DE ARQUITECTURA FIJA: la canasta NUNCA lista la arquitectura
 // clavada en el plano — habitaciones, «Espacios», estanterías y muebles con
@@ -44,36 +51,14 @@
 // Persistencia multi-tenant estricta: JWT + header X-Estok-Id (getAuthHeaders).
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { escapeHtml, toast } from './mapaJerarquico';
-import { esBultoMovibleDeBandeja, esCajaMovil } from './taxonomiaContenedor';
+import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
+import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
+import { esCajaEnLimbo, esCajaMovil } from './taxonomiaContenedor';
 
 const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
 const IMG_OBJETO = '/mueble.png';
-
-interface ContenedorBandeja {
-  id: string;
-  nombre: string;
-  tipo: string;
-  es_inmueble: boolean;
-  /** DECLARACIÓN EXPLÍCITA del operador: `false` = arquitectura, fuera de la canasta. */
-  declarado_movible: boolean;
-  /** Sub-divisiones propias: una caja con hijos es estructura, no bulto. */
-  subcontenedores_count: number;
-  ubicacion: string | null;
-  /** Geometría del plano: si tiene coordenadas propias es arquitectura fija. */
-  ui_left: string | null;
-  ui_top: string | null;
-  ui_height: string | null;
-}
-
-interface ObjetoBandeja {
-  id: string;
-  nombre: string;
-  contenedor: string | null;
-  ubicacion: string | null;
-  deleted_at: string | null;
-}
 
 /** Chip draggable de la bandeja (caja móvil u objeto terminal suelto). */
 interface ChipBandeja {
@@ -91,82 +76,19 @@ let objetos: ObjetoBandeja[] = [];
 let hosts: HTMLElement[] = [];
 
 // =============================================================================
-// HELPERS DE CARGA
-// =============================================================================
-
-async function fetchTodos(url: string): Promise<Record<string, unknown>[]> {
-  const todos: Record<string, unknown>[] = [];
-  let nextUrl: string | null = url;
-  while (nextUrl) {
-    const res = await fetch(nextUrl, { headers: getAuthHeaders() });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return todos;
-    }
-    if (!res.ok) return todos;
-    const data = await res.json();
-    todos.push(...(data.results || data));
-    nextUrl = normalizarUrlApi(data.next);
-  }
-  return todos;
-}
-
-function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
-  return {
-    id: String(c.id),
-    nombre: String(c.nombre || 'Contenedor'),
-    tipo: String(c.tipo || '').toUpperCase(),
-    es_inmueble: Boolean(c.es_inmueble),
-    // Lote 25 · default False: SOLO un True explícito cuenta como movible. Un
-    // valor ausente/null/undefined se trata como False (arquitectura). La purga
-    // por declaración explícita también se re-verifica en el cliente.
-    declarado_movible: c.declarado_movible === true,
-    subcontenedores_count: Number(c.subcontenedores_count) || 0,
-    ubicacion: c.ubicacion != null ? String(c.ubicacion) : null,
-    // Geometría del plano: la purga de arquitectura fija la necesita EN EL
-    // CLIENTE (`esBultoMovibleDeBandeja`), así que viaja normalizada.
-    ui_left: c.ui_left != null ? String(c.ui_left) : null,
-    ui_top: c.ui_top != null ? String(c.ui_top) : null,
-    ui_height: c.ui_height != null ? String(c.ui_height) : null,
-  };
-}
-
-function normalizarObjeto(o: Record<string, unknown>): ObjetoBandeja {
-  return {
-    id: String(o.id),
-    nombre: String(o.nombre || 'Objeto'),
-    contenedor: o.contenedor != null ? String(o.contenedor) : null,
-    ubicacion: o.ubicacion != null ? String(o.ubicacion) : null,
-    deleted_at: o.deleted_at != null ? String(o.deleted_at) : null,
-  };
-}
-
-// =============================================================================
 // CARGA + RENDER EN CASCADA (en TODOS los hosts activos)
 // =============================================================================
 
 async function cargar(): Promise<void> {
   if (!hosts.length) return;
   try {
-    const [contData, objData] = await Promise.all([
-      // CONSULTA DE LA CANASTA (PostgreSQL, autoridad única): el servidor aplica
-      // la whitelist física (CAJA no inmueble), la purga de arquitectura fija por
-      // geometría y la regla de RECUPERABILIDAD (sueltas + En Tránsito Interno +
-      // dentro de «Espacio Único»). Ver ContenedorViewSet.get_queryset.
-      fetchTodos(`${API_BASE_URL}/contenedores/?page_size=1000&bandeja=true`),
-      // Objetos: misma regla de recuperabilidad, resuelta en el ObjetoViewSet.
-      fetchTodos(`${API_BASE_URL}/objetos/?page_size=1000&bandeja=true`),
-    ]);
-    // PURGA ESTRUCTURAL EN EL CLIENTE (defensa en profundidad): una caja con
-    // sub-divisiones propias o con geometría de plano es estructura, no bulto.
-    contenedores = (contData as Record<string, unknown>[])
-      .map(normalizarContenedor)
-      .filter(esBultoMovibleDeBandeja);
-    // Los objetos ya vienen filtrados por el servidor (recuperabilidad estricta):
-    // acá sólo se descartan los registros borrados (soft-delete).
-    objetos = (objData as Record<string, unknown>[])
-      .map(normalizarObjeto)
-      .filter((o) => !o.deleted_at);
+    // La consulta, la normalización y la purga estructural viven en la capa de
+    // datos (`bandejaSinUbicarDatos.ts`): PostgreSQL es la autoridad de la regla
+    // de recuperabilidad (sueltas + En Tránsito Interno + «Espacio Único» +
+    // 🔓 RESCATE de las cajas mudadas al limbo, ver `filtros_bandeja.py`).
+    const datos = await cargarDatosBandeja();
+    contenedores = datos.contenedores;
+    objetos = datos.objetos;
   } catch {
     contenedores = [];
     objetos = [];
@@ -186,7 +108,9 @@ function chipContenedor(c: ContenedorBandeja): ChipBandeja {
     nombre: c.nombre,
     tipo: 'contenedor',
     img: IMG_CONTENEDOR_PEQUENO,
-    urgente: c.ubicacion != null,
+    // 🔴 Sólo si está ubicada de verdad: el LIMBO de mudanza no es una
+    // ubicación física (una caja mudada entra al grupo 2 · Cajas sueltas).
+    urgente: !esCajaEnLimbo(c),
   };
 }
 
@@ -201,8 +125,10 @@ function chipObjeto(o: ObjetoBandeja): ChipBandeja {
 }
 
 /**
- * Segmentos de la cascada en ORDEN EXACTO. `ubicacion` distingue los elementos
- * con hogar espacial (recuperables por reubicación) de los huérfanos («sueltos»).
+ * Segmentos de la cascada en ORDEN EXACTO. La HABITACIÓN LIMBO de mudanza
+ * (Lote 28) se resuelve con `esCajaEnLimbo`: una caja mudada entre Estoks no
+ * tiene cuarto físico, así que se lista como «suelta» (grupo 2) y NO como
+ * «a reubicar» (grupo 4), que es lo que permite volver a arrastrarla al plano.
  * El grupo de MUEBLES MÓVILES fue ELIMINADO por la purga estricta de nodos
  * jerárquicos: la canasta sólo muestra bultos movibles y objetos terminales.
  */
@@ -217,7 +143,10 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
     {
       clave: 'cajas-sueltas',
       titulo: '2 · Cajas sueltas',
-      chips: cajas.filter((c) => c.ubicacion == null).map(chipContenedor),
+      // 🔓 Lote 28 · RESCATE DEL LIMBO: la caja mudada entre Estoks no tiene
+      // habitación física (vive en la zona «En Tránsito»): es un bulto SUELTO
+      // recuperable, no una caja «a reubicar» con alerta.
+      chips: cajas.filter(esCajaEnLimbo).map(chipContenedor),
     },
     {
       clave: 'objetos-reubicar',
@@ -227,7 +156,7 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
     {
       clave: 'cajas-reubicar',
       titulo: '4 · Cajas a reubicar',
-      chips: cajas.filter((c) => c.ubicacion != null).map(chipContenedor),
+      chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor),
     },
   ];
 }
