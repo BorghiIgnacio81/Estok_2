@@ -20,15 +20,14 @@ import ErrorState from '../components/ErrorState.astro';
 import MinimapaRuta from '../components/MinimapaRuta.astro';
 // Botón "+" unificado: variante flotante móvil (sobre la bandeja inferior fija).
 import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
-// Canasta del CUADRANTE DERECHO (Lote 31 · punto 2): host de la canasta dentro
-// del cuadrante derecho del visor para el fin de cadena «Espacio Único».
+// Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2:
+// host + hoja de estilos dedicada de la canasta del fin de cadena.
 import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
 import '../styles/almacenamiento-controles.css';
 import '../styles/almacenamiento-carga-fina.css';
-// Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2.
 import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
@@ -180,9 +179,7 @@ import '../styles/almacenamiento-fuelle.css';
             <div id="listaContenedoresPanel" class="hidden mt-1 min-w-0"></div>
             <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>
 
-            <!-- CANASTA DEL CUADRANTE DERECHO (Lote 31 · punto 2): en el fin de
-                 cadena «Espacio Único» la canasta se integra a este cuadrante.
-                 Ver components/CanastaCuadranteDerecho.astro. -->
+            <!-- Canasta del cuadrante derecho («Espacio Único») · Lote 31. -->
             <CanastaCuadranteDerecho />
           </div>
         </div>
@@ -373,12 +370,6 @@ import '../styles/almacenamiento-fuelle.css';
     // portalesAlmacenamiento.ts → flujo izquierda ⟵ derecha + minimapas anidados.
     // modoLienzo.ts            → botones ✏️ Editar / 💾 Guardar (PUT ui_width/ui_height).
     // =========================================================================
-
-
-
-
-
-
 
     // =========================================================================
     // ARRANQUE DE MÓDULOS
