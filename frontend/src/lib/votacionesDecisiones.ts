@@ -17,6 +17,9 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+// Lote 31 · punto 1: las votaciones ACTIVAS/pendientes se leen arriba y las
+// resueltas/canceladas quedan relegadas al fondo (regla compartida y pura).
+import { ordenarVotaciones } from './decisionesOrden';
 
 // =============================================================================
 // TIPOS
@@ -121,7 +124,9 @@ async function cargarDatos(): Promise<void> {
       pedir<{ results?: UsuarioEstok[] } | UsuarioEstok[]>('/usuarios/'),
     ]);
 
-    estado.votaciones = pendientes.results || [];
+    // Orden del tablero: activas/pendientes primero (y entre ellas, las más
+    // cercanas a resolverse); resueltas/canceladas siempre al fondo.
+    estado.votaciones = ordenarVotaciones(pendientes.results || []);
     estado.usuarios = Array.isArray(usuarios) ? usuarios : usuarios.results || [];
 
     // Preselección: el voto propio ya emitido o la opción por defecto.

@@ -19,6 +19,7 @@ import { refrescarBotonesIA } from '../botonAutocompletarIA';
 import { ref, refOpcional } from '../dom';
 import { showToast } from '../toast';
 import { limpiarCamara, obtenerFotosObjeto } from './objetoCamara';
+import { camposClasificacionAlta, sincronizarClasificacionAlta } from './objetoClasificacionAlta';
 import { CLAVE_FORM, CLAVE_FOTO_LEGADA, CLAVE_FOTOS, mensajeError } from './objetoComunes';
 
 // --- Referencias al DOM (se resuelven en initObjetoFormCore) -----------------
@@ -89,6 +90,10 @@ function resetFormularioCompleto(): void {
     formulario.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach((el) => {
       (el as HTMLInputElement).checked = false;
     });
+    // Lote 31 · punto 4: el alta rápida (Caja / Mueble) desmarca sus casillas con
+    // las demás, pero su RESALTE es presentación propia del módulo: se re-sincroniza
+    // para que la próxima carga no muestre una clasificación ya descartada.
+    sincronizarClasificacionAlta();
     formulario.querySelectorAll('[aria-invalid="true"], .input-error').forEach((el) => {
       el.removeAttribute('aria-invalid');
       el.classList.remove('input-error');
@@ -179,6 +184,15 @@ async function enviarFormulario(e: Event): Promise<void> {
     // Dueño EXTERNO (no usuario de la plataforma): string plano de metadata.
     agregarSi('dueno_externo_nombre', formOriginal.get('dueno_externo_nombre'));
     agregarSi('beneficiario', formOriginal.get('beneficiario'));
+
+    // Lote 31 · punto 4 · ALTA RÁPIDA: clasificación OPCIONAL del objeto como
+    // Caja o Mueble elegida con los disyuntores de ClasificacionAltaRapida.astro.
+    // Se lee del DOM en este momento (sin estado duplicado) y viaja como
+    // `es_contenedor` + `especificaciones.alta_rapida`. Sin casilla marcada se
+    // envía `es_contenedor=false`: objeto simple, comportamiento histórico.
+    for (const [clave, valor] of Object.entries(camposClasificacionAlta())) {
+      formData.append(clave, valor);
+    }
 
     // Adjuntar TODAS las fotos acumuladas bajo la clave 'fotos' (multi-foto).
     for (const foto of obtenerFotosObjeto()) {

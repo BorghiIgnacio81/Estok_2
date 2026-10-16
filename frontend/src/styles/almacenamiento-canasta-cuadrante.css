@@ -1,0 +1,59 @@
+/* =============================================================================
+   ALMACENAMIENTO · CANASTA DEL CUADRANTE DERECHO (Lote 31 · punto 2)
+   -----------------------------------------------------------------------------
+   Cuando el nodo activo es un «Espacio Único» (ambiente sin muebles internos) la
+   canasta «🧺 Elementos por ubicar» se INTEGRA al cuadrante derecho del visor
+   (#canastaCuadranteDerecho, host alimentado por el MISMO módulo
+   lib/bandejaSinUbicar.ts) en lugar de quedar flotando al borde de la pantalla.
+   Así un espacio monolítico se lee con la MISMA consistencia que el lienzo
+   habitual: interior a la derecha y bultos recuperables al lado, listos para
+   arrastrar al bloque monolítico o a la grilla directa.
+   La canasta NUNCA desaparece (Lote 29): sólo se reubica, así que jamás hay dos
+   canastas visibles a la vez. En celulares (<768px) la canasta sigue siendo la
+   barra horizontal del pie, por eso las reglas viven en el media query de
+   escritorio.
+
+   Va SIN @layer a propósito (igual que portales-recursivos.css): las utilidades
+   de Tailwind viven en @layer utilities y el CSS sin capa les gana, que es lo que
+   permite pisar el `md:pr-80` reservado al panel flotante.
+   ============================================================================= */
+
+#canastaCuadranteDerecho {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  html.portales-canasta-cuadrante #canastaCuadranteDerecho {
+    display: block;
+    margin-top: 12px;
+    padding: 10px 12px 12px;
+    background: #fffbf5;
+    border: 1px solid #fed7aa;
+    border-radius: 14px;
+  }
+  /* El panel flotante lateral se reubica: nunca se muestran los dos a la vez. */
+  html.portales-canasta-cuadrante .bandeja-lateral {
+    display: none;
+  }
+  /* Sin panel lateral no hay ancho que reservar: el lienzo usa todo el contenedor. */
+  html.portales-canasta-cuadrante [data-estok-panel] {
+    padding-right: 0;
+  }
+}
+
+.canasta-cuadrante-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.canasta-cuadrante-hint {
+  margin: 6px 0 8px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: #9a3412;
+}
+.canasta-cuadrante-contenido {
+  max-height: 320px;
+  padding-bottom: 2px;
+}

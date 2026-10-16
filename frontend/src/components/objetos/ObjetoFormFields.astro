@@ -19,6 +19,7 @@
 import CategoriaCreator from '../CategoriaCreator.astro';
 import CapturaFotosCompacta from './CapturaFotosCompacta.astro';
 import AutocompletarIA from './AutocompletarIA.astro';
+import ClasificacionAltaRapida from './ClasificacionAltaRapida.astro';
 import MinimapaModuloUnificado from '../MinimapaModuloUnificado.astro';
 import LegadoTrazabilidad from './LegadoTrazabilidad.astro';
 
@@ -110,6 +111,14 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
           </div>
         </div>
       </div>
+
+      <!-- ============================================================================== -->
+      <!-- SECCION: CLASIFICACION RAPIDA (Lote 31 · punto 4)
+           Disyuntores opcionales y mutuamente excluyentes: el objeto puede nacer
+           clasificado como Caja o Mueble contenedor. Sin marcar nada se carga como
+           objeto simple (comportamiento histórico). -->
+      <!-- ============================================================================== -->
+      <ClasificacionAltaRapida />
 
       <!-- ============================================================================== -->
       <!-- SECCION: UBICACION DE ALMACENAMIENTO CON MINIMAPAS INTERACTIVOS -->

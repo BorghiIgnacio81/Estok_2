@@ -1,0 +1,85 @@
+---
+// =============================================================================
+// ALTA RÁPIDA · CLASIFICACIÓN OPCIONAL DEL OBJETO (Lote 31 · punto 4)
+// -----------------------------------------------------------------------------
+// Dos disyuntores OPCIONALES y mutuamente excluyentes para clasificar el objeto
+// en el mismo momento del alta:
+//   · 📦 Caja   → contenedor transportable (se muda con su contenido).
+//   · 🚪 Mueble → contenedor fijo del ambiente (estantería, armario, cómoda).
+//
+// Qué persiste (sin migraciones; ver lib/objetos/objetoClasificacionAlta.ts):
+//   · `es_contenedor = true` en Objeto.
+//   · `especificaciones.alta_rapida = 'caja' | 'mueble'` (JSON libre del objeto),
+//     que conserva la DISTINCIÓN elegida.
+// Sin ninguna casilla marcada el objeto se crea como objeto simple (comportamiento
+// histórico del alta, idéntico).
+//
+// El control NO lleva `name` a propósito: no viaja en el FormData del formulario
+// ni en la persistencia de sessionStorage. El módulo lee su estado del DOM en el
+// momento del envío (lib/objetos/objetoFormCore.ts → camposClasificacionAlta()).
+// =============================================================================
+
+export interface Props {
+  /** Texto de ayuda bajo los disyuntores. */
+  ayuda?: string;
+}
+
+const {
+  ayuda = 'Opcional: marcá una casilla para que el objeto nazca ya clasificado como Caja o Mueble contenedor. Sin marcar nada se carga como objeto simple.',
+} = Astro.props as Props;
+
+// Tarjetas de opción: UN solo bloque de marcado parametrizado para las dos
+// alternativas (evita duplicar HTML) — el data-* es el gancho de la lógica.
+const opciones = [
+  {
+    valor: 'caja',
+    icono: '📦',
+    titulo: 'Caja',
+    detalle: 'Contenedor transportable: se puede mudar con su contenido.',
+  },
+  {
+    valor: 'mueble',
+    icono: '🚪',
+    titulo: 'Mueble',
+    detalle: 'Contenedor fijo del ambiente: estantería, armario, cómoda.',
+  },
+];
+---
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <h2 class="text-lg font-semibold text-gray-900">Clasificación rápida</h2>
+    <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold">opcional</span>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {opciones.map((opcion) => (
+      <label
+        data-alta-opcion={opcion.valor}
+        class="flex items-start gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-orange-300 cursor-pointer transition-base"
+      >
+        <input
+          type="checkbox"
+          data-alta-clasificacion={opcion.valor}
+          class="mt-0.5 w-5 h-5 shrink-0 accent-orange-600 cursor-pointer"
+        />
+        <span class="min-w-0">
+          <span class="block text-sm font-semibold text-gray-900">{opcion.icono} {opcion.titulo}</span>
+          <span class="block text-xs text-gray-500">{opcion.detalle}</span>
+        </span>
+      </label>
+    ))}
+  </div>
+
+  <p class="mt-3 text-xs text-gray-500">{ayuda}</p>
+</div>
+
+<style is:global>
+  /* Resalte de la opción activa. En `is:global` a propósito: el MISMO control se
+     reusa en el tutorial de onboarding (paso 4), donde los estilos scoped de
+     Astro del componente no alcanzarían a las instancias ya montadas. */
+  [data-alta-opcion].alta-opcion-activa {
+    border-color: #f97316;
+    background-color: #fff7ed;
+  }
+</style>

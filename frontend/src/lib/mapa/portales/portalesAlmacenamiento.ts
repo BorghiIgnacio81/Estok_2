@@ -201,6 +201,26 @@ export function transicionar(): void {
   // para que no arrastre el estado del nivel anterior.
   document.body.classList.remove('portales-canasta-oculta');
   if (paneles.derecho === 'grillaObjetos') refrescarBandeja();
+  // ---------------------------------------------------------------------------
+  // LOTE 31 · PUNTO 2 · CANASTA DEL CUADRANTE DERECHO («Espacio Único»)
+  // ---------------------------------------------------------------------------
+  // En el fin de cadena la canasta no sólo sigue viva (Lote 29): se INTEGRA al
+  // cuadrante derecho del visor, junto al bloque monolítico y a la grilla directa
+  // de objetos, para que un ambiente sin muebles internos se lea con la MISMA
+  // consistencia que el lienzo habitual. La clase en <html> mueve la canasta al
+  // host `#canastaCuadranteDerecho` y libera el `md:pr-80` reservado al panel
+  // flotante (styles/almacenamiento-canasta-cuadrante.css): sigue habiendo UNA
+  // sola canasta en pantalla, nunca dos.
+  document.documentElement.classList.toggle(
+    'portales-canasta-cuadrante',
+    paneles.derecho === 'grillaObjetos',
+  );
+  // El host de la canasta del cuadrante se mantiene SIEMPRE último del cuadrante
+  // derecho: los hosts de portales se reinsertan con `appendChild` en cada nivel
+  // (moverPanel) y, sin este reordenamiento, la canasta quedaría por ENCIMA del
+  // bloque monolítico y de su grilla directa de objetos.
+  const hostCanastaCuadrante = el('canastaCuadranteDerecho');
+  if (hostCanastaCuadrante) slotDer()?.appendChild(hostCanastaCuadrante);
 }
 
 /** Habilita/oculta los botones de navegación según la profundidad activa. */

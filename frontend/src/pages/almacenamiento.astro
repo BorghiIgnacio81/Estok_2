@@ -20,11 +20,16 @@ import ErrorState from '../components/ErrorState.astro';
 import MinimapaRuta from '../components/MinimapaRuta.astro';
 // Botón "+" unificado: variante flotante móvil (sobre la bandeja inferior fija).
 import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
+// Canasta del CUADRANTE DERECHO (Lote 31 · punto 2): host de la canasta dentro
+// del cuadrante derecho del visor para el fin de cadena «Espacio Único».
+import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
 import '../styles/almacenamiento-controles.css';
 import '../styles/almacenamiento-carga-fina.css';
+// Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2.
+import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
@@ -174,6 +179,11 @@ import '../styles/almacenamiento-fuelle.css';
             <div id="listaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaContenedoresPanel" class="hidden mt-1 min-w-0"></div>
             <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>
+
+            <!-- CANASTA DEL CUADRANTE DERECHO (Lote 31 · punto 2): en el fin de
+                 cadena «Espacio Único» la canasta se integra a este cuadrante.
+                 Ver components/CanastaCuadranteDerecho.astro. -->
+            <CanastaCuadranteDerecho />
           </div>
         </div>
       </div>
@@ -377,6 +387,9 @@ import '../styles/almacenamiento-fuelle.css';
       contenedor: document.getElementById('bandejaContenido'),
       // Responsive dual: el MISMO módulo alimenta la barra horizontal del pie en celulares.
       contenedorMovil: document.getElementById('bandejaContenidoMovil'),
+      // Lote 31 · punto 2: y también el cuadrante derecho del visor cuando el
+      // nodo activo es un «Espacio Único» (ambiente sin muebles internos).
+      contenedorCuadrante: document.getElementById('canastaCuadranteContenido'),
     });
     initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });
     initMapaCasita({

@@ -1,0 +1,33 @@
+---
+// =============================================================================
+// CANASTA DEL CUADRANTE DERECHO (Lote 31 · punto 2)
+// -----------------------------------------------------------------------------
+// Host de la canasta «🧺 Elementos por ubicar» DENTRO del cuadrante derecho del
+// visor de Almacenamiento. En el fin de cadena «Espacio Único» (ambiente sin
+// muebles internos) la canasta se integra acá, junto al bloque monolítico y a la
+// grilla directa de objetos, para mantener la consistencia con el lienzo habitual.
+//
+// No agrega lógica: es un host MÁS del mismo módulo lib/bandejaSinUbicar.ts (la
+// regla de recuperabilidad sigue teniendo una sola autoridad en PostgreSQL con
+// `?bandeja=true`). Sigue habiendo UNA sola canasta en pantalla: el panel flotante
+// lateral se reubica acá, no se replica.
+//
+// Visibilidad: la gobierna la clase `portales-canasta-cuadrante` sobre <html>
+// (lib/mapa/portales/portalesAlmacenamiento.ts) y el estilo vive en
+// styles/almacenamiento-canasta-cuadrante.css.
+// =============================================================================
+---
+
+<aside id="canastaCuadranteDerecho"
+  aria-label="Canasta de bultos del Espacio Único (cuadrante derecho)">
+  <div class="canasta-cuadrante-cab">
+    <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
+    <span data-contador-bandeja class="bandeja-contador">0</span>
+  </div>
+  <p class="canasta-cuadrante-hint">
+    Cajas 📦 y objetos 🧸 recuperables. Arrastrá uno al bloque monolítico o a la
+    grilla de objetos de este espacio (o soltá uno acá para extraerlo de su
+    casillero).
+  </p>
+  <div id="canastaCuadranteContenido" class="bandeja-contenido canasta-cuadrante-contenido"></div>
+</aside>

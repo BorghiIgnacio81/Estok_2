@@ -33,6 +33,9 @@ import type { TiempoGracia } from './descarteGracia';
 import { abrirPublicarObjeto } from './publicarObjeto';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
+// Lote 31 · punto 1: dentro de cada grilla, los casos TODAVÍA ACTIVOS se leen
+// arriba y los ya CERRADOS (despachados / plazo vencido) quedan al fondo.
+import { ordenarGrupoDecisiones } from './decisionesOrden';
 
 /** Respuesta completa del tablero de la pestaña Decisiones. */
 interface PanelDecisiones {
@@ -153,8 +156,11 @@ export function avisoPanel(mensaje: string, exito = true): void {
 // -----------------------------------------------------------------------------
 
 function renderVender(panel: PanelDecisiones): void {
-  const sinPublicar = panel.vender_sin_publicar || [];
-  const publicados = panel.vender_publicados || [];
+  // Orden del tablero: los casos que todavía admiten acción (publicar) arriba;
+  // los ya despachados, al fondo. El bloque «Sin publicar» se lee antes que
+  // «Ya publicados» por markup de la página.
+  const sinPublicar = ordenarGrupoDecisiones(panel.vender_sin_publicar || [], 'vender');
+  const publicados = ordenarGrupoDecisiones(panel.vender_publicados || [], 'vender');
 
   const gridSinPublicar = el('venderSinPublicarGrid');
   if (gridSinPublicar) gridSinPublicar.innerHTML = sinPublicar.map(cardVender).join('');
@@ -240,7 +246,10 @@ function pieDespachoHtml(obj: ObjetoDecision): string {
 // -----------------------------------------------------------------------------
 
 function renderTirar(panel: PanelDecisiones): void {
-  const tirar = panel.tirar || [];
+  // Orden del tablero: primero los descartes con período de reclamo VIGENTE (el
+  // plazo que vence antes va más arriba); al fondo, los que ya vencieron y sólo
+  // esperan la baja física del Administrador.
+  const tirar = ordenarGrupoDecisiones(panel.tirar || [], 'tirar');
   const grid = el('tirarGrid');
   if (grid) grid.innerHTML = tirar.map(cardTirar).join('');
   el('tirarVacio')?.classList.toggle('hidden', tirar.length > 0);
@@ -296,7 +305,12 @@ function accionesDescarteHtml(obj: ObjetoDecision): string {
 // -----------------------------------------------------------------------------
 
 function renderConservar(panel: PanelDecisiones): void {
-  const objetos = [...(panel.conservar || []), ...(panel.en_mudanza || [])];
+  // Orden del tablero: los reclamados para mudanza (acción reciente del operador)
+  // se leen antes que el resto de la lista de protección.
+  const objetos = ordenarGrupoDecisiones(
+    [...(panel.conservar || []), ...(panel.en_mudanza || [])],
+    'conservar',
+  );
   const grid = el('conservarGrid');
   if (grid) grid.innerHTML = objetos.map(cardConservar).join('');
   el('conservarVacio')?.classList.toggle('hidden', objetos.length > 0);

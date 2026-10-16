@@ -1306,7 +1306,7 @@ export class AlmacenamientoBoard {
     form?.reset();
     this.precargarFoto(null);
     (document.getElementById('editarTitulo') as HTMLElement).textContent =
-      `➕ Crear espacio en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
+      `➕ Crear Caja en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
     (document.getElementById('editarTipo') as HTMLInputElement).value = 'contenedor';
     (document.getElementById('editarId') as HTMLInputElement).value = '';
     // Grilla interna del mueble (Filas × Columnas) con valores iniciales útiles.
@@ -1324,8 +1324,12 @@ export class AlmacenamientoBoard {
     // 🎒 DECLARACIÓN DE MOVILIDAD (Lote 26): el modal ya no la gestiona. La pieza
     // nace como ARQUITECTURA (default False del modelo) y el operador la declara
     // «Mueble Móvil / Objeto» en el disyuntor del panel, debajo de «Espacio Único».
+    // Lote 31 · punto 3 · ESTANDARIZACIÓN SEMÁNTICA: el botón que materializa el
+    // Contenedor (POST /api/contenedores/) se llama «Crear Caja» y ya no «Crear
+    // espacio»: «Espacio» es una sub-división estructural del cuarto («➕ Crear
+    // Espacio» del lienzo elástico) y esa ambigüedad confundía la interfaz.
     const saveText = document.getElementById('editarSaveText');
-    if (saveText) saveText.textContent = 'Crear espacio';
+    if (saveText) saveText.textContent = 'Crear Caja';
     const error = document.getElementById('editarFormError');
     if (error) error.classList.add('hidden');
     modal.classList.remove('hidden');
@@ -1391,14 +1395,14 @@ export class AlmacenamientoBoard {
         this.celdaCreacionPendiente = null;
         this.cerrarModal('editar');
         form.reset();
-        this.toast(`✅ Espacio «${nombre}» creado en F${pendiente.fila}·C${pendiente.col}.`);
+        this.toast(`✅ Caja «${nombre}» creada en F${pendiente.fila}·C${pendiente.col}.`);
         window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
       } else {
         const err = await res.json().catch(() => ({}));
         this.formError('editarFormError', this.extraerError(err));
       }
     } catch {
-      this.formError('editarFormError', 'Error de conexión al crear el espacio.');
+      this.formError('editarFormError', 'Error de conexión al crear la caja.');
     } finally {
       this.setGuardando('editar', false);
     }

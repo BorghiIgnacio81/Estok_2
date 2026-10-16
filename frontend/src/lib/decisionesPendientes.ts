@@ -33,6 +33,9 @@ import { tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import { solicitarDescarte } from './descarteModales';
 import { esErrorPermisoAjeno, ofrecerNotificarDueno } from './notificacionDueno';
+// Lote 31 · punto 1: los objetos todavía SIN decisión se leen arriba; los ya
+// decididos (si el endpoint devolviera alguno) caen al fondo de la grilla.
+import { ordenarPendientesDecision } from './decisionesOrden';
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -84,8 +87,8 @@ async function cargar(): Promise<void> {
   estado.error = null;
   render();
   try {
-    estado.objetos = await fetchTodos(
-      `${API_BASE_URL}/objetos/pendientes_decision/?page_size=1000`,
+    estado.objetos = ordenarPendientesDecision(
+      await fetchTodos(`${API_BASE_URL}/objetos/pendientes_decision/?page_size=1000`),
     );
     // Contexto geográfico (ubicaciones + contenedores + grilla del Estok) que
     // alimenta la mini-guía analítica de cada tarjeta. Idempotente.

@@ -1,7 +1,7 @@
 // =============================================================================
 // BANDEJA DE ELEMENTOS POR UBICAR (responsive híbrido dual Web ⇄ Móvil)
 // -----------------------------------------------------------------------------
-// Dos HOSTS, una única lógica:
+// TRES HOSTS, una única lógica:
 //
 //   · ESCRITORIO (md:block) → panel VERTICAL flotante anclado al lateral derecho
 //     de la pantalla de almacenamiento (`.bandeja-lateral`,
@@ -12,6 +12,13 @@
 //   · CELULARES (block md:hidden) → barra HORIZONTAL fija en el MARGEN INFERIOR
 //     (`#bandejaSinUbicarMovil`): el panel derecho flotante se APAGA por completo
 //     y la canasta viaja al pie de la página.
+//   · CUADRANTE DERECHO DEL VISOR (Lote 31 · punto 2) → en el fin de cadena
+//     «Espacio Único» (ambiente sin muebles internos) la canasta se INTEGRA al
+//     cuadrante derecho del visor (`#canastaCuadranteContenido`, dentro de
+//     `#contenidoPanelDerecho`) para mantener la consistencia con el lienzo
+//     habitual. Es EL MISMO módulo con un host más: sin lógica ni estado
+//     duplicado. La visibilidad la gobierna la clase `portales-canasta-cuadrante`
+//     sobre <html> (lib/mapa/portales/portalesAlmacenamiento.ts).
 //
 // CONTENIDO (cascada movible en este orden secuencial EXACTO):
 //   1) Objetos sueltos      → sin ningún hogar espacial (huérfanos).
@@ -326,8 +333,17 @@ export function initBandeja(opts: {
   contenedor?: HTMLElement | null;
   /** Host de la barra horizontal inferior (celulares). */
   contenedorMovil?: HTMLElement | null;
+  /**
+   * Host del CUADRANTE DERECHO del visor (Lote 31 · punto 2): la canasta se
+   * integra ahí cuando el nodo activo es un «Espacio Único» (sin muebles
+   * internos). Mismo módulo, un host más: la regla de recuperabilidad sigue
+   * teniendo UNA sola autoridad (PostgreSQL + `?bandeja=true`).
+   */
+  contenedorCuadrante?: HTMLElement | null;
 }): void {
-  hosts = [opts.contenedor, opts.contenedorMovil].filter((h): h is HTMLElement => Boolean(h));
+  hosts = [opts.contenedor, opts.contenedorMovil, opts.contenedorCuadrante].filter(
+    (h): h is HTMLElement => Boolean(h),
+  );
   if (!hosts.length) return;
   // Una sola vía de refresco: el latido global y el llamado explícito comparten
   // exactamente la misma puerta pública.
