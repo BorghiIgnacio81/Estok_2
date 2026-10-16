@@ -14,8 +14,10 @@ from .base import (
     uuid,
     timezone,
 )
+from .objeto_metodos import ObjetoMetodosMixin
+from .historial_precio import HistorialPrecio  # noqa: F401
 
-class Objeto(models.Model):
+class Objeto(ObjetoMetodosMixin, models.Model):
     """
     Única entidad de inventario.
     Clasificado exclusivamente por la FK `categoria`.
@@ -368,127 +370,3 @@ class Objeto(models.Model):
         verbose_name = "Objeto"
         verbose_name_plural = "Objetos"
         ordering = ['-fecha_registro']
-
-    def __str__(self):
-        return self.nombre
-
-    # ------------------------------------------------------------------
-    # CONSULTAS DE DESCARTE (derivadas, sin duplicar la lógica del service)
-    # ------------------------------------------------------------------
-    @property
-    def en_periodo_gracia(self):
-        """
-        True si hay orden de tirar y el plazo de reclamo TODAVÍA NO venció.
-
-        Es la condición que mantiene el objeto visible en el Bloque 4 y activa
-        el contador regresivo del Alerta Rojo del Bloque 2 del frontend.
-        """
-        if self.owner_action != 'tirar' or self.fecha_limite_descarte is None:
-            return False
-        return timezone.now() < self.fecha_limite_descarte
-
-    @property
-    def descarte_listo_para_ejecutar(self):
-        """
-        True si hay orden de tirar y ya se puede ejecutar el descarte FÍSICO.
-
-        Ocurre cuando no se fijó período de gracia (Estok de un solo usuario) o
-        cuando la fecha límite almacenada ya venció.
-        """
-        if self.owner_action != 'tirar':
-            return False
-        if self.fecha_limite_descarte is None:
-            return True
-        return timezone.now() >= self.fecha_limite_descarte
-
-    @property
-    def segundos_para_descarte(self):
-        """
-        Segundos restantes del período de gracia (None si no hay plazo activo).
-
-        El frontend lo usa como respaldo del contador regresivo cuando el reloj
-        del navegador está desfasado del servidor.
-        """
-        if not self.en_periodo_gracia:
-            return None
-        return int((self.fecha_limite_descarte - timezone.now()).total_seconds())
-
-    def delete(self, using=None, keep_parents=False):
-        """Soft delete: marca como eliminado en lugar de borrar."""
-        self.deleted_at = timezone.now()
-        self.save()
-
-    def hard_delete(self, using=None, keep_parents=False):
-        """Eliminación física real (uso con precaución)."""
-        super().delete(using=using, keep_parents=keep_parents)
-
-
-class HistorialPrecio(models.Model):
-    """
-    Registra cada cambio en el valor_estimado de un objeto.
-    Permite calcular plusvalía/depreciación para informes de seguros.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    objeto = models.ForeignKey(
-        'inventario.Objeto',
-        on_delete=models.CASCADE,
-        related_name='historial_precios',
-        verbose_name="Objeto"
-    )
-    valor_anterior = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Valor anterior (USD)"
-    )
-    valor_nuevo = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        verbose_name="Valor nuevo (USD)"
-    )
-    diferencia = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Diferencia (USD)"
-    )
-    porcentaje_cambio = models.DecimalField(
-        max_digits=6,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Porcentaje de cambio"
-    )
-    motivo = models.CharField(
-        max_length=200,
-        blank=True,
-        verbose_name="Motivo del cambio",
-        help_text="Ej: Revalorización, Depreciación, Actualización por IA, etc."
-    )
-    registrado_por = models.ForeignKey(
-        'inventario.CustomUser',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        verbose_name="Registrado por"
-    )
-    fecha_cambio = models.DateTimeField(auto_now_add=True, verbose_name="Fecha del cambio")
-
-    class Meta:
-        verbose_name = "Historial de precio"
-        verbose_name_plural = "Historial de precios"
-        ordering = ['-fecha_cambio']
-
-    def save(self, *args, **kwargs):
-        if self.valor_anterior is not None and self.valor_nuevo is not None:
-            self.diferencia = self.valor_nuevo - self.valor_anterior
-            if self.valor_anterior != 0:
-                self.porcentaje_cambio = (
-                    (self.valor_nuevo - self.valor_anterior) / self.valor_anterior
-                ) * 100
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.objeto.nombre}: ${self.valor_anterior} → ${self.valor_nuevo}"
