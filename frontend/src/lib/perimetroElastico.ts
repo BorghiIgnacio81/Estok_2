@@ -10,7 +10,13 @@
 import type { AdaptadorEspacios } from './lienzoElastico';
 import { toast } from './mapaJerarquico';
 import { guardadoEditor } from './debounceGuardado';
-import { contenerGestoTactil, crearPintorFrame, marcarInteraccionEditor } from './pintorFrame';
+import { iniciarBloqueoResize } from './bloqueoScrollGesto';
+import {
+  blindarTiradorTactil,
+  contenerGestoTactil,
+  crearPintorFrame,
+  marcarInteraccionEditor,
+} from './pintorFrame';
 
 /** Límites elásticos del perímetro (px): nunca colapsa ni se vuelve infinito. */
 export const PERIMETRO_MIN_ANCHO = 320;
@@ -326,6 +332,8 @@ async function persistirHijosRebasados(
  */
 export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
   opts.scope.querySelectorAll<HTMLElement>('[data-perimetro-resize]').forEach((handle) => {
+    // Blindaje táctil estricto: touchstart/touchmove no pasivos (iOS).
+    blindarTiradorTactil(handle);
     handle.addEventListener('pointerdown', (evDown) => {
       const e = evDown as PointerEvent;
       if (e.button !== 0) return;
@@ -334,6 +342,8 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
       // iOS Safari: el estirado del perímetro frena scroll/rebote desde el
       // primer contacto (el touch-action: none del CSS cubre el resto).
       contenerGestoTactil(e);
+      // isResizing: el documento queda 100% fijo hasta soltar el tirador.
+      const liberarBloqueo = iniciarBloqueoResize();
       const modo = handle.dataset.perimetroResize ?? 'ambos';
       const rect = lienzo.getBoundingClientRect();
       const marco = lienzo.parentElement?.getBoundingClientRect();
@@ -432,6 +442,8 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         handle.removeEventListener('pointercancel', alSoltar);
         pintor.cancelar();
         lienzo.classList.remove('pu-perimetro-redimensionando');
+        // isResizing OFF antes de cualquier retorno temprano.
+        liberarBloqueo();
         if (!movido) return;
         // Flush FINAL con la posición exacta del pointerup (consolidación LOCAL).
         if (ev.type === 'pointerup') {

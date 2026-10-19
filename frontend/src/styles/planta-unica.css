@@ -268,8 +268,12 @@
   width: 18px;
   height: 18px;
   cursor: nwse-resize;
+  /* Bloqueo ESTRICTO del gesto: iOS no interpreta el arrastre del tirador como
+     scroll de página ni pinch-to-zoom ni selección de texto. */
   touch-action: none;
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   overscroll-behavior: contain;
   z-index: 2;
 }
@@ -502,8 +506,11 @@
   width: 20px;
   height: 20px;
   cursor: nwse-resize;
+  /* Bloqueo ESTRICTO del gesto táctil (igual que .pu-resize). */
   touch-action: none;
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   overscroll-behavior: contain;
   z-index: 5;
 }

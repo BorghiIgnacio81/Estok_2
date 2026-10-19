@@ -14,6 +14,8 @@
 // en styles/planta-unica.css.
 // =============================================================================
 
+import { estaRedimensionando } from './bloqueoScrollGesto';
+
 /** Programador de pintado visual: máximo UNA actualización por frame. */
 export interface PintorFrame {
   /** Agenda el pintado para el próximo frame (llamadas repetidas se agrupan). */
@@ -51,6 +53,25 @@ export function contenerGestoTactil(ev: Event): void {
   ev.stopPropagation();
 }
 
+/** Listener táctil NO pasivo (obligatorio para poder llamar a preventDefault). */
+const TACTIL_NO_PASIVO: AddEventListenerOptions = { passive: false };
+
+/**
+ * Blindaje ESTRICTO de un tirador de tamaño (resize handle).
+ *
+ * `touch-action: none` del CSS es la primera barrera, pero algunos WebViews de
+ * iOS deciden el gesto nativo en `touchstart` ANTES de mirar el CSS. Este
+ * listener no pasivo mata el `touchstart`/`touchmove` en la fase de captura del
+ * propio asidero (`preventDefault` + `stopPropagation`), de modo que iOS jamás
+ * lo interpreta como scroll de página o pinch-to-zoom. Se registra UNA vez por
+ * tirador al conectar el motor (los asideros no usan `click`).
+ */
+export function blindarTiradorTactil(tirador: HTMLElement): void {
+  const frenar = (ev: Event): void => contenerGestoTactil(ev);
+  tirador.addEventListener('touchstart', frenar, TACTIL_NO_PASIVO);
+  tirador.addEventListener('touchmove', frenar, TACTIL_NO_PASIVO);
+}
+
 /**
  * Clases que el motor del lienzo agrega SOLO mientras hay un gesto de edición
  * en curso (arrastre / estirado de pieza / estirado del perímetro).
@@ -62,10 +83,12 @@ const SELECTOR_GESTO_ACTIVO =
  * ¿Hay un dedo arrastrando/estirando AHORA MISMO? Los refrescos pesados
  * (re-render del panel + re-lectura del padrón) deben esperar: si caen en medio
  * de un gesto, el navegador reemplaza el nodo bajo el dedo y la pantalla
- * "salta" en iOS Safari.
+ * "salta" en iOS Safari. La bandera `isResizing` cubre además la ventana en la
+ * que el bloqueo de scroll ya está activo aunque la clase de la tarjeta todavía
+ * no se haya pintado.
  */
 export function hayGestoActivo(): boolean {
-  return document.querySelector(SELECTOR_GESTO_ACTIVO) !== null;
+  return estaRedimensionando() || document.querySelector(SELECTOR_GESTO_ACTIVO) !== null;
 }
 
 // =============================================================================

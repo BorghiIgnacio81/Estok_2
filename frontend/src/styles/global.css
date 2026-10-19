@@ -117,6 +117,26 @@ html.is-standalone body {
   }
 }
 
+/* =============================================================================
+   BLOQUEO DEL DOCUMENTO DURANTE UNA REDIMENSIÓN (isResizing)
+   -----------------------------------------------------------------------------
+   `iniciarBloqueoResize()` (lib/bloqueoScrollGesto.ts) agrega esta clase en
+   <html> mientras el dedo está sobre un tirador de tamaño: la página queda
+   100% fija (sin scroll, rebote elástico ni pinch-zoom) hasta soltar. No se usa
+   `position: fixed` para no recolocar el documento al iniciar el gesto.
+   ============================================================================= */
+html.estok-resize-lock,
+html.estok-resize-lock body {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+html.estok-resize-lock body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* Scrollbar personalizada */
 ::-webkit-scrollbar {
   width: 8px;

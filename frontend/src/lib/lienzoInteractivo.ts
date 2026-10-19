@@ -14,7 +14,8 @@
 // nivel inyecta su callback y decide la geometría de su lienzo.
 // =============================================================================
 
-import { contenerGestoTactil, crearPintorFrame } from './pintorFrame';
+import { blindarTiradorTactil, contenerGestoTactil, crearPintorFrame } from './pintorFrame';
+import { iniciarBloqueoResize } from './bloqueoScrollGesto';
 
 export interface DimensionVisual {
   ui_width: string;
@@ -111,6 +112,9 @@ export function conectarResizeElastico(
     });
 
   scope.querySelectorAll<HTMLElement>('[data-inplace-resize]').forEach((tirador) => {
+    // Blindaje táctil del asidero: touchstart/touchmove no pasivos (iOS no lo
+    // interpreta como scroll de página ni pinch-to-zoom). Se registra una sola vez.
+    blindarTiradorTactil(tirador);
     tirador.addEventListener('pointerdown', (evDown) => {
       const de = evDown as PointerEvent;
       if (de.button !== 0) return;
@@ -120,6 +124,8 @@ export function conectarResizeElastico(
       if (!id) return;
       // iOS Safari: el gesto de estirado no debe activar scroll/rebote nativo.
       contenerGestoTactil(de);
+      // isResizing: el documento queda 100% fijo hasta soltar el tirador.
+      const liberarBloqueo = iniciarBloqueoResize();
       const marco = carta.parentElement ?? carta;
       const marcoRect = marco.getBoundingClientRect();
       const baseAncho = carta.getBoundingClientRect().width || 96;
@@ -162,6 +168,8 @@ export function conectarResizeElastico(
         tirador.removeEventListener('pointercancel', alSoltar);
         pintor.cancelar();
         carta.classList.remove('inplace-redimensionando');
+        // isResizing OFF: el documento vuelve a permitir scroll (sin salto).
+        liberarBloqueo();
         if (!arrastrado) return;
         // Flush FINAL: la dimensión definitiva se aplica antes del ÚNICO PUT.
         ultimaDim = calcular(ev);

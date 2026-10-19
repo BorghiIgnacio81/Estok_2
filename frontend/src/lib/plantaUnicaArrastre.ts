@@ -29,7 +29,9 @@ import {
 } from './lienzoCajas';
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
 import { crearNotificadorDebounced, guardadoEditor } from './debounceGuardado';
+import { iniciarBloqueoResize } from './bloqueoScrollGesto';
 import {
+  blindarTiradorTactil,
   contenerGestoTactil,
   crearPintorFrame,
   hayGestoActivo,
@@ -270,6 +272,8 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
   opts.scope
     .querySelectorAll<HTMLElement>('[data-libre-resize],[data-grupo-resize]')
     .forEach((handle) => {
+      // Blindaje táctil estricto del asidero (también en bloques fusionados).
+      blindarTiradorTactil(handle);
       handle.addEventListener('pointerdown', (evDown) => {
         const e = evDown as PointerEvent;
         if (e.button !== 0) return;
@@ -278,6 +282,8 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         if (!card || !lienzo) return;
         // iOS Safari: el estirado tampoco debe disparar el scroll nativo.
         contenerGestoTactil(e);
+        // isResizing: la página queda 100% fija (sin scroll/rebote) hasta soltar.
+        const liberarBloqueo = iniciarBloqueoResize();
         const rect = lienzo.getBoundingClientRect();
         const x0 = e.clientX;
         const y0 = e.clientY;
@@ -316,6 +322,8 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         seguirPuntero(enMovimiento, (ev) => {
           pintor.cancelar();
           card.classList.remove('pu-redimensionando');
+          // isResizing OFF antes de cualquier retorno temprano.
+          liberarBloqueo();
           if (cambio && ev.type === 'pointerup') {
             // Tamaño EXACTO del levantamiento del dedo.
             dW = ((ev.clientX - x0) / Math.max(1, rect.width)) * 100;

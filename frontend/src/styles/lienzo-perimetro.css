@@ -18,8 +18,12 @@
   display: none;
   position: absolute;
   z-index: 9;
+  /* Bloqueo ESTRICTO del gesto: el tirador nunca arrastra la página ni activa
+     el pinch-to-zoom ni la selección de texto en iOS. */
   touch-action: none;
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   overscroll-behavior: contain;
   background: transparent;
 }
