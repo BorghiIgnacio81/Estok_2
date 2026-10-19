@@ -30,6 +30,7 @@ import {
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
 import { crearNotificadorDebounced, guardadoEditor } from './debounceGuardado';
 import { iniciarBloqueoResize } from './bloqueoScrollGesto';
+import { preservarScrollAsync } from './scrollPreservado';
 import {
   blindarTiradorTactil,
   contenerGestoTactil,
@@ -223,8 +224,23 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
   });
 }
 
-/** PUT de la nueva POSICIÓN: recurso suelto o bloque fusionado atómico. */
+/**
+ * PUT de la nueva POSICIÓN: recurso suelto o bloque fusionado atómico.
+ *
+ * VIEWPORT CONGELADO: la respuesta del backend dispara el toast de éxito y el
+ * refresco diferido; ambos pueden repintar el panel y recolocar el scroll. Se
+ * captura la posición al iniciar el PUT y se reafirma al resolver (sin
+ * `focus()`, sin `scrollIntoView()`, sin animación).
+ */
 async function persistirMovimiento(
+  card: HTMLElement,
+  base: Caja,
+  opts: OpcionesPlantaUnica,
+): Promise<void> {
+  await preservarScrollAsync(() => persistirMovimientoAhora(card, base, opts));
+}
+
+async function persistirMovimientoAhora(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,
@@ -339,8 +355,19 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
     });
 }
 
-/** PUT del nuevo TAMAÑO: recurso suelto o bloque fusionado atómico. */
+/**
+ * PUT del nuevo TAMAÑO: recurso suelto o bloque fusionado atómico.
+ * VIEWPORT CONGELADO tras la respuesta de la API (ver `persistirMovimiento`).
+ */
 async function persistirTamano(
+  card: HTMLElement,
+  base: Caja,
+  opts: OpcionesPlantaUnica,
+): Promise<void> {
+  await preservarScrollAsync(() => persistirTamanoAhora(card, base, opts));
+}
+
+async function persistirTamanoAhora(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,

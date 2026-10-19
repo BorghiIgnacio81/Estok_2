@@ -16,6 +16,7 @@
 
 import { blindarTiradorTactil, contenerGestoTactil, crearPintorFrame } from './pintorFrame';
 import { iniciarBloqueoResize } from './bloqueoScrollGesto';
+import { reafirmarScroll } from './scrollPreservado';
 
 export interface DimensionVisual {
   ui_width: string;
@@ -173,11 +174,22 @@ export function conectarResizeElastico(
         if (!arrastrado) return;
         // Flush FINAL: la dimensión definitiva se aplica antes del ÚNICO PUT.
         ultimaDim = calcular(ev);
-        aplicarEstilo(carta, ultimaDim);
-        void opts.onConfirmar(id, {
-          ui_width: carta.style.width || ultimaDim.ui_width,
-          ui_height: carta.style.height || ultimaDim.ui_height,
-        });
+        const dimFinal = ultimaDim;
+        aplicarEstilo(carta, dimFinal);
+        // VIEWPORT CONGELADO tras la respuesta de la API: el toast de éxito y
+        // el refresco que dispara no deben mover la página ni un píxel.
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        void (async () => {
+          try {
+            await opts.onConfirmar(id, {
+              ui_width: carta.style.width || dimFinal.ui_width,
+              ui_height: carta.style.height || dimFinal.ui_height,
+            });
+          } finally {
+            reafirmarScroll(scrollX, scrollY);
+          }
+        })();
       };
 
       tirador.addEventListener('pointermove', enMovimiento);

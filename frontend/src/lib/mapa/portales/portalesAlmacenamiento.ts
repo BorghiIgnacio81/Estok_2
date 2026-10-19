@@ -14,6 +14,7 @@
 // =============================================================================
 
 import { aplicarModo } from '../../modoLienzo';
+import { preservarScrollAsync } from '../../scrollPreservado';
 import { renderMinimapasAnidados } from '../../minimapasAnidados';
 import type { NodoRuta } from '../../minimapasAnidados';
 import { sectoresDeItems } from '../../sectoresMinimapa';
@@ -345,6 +346,14 @@ function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
  */
 export async function refrescarNivel(): Promise<void> {
   if (refrescando) return;
+  // VIEWPORT CONGELADO: `refrescarNivel` se dispara con la respuesta de la API
+  // (latido `estok:espacios-cambiados`) y repinta ambos paneles por innerHTML.
+  // Se captura el scroll al entrar y se reafirma al terminar, para que el toast
+  // de éxito y el re-render no muevan la página ni un píxel.
+  await preservarScrollAsync(refrescarNivelInterno);
+}
+
+async function refrescarNivelInterno(): Promise<void> {
   refrescando = true;
   try {
     const nodo = nodoActual();

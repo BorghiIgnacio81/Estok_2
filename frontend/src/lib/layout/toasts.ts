@@ -5,7 +5,9 @@
 // =============================================================================
 
 
-const toastContainer = document.getElementById('toastContainer')!;
+import { contenedorToastFijo } from '../toastFijo';
+
+
 let toastCount = 0;
 
 
@@ -24,9 +26,13 @@ let toastCount = 0;
   };
 
   export function showToast(message: string, type: string = 'info', duration: number = 4000): string {
+    // Contenedor FIJO (in-line position:fixed / z-index 9999 / pointer-events
+    // none): la alerta no participa del flujo ni altera el layout del editor.
+    const toastContainer = contenedorToastFijo('toastContainer', 'superior-derecha');
     const id = `toast-${++toastCount}`;
     const toast = document.createElement('div');
     toast.id = id;
+    toast.setAttribute('role', 'status');
     toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${TOAST_COLORS[type] || TOAST_COLORS.info} transform translate-x-full opacity-0 transition-all duration-300 ease-out max-w-sm`;
     toast.innerHTML = `
       <span class="flex-shrink-0">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>

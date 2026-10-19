@@ -24,15 +24,6 @@
   background-color: rgba(219, 234, 254, 0.55) !important;
 }
 
-@keyframes dndFadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.dnd-toast {
-  animation: dndFadeIn 0.2s ease-out;
-}
-
 /* ---------------------------------------------------------------------------
    Visor de Habitación - estado inicial: TARJETAS unificadas de las plantas
    ("Planta Alta" y "Planta Baja") en paralelo. Cada tarjeta la dibuja el

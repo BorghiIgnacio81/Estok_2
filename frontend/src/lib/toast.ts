@@ -7,9 +7,17 @@
 // fallback en las páginas ni en los módulos de comportamiento.
 // =============================================================================
 
+import { contenedorToastFijo, mostrarToastFijo } from './toastFijo';
+
 export type TipoToast = 'success' | 'error' | 'info' | 'warning';
 
-/** Muestra una notificación efímera (delega en el toast global del layout). */
+/**
+ * Muestra una notificación efímera (delega en el toast global del layout).
+ *
+ * El fallback también usa el contenedor FIJO compartido: `position: fixed`,
+ * `z-index: 9999` y `pointer-events: none` inline. Mostrar u ocultar la alerta
+ * no altera el layout ni desplaza el viewport.
+ */
 export function showToast(message: string, type: TipoToast = 'success'): void {
   const globalFn = (window as any).showToast;
   if (typeof globalFn === 'function') {
@@ -17,19 +25,14 @@ export function showToast(message: string, type: TipoToast = 'success'): void {
     return;
   }
 
-  // Fallback si BaseLayout no cargó (no debería ocurrir)
-  const previous = document.getElementById('formToast');
-  if (previous) previous.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'formToast';
+  // Fallback si BaseLayout no cargó (no debería ocurrir).
+  const cont = contenedorToastFijo('formToast', 'superior-derecha');
+  cont.replaceChildren();
   const colorFondo =
     type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-amber-500' : 'bg-green-600';
-  toast.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm transition-all duration-300 ${colorFondo}`;
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+  mostrarToastFijo(cont, message, {
+    claseMensaje: `px-6 py-3 rounded-lg shadow-lg text-white font-medium text-sm ${colorFondo}`,
+    duracionMs: 4000,
+  });
 }
+

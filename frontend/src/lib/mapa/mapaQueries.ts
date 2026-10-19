@@ -12,6 +12,7 @@
 // =============================================================================
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../../services/auth';
+import { contenedorToastFijo, mostrarToastFijo } from '../toastFijo';
 
 // =============================================================================
 // CONSTANTES
@@ -94,22 +95,20 @@ function entero(v: unknown, def: number): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : def;
 }
 
+/**
+ * Notificación efímera del editor de espacios.
+ *
+ * ZERO LAYOUT SHIFT: el contenedor es `position: fixed` con `z-index: 9999` y
+ * `pointer-events: none` (ver lib/toastFijo.ts). Vive en <body> y queda FUERA
+ * del flujo, así que mostrarlo o quitarlo no cambia el alto/ancho del lienzo ni
+ * mueve el scroll de la página. No enfoca ni desplaza nada.
+ */
 export function toast(mensaje: string): void {
-  let cont = document.getElementById('mapaJerarquicoToast');
-  if (!cont) {
-    cont = document.createElement('div');
-    cont.id = 'mapaJerarquicoToast';
-    cont.className = 'fixed bottom-6 right-6 z-[100] space-y-2 max-w-sm';
-    document.body.appendChild(cont);
-  }
-  const el = document.createElement('div');
-  el.className = 'bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg border border-gray-700';
-  el.textContent = mensaje;
-  cont.appendChild(el);
-  setTimeout(() => {
-    el.classList.add('opacity-0', 'transition-opacity', 'duration-300');
-    setTimeout(() => el.remove(), 350);
-  }, 2600);
+  const cont = contenedorToastFijo('mapaJerarquicoToast', 'inferior-derecha');
+  mostrarToastFijo(cont, mensaje, {
+    claseMensaje:
+      'bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg border border-gray-700',
+  });
 }
 
 // =============================================================================

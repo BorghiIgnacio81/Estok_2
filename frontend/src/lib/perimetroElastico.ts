@@ -11,6 +11,7 @@ import type { AdaptadorEspacios } from './lienzoElastico';
 import { toast } from './mapaJerarquico';
 import { guardadoEditor } from './debounceGuardado';
 import { iniciarBloqueoResize } from './bloqueoScrollGesto';
+import { preservarScrollAsync } from './scrollPreservado';
 import {
   blindarTiradorTactil,
   contenerGestoTactil,
@@ -420,21 +421,25 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
        * rebase de las tarjetas YA quedaron aplicados localmente, así que la red
        * no viaja en el mismo frame del pointerup: si el operador encadena otro
        * gesto, el lote se reprograma y se envía una sola vez.
+       *
+       * VIEWPORT CONGELADO: la respuesta del backend (toast + refresco diferido)
+       * no debe mover el scroll de la página.
        */
-      const guardarGesto = async (): Promise<void> => {
-        const ok = await persistirMedida(opts, medida);
-        if (!ok) {
-          aplicarMedida(lienzo, base);
-          tarjetas.forEach((t) => restaurarTarjeta(t));
-          toast('❌ No se pudo guardar el tamaño del plano. Volvió al anterior.');
-          return;
-        }
-        // La geometría rebasada se persiste para que el re-render de la pantalla
-        // (que relee del backend) conserve EXACTAMENTE lo modelado, sin deformar.
-        await persistirHijosRebasados(opts, resultado);
-        toast(`📐 Plano redimensionado a ${medida.ancho} × ${medida.alto} px.`);
-        opts.alGuardar?.();
-      };
+      const guardarGesto = (): Promise<void> =>
+        preservarScrollAsync(async () => {
+          const ok = await persistirMedida(opts, medida);
+          if (!ok) {
+            aplicarMedida(lienzo, base);
+            tarjetas.forEach((t) => restaurarTarjeta(t));
+            toast('❌ No se pudo guardar el tamaño del plano. Volvió al anterior.');
+            return;
+          }
+          // La geometría rebasada se persiste para que el re-render de la pantalla
+          // (que relee del backend) conserve EXACTAMENTE lo modelado, sin deformar.
+          await persistirHijosRebasados(opts, resultado);
+          toast(`📐 Plano redimensionado a ${medida.ancho} × ${medida.alto} px.`);
+          opts.alGuardar?.();
+        });
 
       const alSoltar = (ev: PointerEvent): void => {
         handle.removeEventListener('pointermove', enMovimiento);

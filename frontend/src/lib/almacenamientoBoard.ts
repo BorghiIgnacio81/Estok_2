@@ -22,7 +22,7 @@
 // =============================================================================
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../services/auth';
-import { minimapaPlantaHtml, minimapaInternoHtml } from './mapaJerarquico';
+import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -1606,21 +1606,10 @@ export class AlmacenamientoBoard {
   // ---------------------------------------------------------------------------
 
   private toast(mensaje: string): void {
-    let cont = document.getElementById('dnd-toast');
-    if (!cont) {
-      cont = document.createElement('div');
-      cont.id = 'dnd-toast';
-      cont.className = 'fixed bottom-6 right-6 z-[100] space-y-2 max-w-sm';
-      document.body.appendChild(cont);
-    }
-    const el = document.createElement('div');
-    el.className = 'dnd-toast bg-gray-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg border border-gray-700';
-    el.textContent = mensaje;
-    cont.appendChild(el);
-    setTimeout(() => {
-      el.classList.add('opacity-0', 'transition-opacity', 'duration-300');
-      setTimeout(() => el.remove(), 350);
-    }, 2600);
+    // ÚNICA implementación (lib/mapa/mapaQueries.ts → lib/toastFijo.ts):
+    // contenedor position:fixed, z-index 9999 y pointer-events:none → la alerta
+    // no altera el layout ni mueve el scroll de la página.
+    toastFijo(mensaje);
   }
 
   // ---------------------------------------------------------------------------
