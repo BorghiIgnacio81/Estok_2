@@ -414,6 +414,10 @@
   cursor: text;
   border-radius: 6px;
   padding: 1px 4px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   transition: background 0.12s ease, box-shadow 0.12s ease;
 }
 
@@ -435,6 +439,11 @@
   border: 1px solid #f97316;
   border-radius: 6px;
   outline: none;
+  /* El input SÍ debe permitir seleccionar/editar el texto en iOS aunque la
+     tarjeta contenedora bloquee la selección para el arrastre. */
+  touch-action: manipulation;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .casita-resize {

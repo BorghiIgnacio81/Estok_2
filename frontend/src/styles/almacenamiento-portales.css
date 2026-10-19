@@ -190,10 +190,26 @@ body.modo-navegacion [data-inplace-renombrar] {
 body.modo-navegacion [data-libre-drag],
 body.modo-navegacion [data-inplace-card] {
   cursor: pointer;
+  /* En navegación el toque NO edita: se permite scrollear la página. */
+  touch-action: pan-y;
 }
 body.modo-edicion [data-libre-drag],
 body.modo-edicion [data-inplace-card] {
   cursor: grab;
+  /* iOS Safari: el dedo que mueve un espacio no arrastra la página ni activa
+     el rebote elástico (rubber-band) ni la selección de texto. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: contain;
+}
+/* Controles internos de la tarjeta: un toque actúa, no inicia arrastre. */
+body.modo-edicion [data-inplace-renombrar],
+body.modo-edicion [data-fusion-check],
+body.modo-edicion [data-eliminar-item],
+body.modo-edicion [data-eliminar-grupo] {
+  touch-action: manipulation;
 }
 
 /* ---------------------------------------------------------------------------

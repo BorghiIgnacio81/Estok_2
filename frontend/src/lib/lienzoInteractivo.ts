@@ -14,6 +14,8 @@
 // nivel inyecta su callback y decide la geometría de su lienzo.
 // =============================================================================
 
+import { contenerGestoTactil, crearPintorFrame } from './pintorFrame';
+
 export interface DimensionVisual {
   ui_width: string;
   ui_height: string;
@@ -43,7 +45,9 @@ export function conectarRenombradoEnVivo(
       input.className = 'inplace-input-nombre';
       etiqueta.textContent = '';
       etiqueta.appendChild(input);
-      input.focus();
+      // preventScroll: iOS Safari no debe desplazar la página al abrir el
+      // teclado virtual (el lienzo se quedaría "saltando" bajo el dedo).
+      input.focus({ preventScroll: true });
       input.select();
 
       const restaurar = (): void => {
@@ -114,8 +118,8 @@ export function conectarResizeElastico(
       if (!carta) return;
       const id = carta.dataset.id ?? '';
       if (!id) return;
-      evDown.preventDefault();
-      evDown.stopPropagation();
+      // iOS Safari: el gesto de estirado no debe activar scroll/rebote nativo.
+      contenerGestoTactil(de);
       const marco = carta.parentElement ?? carta;
       const marcoRect = marco.getBoundingClientRect();
       const baseAncho = carta.getBoundingClientRect().width || 96;
@@ -123,6 +127,9 @@ export function conectarResizeElastico(
       const x0 = de.clientX;
       const y0 = de.clientY;
       let arrastrado = false;
+      // Última dimensión calculada (referencia LOCAL del gesto): se pinta como
+      // máximo una vez por frame y se confirma en el DOM al soltar el puntero.
+      let ultimaDim: DimensionVisual | null = null;
       carta.classList.add('inplace-redimensionando');
       try {
         tirador.setPointerCapture(de.pointerId);
@@ -138,22 +145,30 @@ export function conectarResizeElastico(
         return { ui_width: `${Math.round(pct)}%`, ui_height: `${Math.round(altoPx)}px` };
       };
 
+      const pintor = crearPintorFrame(() => {
+        if (ultimaDim) aplicarEstilo(carta, ultimaDim);
+      });
+
       const enMovimiento = (ev: PointerEvent): void => {
-        ev.preventDefault();
+        contenerGestoTactil(ev);
         arrastrado = true;
-        aplicarEstilo(carta, calcular(ev));
+        ultimaDim = calcular(ev);
+        pintor.programar();
       };
 
       const alSoltar = (ev: PointerEvent): void => {
         tirador.removeEventListener('pointermove', enMovimiento);
         tirador.removeEventListener('pointerup', alSoltar);
         tirador.removeEventListener('pointercancel', alSoltar);
+        pintor.cancelar();
         carta.classList.remove('inplace-redimensionando');
         if (!arrastrado) return;
-        const dim = calcular(ev);
+        // Flush FINAL: la dimensión definitiva se aplica antes del ÚNICO PUT.
+        ultimaDim = calcular(ev);
+        aplicarEstilo(carta, ultimaDim);
         void opts.onConfirmar(id, {
-          ui_width: carta.style.width || dim.ui_width,
-          ui_height: carta.style.height || dim.ui_height,
+          ui_width: carta.style.width || ultimaDim.ui_width,
+          ui_height: carta.style.height || ultimaDim.ui_height,
         });
       };
 

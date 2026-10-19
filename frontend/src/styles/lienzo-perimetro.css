@@ -19,6 +19,8 @@
   position: absolute;
   z-index: 9;
   touch-action: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: contain;
   background: transparent;
 }
 

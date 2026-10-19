@@ -16,7 +16,20 @@
 /** Reafirma el scroll en `(x, y)` ahora y en los frames siguientes del re-flow. */
 export function reafirmarScroll(x: number, y: number): void {
   const aplicar = (): void => {
-    if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+    if (window.scrollX === x && window.scrollY === y) return;
+    // `instant` ANULA el `scroll-behavior: smooth` global (styles/global.css):
+    // sin animación el re-render no produce la "vibración" que en iOS Safari
+    // se percibía al encadenar varios gestos de edición.
+    try {
+      window.scrollTo({ left: x, top: y, behavior: 'instant' });
+    } catch {
+      // Navegadores viejos sin `behavior: instant`: se anula el smooth inline.
+      const raiz = document.documentElement;
+      const previo = raiz.style.scrollBehavior;
+      raiz.style.scrollBehavior = 'auto';
+      window.scrollTo(x, y);
+      raiz.style.scrollBehavior = previo;
+    }
   };
   aplicar();
   requestAnimationFrame(aplicar);

@@ -21,6 +21,7 @@ import { partesTrasEscalar, partesTrasMover } from './plantaUnicaGrupo';
 import { acotar, aplicarCaja, esGrupo, leerCaja, pct } from './lienzoCajas';
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
 import { crearGuardadoProgramado, crearNotificadorDebounced } from './debounceGuardado';
+import { contenerGestoTactil, crearPintorFrame, hayGestoActivo } from './pintorFrame';
 
 // =============================================================================
 // CONTRATO COMPARTIDO CON EL ORQUESTADOR (plantaUnicaInteractivo.ts)
@@ -62,13 +63,18 @@ function lienzoDe(card: HTMLElement): HTMLElement | null {
  * Sigue el gesto en `window`: el arrastre funciona aunque la tarjeta del bloque
  * fusionado no capture el puntero (su marco transparente deja pasar el clic a
  * los ambientes vecinos) y aunque el puntero salga del lienzo.
+ * Al soltar se entrega el evento: el motor puede volcar la posición EXACTA del
+ * `pointerup` antes del único PUT (el `pointercancel` reutiliza la última).
  */
-function seguirPuntero(alMover: (m: PointerEvent) => void, alSoltar: () => void): void {
-  const soltar = (): void => {
+function seguirPuntero(
+  alMover: (m: PointerEvent) => void,
+  alSoltar: (ev: PointerEvent) => void,
+): void {
+  const soltar = (ev: PointerEvent): void => {
     window.removeEventListener('pointermove', alMover);
     window.removeEventListener('pointerup', soltar);
     window.removeEventListener('pointercancel', soltar);
-    alSoltar();
+    alSoltar(ev);
   };
   window.addEventListener('pointermove', alMover);
   window.addEventListener('pointerup', soltar);
@@ -92,7 +98,18 @@ const notificarDebounced = crearNotificadorDebounced();
 
 /** Avisa del cambio al consumidor agrupando ráfagas de gestos. */
 function notificarCambios(opts: OpcionesPlantaUnica): void {
-  notificarDebounced(opts.notificarCambios);
+  const avisar = (): void => {
+    // El refresco pesado (re-render de la cascada) JAMÁS debe caer en medio de
+    // un gesto: si el operador ya empezó a arrastrar otra pieza, se reprograma
+    // para cuando el dedo se levante. En iOS Safari ese re-render reemplazaba
+    // el nodo bajo el dedo y se percibía como un salto/vibración de pantalla.
+    if (hayGestoActivo()) {
+      notificarDebounced(avisar);
+      return;
+    }
+    opts.notificarCambios();
+  };
+  notificarDebounced(avisar);
 }
 
 // =============================================================================
@@ -108,12 +125,19 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       if (objetivo?.closest(CONTROLES)) return;
       const lienzo = lienzoDe(card);
       if (!lienzo) return;
-      e.preventDefault();
+      // iOS Safari: frena scroll/rebote/selección desde el primer contacto, no
+      // recién cuando el dedo ya se movió (ahí el navegador ya tomó el gesto).
+      contenerGestoTactil(e);
       const rect = lienzo.getBoundingClientRect();
       const x0 = e.clientX;
       const y0 = e.clientY;
       const base = leerCaja(card);
       let movido = false;
+      // Referencias LOCALES del gesto: la geometría se calcula acá y se pinta
+      // como máximo una vez por frame; el estado definitivo se vuelca al DOM y
+      // se persiste recién en pointerup (un único PUT consolidado).
+      let dL = 0;
+      let dT = 0;
       card.classList.add('pu-arrastrando');
       // DEBOUNCE ANTI-LAG · 500 ms: el arrastre corre a 60 FPS en el CLIENTE y la
       // persistencia se AGENDA (el reloj se reinicia en cada píxel). Mientras el
@@ -122,26 +146,40 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       // final: un único guardado consolidado hacia la API de Django.
       const guardado = crearGuardadoProgramado(() => persistirMovimiento(card, base, opts, true));
 
-      const enMovimiento = (m: PointerEvent): void => {
-        const dL = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
-        const dT = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
-        if (!movido && Math.abs(dL) < 0.1 && Math.abs(dT) < 0.1) return; // clic simple
-        m.preventDefault();
-        movido = true;
+      const cajaActual = (): Caja => ({
         // Libertad total: solo se respetan los muros del recuadro amarillo.
-        aplicarCaja(card, {
-          left: acotar(base.left + dL, 0, Math.max(0, 100 - base.width)),
-          top: acotar(base.top + dT, 0, Math.max(0, 100 - base.height)),
-          width: base.width,
-          height: base.height,
-        });
+        left: acotar(base.left + dL, 0, Math.max(0, 100 - base.width)),
+        top: acotar(base.top + dT, 0, Math.max(0, 100 - base.height)),
+        width: base.width,
+        height: base.height,
+      });
+      const aplicarFinal = (): void => aplicarCaja(card, cajaActual());
+      const pintor = crearPintorFrame(() => {
+        aplicarFinal();
         guardado.programar();
+      });
+
+      const enMovimiento = (m: PointerEvent): void => {
+        contenerGestoTactil(m);
+        dL = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
+        dT = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
+        if (!movido && Math.abs(dL) < 0.1 && Math.abs(dT) < 0.1) return; // clic simple
+        movido = true;
+        pintor.programar();
       };
 
-      seguirPuntero(enMovimiento, () => {
+      seguirPuntero(enMovimiento, (ev) => {
+        pintor.cancelar();
         card.classList.remove('pu-arrastrando');
         guardado.cancelar();
+        if (movido && ev.type === 'pointerup') {
+          // Posición EXACTA del levantamiento del dedo (no la del último frame).
+          dL = ((ev.clientX - x0) / Math.max(1, rect.width)) * 100;
+          dT = ((ev.clientY - y0) / Math.max(1, rect.height)) * 100;
+        }
         if (!movido) return;
+        // Flush FINAL: el DOM queda en la última posición recibida antes del PUT.
+        aplicarFinal();
         void persistirMovimiento(card, base, opts, false);
       });
     });
@@ -207,37 +245,56 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         const card = handle.closest<HTMLElement>('[data-inplace-card]');
         const lienzo = card ? lienzoDe(card) : null;
         if (!card || !lienzo) return;
-        e.preventDefault();
-        e.stopPropagation();
+        // iOS Safari: el estirado tampoco debe disparar el scroll nativo.
+        contenerGestoTactil(e);
         const rect = lienzo.getBoundingClientRect();
         const x0 = e.clientX;
         const y0 = e.clientY;
         const base = leerCaja(card);
         let cambio = false;
+        // Referencias LOCALES del gesto: el tamaño definitivo se aplica al soltar.
+        let dW = 0;
+        let dH = 0;
         card.classList.add('pu-redimensionando');
         // DEBOUNCE ANTI-LAG · 500 ms: el estirado también corre a 60 FPS en el
         // cliente; el PUT se agenda y se consolida al soltar el tirador.
         const guardado = crearGuardadoProgramado(() => persistirTamano(card, base, opts, true));
 
-        const enMovimiento = (m: PointerEvent): void => {
-          const dW = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
-          const dH = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
-          if (!cambio && Math.abs(dW) < 0.1 && Math.abs(dH) < 0.1) return;
-          m.preventDefault();
-          cambio = true;
+        const aplicarFinal = (): void => {
+          if (!cambio) return;
           aplicarCaja(card, {
             left: base.left,
             top: base.top,
             width: acotar(base.width + dW, LADO_MIN, Math.max(LADO_MIN, 100 - base.left)),
             height: acotar(base.height + dH, LADO_MIN, Math.max(LADO_MIN, 100 - base.top)),
           });
+        };
+        const pintor = crearPintorFrame(() => {
+          aplicarFinal();
           guardado.programar();
+        });
+
+        const enMovimiento = (m: PointerEvent): void => {
+          contenerGestoTactil(m);
+          dW = ((m.clientX - x0) / Math.max(1, rect.width)) * 100;
+          dH = ((m.clientY - y0) / Math.max(1, rect.height)) * 100;
+          if (!cambio && Math.abs(dW) < 0.1 && Math.abs(dH) < 0.1) return;
+          cambio = true;
+          pintor.programar();
         };
 
-        seguirPuntero(enMovimiento, () => {
+        seguirPuntero(enMovimiento, (ev) => {
+          pintor.cancelar();
           card.classList.remove('pu-redimensionando');
           guardado.cancelar();
+          if (cambio && ev.type === 'pointerup') {
+            // Tamaño EXACTO del levantamiento del dedo.
+            dW = ((ev.clientX - x0) / Math.max(1, rect.width)) * 100;
+            dH = ((ev.clientY - y0) / Math.max(1, rect.height)) * 100;
+          }
           if (!cambio) return;
+          // Flush FINAL antes del ÚNICO PUT del nuevo tamaño.
+          aplicarFinal();
           void persistirTamano(card, base, opts, false);
         });
       });

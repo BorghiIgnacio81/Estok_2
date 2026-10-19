@@ -9,6 +9,7 @@
 
 import type { AdaptadorEspacios } from './lienzoElastico';
 import { toast } from './mapaJerarquico';
+import { contenerGestoTactil, crearPintorFrame } from './pintorFrame';
 
 /** Límites elásticos del perímetro (px): nunca colapsa ni se vuelve infinito. */
 export const PERIMETRO_MIN_ANCHO = 320;
@@ -311,8 +312,9 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
       if (e.button !== 0) return;
       const lienzo = handle.closest<HTMLElement>('[data-lienzo-pu]');
       if (!lienzo) return;
-      e.preventDefault();
-      e.stopPropagation();
+      // iOS Safari: el estirado del perímetro frena scroll/rebote desde el
+      // primer contacto (el touch-action: none del CSS cubre el resto).
+      contenerGestoTactil(e);
       const modo = handle.dataset.perimetroResize ?? 'ambos';
       const rect = lienzo.getBoundingClientRect();
       const marco = lienzo.parentElement?.getBoundingClientRect();
@@ -339,6 +341,10 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
       const y0 = e.clientY;
       let medida = base;
       let movido = false;
+      // Última posición LOCAL del dedo: el rebase de las tarjetas corre como
+      // máximo una vez por frame y se consolida al soltar (pointerup).
+      let ultimoX = x0;
+      let ultimoY = y0;
       lienzo.classList.add('pu-perimetro-redimensionando');
       try {
         handle.setPointerCapture(e.pointerId);
@@ -346,18 +352,11 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         /* sin captura: el seguimiento continúa igual */
       }
 
-      const enMovimiento = (m: PointerEvent): void => {
-        m.preventDefault();
-        if (
-          Math.abs(m.clientX - x0) > UMBRAL_ARRASTRE_PX ||
-          Math.abs(m.clientY - y0) > UMBRAL_ARRASTRE_PX
-        ) {
-          movido = true;
-        }
+      const pintar = (): void => {
         medida = acotarMedida({
           ancho:
-            modo === 'alto' ? base.ancho : Math.min(base.ancho + (m.clientX - x0), maxAncho),
-          alto: modo === 'ancho' ? base.alto : base.alto + (m.clientY - y0),
+            modo === 'alto' ? base.ancho : Math.min(base.ancho + (ultimoX - x0), maxAncho),
+          alto: modo === 'ancho' ? base.alto : base.alto + (ultimoY - y0),
         });
         aplicarMedida(lienzo, medida);
         // REBASE ABSOLUTO Y ADITIVO: las tarjetas conservan sus PÍXELES (quedan
@@ -368,13 +367,34 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
           resultado[i].caja = rebasarTarjeta(t, fx, fy);
         });
       };
+      const pintor = crearPintorFrame(pintar);
 
-      const alSoltar = async (): Promise<void> => {
+      const enMovimiento = (m: PointerEvent): void => {
+        contenerGestoTactil(m);
+        ultimoX = m.clientX;
+        ultimoY = m.clientY;
+        if (
+          Math.abs(ultimoX - x0) > UMBRAL_ARRASTRE_PX ||
+          Math.abs(ultimoY - y0) > UMBRAL_ARRASTRE_PX
+        ) {
+          movido = true;
+        }
+        pintor.programar();
+      };
+
+      const alSoltar = async (ev: PointerEvent): Promise<void> => {
         handle.removeEventListener('pointermove', enMovimiento);
         handle.removeEventListener('pointerup', alSoltar);
         handle.removeEventListener('pointercancel', alSoltar);
+        pintor.cancelar();
         lienzo.classList.remove('pu-perimetro-redimensionando');
         if (!movido) return;
+        // Flush FINAL con la posición exacta del pointerup antes del PUT.
+        if (ev.type === 'pointerup') {
+          ultimoX = ev.clientX;
+          ultimoY = ev.clientY;
+        }
+        pintar();
         const ok = await persistirMedida(opts, medida);
         if (!ok) {
           aplicarMedida(lienzo, base);
