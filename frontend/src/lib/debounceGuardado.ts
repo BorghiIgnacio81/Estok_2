@@ -34,6 +34,8 @@ export interface AgendadorGuardado {
   pendiente(): boolean;
   /** Ejecuta YA las tareas pendientes, en orden de programación. */
   ejecutarYa(): Promise<void>;
+  /** Descarta la tarea pendiente de una clave (recurso eliminado). */
+  descartar(clave: string): void;
   /** Descarta las tareas pendientes sin ejecutarlas. */
   cancelar(): void;
 }
@@ -89,6 +91,10 @@ export function crearAgendadorGuardado(ms: number = MS_GUARDADO_FINAL): Agendado
     async ejecutarYa(): Promise<void> {
       limpiar();
       await ejecutarPendientes();
+    },
+    descartar(clave: string): void {
+      tareas.delete(clave);
+      if (tareas.size === 0) limpiar();
     },
     cancelar(): void {
       limpiar();

@@ -18,6 +18,7 @@ import { crearAdaptadorEspacios, type AdaptadorEspacios } from './lienzoElastico
 import { brechaEnPorcentaje, compactarLienzo } from './compactacionPlanta';
 import { aplicarSilueta, cajasDeCarta, esGrupo, pct } from './lienzoCajas';
 import { partesTrasMover } from './plantaUnicaGrupo';
+import { guardadoEditor } from './debounceGuardado';
 import { toast } from './mapaJerarquico';
 
 export interface ReporteGuardado {
@@ -90,6 +91,11 @@ async function persistirCarta(carta: HTMLElement, recurso: string, id: string): 
 export async function compactarYGuardarLienzos(): Promise<ReporteGuardado> {
   const reporte: ReporteGuardado = { medidas: 0, brechas: 0, reubicadas: 0 };
   const tareas: Promise<void>[] = [];
+
+  // ORDEN DE PERSISTENCIA: cualquier arrastre que todavía esté esperando su
+  // debounce se consolida ANTES de compactar. Así la física lee la última
+  // geometría modelada y el PUT diferido jamás pisa el resultado del Guardado.
+  await guardadoEditor.ejecutarYa();
 
   document.querySelectorAll<HTMLElement>('[data-lienzo-pu]').forEach((lienzo) => {
     const rect = lienzo.getBoundingClientRect();

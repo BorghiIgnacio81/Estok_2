@@ -17,6 +17,7 @@ import { toast } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
 import { confirmarEliminacionEstructura } from './confirmacionEliminar';
 import { conectarPerimetroElastico } from './perimetroElastico';
+import { guardadoEditor } from './debounceGuardado';
 import {
   adaptadorDe,
   avisarCambios,
@@ -283,6 +284,9 @@ function conectarSeleccionYFusion(opts: OpcionesPlantaUnica): void {
         toast(`❌ ${res.error || 'No se pudo eliminar el espacio fusionado.'}`);
         return;
       }
+      // El recurso ya no existe: se descarta cualquier PUT pendiente de este id
+      // para no disparar un guardado fantasma sobre una fila borrada.
+      guardadoEditor.descartar(id);
       // 3) Remoción instantánea del bloque completo en pantalla (sin recargar).
       card.remove();
       toast(`🗑️ «${nombre}» eliminado. Su contenido quedó en la bandeja de «por ubicar».`);
@@ -320,6 +324,9 @@ function conectarEliminacionItems(opts: OpcionesPlantaUnica): void {
         toast(`❌ ${res.error || 'No se pudo eliminar el espacio.'}`);
         return;
       }
+      // El recurso ya no existe: se descarta cualquier PUT pendiente de este id
+      // para no disparar un guardado fantasma sobre una fila borrada.
+      guardadoEditor.descartar(id);
       card.remove();
       toast(`🗑️ «${nombre}» eliminado. Su contenido quedó en la bandeja de «por ubicar».`);
       opts.notificarCambios();
