@@ -17,7 +17,12 @@ import { toast } from './mapaJerarquico';
 import { conectarRenombradoEnVivo } from './lienzoInteractivo';
 import { confirmarEliminacionEstructura } from './confirmacionEliminar';
 import { conectarPerimetroElastico } from './perimetroElastico';
-import { adaptadorDe, conectarArrastreLibre, conectarResizeLibre } from './plantaUnicaArrastre';
+import {
+  adaptadorDe,
+  avisarCambios,
+  conectarArrastreLibre,
+  conectarResizeLibre,
+} from './plantaUnicaArrastre';
 import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
 export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
@@ -68,7 +73,9 @@ function conectarPerimetro(opts: OpcionesPlantaUnica): void {
     id: opts.apartamentoId,
     asegurar: opts.asegurarApartamento,
     adaptador: adaptadorDe(opts),
-    alGuardar: opts.notificarCambios,
+    // Refresco diferido: el perímetro ya se aplicó localmente y el operador
+    // puede estar por tomar otra pieza; el fetch completo espera la calma.
+    alGuardar: () => avisarCambios(opts),
   });
 }
 

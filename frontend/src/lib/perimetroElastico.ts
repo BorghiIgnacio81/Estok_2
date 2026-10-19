@@ -9,7 +9,8 @@
 
 import type { AdaptadorEspacios } from './lienzoElastico';
 import { toast } from './mapaJerarquico';
-import { contenerGestoTactil, crearPintorFrame } from './pintorFrame';
+import { guardadoEditor } from './debounceGuardado';
+import { contenerGestoTactil, crearPintorFrame, marcarInteraccionEditor } from './pintorFrame';
 
 /** Límites elásticos del perímetro (px): nunca colapsa ni se vuelve infinito. */
 export const PERIMETRO_MIN_ANCHO = 320;
@@ -134,6 +135,24 @@ export const guardarMedidaCon =
 
 /** Tolerancia de arrastre: < 3 px = clic accidental, sin PUT (evita ruido). */
 const UMBRAL_ARRASTRE_PX = 3;
+
+/**
+ * Clave del guardado diferido de ESTE lienzo: cada perímetro montado en el DOM
+ * recibe su propia clave (WeakMap) para que dos paneles abiertos a la vez nunca
+ * se pisen el lote pendiente.
+ */
+const clavesDeLienzo = new WeakMap<HTMLElement, string>();
+let contadorLienzos = 0;
+
+function claveDeLienzo(lienzo: HTMLElement): string {
+  let clave = clavesDeLienzo.get(lienzo);
+  if (!clave) {
+    contadorLienzos += 1;
+    clave = `perimetro:${contadorLienzos}`;
+    clavesDeLienzo.set(lienzo, clave);
+  }
+  return clave;
+}
 
 /** Persiste la medida general del plano con un PUT limpio (px). */
 async function persistirMedida(opts: OpcionesPerimetro, medida: MedidaPerimetro): Promise<boolean> {
@@ -345,6 +364,10 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
       // máximo una vez por frame y se consolida al soltar (pointerup).
       let ultimoX = x0;
       let ultimoY = y0;
+      // Gesto nuevo: la espera del guardado anterior arranca de cero y NINGUNA
+      // petición viaja mientras el dedo está sobre el tirador.
+      marcarInteraccionEditor();
+      guardadoEditor.posponer();
       lienzo.classList.add('pu-perimetro-redimensionando');
       try {
         handle.setPointerCapture(e.pointerId);
@@ -382,19 +405,13 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         pintor.programar();
       };
 
-      const alSoltar = async (ev: PointerEvent): Promise<void> => {
-        handle.removeEventListener('pointermove', enMovimiento);
-        handle.removeEventListener('pointerup', alSoltar);
-        handle.removeEventListener('pointercancel', alSoltar);
-        pintor.cancelar();
-        lienzo.classList.remove('pu-perimetro-redimensionando');
-        if (!movido) return;
-        // Flush FINAL con la posición exacta del pointerup antes del PUT.
-        if (ev.type === 'pointerup') {
-          ultimoX = ev.clientX;
-          ultimoY = ev.clientY;
-        }
-        pintar();
+      /**
+       * Persistencia DIFERIDA del gesto (900 ms después de soltar). El marco y el
+       * rebase de las tarjetas YA quedaron aplicados localmente, así que la red
+       * no viaja en el mismo frame del pointerup: si el operador encadena otro
+       * gesto, el lote se reprograma y se envía una sola vez.
+       */
+      const guardarGesto = async (): Promise<void> => {
         const ok = await persistirMedida(opts, medida);
         if (!ok) {
           aplicarMedida(lienzo, base);
@@ -407,6 +424,23 @@ export function conectarPerimetroElastico(opts: OpcionesPerimetro): void {
         await persistirHijosRebasados(opts, resultado);
         toast(`📐 Plano redimensionado a ${medida.ancho} × ${medida.alto} px.`);
         opts.alGuardar?.();
+      };
+
+      const alSoltar = (ev: PointerEvent): void => {
+        handle.removeEventListener('pointermove', enMovimiento);
+        handle.removeEventListener('pointerup', alSoltar);
+        handle.removeEventListener('pointercancel', alSoltar);
+        pintor.cancelar();
+        lienzo.classList.remove('pu-perimetro-redimensionando');
+        if (!movido) return;
+        // Flush FINAL con la posición exacta del pointerup (consolidación LOCAL).
+        if (ev.type === 'pointerup') {
+          ultimoX = ev.clientX;
+          ultimoY = ev.clientY;
+        }
+        pintar();
+        marcarInteraccionEditor();
+        guardadoEditor.programar(claveDeLienzo(lienzo), guardarGesto);
       };
 
       handle.addEventListener('pointermove', enMovimiento);

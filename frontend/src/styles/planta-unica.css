@@ -176,6 +176,10 @@
   opacity: 0.55;
   border-style: dashed;
   cursor: grabbing;
+  /* Durante el gesto la posición viaja en `transform: translate3d` (compositor):
+     se promueve a capa propia y queda por encima de las piezas vecinas. */
+  z-index: 6;
+  will-change: transform;
 }
 
 .pu-celda.pu-redimensionando {
@@ -336,6 +340,9 @@
 .pu-grupo.pu-arrastrando {
   opacity: 0.6;
   cursor: grabbing;
+  /* Mismo contrato que `.pu-celda.pu-arrastrando`: transform en capa propia. */
+  z-index: 6;
+  will-change: transform;
 }
 
 /* Único contenedor de dibujo del bloque: la trama fluye sin costuras de extremo

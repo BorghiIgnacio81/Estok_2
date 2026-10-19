@@ -18,10 +18,24 @@
 import { toast } from './mapaJerarquico';
 import { LADO_MIN, type Caja } from './compactacionPlanta';
 import { partesTrasEscalar, partesTrasMover } from './plantaUnicaGrupo';
-import { acotar, aplicarCaja, esGrupo, leerCaja, pct } from './lienzoCajas';
+import {
+  acotar,
+  aplicarCaja,
+  aplicarDesplazamientoVisual,
+  esGrupo,
+  leerCaja,
+  limpiarDesplazamientoVisual,
+  pct,
+} from './lienzoCajas';
 import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
-import { crearGuardadoProgramado, crearNotificadorDebounced } from './debounceGuardado';
-import { contenerGestoTactil, crearPintorFrame, hayGestoActivo } from './pintorFrame';
+import { crearNotificadorDebounced, guardadoEditor } from './debounceGuardado';
+import {
+  contenerGestoTactil,
+  crearPintorFrame,
+  hayGestoActivo,
+  hayInteraccionReciente,
+  marcarInteraccionEditor,
+} from './pintorFrame';
 
 // =============================================================================
 // CONTRATO COMPARTIDO CON EL ORQUESTADOR (plantaUnicaInteractivo.ts)
@@ -96,20 +110,33 @@ function rebotar(card: HTMLElement, cajaValida: Caja): void {
  */
 const notificarDebounced = crearNotificadorDebounced();
 
-/** Avisa del cambio al consumidor agrupando ráfagas de gestos. */
-function notificarCambios(opts: OpcionesPlantaUnica): void {
+/**
+ * Avisa del cambio al consumidor agrupando ráfagas de gestos.
+ *
+ * OPTIMISTIC UI: la geometría ya está aplicada en el DOM y en el estado en
+ * memoria (`opts.rooms()`), así que este aviso NO es urgente. Se difiere hasta
+ * que se cumplan las TRES condiciones:
+ *   1. no hay un gesto activo (dedo en pantalla),
+ *   2. no quedan guardados diferidos esperando su debounce,
+ *   3. pasó la ventana de calma desde la última interacción.
+ * Recién ahí se permite el fetch completo del estado del espacio. Si el operador
+ * vuelve a tocar algo antes, el refresco se reprograma (nunca se pierde).
+ */
+export function avisarCambios(opts: OpcionesPlantaUnica): void {
   const avisar = (): void => {
-    // El refresco pesado (re-render de la cascada) JAMÁS debe caer en medio de
-    // un gesto: si el operador ya empezó a arrastrar otra pieza, se reprograma
-    // para cuando el dedo se levante. En iOS Safari ese re-render reemplazaba
-    // el nodo bajo el dedo y se percibía como un salto/vibración de pantalla.
-    if (hayGestoActivo()) {
+    if (hayGestoActivo() || guardadoEditor.pendiente() || hayInteraccionReciente()) {
       notificarDebounced(avisar);
       return;
     }
     opts.notificarCambios();
   };
   notificarDebounced(avisar);
+}
+
+/** Agenda el PUT del gesto en el reloj ÚNICO del editor (900 ms). */
+function programarGuardado(id: string, ejecutar: () => Promise<void>): void {
+  if (!id) return;
+  guardadoEditor.programar(id, ejecutar);
 }
 
 // =============================================================================
@@ -132,19 +159,18 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       const x0 = e.clientX;
       const y0 = e.clientY;
       const base = leerCaja(card);
+      const id = card.dataset.id ?? '';
       let movido = false;
-      // Referencias LOCALES del gesto: la geometría se calcula acá y se pinta
-      // como máximo una vez por frame; el estado definitivo se vuelca al DOM y
-      // se persiste recién en pointerup (un único PUT consolidado).
+      // Referencias LOCALES del gesto: la geometría se calcula acá y el DOM sólo
+      // recibe un `translate3d` por frame (compositor, CERO re-layout). NINGUNA
+      // petición HTTP se dispara mientras el dedo está en pantalla.
       let dL = 0;
       let dT = 0;
+      // Un gesto nuevo reinicia la espera del guardado anterior: si el operador
+      // vuelve a mover algo antes de los 900 ms, el PUT se reprograma.
+      marcarInteraccionEditor();
+      guardadoEditor.posponer();
       card.classList.add('pu-arrastrando');
-      // DEBOUNCE ANTI-LAG · 500 ms: el arrastre corre a 60 FPS en el CLIENTE y la
-      // persistencia se AGENDA (el reloj se reinicia en cada píxel). Mientras el
-      // puntero se mueve NO viaja ningún PUT; si el gesto se detiene, el checkpoint
-      // silencioso consolida lo modelado y al SOLTAR se cancela y se envía el PUT
-      // final: un único guardado consolidado hacia la API de Django.
-      const guardado = crearGuardadoProgramado(() => persistirMovimiento(card, base, opts, true));
 
       const cajaActual = (): Caja => ({
         // Libertad total: solo se respetan los muros del recuadro amarillo.
@@ -153,11 +179,17 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
         width: base.width,
         height: base.height,
       });
-      const aplicarFinal = (): void => aplicarCaja(card, cajaActual());
-      const pintor = crearPintorFrame(() => {
-        aplicarFinal();
-        guardado.programar();
-      });
+
+      // Pintado del GESTO: sólo transform visual (ni left/top ni PUT).
+      const pintarGesto = (): void => {
+        const caja = cajaActual();
+        aplicarDesplazamientoVisual(
+          card,
+          ((caja.left - base.left) / 100) * rect.width,
+          ((caja.top - base.top) / 100) * rect.height,
+        );
+      };
+      const pintor = crearPintorFrame(pintarGesto);
 
       const enMovimiento = (m: PointerEvent): void => {
         contenerGestoTactil(m);
@@ -171,16 +203,19 @@ export function conectarArrastreLibre(opts: OpcionesPlantaUnica): void {
       seguirPuntero(enMovimiento, (ev) => {
         pintor.cancelar();
         card.classList.remove('pu-arrastrando');
-        guardado.cancelar();
         if (movido && ev.type === 'pointerup') {
           // Posición EXACTA del levantamiento del dedo (no la del último frame).
           dL = ((ev.clientX - x0) / Math.max(1, rect.width)) * 100;
           dT = ((ev.clientY - y0) / Math.max(1, rect.height)) * 100;
         }
+        marcarInteraccionEditor();
         if (!movido) return;
-        // Flush FINAL: el DOM queda en la última posición recibida antes del PUT.
-        aplicarFinal();
-        void persistirMovimiento(card, base, opts, false);
+        // CONSOLIDACIÓN LOCAL (una sola escritura): el transform del gesto se
+        // convierte en la posición definitiva left/top. Esto es todo lo que ve
+        // el operador; el backend recibe el valor 900 ms después de soltar.
+        limpiarDesplazamientoVisual(card);
+        aplicarCaja(card, cajaActual());
+        programarGuardado(id, () => persistirMovimiento(card, base, opts));
       });
     });
   });
@@ -191,8 +226,6 @@ async function persistirMovimiento(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,
-  /** Checkpoint silencioso: guarda sin rebote, sin toast y sin recargar la pantalla. */
-  silencioso = false,
 ): Promise<void> {
   const id = card.dataset.id ?? '';
   const nueva = leerCaja(card);
@@ -203,27 +236,25 @@ async function persistirMovimiento(
   if (esGrupo(card)) {
     const ok = await adaptadorDe(opts).guardarGrupo(id, { partes: partesTrasMover(card, dL, dT) });
     if (!ok) {
-      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo mover el espacio fusionado.');
       return;
     }
-    if (!silencioso) toast('🔗 Bloque fusionado reubicado: todas sus partes en un solo PUT.');
+    toast('🔗 Bloque fusionado reubicado: todas sus partes en un solo PUT.');
   } else {
     const valores = { ui_left: pct(nueva.left), ui_top: pct(nueva.top) };
     const ok = await adaptadorDe(opts).guardarItem(id, valores);
     if (!ok) {
-      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo guardar la posición del espacio.');
       return;
     }
     const room = opts.rooms().find((r) => r.id === id);
     if (room) Object.assign(room, valores);
-    if (!silencioso) toast('✅ Espacio reubicado.');
+    toast('✅ Espacio reubicado.');
   }
-  // El checkpoint silencioso NO recarga la pantalla: el gesto sigue vivo.
-  if (!silencioso) notificarCambios(opts);
+  // Refresco diferido (sólo cuando el operador dejó de interactuar).
+  avisarCambios(opts);
 }
 
 // =============================================================================
@@ -251,14 +282,16 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         const x0 = e.clientX;
         const y0 = e.clientY;
         const base = leerCaja(card);
+        const id = card.dataset.id ?? '';
         let cambio = false;
         // Referencias LOCALES del gesto: el tamaño definitivo se aplica al soltar.
         let dW = 0;
         let dH = 0;
+        // Gesto nuevo → la espera del guardado anterior arranca de cero y NINGÚN
+        // PUT viaja hasta que el tirador se suelte.
+        marcarInteraccionEditor();
+        guardadoEditor.posponer();
         card.classList.add('pu-redimensionando');
-        // DEBOUNCE ANTI-LAG · 500 ms: el estirado también corre a 60 FPS en el
-        // cliente; el PUT se agenda y se consolida al soltar el tirador.
-        const guardado = crearGuardadoProgramado(() => persistirTamano(card, base, opts, true));
 
         const aplicarFinal = (): void => {
           if (!cambio) return;
@@ -269,10 +302,7 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
             height: acotar(base.height + dH, LADO_MIN, Math.max(LADO_MIN, 100 - base.top)),
           });
         };
-        const pintor = crearPintorFrame(() => {
-          aplicarFinal();
-          guardado.programar();
-        });
+        const pintor = crearPintorFrame(aplicarFinal);
 
         const enMovimiento = (m: PointerEvent): void => {
           contenerGestoTactil(m);
@@ -286,16 +316,16 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         seguirPuntero(enMovimiento, (ev) => {
           pintor.cancelar();
           card.classList.remove('pu-redimensionando');
-          guardado.cancelar();
           if (cambio && ev.type === 'pointerup') {
             // Tamaño EXACTO del levantamiento del dedo.
             dW = ((ev.clientX - x0) / Math.max(1, rect.width)) * 100;
             dH = ((ev.clientY - y0) / Math.max(1, rect.height)) * 100;
           }
+          marcarInteraccionEditor();
           if (!cambio) return;
-          // Flush FINAL antes del ÚNICO PUT del nuevo tamaño.
+          // Consolidación LOCAL; el PUT viaja 900 ms después del arrastre.
           aplicarFinal();
-          void persistirTamano(card, base, opts, false);
+          programarGuardado(id, () => persistirTamano(card, base, opts));
         });
       });
     });
@@ -306,8 +336,6 @@ async function persistirTamano(
   card: HTMLElement,
   base: Caja,
   opts: OpcionesPlantaUnica,
-  /** Checkpoint silencioso: guarda sin rebote, sin toast y sin recargar la pantalla. */
-  silencioso = false,
 ): Promise<void> {
   const id = card.dataset.id ?? '';
   if (!id) return;
@@ -322,27 +350,23 @@ async function persistirTamano(
     const partes = partesTrasEscalar(card, { left: base.left, top: base.top }, escala);
     const ok = await adaptadorDe(opts).guardarGrupo(id, { partes });
     if (!ok) {
-      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo redimensionar el bloque fusionado.');
       return;
     }
-    if (!silencioso) {
-      toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
-    }
+    toast('🔗 Bloque fusionado redimensionado: todas sus partes en un solo PUT.');
   } else {
     const valores = { ui_width: pct(nueva.width), ui_height: pct(nueva.height) };
     const ok = await adaptadorDe(opts).guardarItem(id, valores);
     if (!ok) {
-      if (silencioso) return;
       rebotar(card, base);
       toast('❌ No se pudo guardar el nuevo tamaño.');
       return;
     }
     const room = opts.rooms().find((r) => r.id === id);
     if (room) Object.assign(room, valores);
-    if (!silencioso) toast(`✅ Tamaño actualizado (${pct(nueva.width)} × ${pct(nueva.height)}).`);
+    toast(`✅ Tamaño actualizado (${pct(nueva.width)} × ${pct(nueva.height)}).`);
   }
-  // El checkpoint silencioso NO recarga la pantalla: el gesto sigue vivo.
-  if (!silencioso) notificarCambios(opts);
+  // Refresco diferido (sólo cuando el operador dejó de interactuar).
+  avisarCambios(opts);
 }

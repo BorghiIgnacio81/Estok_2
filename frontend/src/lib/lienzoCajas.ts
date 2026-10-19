@@ -46,6 +46,31 @@ export function aplicarCaja(card: HTMLElement, caja: Caja): void {
   card.style.height = pct(caja.height);
 }
 
+// =============================================================================
+// DESPLAZAMIENTO VISUAL DEL GESTO (compositor-only, CERO re-layout)
+// -----------------------------------------------------------------------------
+// Mientras el dedo está en pantalla la tarjeta NO se reposiciona con left/top:
+// cada escritura de `left`/`top` invalida el layout del lienzo completo y en iOS
+// Safari eso se percibe como saltos/vibración. Durante el gesto se aplica un
+// `transform: translate3d(x, y, 0)` (se resuelve en el compositor) y la posición
+// DEFINITIVA se consolida UNA sola vez al soltar (`aplicarCaja` + limpieza del
+// transform). La persistencia viaja después, con el debounce del editor.
+// =============================================================================
+
+/** Aplica el desplazamiento visual del gesto en píxeles (sin tocar left/top). */
+export function aplicarDesplazamientoVisual(
+  card: HTMLElement,
+  dxPx: number,
+  dyPx: number,
+): void {
+  card.style.transform = `translate3d(${redondear(dxPx)}px, ${redondear(dyPx)}px, 0)`;
+}
+
+/** Elimina el transform del gesto (la caja final ya vive en left/top). */
+export function limpiarDesplazamientoVisual(card: HTMLElement): void {
+  card.style.removeProperty('transform');
+}
+
 /** true si la tarjeta es un BLOQUE FUSIONADO (tiles SVG en su interior). */
 export function esGrupo(card: HTMLElement): boolean {
   return Boolean(card.dataset.fusionGrupo) || Boolean(card.querySelector('[data-tile-id]'));

@@ -67,3 +67,27 @@ const SELECTOR_GESTO_ACTIVO =
 export function hayGestoActivo(): boolean {
   return document.querySelector(SELECTOR_GESTO_ACTIVO) !== null;
 }
+
+// =============================================================================
+// VENTANA DE CALMA POSTERIOR AL GESTO
+// -----------------------------------------------------------------------------
+// Soltar el dedo NO habilita de inmediato un refresco pesado: el operador suele
+// encadenar otro arrastre en menos de un segundo y el re-render reemplazaría el
+// árbol de componentes justo cuando vuelve a tocar la pantalla. Se exige un
+// margen de calma SIN interacción para dejar pasar el refresco.
+// =============================================================================
+
+/** Margen de calma tras la última interacción del editor (ms). */
+export const MS_CALMA_INTERACCION = 1200;
+
+let ultimaInteraccion = 0;
+
+/** Registra actividad del operador (inicio/fin de un gesto del lienzo). */
+export function marcarInteraccionEditor(): void {
+  ultimaInteraccion = Date.now();
+}
+
+/** ¿El operador interactuó con el editor hace menos de `MS_CALMA_INTERACCION`? */
+export function hayInteraccionReciente(): boolean {
+  return Date.now() - ultimaInteraccion < MS_CALMA_INTERACCION;
+}

@@ -2,35 +2,49 @@
 // DEBOUNCE DE GUARDADO (anti-lag de arrastre y resizing) — helper reutilizable
 // -----------------------------------------------------------------------------
 // El movimiento del puntero corre a 60 FPS 100% en el CLIENTE (sólo transforma el
-// DOM). La persistencia NO puede viajar en cada píxel: se AGENDA con este
-// temporizador de 500 ms que se REINICIA en cada movimiento y se dispara recién
-// cuando el gesto se detiene. `ejecutarYa()` fuerza el envío al soltar el puntero,
-// de modo que el resultado final viaja en UN ÚNICO PUT consolidado a Django.
+// DOM). La persistencia NO puede viajar en cada píxel: durante el gesto NO se
+// dispara ninguna petición; al SOLTAR el elemento la geometría final se agenda
+// con `MS_GUARDADO_FINAL` (900 ms) y cualquier gesto nuevo REINICIA el reloj.
+// Así una ráfaga de arrastres encadenados termina en UN ÚNICO lote de PUTs.
 //
 // Módulo PURO de temporización: no conoce HTTP, ni el DOM del lienzo, ni Tailwind.
 // =============================================================================
 
-/** Ventana de debounce del guardado elástico (ms). */
+/** Ventana del notificador diferido de refrescos (ms). */
 export const MS_DEBOUNCE_GUARDADO = 500;
 
-/** Temporizador de guardado diferido de un gesto (arrastre / resizing). */
-export interface GuardadoProgramado {
-  /** (Re)programa el guardado a 500 ms del ÚLTIMO movimiento. */
-  programar(): void;
-  /** Guarda YA (el puntero se soltó), cancelando el temporizador pendiente. */
+/** Ventana del guardado posterior al gesto (ms): margen anti-salto en iOS. */
+export const MS_GUARDADO_FINAL = 900;
+
+/** Agendador de guardado DIFERIDO posterior al gesto (arrastre / resizing). */
+export interface AgendadorGuardado {
+  /**
+   * (Re)programa la tarea de una clave (id del espacio / 'perimetro') y REINICIA
+   * el reloj. Si la misma clave se vuelve a programar antes de vencer, la tarea
+   * anterior se REEMPLAZA: nunca se encola dos veces el mismo espacio.
+   */
+  programar(clave: string, ejecutar: () => void | Promise<void>): void;
+  /**
+   * Reinicia el reloj sin encolar nada. Lo llama el editor al iniciar un gesto
+   * nuevo: si el operador vuelve a mover algo antes de los 900 ms, la espera
+   * arranca de cero.
+   */
+  posponer(): void;
+  /** ¿Quedan tareas esperando el debounce? (la interfaz sigue "en uso"). */
+  pendiente(): boolean;
+  /** Ejecuta YA las tareas pendientes, en orden de programación. */
   ejecutarYa(): Promise<void>;
-  /** Cancela el guardado diferido sin ejecutarlo (gesto abortado). */
+  /** Descarta las tareas pendientes sin ejecutarlas. */
   cancelar(): void;
 }
 
 /**
- * Crea un guardado DEBOUNCED: cada `programar()` reinicia el reloj y `ejecutar`
- * corre UNA sola vez, 500 ms después del último movimiento registrado.
+ * Crea un agendador DEBOUNCED por clave: cada `programar()` reinicia el reloj y
+ * el lote completo se ejecuta UNA vez, `ms` después del último gesto. Las tareas
+ * corren en serie (una espera a la anterior) para no pisar geometrías.
  */
-export function crearGuardadoProgramado(
-  ejecutar: () => void | Promise<void>,
-  ms: number = MS_DEBOUNCE_GUARDADO,
-): GuardadoProgramado {
+export function crearAgendadorGuardado(ms: number = MS_GUARDADO_FINAL): AgendadorGuardado {
+  const tareas = new Map<string, () => void | Promise<void>>();
   let temporizador: number | null = null;
 
   const limpiar = (): void => {
@@ -40,20 +54,63 @@ export function crearGuardadoProgramado(
     }
   };
 
+  // Se consume UNA tarea por vuelta: mientras corre la primera, las restantes
+  // siguen visibles en `tareas` y `pendiente()` responde con la verdad (así el
+  // refresco pesado no se adelanta a mitad del lote).
+  const ejecutarPendientes = async (): Promise<void> => {
+    while (tareas.size > 0) {
+      const primera = tareas.entries().next().value;
+      if (!primera) return;
+      const [clave, ejecutar] = primera;
+      tareas.delete(clave);
+      await ejecutar();
+    }
+  };
+
+  const armar = (): void => {
+    limpiar();
+    temporizador = window.setTimeout(() => {
+      temporizador = null;
+      void ejecutarPendientes();
+    }, ms);
+  };
+
   return {
-    programar(): void {
-      limpiar();
-      temporizador = window.setTimeout(() => {
-        temporizador = null;
-        void ejecutar();
-      }, ms);
+    programar(clave: string, ejecutar: () => void | Promise<void>): void {
+      tareas.set(clave, ejecutar);
+      armar();
+    },
+    posponer(): void {
+      if (tareas.size > 0) armar();
+    },
+    pendiente(): boolean {
+      return tareas.size > 0;
     },
     async ejecutarYa(): Promise<void> {
       limpiar();
-      await ejecutar();
+      await ejecutarPendientes();
     },
-    cancelar: limpiar,
+    cancelar(): void {
+      limpiar();
+      tareas.clear();
+    },
   };
+}
+
+/**
+ * INSTANCIA ÚNICA DEL EDITOR DE ESPACIOS: la comparten el arrastre, el resizing
+ * y el perímetro elástico. Un solo reloj para todos los gestos del lienzo: si el
+ * operador acomoda varias piezas seguidas, la red recibe UN lote consolidado y
+ * nunca se dispara un guardado mientras el dedo está en pantalla.
+ */
+export const guardadoEditor = crearAgendadorGuardado();
+
+// Red de seguridad: si el operador abandona la página con un lote pendiente, el
+// guardado se dispara YA en lugar de esperar un reloj que nunca va a vencer.
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    void guardadoEditor.ejecutarYa();
+  });
 }
 
 /**
