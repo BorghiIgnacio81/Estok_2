@@ -4,9 +4,9 @@
 // -----------------------------------------------------------------------------
 // Extraído de pages/objetos/nuevo.astro para dejar la página enfocada en la
 // estructura semántica del formulario (regla de modularización <400 líneas).
-// Marcado PURO: los ids canónicos (#aiStatusBadge/#aiStatusDot/#aiStatusText) los
-// consume src/lib/objetos/objetoAutocompletarIa.ts para reflejar el health-check
-// del motor de IA (Gemini). No cambia clases ni estructura.
+// Marcado PURO: los ids canónicos (#aiStatusBadge/#aiStatusDot/#aiStatusText)
+// son solo informativos (Gemini en la nube). El botón de IA NO depende de
+// ningún health-check: se habilita con tener una foto cargada.
 // =============================================================================
 ---
 
@@ -23,10 +23,10 @@
   </a>
   <div class="flex items-center gap-3">
     <h1 class="text-3xl font-bold text-gray-900">Nuevo Objeto</h1>
-    <!-- AI Status Badge -->
-    <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-      <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-gray-400"></span>
-      <span id="aiStatusText">Verificando IA...</span>
+    <!-- AI Status Badge: informativo, NO condiciona el botón de IA -->
+    <span id="aiStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+      <span id="aiStatusDot" class="w-2 h-2 rounded-full bg-blue-500"></span>
+      <span id="aiStatusText">☁️ Gemini (nube)</span>
     </span>
   </div>
   <p class="mt-1 text-gray-500">

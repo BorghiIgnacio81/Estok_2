@@ -1,18 +1,23 @@
 // =============================================================================
-// ESTADO DEL BOTÓN "AUTOCOMPLETAR CON IA" (Alta de Objetos)
+// ESTADO DEL BOTÓN "AUTOCOMPLETAR CON IA" (Alta / edición de Objetos)
 // -----------------------------------------------------------------------------
-// En /objetos/nuevo hay UN ÚNICO control "Autocompletar con IA": el de la
-// botonera de "Fotos del Objeto" (celda contigua a "Otra foto"). Su estado se
-// pinta SIEMPRE desde acá (fuente única de verdad): nuevo.astro nunca vuelve a
-// tocar `disabled` ni las clases a mano.
+// El botón se habilita SIEMPRE que haya una foto disponible: no depende de
+// ningún heartbeat ni health-check del motor. La IA es 100% en la nube (Google
+// Gemini) y el fallo real se informa por toast al analizar, sin bloquear el
+// llenado manual del formulario.
 //
-//   inactivo   → sin foto cargada o sin motor de IA: disabled + aspecto opaco.
+//   inactivo   → sin foto cargada: disabled + aspecto opaco.
 //   listo      → texto fijo "Autocompletar con IA", listo para hacer clic.
 //   analizando → spinner + "Analizando..." SOLO tras un clic real del usuario.
 //
 // El estado se aplica a TODOS los nodos `[data-ia-boton]` de la página en una
 // sola pasada (`pintar()`), así el módulo sigue valiendo si el botón se monta
 // en otra sección más adelante.
+//
+// Fuente de la foto:
+//   · Alta (/objetos/nuevo): input oculto #imagenBase64 (cámara/galería/drag).
+//   · Edición (/objetos/<id>/editar): `establecerFotoDisponible()` informa si el
+//     objeto ya tiene fotos cargadas en el servidor.
 //
 // OJO (bug histórico del botón trabado): los nodos de texto/spinner se ocultan
 // con el ATRIBUTO `hidden`, NO con la clase `.hidden`. En Tailwind v4 el CSS
@@ -25,28 +30,35 @@
 
 export type EstadoBotonIA = 'inactivo' | 'listo' | 'analizando';
 
-/** Botones IA del formulario (hoy: la botonera de "Fotos del Objeto"). */
+/** Botones IA de la pantalla (alta: Fotos del Objeto; edición: Fotos). */
 const SELECTOR_BOTONES = '[data-ia-boton]';
-/** Input oculto que guarda la foto Base64 del objeto en curso. */
+/** Input oculto que guarda la foto Base64 del objeto en curso (alta). */
 const ID_INPUT_FOTO = 'imagenBase64';
 
-let iaDisponible = false;
 let analizando = false;
+/** null → se deduce del input #imagenBase64; true/false → lo fija la pantalla. */
+let fotoDisponibleManual: boolean | null = null;
 
 function botones(): HTMLButtonElement[] {
   return Array.from(document.querySelectorAll<HTMLButtonElement>(SELECTOR_BOTONES));
 }
 
-/** true cuando el formulario ya tiene una foto cargada. */
+/** true cuando el formulario ya tiene una foto disponible para analizar. */
 function hayFotoCargada(): boolean {
+  if (fotoDisponibleManual !== null) return fotoDisponibleManual;
   const input = document.getElementById(ID_INPUT_FOTO) as HTMLInputElement | null;
   return !!input && input.value.length > 0;
 }
 
-/** true cuando el health-check contra el motor de IA (Gemini) respondió OK. */
-export function esIaDisponible(): boolean {
-  return iaDisponible;
+/**
+ * Fija si hay foto disponible (pantalla de edición). En el alta NO se llama:
+ * el estado se deduce del input #imagenBase64.
+ */
+export function establecerFotoDisponible(disponible: boolean): void {
+  fotoDisponibleManual = disponible;
+  refrescarBotonesIA();
 }
+
 
 /** Pinta UN botón con el estado pedido (texto ↔ spinner + disabled). */
 function pintar(boton: HTMLButtonElement, estado: EstadoBotonIA): void {
@@ -63,22 +75,16 @@ function pintar(boton: HTMLButtonElement, estado: EstadoBotonIA): void {
   boton.setAttribute('aria-busy', String(enAnalisis));
 }
 
-/** Estado que corresponde a los botones según foto + motor de IA + análisis. */
+/** Estado que corresponde a los botones según foto disponible + análisis. */
 function estadoCorrespondiente(): EstadoBotonIA {
   if (analizando) return 'analizando';
-  return iaDisponible && hayFotoCargada() ? 'listo' : 'inactivo';
+  return hayFotoCargada() ? 'listo' : 'inactivo';
 }
 
 /** Recalcula y pinta TODOS los botones IA de la página. */
 export function refrescarBotonesIA(): void {
   const estado = estadoCorrespondiente();
   botones().forEach((boton) => pintar(boton, estado));
-}
-
-/** Registra si el motor de IA responde y repinta el botón. */
-export function establecerIaDisponible(disponible: boolean): void {
-  iaDisponible = disponible;
-  refrescarBotonesIA();
 }
 
 /** Pone el botón en "Analizando..." (llamar SOLO tras un clic real). */

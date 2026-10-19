@@ -5,6 +5,7 @@ Extraido de ai_vision_service.py (Fase A refactor preventivo).
 
 import base64
 import logging
+import os
 from typing import Optional, Dict, Any
 
 from django.core.exceptions import ImproperlyConfigured
@@ -14,7 +15,7 @@ from .ai_vision_nucleo import (
     TEXTO_USUARIO_ANALISIS,
     _extraer_json_de_respuesta,
     AIQuotaExceededError,
-    MENSAJE_LIMITE_IA,
+    es_error_cuota_excedida,
 )
 
 logger = logging.getLogger(__name__)

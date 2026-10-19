@@ -33,7 +33,15 @@ class IAActionsMixin:
     # =========================================================================
     @action(detail=True, methods=['post'])
     def analizar_con_ia(self, request, pk=None):
-        """Analiza un objeto con el motor de visión en la NUBE (Gemini)."""
+        """
+        Analiza un objeto con el motor de visión en la NUBE (Gemini).
+
+        Acepta `solo_analisis=true` para DEVOLVER los campos detectados SIN
+        modificar el objeto en la base de datos (la pantalla de edición los
+        vuelca en el formulario y el usuario decide si guarda con el PUT).
+        Sin el flag se conserva el comportamiento histórico: persiste los
+        campos detectados en el objeto.
+        """
         objeto = self.get_object()
         foto_principal = objeto.fotos.filter(es_principal=True).first()
         if not foto_principal:
@@ -44,6 +52,10 @@ class IAActionsMixin:
                 {"error": "El objeto no tiene fotos para analizar"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        solo_analisis = request.data.get('solo_analisis', False)
+        if isinstance(solo_analisis, str):
+            solo_analisis = solo_analisis.lower() == 'true'
 
         try:
             service = AIVisionService()
@@ -59,24 +71,25 @@ class IAActionsMixin:
             image_b64_comprimida = service._comprimir_imagen_base64(image_b64)
             resultado = service.procesar_imagen_desde_base64(image_b64_comprimida)
 
-            if resultado.nombre:
-                objeto.nombre = resultado.nombre
-            if resultado.descripcion:
-                objeto.descripcion = resultado.descripcion
-            if resultado.estado_conservacion:
-                objeto.estado_conservacion = resultado.estado_conservacion
-            if resultado.color:
-                objeto.color = resultado.color
-            if resultado.precio_estimado_mercado:
-                objeto.valor_estimado = Decimal(str(resultado.precio_estimado_mercado))
+            if not solo_analisis:
+                if resultado.nombre:
+                    objeto.nombre = resultado.nombre
+                if resultado.descripcion:
+                    objeto.descripcion = resultado.descripcion
+                if resultado.estado_conservacion:
+                    objeto.estado_conservacion = resultado.estado_conservacion
+                if resultado.color:
+                    objeto.color = resultado.color
+                if resultado.precio_estimado_mercado:
+                    objeto.valor_estimado = Decimal(str(resultado.precio_estimado_mercado))
 
-            objeto.campos_pendientes = resultado.campos_pendientes
-            if resultado.campos_pendientes:
-                objeto.estado_carga = 'incompleto'
-            else:
-                objeto.estado_carga = 'completo'
+                objeto.campos_pendientes = resultado.campos_pendientes
+                if resultado.campos_pendientes:
+                    objeto.estado_carga = 'incompleto'
+                else:
+                    objeto.estado_carga = 'completo'
 
-            objeto.save()
+                objeto.save()
 
             return Response({
                 "mensaje": "Análisis completado",

@@ -15,6 +15,7 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
 import ImageEditor from '../../../../components/ImageEditor.astro';
 import MinimapaModuloUnificado from '../../../../components/MinimapaModuloUnificado.astro';
+import BotonAutocompletarIA from '../../../../components/objetos/BotonAutocompletarIA.astro';
 // Estilos compartidos de los minimapas anidados (.mini-anidado-*): único punto
 // que ya cubre Almacenamiento y Objetos. No se duplican reglas en esta página.
 import '../../../../styles/almacenamiento-portales.css';
@@ -249,6 +250,18 @@ export const prerender = false;
           </button>
         </div>
         <div id="subirFotosProgress" class="mt-2 text-sm text-gray-500 hidden"></div>
+
+        <!-- Autocompletar con IA: analiza la foto principal YA guardada con
+             Gemini (proxy del backend) y vuelca los campos en el formulario.
+             El estado (disabled / "Analizando...") lo gobierna
+             lib/botonAutocompletarIA.ts; lib/editarObjetoIa.ts hace el fetch. -->
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <BotonAutocompletarIA idBoton="analizarIaEditarBtn" />
+          <p class="mt-2 text-xs text-gray-400">
+            Analiza la foto principal y completa nombre, descripción, categoría, estado, color
+            y valor estimado. Revisá los campos y guardá los cambios.
+          </p>
+        </div>
       </div>
 
       <!-- ================================================================ -->

@@ -26,6 +26,12 @@ interface Foto {
   es_principal?: boolean;
 }
 
+/**
+ * Evento que avisa cuántas fotos tiene el objeto tras cada carga/recarga.
+ * Lo escucha lib/editarObjetoIa.ts para habilitar «Autocompletar con IA».
+ */
+export const EVENTO_FOTOS_ACTUALIZADAS = 'estok:fotos-actualizadas';
+
 // --- Estado del módulo -------------------------------------------------------
 let objetoId = '';
 let fotosExistentes: HTMLElement;
@@ -65,6 +71,10 @@ export async function cargarFotos(): Promise<void> {
 /** Pinta la grilla de fotos existentes (o el estado vacío). */
 function renderFotos(fotos: Foto[]): void {
   fotosActuales = fotos;
+  // Avisa a editarObjetoIa.ts cuántas fotos hay (botón «Autocompletar con IA»).
+  document.dispatchEvent(
+    new CustomEvent(EVENTO_FOTOS_ACTUALIZADAS, { detail: { total: fotos.length } }),
+  );
   fotosExistentes.innerHTML = '';
 
   if (!fotos.length) {

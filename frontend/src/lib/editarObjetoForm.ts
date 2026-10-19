@@ -19,6 +19,7 @@ import { fijarSeleccionMinimapa, obtenerSeleccionMinimapa } from './selectorMini
 import { ref } from './dom';
 import { showToast } from './toast';
 import { inicializarFotos, cargarFotos } from './editarObjetoFotos';
+import { inicializarIaEdicion } from './editarObjetoIa';
 import { inicializarPrecioReferencia } from './editarObjetoPrecio';
 
 /** ID del objeto editado: /objetos/<id>/editar → <id>. */
@@ -269,8 +270,9 @@ export function iniciarEdicionObjeto(): void {
     return;
   }
 
-  // Bloques independientes (fotos y precio de referencia) + carga del objeto.
+  // Bloques independientes (fotos, IA y precio de referencia) + carga del objeto.
   inicializarFotos(objetoId);
+  inicializarIaEdicion(objetoId);
   inicializarPrecioReferencia();
   void cargarObjeto();
 }
