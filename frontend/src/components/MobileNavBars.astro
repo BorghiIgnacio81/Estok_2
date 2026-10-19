@@ -68,14 +68,22 @@ const items: ItemNavMovil[] = [
 <script>
   // Marca la barra activa según la ruta actual (p. ej. /objetos/123 → "Objetos").
   // Estado puramente visual, no condiciona la navegación (cada barra es un ancla).
+  // Se re-ejecuta al volver desde el historial (WebView/TWA con bfcache).
   const barrasMovil = document.querySelectorAll<HTMLAnchorElement>('#mobileNavBars [data-mobile-nav-item]');
-  const rutaActual = window.location.pathname;
 
-  barrasMovil.forEach((barra) => {
-    const href = barra.dataset.mobileNavItem || '';
-    const activa = href === '/' ? rutaActual === '/' : rutaActual === href || rutaActual.startsWith(`${href}/`);
-    if (activa) barra.classList.add('is-active');
-  });
+  function marcarBarraActiva(): void {
+    const rutaActual = window.location.pathname;
+    barrasMovil.forEach((barra) => {
+      const href = barra.dataset.mobileNavItem || '';
+      const activa = href === '/' ? rutaActual === '/' : rutaActual === href || rutaActual.startsWith(`${href}/`);
+      barra.classList.toggle('is-active', activa);
+      if (activa) barra.setAttribute('aria-current', 'page');
+      else barra.removeAttribute('aria-current');
+    });
+  }
+
+  marcarBarraActiva();
+  document.addEventListener('estok:pageshow', marcarBarraActiva);
 </script>
 
 <style>

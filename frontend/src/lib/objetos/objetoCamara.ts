@@ -15,8 +15,8 @@
 // absoluto la vacía con limpiarCamara().
 // =============================================================================
 
-import { comprimirImagenBase64 } from '../../services/image';
 import { refrescarBotonesIA } from '../botonAutocompletarIA';
+import { prepararFotoDesdeArchivo } from './objetoArchivoImagen';
 import { ref, refOpcional } from '../dom';
 import { showToast } from '../toast';
 import { CLAVE_FOTOS, CLAVE_FOTO_LEGADA, inputDeEvento } from './objetoComunes';
@@ -170,19 +170,17 @@ async function openEditor(): Promise<void> {
 }
 
 /** Comprime la imagen elegida y la ACUMULA en la galería multi-foto. */
-function handleFileSelected(file: File): void {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const result = (e.target as FileReader).result as string;
-    // Comprimir antes de guardar
-    let compressed: string;
-    try {
-      compressed = await comprimirImagenBase64(result);
-    } catch (err) {
-      console.warn('Error al comprimir imagen, usando original:', err);
-      compressed = result;
-    }
+// Guard contra doble toque: en móvil el input file puede disparar 'change' dos
+// veces seguidas y duplicar la misma foto en la galería.
+let procesandoArchivo = false;
+
+async function handleFileSelected(file: File): Promise<void> {
+  if (!file || procesandoArchivo) return;
+  procesandoArchivo = true;
+  try {
+    // Validación de tipo/tamaño + compresión centralizadas (soporta HEIC).
+    const compressed = await prepararFotoDesdeArchivo(file);
+
     // Acumular en la galería multi-foto (NO sobreescribir la anterior)
     const esPrimeraFoto = fotosArreglo.length === 0;
     const nuevaFoto: FotoCaptura = { id: nuevoIdFoto(), base64: compressed };
@@ -205,8 +203,12 @@ function handleFileSelected(file: File): void {
     if (esPrimeraFoto) {
       setTimeout(() => void openEditor(), 300);
     }
-  };
-  reader.readAsDataURL(file);
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : 'No se pudo procesar la foto.';
+    showToast(`❌ ${mensaje}`, 'error');
+  } finally {
+    procesandoArchivo = false;
+  }
 }
 
 /** Restaura la galería desde sessionStorage (sobrevive a un refresco). */
@@ -319,13 +321,13 @@ export function initObjetoCamara(): void {
 
   cameraInput.addEventListener('change', (e) => {
     const file = inputDeEvento(e)?.files?.[0];
-    if (file) handleFileSelected(file);
+    if (file) void handleFileSelected(file);
     if (e.target) (e.target as HTMLInputElement).value = '';
   });
 
   galleryInput.addEventListener('change', (e) => {
     const file = inputDeEvento(e)?.files?.[0];
-    if (file) handleFileSelected(file);
+    if (file) void handleFileSelected(file);
     if (e.target) (e.target as HTMLInputElement).value = '';
   });
 
@@ -334,7 +336,7 @@ export function initObjetoCamara(): void {
   mobileFotoInput?.addEventListener('change', (e) => {
     const input = inputDeEvento(e);
     const file = input?.files?.[0];
-    if (file) handleFileSelected(file);
+    if (file) void handleFileSelected(file);
     if (input) input.value = '';
   });
 
@@ -370,7 +372,7 @@ export function initObjetoCamara(): void {
     // Se procesa UNA imagen por drop para respetar el flujo del editor y de la
     // galería multi-foto; el resto se avisa para usar «Otra foto».
     const [primera, ...restantes] = archivos;
-    handleFileSelected(primera);
+    void handleFileSelected(primera);
     if (restantes.length) {
       showToast(
         `🖼️ Se agregó 1 foto. Usá «Otra foto» para las ${restantes.length} restantes.`,

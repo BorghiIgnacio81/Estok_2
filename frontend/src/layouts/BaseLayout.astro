@@ -21,9 +21,13 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover: habilita env(safe-area-inset-*) en iOS standalone
+         (notch, barra de estado y barra de gestos). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#8B4513" />
+    <!-- theme-color dinámico: lib/layout/nativeShell.ts lo sincroniza con el
+         dark mode (claro #8B4513 / oscuro #1e293b) y con el manifest. -->
+    <meta id="metaThemeColor" name="theme-color" content="#8B4513" />
 
     <title>{title}</title>
 
@@ -42,12 +46,21 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js" defer></script>
 
-    <!-- PWA: Manifest -->
+    <!-- PWA: Manifest + instalación (Android / iOS) -->
     <link rel="manifest" href="/manifest.json" />
+    <meta name="application-name" content="Estok" />
+    <!-- Android / Chrome: "Añadir a la pantalla de inicio" sin barra de navegador -->
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- iOS / Safari: standalone sin barra de Safari -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <!-- "default" mantiene legible la barra de estado sobre el tema claro;
+         nativeShell.ts lo cambia a black-translucent en dark mode. -->
+    <meta id="metaAppleStatusBar" name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Estok" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512x512.png" />
 
   </head>
   <body style="background-color: var(--bg-primary)">

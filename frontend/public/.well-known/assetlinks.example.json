@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "org.eeestok.app",
+      "sha256_cert_fingerprints": [
+        "REEMPLAZAR:AA:BB:CC:...:SHA256_DEL_CERTIFICADO_DE_FIRMA"
+      ]
+    }
+  }
+]

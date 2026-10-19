@@ -9,6 +9,7 @@
 
 // Módulos con efectos de arranque (registran sus propios listeners al importarse):
 import './toasts';        // toasts globales (window.showToast/showSuccess/...)
+import './nativeShell';   // PWA standalone / TWA / WebView: tema, atrás, safe-area
 import './godModeNav';    // navbar Admin Global (solo ygumy44)
 import './darkMode';      // toggle de modo oscuro
 import './serviceWorker'; // registro de SW + banner de nueva versión

@@ -13,7 +13,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 14;
+const CACHE_VERSION = 15;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 const STATIC_ASSETS = [
   '/',
@@ -22,6 +22,8 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
+  '/icons/icon-192x192-maskable.png',
+  '/icons/icon-512x512-maskable.png',
   '/icons/apple-touch-icon.png',
 ];
 

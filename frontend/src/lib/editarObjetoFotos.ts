@@ -15,7 +15,7 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { comprimirImagenBase64 } from '../services/image';
-import { ref } from './dom';
+import { ref, refOpcional } from './dom';
 import { showToast } from './toast';
 
 /** Foto del objeto tal como la devuelve la API. */
@@ -37,6 +37,7 @@ let objetoId = '';
 let fotosExistentes: HTMLElement;
 let fotosEmpty: HTMLElement;
 let fotoInput: HTMLInputElement;
+let fotoCamaraInput: HTMLInputElement | null = null;
 let subirFotosBtn: HTMLButtonElement;
 let subirFotosText: HTMLElement;
 let subirFotosSpinner: HTMLElement;
@@ -328,8 +329,8 @@ async function procesarColaEdicion(): Promise<void> {
 // =============================================================================
 
 /** Carga a la cola los archivos elegidos y arranca la edición secuencial. */
-async function alSeleccionarArchivos(): Promise<void> {
-  const files = fotoInput.files;
+async function alSeleccionarArchivos(input: HTMLInputElement): Promise<void> {
+  const files = input.files;
   if (!files || files.length === 0) return;
 
   // Deshabilitar el botón mientras se prepara la cola
@@ -360,12 +361,20 @@ export function inicializarFotos(id: string): void {
   fotosExistentes = ref('fotosExistentes');
   fotosEmpty = ref('fotosEmpty');
   fotoInput = ref<HTMLInputElement>('fotoInput');
+  fotoCamaraInput = refOpcional<HTMLInputElement>('fotoCamaraInput');
   subirFotosBtn = ref<HTMLButtonElement>('subirFotosBtn');
   subirFotosText = ref('subirFotosText');
   subirFotosSpinner = ref('subirFotosSpinner');
   subirFotosProgress = ref('subirFotosProgress');
 
-  fotoInput.addEventListener('change', alSeleccionarArchivos);
+  fotoInput.addEventListener('change', () => void alSeleccionarArchivos(fotoInput));
+
+  // Cámara nativa (capture="environment"): misma cola de edición y subida que
+  // la galería. En iOS es la ÚNICA forma de abrir la cámara desde esta página,
+  // porque el input de galería usa `multiple`.
+  fotoCamaraInput?.addEventListener('change', () => {
+    if (fotoCamaraInput) void alSeleccionarArchivos(fotoCamaraInput);
+  });
 
   // El botón «Subir foto(s)» inicia/reanuda la edición de la cola; si no hay
   // cola, abre el selector de archivos (mismo comportamiento original).

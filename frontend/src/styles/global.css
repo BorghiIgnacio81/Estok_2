@@ -51,6 +51,72 @@ body {
   @apply transition-all duration-200 ease-in-out;
 }
 
+/* =============================================================================
+   MOBILE / WEBVIEW (PWA standalone, TWA de PWABuilder, Capacitor)
+   ============================================================================= */
+
+/* Evita el retardo de 300 ms y el zoom accidental por doble toque en los
+   controles. No afecta al pinch-zoom de accesibilidad (eso es `manipulation`
+   + `pan-x pan-y`), que sigue permitido. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+a,
+button,
+[role="button"],
+label,
+input[type="file"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* PWA instalada: sin "pull to refresh" del navegador (comportamiento de app). */
+html.is-standalone body {
+  overscroll-behavior-y: none;
+}
+
+/* iOS standalone (viewport-fit=cover): la barra de estado y el notch no deben
+   tapar la navegación. En Safari normal los insets valen 0, no cambia nada. */
+@supports (padding: max(0px)) {
+  body > nav:first-of-type {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  body > footer {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* WebView/TWA: sin menú contextual de long-press ni selección de texto en la
+   navegación (el tap se siente nativo y no "colapsa" el layout). */
+#mobileNavBars a,
+#mobileNavBars button,
+[data-native-nav] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* iOS/WebKit: un input con tipografía < 16 px hace auto-zoom al enfocar y
+   Safari no siempre vuelve atrás (la pantalla queda "corrida" en la PWA).
+   Se fuerza 16 px solo en iOS para campos de texto; el diseño no cambia. */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Scrollbar personalizada */
 ::-webkit-scrollbar {
   width: 8px;
