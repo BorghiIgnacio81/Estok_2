@@ -15,7 +15,7 @@
 // (Lote 22) para que la interfaz sea IDÉNTICA en toda la aplicación.
 // =============================================================================
 
-import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
+import { cargarCategoriasEstok, cargarUsuariosEstok } from '../catalogosEstok';
 import { refOpcional } from '../dom';
 
 // =============================================================================
@@ -25,26 +25,20 @@ import { refOpcional } from '../dom';
 /** Trae los usuarios del Estok y llena los comboboxes dueño/beneficiario. */
 async function cargarUsuarios(): Promise<void> {
   try {
-    const response = await fetch(`${API_BASE_URL}/usuarios/`, {
-      headers: getAuthHeaders(),
+    const usuarios = await cargarUsuariosEstok();
+    const duenoSelect = refOpcional<HTMLSelectElement>('dueno_original');
+    const benSelect = refOpcional<HTMLSelectElement>('beneficiario');
+    if (!duenoSelect || !benSelect) return;
+    usuarios.forEach((u) => {
+      const opt1 = document.createElement('option');
+      opt1.value = u.id;
+      opt1.textContent = u.nombre;
+      duenoSelect.appendChild(opt1);
+      const opt2 = document.createElement('option');
+      opt2.value = u.id;
+      opt2.textContent = u.nombre;
+      benSelect.appendChild(opt2);
     });
-    if (response.ok) {
-      const data = await response.json();
-      const usuarios = data.results || data;
-      const duenoSelect = refOpcional<HTMLSelectElement>('dueno_original');
-      const benSelect = refOpcional<HTMLSelectElement>('beneficiario');
-      if (!duenoSelect || !benSelect) return;
-      usuarios.forEach((u: any) => {
-        const opt1 = document.createElement('option');
-        opt1.value = u.id;
-        opt1.textContent = u.full_name || u.username || u.email;
-        duenoSelect.appendChild(opt1);
-        const opt2 = document.createElement('option');
-        opt2.value = u.id;
-        opt2.textContent = u.full_name || u.username || u.email;
-        benSelect.appendChild(opt2);
-      });
-    }
   } catch (err) {
     console.error('Error cargando usuarios:', err);
   } finally {
@@ -59,24 +53,18 @@ async function cargarCategorias(): Promise<void> {
   const select = refOpcional<HTMLSelectElement>('categoria');
   if (!select) return;
   try {
-    const response = await fetch(`${API_BASE_URL}/categorias/`, {
-      headers: getAuthHeaders(),
+    const categorias = await cargarCategoriasEstok();
+    // Preservar la opción «Sin categoría».
+    select.innerHTML = '<option value="">Sin categoría</option>';
+    categorias.forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      // Guarda el ID de Mercado Libre de la categoría para que el autocompletado
+      // de IA pueda seleccionarla por su ID oficial (MLAxxxxx).
+      opt.dataset.meliId = c.meliId ?? '';
+      opt.textContent = `${c.icono} ${c.nombre}`;
+      select.appendChild(opt);
     });
-    if (response.ok) {
-      const data = await response.json();
-      const categorias = data.results || data;
-      // Preservar la opción «Sin categoría».
-      select.innerHTML = '<option value="">Sin categoría</option>';
-      categorias.forEach((c: any) => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        // Guarda el ID de Mercado Libre de la categoría para que el autocompletado
-        // de IA pueda seleccionarla por su ID oficial (MLAxxxxx).
-        opt.dataset.meliId = c.mercadolibre_category_id ? String(c.mercadolibre_category_id) : '';
-        opt.textContent = `${c.icono || '🏷️'} ${c.nombre}`;
-        select.appendChild(opt);
-      });
-    }
   } catch (err) {
     console.error('Error cargando categorías:', err);
   }

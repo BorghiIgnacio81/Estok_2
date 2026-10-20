@@ -10,7 +10,8 @@ omitible (dualidad Contenedor + Objeto vía `crear_espejo`).
 
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from ....models import Ubicacion, Contenedor, Objeto, Membresia
+from ....models import Ubicacion, Contenedor, Membresia
+from ....services.objeto_espacio import crear_objeto_espejo, obtener_objeto_espejo
 from ....services.taxonomia_contenedor import TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE
 
 
@@ -113,30 +114,12 @@ class OrganizacionHelpersMixin:
 
         # Idempotencia: si el espejo (mismo contenedor y sin coordenadas) ya
         # existe, no duplicar el ítem de stock (reintentos/retries seguros).
-        espejo_existente = Objeto.objects.filter(
-            contenedor_id=contenedor.id,
-            parent_grid_row__isnull=True,
-            parent_grid_col__isnull=True,
-        ).exclude(deleted_at__isnull=False).exists()
-        if espejo_existente:
+        # La resolución vive en services/objeto_espacio (autoridad única de la
+        # dualidad, compartida con el panel de propiedades del espacio).
+        if obtener_objeto_espejo(contenedor) is not None:
             return
 
-        Objeto.objects.create(
-            nombre=contenedor.nombre,
-            descripcion=contenedor.descripcion or '',
-            estok_id=estok_id,
-            ubicacion=contenedor.ubicacion if contenedor.ubicacion_id else None,
-            contenedor=contenedor,
-            parent_grid_row=None,
-            parent_grid_col=None,
-            estado_conservacion='bueno',
-            estado_carga='completo',
-            campos_pendientes=[],
-            material=contenedor.material or '',
-            largo=contenedor.largo,
-            ancho=contenedor.ancho,
-            alto=contenedor.alto,
-        )
+        crear_objeto_espejo(contenedor, estok_id=estok_id)
 
     def _rechazar_ciclo(self, contenedor, nuevo_padre):
         """Evita que un contenedor quede dentro de su propia descendencia."""

@@ -65,7 +65,7 @@ def _esc(valor) -> str:
 
 
 def _precio(valor) -> str:
-    """Formatea el valor estimado (USD) con separador de miles."""
+    """Formatea el valor estimado (ARS) con separador de miles."""
     if valor in (None, ''):
         return '—'
     try:

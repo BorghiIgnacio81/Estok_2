@@ -57,14 +57,19 @@ def q_objeto_es_espejo():
     contenedor sea raíz ni mudable, a diferencia del criterio anterior.
     """
     return (
-        Q(contenedor__isnull=False)
-        & Q(parent_grid_row__isnull=True)
-        & Q(parent_grid_col__isnull=True)
-        & (
-            Q(categoria__isnull=True)
-            | (
-                Q(nombre=F('contenedor__nombre'))
-                & Q(contenedor__tipo__in=TIPOS_ESPACIO)
+        # MARCA EXPLÍCITA de dualidad (espejos nuevos): inmune a renombres del
+        # Contenedor y a que el operador asigne una Categoría al objeto.
+        Q(especificaciones__es_espejo_contenedor=True)
+        | (
+            Q(contenedor__isnull=False)
+            & Q(parent_grid_row__isnull=True)
+            & Q(parent_grid_col__isnull=True)
+            & (
+                Q(categoria__isnull=True)
+                | (
+                    Q(nombre=F('contenedor__nombre'))
+                    & Q(contenedor__tipo__in=TIPOS_ESPACIO)
+                )
             )
         )
     )

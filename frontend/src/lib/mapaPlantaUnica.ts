@@ -255,7 +255,7 @@ function esMuebleMovilDeclarado(item: ItemElastico): boolean {
  * fija (espacio inmueble, sin badge).
  */
 const BADGE_MUEBLE_MOVIL =
-  '<span class="pu-mueble-badge" title="Mueble Móvil / Objeto declarado: se lista en la pantalla de Objetos">🗄️</span>';
+  '<span class="pu-mueble-badge" title="Mueble / Objeto declarado: se lista en la pantalla de Objetos">🗄️</span>';
 
 function gruposHtml(grupos: GrupoFusion[]): string {
   return grupos

@@ -14,6 +14,8 @@ import { indicadorTransitoHtml } from '../../indicadorTransito';
 import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO, ETIQUETA_ESPACIO_UNICO } from '../../espacioUnico';
 // 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
 import { lineaMuebleMovilHtml } from '../../muebleMovil';
+// Propiedades del Objeto declarado (Dueño/Categoría/Estado/Valor estimado).
+import { conectarPropiedadesObjetoEspacio } from '../../objetoEspacio';
 import { leerCargaArrastrada, guardarEnContenedor, guardarEnUbicacion } from './transitoInterno';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
@@ -173,5 +175,7 @@ export function initGrillaObjetosDirectos(opts: {
   chkMovible?.addEventListener('change', () => {
     opts.alCambiarMuebleMovil(chkMovible.checked);
   });
+  // Propiedades del Objeto espejo: despliegue + precarga al abrir la pieza.
+  conectarPropiedadesObjetoEspacio(host, opts.nodo);
 }
 

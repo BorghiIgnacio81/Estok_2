@@ -69,7 +69,7 @@ _ALIAS_ALCANCE = {
 
 ENCABEZADOS_CSV = [
     'Entidad', 'ID', 'Nombre', 'Tipo', 'Descripción', 'Estado Conservación',
-    'Valor Estimado (USD)', 'Color', 'Ubicación', 'Contenedor',
+    'Valor Estimado', 'Color', 'Ubicación', 'Contenedor',
     'Dueño Original', 'Beneficiario', 'Estado Carga',
     'Fecha Registro', 'Fecha Actualización',
 ]

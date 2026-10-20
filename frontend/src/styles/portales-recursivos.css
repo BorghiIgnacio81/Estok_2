@@ -370,3 +370,92 @@
   margin-top: 8px;
 }
 
+/* -----------------------------------------------------------------------------
+   🧾 PROPIEDADES DEL OBJETO DECLARADO (Dueño/Categoría/Estado/Valor estimado)
+   -----------------------------------------------------------------------------
+   Se despliega DENTRO de la línea del disyuntor de movilidad, tanto en el
+   editor elástico como en el bloque monolítico, y sólo cuando la pieza está
+   declarada «Mueble / Objeto». Grilla auto-ajustable: 2 columnas en escritorio
+   y 1 columna en celular.
+   --------------------------------------------------------------------------- */
+.portal-objeto-propiedades {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+.portal-objeto-propiedades[hidden] {
+  display: none;
+}
+.portal-objeto-propiedades-titulo {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+}
+.portal-objeto-propiedades-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.portal-objeto-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.portal-objeto-campo > span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.portal-objeto-campo select,
+.portal-objeto-campo input {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #111827;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.portal-objeto-campo select:focus,
+.portal-objeto-campo input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.16);
+}
+.portal-objeto-propiedades-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.portal-objeto-guardar {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #c2410c;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+.portal-objeto-guardar:hover {
+  background: #9a3412;
+}
+.portal-objeto-guardar:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.portal-objeto-guardado {
+  font-size: 11px;
+  font-weight: 600;
+  color: #047857;
+}
+
+

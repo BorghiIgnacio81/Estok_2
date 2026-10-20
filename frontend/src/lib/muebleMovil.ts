@@ -1,9 +1,13 @@
 // =============================================================================
-// «MUEBLE MÓVIL / OBJETO» — CHECKBOX CANÓNICO DE MOVILIDAD (Contenedor)
+// «MUEBLE / OBJETO» — CHECKBOX CANÓNICO DE MOVILIDAD (Contenedor)
 // -----------------------------------------------------------------------------
 // Control ÚNICO y reutilizable que declara una pieza como BULTO MOVIBLE: se
 // lista en la canasta «Elementos por ubicar» y en la pantalla de Objetos.
 // Destildado (default del Lote 25) = ARQUITECTURA del espacio, excluida de raíz.
+//
+// Al tildarlo se despliegan las PROPIEDADES DEL OBJETO declarado (Dueño,
+// Categoría, Estado de conservación y Valor estimado), persistidas en el
+// Objeto espejo del Contenedor (lib/objetoEspacio.ts + services.objeto_espacio).
 //
 // REGLA DE POSICIÓN (Lote 26): este control se renderiza SIEMPRE exactamente
 // DEBAJO del control «Espacio Único» (lib/espacioUnico.ts), para que el operador
@@ -14,11 +18,13 @@
 // (PUT parcial multi-tenant sobre /api/contenedores/{id}/).
 // =============================================================================
 
-export const ETIQUETA_MUEBLE_MOVIL = 'Declarar como Mueble Móvil / Objeto';
+import { propiedadesObjetoEspacioHtml } from './objetoEspacio';
+
+export const ETIQUETA_MUEBLE_MOVIL = 'Declarar como Mueble / Objeto';
 
 /** Ayuda contextual del control (título nativo). */
 export const AYUDA_MUEBLE_MOVIL =
-  'Tildado: la pieza se lista en «Elementos por ubicar» y en la pantalla de Objetos. Destildado (default): ARQUITECTURA del espacio, excluida de raíz.';
+  'Tildado: la pieza se lista en «Elementos por ubicar» y en la pantalla de Objetos, y se habilitan sus datos de objeto (dueño, categoría, estado y valor). Destildado (default): ARQUITECTURA del espacio, excluida de raíz.';
 
 export interface OpcionesMuebleMovil {
   /** id del <input type="checkbox"> (único en el documento). */
@@ -65,5 +71,5 @@ export function lineaMuebleMovilHtml(nodo: NodoMovilidad, idControl: string): st
     id: idControl,
     marcado: nodo.declaradoMovible,
     valor: nodo.id,
-  })}</div>`;
+  })}${propiedadesObjetoEspacioHtml(nodo.declaradoMovible)}</div>`;
 }

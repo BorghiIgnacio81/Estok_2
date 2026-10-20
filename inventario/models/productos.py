@@ -123,7 +123,7 @@ class Objeto(ObjetoMetodosMixin, models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        verbose_name="Valor estimado (USD)"
+        verbose_name="Valor estimado"
     )
     color = models.CharField(max_length=100, blank=True, verbose_name="Color")
 

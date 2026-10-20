@@ -4,7 +4,7 @@
 // Los DOS disyuntores del nodo activo del motor de portales viajan por el MISMO
 // contrato de red (el ViewSet de Contenedores documenta `partial = True`):
 //   · `espacio_unico`     → bloque monolítico (lib/espacioUnico.ts).
-//   · `declarado_movible` → «🎒 Mueble Móvil / Objeto» (lib/muebleMovil.ts).
+//   · `declarado_movible` → «🎒 Declarar como Mueble / Objeto» (lib/muebleMovil.ts).
 //
 // `declarado_movible` SÓLO existe en Contenedor: las Ubicaciones (habitación o
 // planta) aceptan únicamente `espacio_unico`.
@@ -61,5 +61,5 @@ export function guardarEspacioUnico(
  * Objeto»): la pieza entra o sale de «Elementos por ubicar» sin recargar.
  */
 export function guardarDeclaradoMovible(id: string, valor: boolean): Promise<boolean> {
-  return putBandera('contenedores', id, 'declarado_movible', valor, 'Mueble Móvil / Objeto');
+  return putBandera('contenedores', id, 'declarado_movible', valor, 'Declarar como Mueble / Objeto');
 }

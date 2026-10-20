@@ -26,6 +26,8 @@ import { conectarLienzoElastico } from '../../plantaUnicaInteractivo';
 import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO } from '../../espacioUnico';
 // 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
 import { lineaMuebleMovilHtml } from '../../muebleMovil';
+// Propiedades del Objeto declarado (Dueño/Categoría/Estado/Valor estimado).
+import { conectarPropiedadesObjetoEspacio } from '../../objetoEspacio';
 import {
   conectarPerimetroElastico,
   guardarMedidaCon,
@@ -185,7 +187,7 @@ export async function alternarMuebleMovil(nodo: NodoPortal, valor: boolean): Pro
   reemplazarNodoActual({ declaradoMovible: valor });
   toast(
     valor
-      ? '🎒 Mueble Móvil / Objeto declarado: se lista en «Elementos por ubicar» y en Objetos.'
+      ? '🎒 Mueble / Objeto declarado: se lista en «Elementos por ubicar» y en Objetos.'
       : '🧱 Declaración retirada: la pieza vuelve a ser ARQUITECTURA del espacio.',
   );
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
@@ -227,6 +229,9 @@ export function pintarEditorDivisiones(
   host.querySelector<HTMLInputElement>('[data-mueble-movil]')?.addEventListener('change', (ev) => {
     void alternarMuebleMovil(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });
+  // Propiedades del Objeto espejo: se muestran al tildar el disyuntor y se
+  // precargan si la pieza ya estaba declarada (PUT/GET parciales al Contenedor).
+  conectarPropiedadesObjetoEspacio(host, nodo);
   conectarLienzoElastico({
     scope: host,
     rooms: () => items,

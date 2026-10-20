@@ -7,6 +7,7 @@ Mantiene compatibilidad con imports existentes.
 
 from .usuarios import RoleSerializer, UserSerializer, UserCreateSerializer
 from .organizacion import UbicacionSerializer, ContenedorSerializer
+from .objeto_espacio import PropiedadesObjetoEspacioSerializer
 from .objetos import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
 )
@@ -33,6 +34,7 @@ from .super_admin import (
 __all__ = [
     'RoleSerializer', 'UserSerializer', 'UserCreateSerializer',
     'UbicacionSerializer', 'ContenedorSerializer',
+    'PropiedadesObjetoEspacioSerializer',
     'ObjetoListSerializer', 'ObjetoDetailSerializer', 'ObjetoCreateSerializer',
     'MembresiaSerializer', 'EstokSerializer', 'EstokCreateSerializer',
     'CodigoInvitacionSerializer', 'UnirseConCodigoSerializer',

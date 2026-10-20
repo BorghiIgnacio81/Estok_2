@@ -15,9 +15,14 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
 from ....models import Contenedor, Objeto
-from ...serializers import ObjetoListSerializer
+from ...serializers import ObjetoListSerializer, PropiedadesObjetoEspacioSerializer
 from ....services.qr_service import QRService
 from ....services.arbol_inventario_service import construir_arbol_estok
+from ....services.objeto_espacio import (
+    datos_propiedades_objeto,
+    guardar_propiedades_objeto as guardar_propiedades_espacio,
+    obtener_objeto_espejo,
+)
 from ..fusion_espacial import editar_grupo, fusionar_espacios, separar_espacios
 
 logger = logging.getLogger(__name__)
@@ -104,6 +109,39 @@ class AccionesContenedorMixin:
             search=(request.query_params.get('search') or '').strip() or None,
         )
         return Response(payload)
+
+    # =====================================================================
+    # PROPIEDADES DE OBJETO DEL ESPACIO (duality Contenedor ⇄ Objeto)
+    # ---------------------------------------------------------------------
+    # El panel del editor de espacios despliega estos campos cuando el
+    # operador tilda «🎒 Declarar como Mueble / Objeto». Se persisten en el
+    # Objeto ESPEJO de la pieza (nunca en una copia nueva) y se precargan al
+    # abrir el espacio. Reglas de dominio en services/objeto_espacio.py.
+    # =====================================================================
+
+    @action(detail=True, methods=['get'], url_path='propiedades_objeto')
+    def propiedades_objeto(self, request, pk=None):
+        """GET: propiedades del Objeto espejo + `existe` (false si aún no hay)."""
+        contenedor = self.get_object()
+        objeto = obtener_objeto_espejo(contenedor, incluir_categoria_nula=False)
+        return Response(datos_propiedades_objeto(contenedor, objeto))
+
+    @action(detail=True, methods=['put', 'patch'], url_path='guardar_propiedades_objeto')
+    def guardar_propiedades_objeto(self, request, pk=None):
+        """
+        PUT/PATCH parcial: Dueño, Categoría, Estado de conservación y Valor
+        estimado del espacio declarado como objeto.
+        """
+        contenedor = self.get_object()
+        serializer = PropiedadesObjetoEspacioSerializer(
+            data=request.data,
+            context={'request': request, 'contenedor': contenedor},
+        )
+        serializer.is_valid(raise_exception=True)
+        objeto = guardar_propiedades_espacio(
+            contenedor, serializer.validated_data,
+        )
+        return Response(datos_propiedades_objeto(contenedor, objeto))
 
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):

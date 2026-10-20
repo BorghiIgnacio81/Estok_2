@@ -89,7 +89,7 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             # sub-divisiones) contaminaban la canasta de «Elementos por ubicar».
             qs = qs.exclude(qe_geometria_de_plano())
             # DECLARACIÓN EXPLÍCITA DEL OPERADOR (checkbox del modal de edición):
-            # destildar «Declarar como Mueble Móvil / Objeto» expulsa la pieza de
+            # destildar «Declarar como Mueble / Objeto» expulsa la pieza de
             # la whitelist de movibles aunque su tipo inferido sea CAJA.
             qs = qs.filter(declarado_movible=True)
 

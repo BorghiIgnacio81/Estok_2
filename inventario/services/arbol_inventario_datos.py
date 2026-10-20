@@ -18,7 +18,7 @@ ESTRICTA que alimenta `GET /api/contenedores/arbol/` (vista `/objetos`):
   - `objetos_del_estok`: 1 query de objetos activos con prefetch de fotos.
 
 DECLARACIÓN EXPLÍCITA DE MOVILIDAD (`declarado_movible`, Lotes 22/24/25): es el
-checkbox «Declarar como Mueble Móvil / Objeto» del modal de edición.
+checkbox «Declarar como Mueble / Objeto» del editor de espacios.
 
   REGLA A · NO-True → ARQUITECTURA del espacio (ej. «Escritorio Pintura»,
   «Ropero Empotrado», «Baúl», «Cama Cucheta»): EXCLUIDA DE RAÍZ de toda la
@@ -93,7 +93,13 @@ def es_registro_espejo(objeto_data, contenedor):
     Solo puede existir espejo para contenedores RAÍZ (sin parent_contenedor) y
     MUDABLES (es_inmueble=False). El espejo tiene el MISMO nombre que el
     contenedor y NO posee coordenadas de casillero (parent_grid_row/col nulos).
+
+    La MARCA `es_espejo_contenedor` (espejos nuevos) tiene prioridad: sigue
+    identificando la dualidad aunque el Contenedor se renombre o el operador
+    asigne una Categoría al objeto declarado.
     """
+    if objeto_data.get('es_espejo_contenedor'):
+        return True
     if contenedor.es_inmueble or contenedor.parent_contenedor_id is not None:
         return False
     if (

@@ -108,7 +108,7 @@ class Contenedor(models.Model):
     # DECLARACIÓN EXPLÍCITA DE MOVILIDAD (canasta «Elementos por ubicar»)
     # ---------------------------------------------------------------------
     # El operador declara con un checkbox si la pieza es un BULTO MOVIBLE
-    # («🎒 Declarar como Mueble Móvil / Objeto») o ARQUITECTURA del espacio.
+    # («🎒 Declarar como Mueble / Objeto») o ARQUITECTURA del espacio.
     # LOTE 25 · DEFAULT FALSE: toda pieza NACE como arquitectura (False). SOLO
     # un True VOLUNTARIO del operador la lista en la canasta de movibles y en
     # la pestaña de Objetos. Si el flag NO es explícitamente True, el sistema
@@ -118,8 +118,8 @@ class Contenedor(models.Model):
     # =====================================================================
     declarado_movible = models.BooleanField(
         default=False,
-        verbose_name="Declarado como Mueble Móvil / Objeto",
-        help_text="Declaración EXPLÍCITA del operador: tildado = bulto movible (mueble móvil/objeto) listable en la canasta «Elementos por ubicar» y en la pestaña de Objetos; destildado (default) = ARQUITECTURA del espacio, excluida de raíz."
+        verbose_name="Declarado como Mueble / Objeto",
+        help_text="Declaración EXPLÍCITA del operador: tildado = bulto movible (mueble/objeto) listable en la canasta «Elementos por ubicar» y en la pestaña de Objetos; destildado (default) = ARQUITECTURA del espacio, excluida de raíz."
     )
     # =====================================================================
     # TAXONOMÍA ESTRICTA DEL LISTADO DE INVENTARIO (5 tipos físicos)

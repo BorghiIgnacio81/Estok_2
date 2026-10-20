@@ -33,6 +33,10 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
+    # MARCA DE DUALIDAD (Contenedor ⇄ Objeto): el árbol de la pestaña Objetos la
+    # usa para excluir el espejo del contenido del propio espacio, incluso si el
+    # operador le asignó una Categoría (que antes lo hacía indistinguible).
+    es_espejo_contenedor = serializers.SerializerMethodField()
 
     class Meta:
         model = Objeto
@@ -44,10 +48,15 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'categoria', 'categoria_nombre',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
-            'owner_action', 'en_transito_interno',
+            'owner_action', 'en_transito_interno', 'es_espejo_contenedor',
             # IDs espaciales para el árbol de la Mudanza Inter-Estok
             'estok', 'ubicacion', 'contenedor',
         ]
+
+    def get_es_espejo_contenedor(self, obj):
+        """True si el Objeto es el espejo de dualidad de un Contenedor."""
+        especificaciones = obj.especificaciones or {}
+        return bool(especificaciones.get('es_espejo_contenedor'))
 
     def get_foto_principal(self, obj):
         """

@@ -130,6 +130,10 @@ class HasRolePermission(permissions.BasePermission):
             # Estok resueltos (_get_membresia) el usuario autenticado no recibe
             # 403 al subir fotos de un espacio convertido en mueble.
             'subir_foto': ('can_write', 'can_edit'),
+            # PROPIEDADES DE OBJETO DEL ESPACIO (Dueño/Categoría/Estado/Valor):
+            # el GET sigue siendo lectura; el guardado exige escritura/edición.
+            'propiedades_objeto': 'can_read',
+            'guardar_propiedades_objeto': ('can_write', 'can_edit'),
         }
 
         action = getattr(view, 'action', None)
