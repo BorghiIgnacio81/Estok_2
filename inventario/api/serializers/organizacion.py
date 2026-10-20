@@ -17,11 +17,21 @@ from ...services.taxonomia_contenedor import (
     es_caja_movil,
 )
 from ...services.transito_interno import esta_en_transito_interno
+# Nombres canónicos del limbo de mudanza: fuente ÚNICA backend del concepto
+# «espacio virtual» que el frontend nunca debe dibujar dentro de un plano.
+from ...services.mudanza_service import NOMBRES_LIMBO
+
+# Set normalizado (casefold) para clasificar el limbo sin repetir el cálculo.
+_NOMBRES_LIMBO_NORMALIZADOS = {n.strip().casefold() for n in NOMBRES_LIMBO}
 
 
 class UbicacionSerializer(serializers.ModelSerializer):
     objetos_count = serializers.SerializerMethodField()
     contenedores_count = serializers.SerializerMethodField()
+    # ESPACIO VIRTUAL / DE SISTEMA: el limbo «En Tránsito» (o su alias histórico
+    # «Zona de Mudanza») NO es una habitación física del plano. El frontend lo
+    # usa para excluirlo del canvas y ofrecerlo como tarjeta externa.
+    es_espacio_virtual = serializers.SerializerMethodField()
     # Jerarquía del Mapa Estok: división padre (sub-grilla de Nivel 1) → habitación
     parent_ubicacion = serializers.PrimaryKeyRelatedField(
         queryset=Ubicacion.objects.all(),
@@ -51,6 +61,11 @@ class UbicacionSerializer(serializers.ModelSerializer):
     def get_sububicaciones_count(self, obj):
         """Cuenta las habitaciones encastradas dentro de esta división."""
         return obj.sububicaciones.count()
+
+    def get_es_espacio_virtual(self, obj):
+        """True para el limbo de mudanza («En Tránsito» / «Zona de Mudanza»)."""
+        nombre = (obj.nombre or '').strip().casefold()
+        return nombre in _NOMBRES_LIMBO_NORMALIZADOS
 
     def validate_parent_ubicacion(self, value):
         """Aislamiento multi-tenant estricto: la división padre debe pertenecer

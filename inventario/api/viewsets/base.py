@@ -134,6 +134,11 @@ class HasRolePermission(permissions.BasePermission):
             # el GET sigue siendo lectura; el guardado exige escritura/edición.
             'propiedades_objeto': 'can_read',
             'guardar_propiedades_objeto': ('can_write', 'can_edit'),
+            # ESPACIO VIRTUAL «En Tránsito» (limbo de mudanza): lectura para
+            # cualquier miembro. La acción es idempotente y crea el limbo de
+            # sistema si el Estok aún no lo tiene (no es una edición de datos
+            # del operador, por eso no exige can_write).
+            'limbo': 'can_read',
         }
 
         action = getattr(view, 'action', None)

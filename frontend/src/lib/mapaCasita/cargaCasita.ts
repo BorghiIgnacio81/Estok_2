@@ -19,12 +19,17 @@ import {
 import type { UbicacionPlano } from '../mapaJerarquico';
 import { apartamentoDePlantaUnica } from './dominioCasita';
 import { estado } from './estadoCasita';
+// El limbo «En Tránsito» es un espacio VIRTUAL de sistema: no se modela ni se
+// dibuja en el lienzo de Almacenamiento.
+import { esEspacioVirtual } from '../ubicacionesVirtuales';
 
 /** Carga divisiones (plantas) y habitaciones del Estok activo en el estado. */
 export async function cargarDatos(): Promise<void> {
   const todas = await fetchUbicacionesPlano();
   estado.divisiones = todas.filter((u) => esDivisionUbicacion(u));
-  estado.habitaciones = todas.filter((u) => !esDivisionUbicacion(u));
+  estado.habitaciones = todas.filter(
+    (u) => !esDivisionUbicacion(u) && !esEspacioVirtual(u),
+  );
 }
 
 /** Garantiza el contenedor «Departamento» antes de inyectar el primer espacio. */

@@ -35,6 +35,10 @@
 
 import { esDivisionUbicacion, ETIQUETAS_PISO, PISO_PRIMERO, PISO_BAJA } from './mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
+// EXCLUSIÓN DE ESPACIOS VIRTUALES: el limbo «En Tránsito» es una Ubicación de
+// sistema, no un ambiente del plano. Se descarta ANTES de particionar para que
+// jamás entre en `habitacionesDeFila`, `plantasDe` ni en ningún minimapa.
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 
 /** Planta navegable del inmueble: fila 1-based + división real (si existe). */
 export interface PlantaDisponible {
@@ -60,11 +64,17 @@ function filaDe(ubicacion: UbicacionPlano | null | undefined): number {
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
-/** Divisiones (plantas) y habitaciones del Estok: partición canónica 1:1. */
+/**
+ * Divisiones (plantas) y habitaciones del Estok: partición canónica 1:1.
+ *
+ * Los ESPACIOS VIRTUALES/de sistema (limbo «En Tránsito», «Zona de Mudanza») se
+ * excluyen de RAÍZ: nunca son plantas ni habitaciones dibujables. La tarjeta
+ * externa «En tránsito» los representa fuera del lienzo.
+ */
 export function dividirEspacios(
   ubicaciones: UbicacionPlano[] | null | undefined,
 ): EspaciosEstok {
-  const lista = ubicaciones ?? [];
+  const lista = (ubicaciones ?? []).filter((u) => !esEspacioVirtual(u));
   return {
     divisiones: lista.filter((u) => esDivisionUbicacion(u)).sort((a, b) => filaDe(a) - filaDe(b)),
     habitaciones: lista.filter((u) => !esDivisionUbicacion(u)),

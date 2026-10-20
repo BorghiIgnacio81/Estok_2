@@ -7,13 +7,15 @@ motor de fusión de espacios en «L» (`fusionar` / `separar` / `grupo`). Los
 métodos auxiliares viven en `helpers_organizacion.py`.
 """
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ....models import Ubicacion, Contenedor, Objeto
+from ....models import Ubicacion, Contenedor, Objeto, Estok
 from ...paginacion import EstokPaginacion
 from ...serializers import UbicacionSerializer
+from ....services.mudanza_service import asegurar_ubicacion_limbo
 from ..base import HasRolePermission
 from ..fusion_espacial import (
     editar_grupo,
@@ -67,6 +69,46 @@ class UbicacionViewSet(OrganizacionHelpersMixin, viewsets.ModelViewSet):
         (desplegables/selectores): `?deduplicar_grupos=1`."""
         valor = self.request.query_params.get('deduplicar_grupos')
         return str(valor).lower() in ('1', 'true', 'yes', 'si', 'sí')
+
+    @action(detail=False, methods=['get'], url_path='limbo')
+    def limbo(self, request):
+        """
+        Espacio VIRTUAL «En Tránsito» del Estok activo (limbo de mudanza).
+
+        GET /api/ubicaciones/limbo/
+
+        Es un espacio de SISTEMA: NO es una habitación física del plano y el
+        frontend debe representarlo FUERA del canvas (tarjeta «En tránsito»).
+        La operación es IDEMPOTENTE y delega en `asegurar_ubicacion_limbo`,
+        fuente única del concepto en el backend: si el Estok todavía no tiene
+        limbo, se crea con la misma geometría neutra que usa la mudanza.
+
+        Lo consume el selector de ubicación de Objetos para ofrecer la opción
+        sin dibujar jamás el rectángulo por defecto (100%×24%) sobre el plano.
+        """
+        estok_id = (
+            request.headers.get('X-Estok-Id')
+            or request.query_params.get('estok_id')
+        )
+        if not estok_id and getattr(request.user, 'ultimo_estok_activo_id', None):
+            estok_id = str(request.user.ultimo_estok_activo_id)
+        if not estok_id:
+            return Response(
+                {'detail': 'Falta indicar el Estok activo.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            estok = Estok.objects.get(pk=estok_id)
+        except (Estok.DoesNotExist, ValueError, TypeError, DjangoValidationError):
+            return Response(
+                {'detail': 'El Estok activo no existe.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        _validar_membresia(request.user, estok.id)
+        ubicacion = asegurar_ubicacion_limbo(estok)
+        return Response(self.get_serializer(ubicacion).data)
 
     def update(self, request, *args, **kwargs):
         """

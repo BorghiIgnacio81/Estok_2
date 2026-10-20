@@ -27,6 +27,8 @@ import {
   esDivisionUbicacion,
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
+// Espacios VIRTUALES (limbo «En Tránsito»): no son habitaciones del Visor.
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 import {
   conectarRenombradoEnVivo,
   conectarResizeElastico,
@@ -149,7 +151,9 @@ async function cargarDivisionesIniciales(): Promise<void> {
     divisionesIniciales = todas
       .filter(esDivisionUbicacion)
       .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
-    habitacionesIniciales = todas.filter((u) => !esDivisionUbicacion(u));
+    habitacionesIniciales = todas.filter(
+      (u) => !esDivisionUbicacion(u) && !esEspacioVirtual(u),
+    );
   } catch {
     divisionesIniciales = [];
     habitacionesIniciales = [];

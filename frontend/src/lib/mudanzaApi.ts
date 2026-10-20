@@ -33,6 +33,8 @@ export interface UbicacionDto {
   ui_top?: string | null;
   ui_width?: string | null;
   ui_height?: string | null;
+  /** Espacio VIRTUAL de sistema (limbo «En Tránsito»): fuera de todo plano. */
+  es_espacio_virtual?: boolean;
 }
 
 export interface ContenedorDto {

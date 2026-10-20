@@ -21,6 +21,11 @@ import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
 import { escapeHtml } from './mapaJerarquico';
 import { iconoDeHabitacion } from './planoHabitaciones';
+// Coordenadas FÍSICAS válidas: los ambientes sin geometría explícita no se
+// dibujan en el lienzo de selección (evita cajas inventadas que tapan el plano).
+import { esHabitacionDibujable } from './ubicacionesVirtuales';
+// Tarjeta externa «En tránsito»: el limbo se ofrece FUERA del recuadro del mapa.
+import { transitoCardHtml } from './selectorMinimapaTransito';
 // Fuente ÚNICA de estado, IDs del DOM y derivaciones de los espacios reales.
 import {
   estado,
@@ -78,7 +83,7 @@ function nodosDeRuta(): NodoRuta[] {
       tipo: 'habitacion',
       nombre: habitacion.nombre,
       id: String(habitacion.id),
-      sectores: sectoresDeItems(habitacionesDePlanta(), String(habitacion.id)),
+      sectores: sectoresDeItems(habitacionesDePlanta().filter(esHabitacionDibujable), String(habitacion.id)),
       aspecto: ASPECTO_LIENZO,
     });
   }
@@ -189,9 +194,21 @@ function planoHabitaciones(): CuerpoNivel {
       'el plano de la planta activa',
     );
   }
+
+  // PROTECCIÓN DE COORDENADAS: sólo se dibujan ambientes con las CUATRO
+  // medidas `ui_*` porcentuales explícitas y válidas. Un espacio recién creado
+  // (ui_height 'auto') no debe recibir una caja inventada que tape el plano.
+  const dibujables = habitaciones.filter(esHabitacionDibujable);
+  if (!dibujables.length) {
+    return {
+      svg: '',
+      aviso: `👉 Esta planta tiene ${habitaciones.length} espacio(s) sin coordenadas asignadas en el plano. Modelalos desde Almacenamiento para poder ubicar objetos en ellos.`,
+    };
+  }
+
   return {
     svg: planoSvgHtml(
-      sectoresDeItems(habitaciones, estado.habitacionId, (h) =>
+      sectoresDeItems(dibujables, estado.habitacionId, (h) =>
         iconoDeHabitacion(String(h.nombre ?? '')),
       ),
       estado.habitacionId,
@@ -289,7 +306,7 @@ function cabeceraNivelHtml(): string {
     estado.nivel > 1
       ? '<button type="button" data-accion="volver" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-base">← Volver</button>'
       : '';
-  const limpiar = estado.habitacionId
+  const limpiar = estado.habitacionId || estado.enTransito
     ? '<button type="button" data-accion="limpiar" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-base">Quitar ubicación</button>'
     : '';
   return `
@@ -345,6 +362,7 @@ function renderLienzo(): void {
   if (texto) {
     texto.innerHTML =
       cabeceraNivelHtml() +
+      (estado.limbo ? transitoCardHtml(estado.enTransito) : '') +
       (cuerpo.aviso ? `<p class="text-sm text-gray-500 py-3 text-center">${cuerpo.aviso}</p>` : '');
   }
   if (plano) plano.innerHTML = cuerpo.svg;

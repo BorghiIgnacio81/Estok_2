@@ -7,6 +7,8 @@
 
 import { ETIQUETAS_PISO, PISO_PRIMERO, PISO_BAJA } from '../mapaJerarquico';
 import type { EstokConfig, UbicacionPlano } from '../mapaJerarquico';
+// Espacios VIRTUALES de sistema (limbo «En Tránsito»): nunca son habitaciones.
+import { esEspacioVirtual } from '../ubicacionesVirtuales';
 
 /** Total de plantas del inmueble (máximo entre grid_filas y los datos reales). */
 export function totalPlantas(estok: EstokConfig | null, divisiones: UbicacionPlano[]): number {
@@ -37,7 +39,9 @@ export function roomsDePlantaUnica(
 ): UbicacionPlano[] {
   const apartamento = apartamentoDePlantaUnica(divisiones);
   if (!apartamento) return [];
-  return habitaciones.filter((h) => h.parent_ubicacion === apartamento.id);
+  return habitaciones.filter(
+    (h) => h.parent_ubicacion === apartamento.id && !esEspacioVirtual(h),
+  );
 }
 
 /** Nombre de una planta (nombre real de su división o etiqueta canónica de piso). */
@@ -57,8 +61,9 @@ export function habitacionesDePlanta(
 ): UbicacionPlano[] {
   const div = divisiones.find((d) => d.parent_grid_row === fila);
   const divisionId = div?.id ?? '__sin_division__';
-  const encastradas = habitaciones.filter((h) => h.parent_ubicacion === divisionId);
-  const sueltas = habitaciones.filter((h) => !h.parent_ubicacion && h.parent_grid_row === fila);
+  const reales = habitaciones.filter((h) => !esEspacioVirtual(h));
+  const encastradas = reales.filter((h) => h.parent_ubicacion === divisionId);
+  const sueltas = reales.filter((h) => !h.parent_ubicacion && h.parent_grid_row === fila);
   return [...encastradas, ...sueltas].sort((a, b) => {
     const ra = a.parent_grid_row || 0;
     const rb = b.parent_grid_row || 0;

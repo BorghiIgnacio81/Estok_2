@@ -72,6 +72,12 @@ export interface UbicacionPlano {
   fusion_grupo?: string | null;
   /** «Espacio Único»: bloque monolítico sin subdivisiones internas. */
   espacio_unico?: boolean;
+  /**
+   * ESPACIO VIRTUAL / DE SISTEMA (limbo «En Tránsito» o «Zona de Mudanza»).
+   * Lo expone `UbicacionSerializer.es_espacio_virtual` y lo consume
+   * `lib/ubicacionesVirtuales.ts` para NO dibujarlo dentro del plano.
+   */
+  es_espacio_virtual?: boolean;
   contenedores_count?: number;
   objetos_count?: number;
   sububicaciones_count?: number;
@@ -183,6 +189,9 @@ export async function fetchUbicacionesPlano(deduplicarGrupos = false): Promise<U
       ui_top: typeof u.ui_top === 'string' ? u.ui_top : null,
       fusion_grupo: u.fusion_grupo ?? null,
       espacio_unico: Boolean(u.espacio_unico),
+      // Flag autoritativo del backend: limbo «En Tránsito»/«Zona de Mudanza».
+      // No es un ambiente dibujable del plano (lo consume ubicacionesVirtuales).
+      es_espacio_virtual: Boolean(u.es_espacio_virtual),
       contenedores_count: u.contenedores_count || 0,
       objetos_count: u.objetos_count || 0,
     }));

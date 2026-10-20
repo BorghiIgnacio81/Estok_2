@@ -18,12 +18,17 @@
 //
 // MAPEO CANÓNICO (idéntico a la sección central de Almacenamiento): el Nivel 1 NO
 // dibuja las Ubicaciones raíz (que son DIVISIONES de planta: «Planta Baja»,
-// «1er Piso», «En Tránsito»), sino los AMBIENTES HIJOS de la planta activa
-// (Living, Cocina, Baño, Bungalow…) con su geometría real de PostgreSQL. Esa
-// física vive en un único módulo puro compartido: lib/espaciosDePlanta.ts
-// (divisiones ⇄ habitaciones + `habitacionesDeFila`), consumido por
+// «1er Piso»), sino los AMBIENTES HIJOS de la planta activa (Living, Cocina,
+// Baño, Bungalow…) con su geometría real de PostgreSQL. Esa física vive en un
+// único módulo puro compartido: lib/espaciosDePlanta.ts (divisiones ⇄
+// habitaciones + `habitacionesDeFila`), consumido por
 // lib/selectorMinimapaUbicacionEstado.ts. Sin ambientes se muestra spinner/aviso:
 // JAMÁS un cajón amarillo genérico de relleno.
+//
+// «ENCENDER TRÁNSITO» (limbo de mudanza): es un espacio VIRTUAL de sistema, NO
+// un ambiente del plano. Se excluye del canvas con lib/ubicacionesVirtuales.ts y
+// se ofrece como TARJETA EXTERNA arriba del lienzo (lib/selectorMinimapaTransito),
+// para que nunca tape las habitaciones con su geometría por defecto.
 //
 // Sin doble columna, sin anchos en px y sin listado de texto duplicado: la
 // geometría la aporta 100% el motor global (src/lib/minimapa.ts).
@@ -54,8 +59,9 @@ const { ubicacionSeleccionada = '', contenedorSeleccionado = '' } = Astro.props;
   <!-- 1. CADENA DE ORIENTACIÓN (componente global encapsulado). -->
   <MinimapaRuta id="minimapaNiveles" class="minimapa-ruta-cadena" />
 
-  <!-- 2. CABECERA del nivel: título, planta activa y acciones (volver / quitar).
-       La pinta selectorMinimapaNuevoObjetoRender.ts en caliente. -->
+  <!-- 2. CABECERA del nivel + TARJETA EXTERNA «En tránsito» (fuera del mapa).
+       La pinta selectorMinimapaNuevoObjetoRender.ts en caliente: título, planta
+       activa, acciones (volver / quitar) y el selector del espacio virtual. -->
   <div id="minimapaPlanoTexto" class="w-full min-w-0"></div>
 
   <!-- 3. PLANO A ESCALA — EL COMPONENTE GLOBAL Y NADA MÁS. Se pide en formato

@@ -183,6 +183,12 @@ export class AlmacenamientoBoard {
   private dragTipo: 'contenedor' | 'objeto' | null = null;
   private dragId: string | null = null;
   private previewObjectUrl: string | null = null;
+  /**
+   * Foto elegida en el modal técnico (contendor/ubicación). Puede venir de la
+   * CÁMARA DIRECTA (`capture="environment"`) o de la GALERÍA; ambos inputs
+   * escriben acá el MISMO File para que el submit no dependa de cuál se usó.
+   */
+  private fotoSeleccionada: File | null = null;
   private cargarPromise: Promise<void> | null = null;
   /** Grilla (filas×columnas) del macro-Estok, usada para los minimapas de planta. */
   private estokFilas = 3;
@@ -1404,7 +1410,7 @@ export class AlmacenamientoBoard {
     if (gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     formData.append('es_inmueble', esInmueble ? 'true' : 'false');
-    const foto = (document.getElementById('editarFotoInput') as HTMLInputElement).files?.[0];
+    const foto = this.fotoSeleccionada;
     if (foto) formData.append('foto', foto);
     const estokId = getEstokActivoId();
     if (estokId) formData.append('estok', estokId);
@@ -1472,6 +1478,9 @@ export class AlmacenamientoBoard {
     if (tipo === 'contenedor' && gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (tipo === 'contenedor' && gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     if (tipo === 'contenedor') formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    // FOTO del modal técnico: puede venir de la cámara directa o de la galería;
+    // el File único vive en `fotoSeleccionada` (mismo flujo para ambos inputs).
+    if (this.fotoSeleccionada) formData.append('foto', this.fotoSeleccionada);
 
     // Al cambiar las filas globales en el modal se reescala la configuración
     // asimétrica (grid_filas_config) para no perder las columnas por fila.
@@ -1578,18 +1587,25 @@ export class AlmacenamientoBoard {
     document.getElementById('errorState')?.classList.add('hidden');
   }
 
-  /** Precarga la vista previa de la foto actual y limpia el input de archivo. */
+  /** Precarga la vista previa de la foto actual y limpia los inputs de archivo. */
   private precargarFoto(fotoUrl: string | null): void {
     if (this.previewObjectUrl) {
       URL.revokeObjectURL(this.previewObjectUrl);
       this.previewObjectUrl = null;
     }
+    this.fotoSeleccionada = null;
     const preview = document.getElementById('editarFotoPreview');
     const img = document.getElementById('editarFotoPreviewImg') as HTMLImageElement | null;
-    const input = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const inputGaleria = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const inputCamara = document.getElementById('editarFotoCamaraInput') as HTMLInputElement | null;
     const label = document.getElementById('editarFotoLabel');
-    if (input) input.value = '';
-    if (label) label.textContent = 'Seleccionar foto';
+    if (inputGaleria) inputGaleria.value = '';
+    if (inputCamara) inputCamara.value = '';
+    if (label) {
+      label.textContent = fotoUrl
+        ? 'Foto actual · elegí otra para reemplazarla'
+        : 'Sin foto seleccionada';
+    }
     if (!preview || !img) return;
     if (fotoUrl) {
       img.src = fotoUrl;
@@ -1600,27 +1616,42 @@ export class AlmacenamientoBoard {
     }
   }
 
+  /**
+   * Enlaza los DOS inputs de foto del modal (cámara directa y galería) al
+   * MISMO manejador: actualiza `fotoSeleccionada`, el nombre visible y la
+   * vista previa. No se duplica la lógica entre ambos.
+   */
   private enlazarInputFotoEditar(): void {
-    const input = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const inputGaleria = document.getElementById('editarFotoInput') as HTMLInputElement | null;
+    const inputCamara = document.getElementById('editarFotoCamaraInput') as HTMLInputElement | null;
     const label = document.getElementById('editarFotoLabel');
     const preview = document.getElementById('editarFotoPreview');
     const img = document.getElementById('editarFotoPreviewImg') as HTMLImageElement | null;
-    input?.addEventListener('change', () => {
-      const archivo = input.files?.[0];
-      if (label) label.textContent = archivo ? archivo.name : 'Seleccionar foto';
+
+    const aplicarArchivo = (input: HTMLInputElement | null): void => {
+      const archivo = input?.files?.[0] ?? null;
+      if (!archivo) return;
+      this.fotoSeleccionada = archivo;
+      if (label) label.textContent = archivo.name;
+      // El input que NO se usó se limpia para que un segundo intento no mezcle
+      // dos selecciones distintas en el mismo submit.
+      if (input === inputGaleria && inputCamara) inputCamara.value = '';
+      if (input === inputCamara && inputGaleria) inputGaleria.value = '';
       if (this.previewObjectUrl) {
         URL.revokeObjectURL(this.previewObjectUrl);
         this.previewObjectUrl = null;
       }
-      if (archivo && preview && img) {
+      if (preview && img) {
         this.previewObjectUrl = URL.createObjectURL(archivo);
         img.src = this.previewObjectUrl;
         preview.classList.remove('hidden');
-      } else if (preview && img) {
-        img.removeAttribute('src');
-        preview.classList.add('hidden');
       }
-    });
+    };
+
+    inputGaleria?.addEventListener('change', () => aplicarArchivo(inputGaleria));
+    // `capture="environment"` abre la cámara trasera en móvil; en escritorio el
+    // navegador cae al selector de archivos del sistema (mismo flujo).
+    inputCamara?.addEventListener('change', () => aplicarArchivo(inputCamara));
   }
 
   // ---------------------------------------------------------------------------

@@ -23,6 +23,9 @@ import { escapeHtml } from './mapaJerarquico';
 import { filtrosActivos, FILTROS_ORIGEN } from './mudanzaFiltros';
 import type { FiltroOrigen } from './mudanzaFiltros';
 import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
+// El limbo «En Tránsito» es un espacio VIRTUAL de sistema: no se lista como
+// habitación ni se dibuja en el plano de destino (tiene su zona estática propia).
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 // TAXONOMÍA FÍSICA ÚNICA: caja móvil vs. mueble mudable con los 5 tipos reales.
 import { TIPO_CAJA, TIPO_MUEBLE_MOVIL, tipoFisico } from './taxonomiaContenedor';
 
@@ -69,7 +72,9 @@ export function esDivision(u: UbicacionDto): boolean {
 
 /** Habitaciones reales del Estok (Nivel 2): zonas de suelta receptoras. */
 export function habitacionesDe(ubicaciones: UbicacionDto[]): UbicacionDto[] {
-  return ubicaciones.filter((u) => !esDivision(u));
+  // El limbo «En Tránsito» NO es una habitación física: la mudanza tiene su
+  // propia zona estática «En Tránsito» fuera del plano.
+  return ubicaciones.filter((u) => !esDivision(u) && !esEspacioVirtual(u));
 }
 
 /**

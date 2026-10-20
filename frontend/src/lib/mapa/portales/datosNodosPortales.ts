@@ -19,6 +19,8 @@ import { esDivisionUbicacion, filasInternasDe, columnasDeFilaInterna } from '../
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import type { NodoPortal } from './estadoPortales';
+// Espacios VIRTUALES (limbo «En Tránsito»): nunca son habitaciones navegables.
+import { esEspacioVirtual } from '../../ubicacionesVirtuales';
 
 /** Contenedor del padrón, normalizado para la cascada. */
 export interface ContenedorDto {
@@ -204,7 +206,9 @@ export async function cargarPlantas(): Promise<UbicacionPlano[]> {
 /** Habitaciones encastradas en una división (planta) por su relación padre. */
 export async function cargarHabitacionesDePlanta(plantaId: string | null): Promise<UbicacionPlano[]> {
   const todas = await cargarUbicaciones();
-  const rooms = todas.filter((u) => !esDivisionUbicacion(u));
+  // El limbo «En Tránsito»/«Zona de Mudanza» es un espacio VIRTUAL de sistema:
+  // se excluye de la cascada de portales y de sus minimapas.
+  const rooms = todas.filter((u) => !esDivisionUbicacion(u) && !esEspacioVirtual(u));
   if (!plantaId) return rooms;
   return rooms.filter((r) => r.parent_ubicacion === plantaId);
 }

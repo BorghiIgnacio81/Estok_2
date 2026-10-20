@@ -49,6 +49,14 @@ export interface EstadoSelector {
   estok: EstokConfig | null;
   ubicaciones: UbicacionPlano[];
   contenedores: ContenedorMinimapa[];
+  /**
+   * Espacio VIRTUAL «En Tránsito» (limbo de mudanza). Se mantiene SEPARADO de
+   * `ubicaciones` para que nunca se dibuje como un cuarto del plano: se
+   * representa con una tarjeta externa arriba del lienzo.
+   */
+  limbo: UbicacionPlano | null;
+  /** true cuando la ubicación elegida es el espacio virtual «En tránsito». */
+  enTransito: boolean;
   cargando: boolean;
   error: string | null;
   /** Nivel visible: 1 = habitaciones, 2 = muebles, 3 = cajas. */
@@ -73,6 +81,8 @@ export const estado: EstadoSelector = {
   estok: null,
   ubicaciones: [],
   contenedores: [],
+  limbo: null,
+  enTransito: false,
   cargando: true,
   error: null,
   // ARRANQUE EN EL PLANO REAL: el recorrido empieza en el plano de ambientes de

@@ -48,6 +48,8 @@ import {
   PISO_BAJA,
 } from './mapaJerarquico';
 import type { UbicacionPlano, EstokConfig } from './mapaJerarquico';
+// Espacios VIRTUALES de sistema (limbo «En Tránsito»): nunca son ambientes.
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import type { NodoRuta } from './minimapasAnidados';
 import { sectoresDeItems } from './sectoresMinimapa';
@@ -165,9 +167,9 @@ export function cargarContextoRutaCaja(): Promise<void> {
         fetchEstokConfig(),
       ]);
 
-      ubicaciones = ubicacionesData;
+      ubicaciones = ubicacionesData.filter((u) => !esEspacioVirtual(u));
       ubicacionesPorId.clear();
-      for (const u of ubicacionesData) ubicacionesPorId.set(u.id, u);
+      for (const u of ubicaciones) ubicacionesPorId.set(u.id, u);
 
       contenedoresPorId.clear();
       for (const c of contenedores) {
@@ -219,7 +221,9 @@ export interface UbicacionDeRuta {
 function hermanasDeHabitacion(room: UbicacionPlano): UbicacionPlano[] {
   const padre = room.parent_ubicacion ?? null;
   if (!padre) return [room];
-  const hermanas = ubicaciones.filter((u) => (u.parent_ubicacion ?? null) === padre);
+  const hermanas = ubicaciones.filter(
+    (u) => (u.parent_ubicacion ?? null) === padre && !esEspacioVirtual(u),
+  );
   return hermanas.length ? hermanas : [room];
 }
 

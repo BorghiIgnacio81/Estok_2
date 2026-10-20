@@ -19,9 +19,18 @@
 // =============================================================================
 
 import { getEstokActivoId } from '../services/auth';
-import { fetchAllPages } from './api';
+import { apiGet, fetchAllPages } from './api';
 import type { EstokConfig, UbicacionPlano } from './mapaJerarquico';
 import { habitacionesDeFila } from './espaciosDePlanta';
+// Espacios virtuales/de sistema (limbo «En Tránsito»): NUNCA se dibujan dentro
+// del plano; se representan con una tarjeta externa arriba del lienzo.
+import {
+  esEspacioVirtual,
+  esHabitacionDibujable,
+  ubicacionVirtual,
+} from './ubicacionesVirtuales';
+// Selección del espacio virtual «En Tránsito» (tarjeta externa al plano).
+import { seleccionarTransito } from './selectorMinimapaTransito';
 // Estado, IDs del DOM y derivaciones: fuente ÚNICA compartida con el render.
 import {
   estado,
@@ -61,25 +70,39 @@ async function cargarDatos(): Promise<void> {
   estado.error = null;
 
   try {
-    const [estoks, ubicaciones, contenedores] = await Promise.all([
+    const [estoks, ubicaciones, contenedores, limboApi] = await Promise.all([
       fetchAllPages<EstokConfig>('/estoks/', { page_size: '1000' }),
       fetchAllPages<UbicacionPlano>('/ubicaciones/', { page_size: '1000' }),
       fetchAllPages<ContenedorMinimapa>('/contenedores/', { page_size: '1000' }),
+      // Endpoint idempotente del backend: devuelve (y asegura) la habitación
+      // VIRTUAL «En Tránsito» del Estok activo. Si el backend viejo aún no lo
+      // expone, cae al limbo que ya venga dentro del padrón de ubicaciones.
+      apiGet<UbicacionPlano>('/ubicaciones/limbo/').catch(() => null),
     ]);
 
     const activoId = getEstokActivoId();
     estado.estok = estoks.find((e) => String(e.id) === String(activoId)) || estoks[0] || null;
-    estado.ubicaciones = ubicaciones;
+    estado.limbo = limboApi ?? ubicacionVirtual(ubicaciones);
+    // El limbo NUNCA entra al padrón dibujable: se renderiza como tarjeta
+    // externa (arriba del plano) y no como un rectángulo dentro del lienzo.
+    estado.ubicaciones = ubicaciones.filter((u) => !esEspacioVirtual(u));
     estado.contenedores = contenedores;
+    const idInput = (el(IDS.inputUbicacion) as HTMLInputElement | null)?.value || '';
+    estado.enTransito = Boolean(
+      estado.limbo && idInput && String(estado.limbo.id) === String(idInput),
+    );
 
-    // PLANTA ACTIVA SIEMPRE CON PLANO: si la fila vigente quedó sin ambientes (el
-    // inmueble tiene su estructura real en otra planta), el recorrido salta a la
-    // primera planta CON ambientes reales. Nunca se queda mirando un lienzo vacío.
+    // PLANTA ACTIVA SIEMPRE CON PLANO: si la fila vigente quedó sin ambientes
+    // DIBUJABLES (sin geometría física explícita), el recorrido salta a la
+    // primera planta con ambientes válidos. Nunca se queda mirando un lienzo
+    // vacío ni una caja inventada.
     const plantas = plantasDisponibles();
     const fila = filaActiva();
     const espacios = espaciosEstok();
-    if (habitacionesDeFila(espacios, fila).length === 0) {
-      const conAmbientes = plantas.find((p) => habitacionesDeFila(espacios, p.fila).length > 0);
+    const dibujablesEn = (f: number): number =>
+      habitacionesDeFila(espacios, f).filter(esHabitacionDibujable).length;
+    if (dibujablesEn(fila) === 0) {
+      const conAmbientes = plantas.find((p) => dibujablesEn(p.fila) > 0);
       if (conAmbientes) estado.planta = String(conAmbientes.fila);
       else if (!plantas.some((p) => p.fila === fila)) estado.planta = String(plantas[0]?.fila ?? 1);
     }
@@ -100,7 +123,11 @@ function escribirSeleccion(): void {
   const inputUbicacion = el(IDS.inputUbicacion) as HTMLInputElement | null;
   const inputContenedor = el(IDS.inputContenedor) as HTMLInputElement | null;
 
-  if (inputUbicacion) inputUbicacion.value = estado.habitacionId || '';
+  // «En tránsito» es una Ubicación REAL (el limbo del inquilinato): el FK del
+  // objeto viaja con su UUID, pero la pieza NO ocupa ningún cuarto del plano.
+  const ubicacionSeleccionada =
+    estado.enTransito && estado.limbo ? String(estado.limbo.id) : estado.habitacionId || '';
+  if (inputUbicacion) inputUbicacion.value = ubicacionSeleccionada;
   if (inputContenedor) inputContenedor.value = estado.cajaId || estado.muebleId || '';
 
   inputUbicacion?.dispatchEvent(new Event('change', { bubbles: true }));
@@ -112,6 +139,8 @@ function limpiarDescendencia(desde: 0 | 1 | 2 | 3): void {
     estado.habitacionId = null;
     estado.muebleId = null;
     estado.cajaId = null;
+    // Salir de la habitación/mueble también abandona «En tránsito».
+    estado.enTransito = false;
   } else if (desde === 2) {
     estado.muebleId = null;
     estado.cajaId = null;
@@ -143,6 +172,8 @@ function manejarClickSector(id: string): void {
 
   const habitacion = estado.ubicaciones.find((u) => String(u.id) === String(id));
   if (habitacion) {
+    // Elegir un ambiente físico SIEMPRE sale del estado «En tránsito».
+    estado.enTransito = false;
     // La planta pasa a ser la FILA REAL de la habitación (la de su división padre
     // si está encastrada): la misma clave canónica que usa el plano central.
     estado.planta = String(filaDeUbicacionDe(habitacion));
@@ -173,6 +204,12 @@ function manejarClick(evento: Event): void {
   if (!objetivo) return;
 
   const accion = objetivo.dataset.accion;
+  if (accion === 'transito') {
+    // TARJETA EXTERNA «En tránsito»: el objeto viaja con la mudanza sin ocupar
+    // un cuarto. Se selecciona el limbo del Estok y se sale del plano.
+    void seleccionarTransito(escribirSeleccion, render);
+    return;
+  }
   if (accion === 'volver') {
     const destino = Math.max(1, estado.nivel - 1) as 1 | 2 | 3;
     limpiarDescendencia(destino);
@@ -199,7 +236,11 @@ function manejarCambio(evento: Event): void {
   if (!select) return;
   const fila = Math.floor(Number(select.value));
   estado.planta = String(Number.isFinite(fila) && fila > 0 ? fila : 1);
+  // Cambiar de planta es sólo una acción de NAVEGACIÓN: no debe borrar la
+  // declaración «En tránsito» (el objeto sigue sin ubicación física).
+  const estabaEnTransito = estado.enTransito;
   limpiarDescendencia(1);
+  estado.enTransito = estabaEnTransito;
   irANivel(1);
 }
 
@@ -272,6 +313,11 @@ export function seleccionarEspacioMinimapa(
   id: string,
 ): boolean {
   if (tipo === 'ubicacion') {
+    // «En Tránsito» se selecciona desde su tarjeta externa, no desde el plano.
+    if (estado.limbo && String(estado.limbo.id) === String(id)) {
+      return seleccionarTransito(escribirSeleccion, render);
+    }
+    estado.enTransito = false;
     const habitacion = estado.ubicaciones.find((u) => String(u.id) === String(id));
     if (!habitacion) return false;
     // Fila real de la planta a la que pertenece el espacio creado.
@@ -282,6 +328,7 @@ export function seleccionarEspacioMinimapa(
     return true;
   }
 
+  estado.enTransito = false;
   const contenedor = estado.contenedores.find((c) => String(c.id) === String(id));
   if (!contenedor) return false;
 
