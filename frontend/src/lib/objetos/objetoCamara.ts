@@ -4,8 +4,9 @@
 // Desmantelado del <script> de pages/objetos/nuevo.astro (regla de
 // modularización <400 líneas por archivo). Responsabilidades:
 //   · Cámara y galería nativas (input[type=file] con capture) y, en MÓVIL, el
-//     botón «Subir foto del objeto» (#mobileFotoInput), que abre la cámara o la
-//     galería del teléfono de forma nativa sin pasar por el drag & drop.
+//     selector visual de dos opciones (#mobileCamaraInput con capture="environment"
+//     y #mobileFotoInput para la galería), que abre la cámara trasera o el
+//     selector de fotos del teléfono de forma nativa sin pasar por el drag & drop.
 //   · Drag & drop de archivos sobre la zona compacta (#photoPreview).
 //   · Compresión en frontend (services/image) + GALERÍA MULTI-FOTO: cada captura
 //     se ACUMULA; el visor muestra la última y las miniaturas la galería entera.
@@ -35,6 +36,7 @@ let fotoActualId: string | null = null;
 let cameraInput: HTMLInputElement;
 let galleryInput: HTMLInputElement;
 let mobileFotoInput: HTMLInputElement | null = null;
+let mobileCamaraInput: HTMLInputElement | null = null;
 let photoPreview: HTMLElement;
 let photoPlaceholder: HTMLElement;
 let photoImage: HTMLImageElement;
@@ -290,10 +292,11 @@ export function limpiarCamara(): void {
     stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
     (videoCamara as any).srcObject = null;
   }
-  // Limpiar los inputs file de cámara/galería (incluido el botón móvil)
+  // Limpiar los inputs file de cámara/galería (incluido el selector móvil)
   cameraInput.value = '';
   galleryInput.value = '';
   if (mobileFotoInput) mobileFotoInput.value = '';
+  if (mobileCamaraInput) mobileCamaraInput.value = '';
 }
 
 /** Inicializa la captura: resuelve refs, restaura estado y enlaza listeners. */
@@ -301,6 +304,7 @@ export function initObjetoCamara(): void {
   cameraInput = ref<HTMLInputElement>('cameraInput');
   galleryInput = ref<HTMLInputElement>('galleryInput');
   mobileFotoInput = refOpcional<HTMLInputElement>('mobileFotoInput');
+  mobileCamaraInput = refOpcional<HTMLInputElement>('mobileCamaraInput');
   photoPreview = ref<HTMLElement>('photoPreview');
   photoPlaceholder = ref<HTMLElement>('photoPlaceholder');
   photoImage = ref<HTMLImageElement>('photoImage');
@@ -331,14 +335,20 @@ export function initObjetoCamara(): void {
     if (e.target) (e.target as HTMLInputElement).value = '';
   });
 
-  // MÓVIL: el botón nativo «Subir foto del objeto» alimenta el MISMO flujo de
-  // compresión + galería multi-foto (handleFileSelected), sin lógica duplicada.
-  mobileFotoInput?.addEventListener('change', (e) => {
-    const input = inputDeEvento(e);
-    const file = input?.files?.[0];
-    if (file) void handleFileSelected(file);
-    if (input) input.value = '';
-  });
+  // MÓVIL: selector visual de dos opciones. «📷 Tomar foto» (#mobileCamaraInput,
+  // capture="environment") y «🖼️ Elegir de la Galería» (#mobileFotoInput)
+  // alimentan el MISMO flujo de compresión + galería multi-foto
+  // (handleFileSelected), sin lógica duplicada.
+  const enlazarCapturaMovil = (input: HTMLInputElement | null): void => {
+    input?.addEventListener('change', (e) => {
+      const destino = inputDeEvento(e);
+      const file = destino?.files?.[0];
+      if (file) void handleFileSelected(file);
+      if (destino) destino.value = '';
+    });
+  };
+  enlazarCapturaMovil(mobileCamaraInput);
+  enlazarCapturaMovil(mobileFotoInput);
 
   photoPreview.addEventListener('click', () => cameraInput.click());
 

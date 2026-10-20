@@ -14,10 +14,12 @@
 // Los ids son los canónicos que ya consume el orquestador (nuevo.astro).
 //
 // MÓVIL: la zona de arrastre se oculta por completo (`hidden md:flex`, con el
-// visor limpio de la foto cuando ya hay captura) y en su lugar aparece el botón
-// nativo «Subir foto del objeto» (`#mobileFotoInput`, accept="image/*"), que
-// abre la cámara o la galería del teléfono. nuevo.astro enlaza ese input al
-// MISMO handleFileSelected() de la cámara y la galería: cero lógica duplicada.
+// visor limpio de la foto cuando ya hay captura) y en su lugar aparece el
+// SELECTOR VISUAL de dos opciones: «📷 Tomar foto» (`#mobileCamaraInput`,
+// accept="image/*" + capture="environment", abre la cámara trasera directo) y
+// «🖼️ Elegir de la Galería» (`#mobileFotoInput`, accept="image/*" sin capture).
+// nuevo.astro (objetoCamara.ts) enlaza AMBOS inputs al MISMO
+// handleFileSelected() de la cámara y la galería: cero lógica duplicada.
 // Botón "Autocompletar con IA": vive ÚNICAMENTE en esta botonera (celda
 // contigua a "Otra foto", debajo de "Galería") con la misma geometría que sus
 // vecinos. Su estado (disabled / "Analizando...") lo pinta
@@ -57,20 +59,33 @@ import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
 
     <!-- ACCIONES EN GRILLA SIMÉTRICA 2×2 -->
     <div class="grid grid-cols-2 gap-2 content-start">
-      <!-- MÓVIL: botón nativo y limpio que abre la cámara o la galería del
-           teléfono (accept="image/*"). Reemplaza al rectángulo de arrastre,
-           que en móvil no existe. Sin `capture` a propósito: iOS/Android
-           muestran "Tomar foto" o "Elegir de la galería" en el mismo paso. -->
-      <label class="md:hidden col-span-2 flex items-center justify-center gap-2 px-3 h-12 bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-base cursor-pointer"
-        aria-label="Subir una foto del objeto desde la cámara o la galería">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-        </svg>
-        Subir foto del objeto
-        <input id="mobileFotoInput" type="file" accept="image/*" aria-label="Foto del objeto" class="hidden" />
-      </label>
+      <!-- MÓVIL: SELECTOR VISUAL DE DOS OPCIONES (cámara directa vs. galería).
+           `capture="environment"` abre la cámara TRASERA de una sola vez; sin
+           `capture`, el sistema ofrece el selector de archivos/galería. Ambos
+           inputs alimentan el MISMO handleFileSelected() de objetoCamara.ts.
+           Reemplaza al botón único «Subir foto del objeto» que delegaba la
+           elección al diálogo del sistema. -->
+      <div class="md:hidden col-span-2 grid grid-cols-2 gap-2">
+        <label class="flex flex-col items-center justify-center gap-0.5 px-2 h-14 bg-blue-700 text-white text-xs font-semibold rounded-lg hover:bg-blue-800 transition-base cursor-pointer"
+          aria-label="Tomar foto con la cámara del teléfono">
+          <span class="text-base leading-none" aria-hidden="true">📷</span>
+          Tomar foto
+          <span class="text-[10px] font-normal opacity-90">Cámara directa</span>
+          <input id="mobileCamaraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+        </label>
 
-      <label class="flex items-center justify-center gap-1.5 px-2 h-11 bg-blue-700 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+        <label class="flex flex-col items-center justify-center gap-0.5 px-2 h-14 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base cursor-pointer"
+          aria-label="Elegir una foto de la galería del teléfono">
+          <span class="text-base leading-none" aria-hidden="true">🖼️</span>
+          Elegir de la Galería
+          <span class="text-[10px] font-normal text-gray-500">Fotos guardadas</span>
+          <input id="mobileFotoInput" type="file" accept="image/*" class="hidden" />
+        </label>
+      </div>
+
+      <!-- ESCRITORIO: mismas dos acciones, ahora ocultas en móvil porque el
+           selector visual de arriba ya las expone con etiquetas explícitas. -->
+      <label class="hidden md:flex items-center justify-center gap-1.5 px-2 h-11 bg-blue-700 text-white text-xs font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
         </svg>
@@ -78,7 +93,7 @@ import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
         <input id="cameraInput" type="file" accept="image/*" capture="environment" aria-label="Tomar foto con la cámara" class="hidden" />
       </label>
 
-      <label class="flex items-center justify-center gap-1.5 px-2 h-11 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+      <label class="hidden md:flex items-center justify-center gap-1.5 px-2 h-11 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
@@ -134,7 +149,7 @@ import BotonAutocompletarIA from './BotonAutocompletarIA.astro';
      `hidden md:flex`). Cuando hay una foto capturada, el MISMO bloque reaparece
      como VISOR limpio de la imagen (sin borde punteado ni pistas de arrastre),
      de modo que el operador ve siempre lo que cargó. El alta de fotos en móvil
-     la hace el botón nativo «Subir foto del objeto».
+     la hace el selector «📷 Tomar foto» / «🖼️ Elegir de la Galería».
      =========================================================================== */
   @media (max-width: 767px) {
     [data-captura-fotos] #photoPreview {

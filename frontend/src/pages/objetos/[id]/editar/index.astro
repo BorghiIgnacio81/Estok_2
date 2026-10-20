@@ -231,28 +231,28 @@ export const prerender = false;
           <p class="text-sm text-gray-400">Este objeto no tiene fotos todavía.</p>
         </div>
 
-        <!-- Subir foto: galería multi-archivo + cámara nativa.
-             En iOS/Android un input con `multiple` obliga a elegir la galería
-             (no ofrece la cámara), por eso el botón «Usar cámara» es un input
-             aparte con capture="environment". Ambos alimentan la misma cola de
-             edición/subida (ver lib/editarObjetoFotos.ts). -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div class="w-full">
-            <label for="fotoInput" class="block text-sm font-medium text-gray-700 mb-1">Agregar desde galería</label>
-            <input id="fotoInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple
-              class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-base cursor-pointer" />
-          </div>
-          <div class="w-full">
-            <span class="block text-sm font-medium text-gray-700 mb-1">Tomar foto</span>
-            <label class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Usar cámara
-              <input id="fotoCamaraInput" type="file" accept="image/*" capture="environment" class="hidden" />
-            </label>
-          </div>
+        <!-- Selector visual de DOS opciones (móvil-first y también escritorio):
+             «📷 Tomar foto» abre la CÁMARA TRASERA directo gracias a
+             capture="environment" (iOS Safari ignora `capture` si el input lleva
+             `multiple`, por eso la cámara es un input SEPARADO); «🖼️ Elegir de la
+             Galería» permite seleccionar varias fotos existentes. Ambos inputs
+             alimentan la misma cola de edición/subida (lib/editarObjetoFotos.ts). -->
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col items-center justify-center gap-0.5 px-3 py-3 bg-blue-700 text-white text-sm font-semibold rounded-lg hover:bg-blue-800 transition-base cursor-pointer"
+            aria-label="Tomar foto con la cámara del teléfono">
+            <span class="text-lg leading-none" aria-hidden="true">📷</span>
+            Tomar foto
+            <span class="text-[11px] font-normal opacity-90">Cámara directa</span>
+            <input id="fotoCamaraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+          </label>
+
+          <label class="flex flex-col items-center justify-center gap-0.5 px-3 py-3 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-base cursor-pointer"
+            aria-label="Elegir fotos de la galería">
+            <span class="text-lg leading-none" aria-hidden="true">🖼️</span>
+            Elegir de la Galería
+            <span class="text-[11px] font-normal text-gray-500">Podés elegir varias</span>
+            <input id="fotoInput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple class="hidden" />
+          </label>
         </div>
         <div class="mt-3">
           <button type="button" id="subirFotosBtn" disabled

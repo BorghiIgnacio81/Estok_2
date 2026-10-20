@@ -18,8 +18,8 @@ móvil. **No requiere cambiar el despliegue**: la app sigue siendo SSR
 | Detección standalone/WebView, color de tema, botón ATRÁS, anti doble-tap | `frontend/src/lib/layout/nativeShell.ts` | ✅ |
 | Service Worker (precache de iconos nuevos) | `frontend/public/sw.js` | ✅ |
 | Escáner QR con **jsQR empaquetado** (sin CDN), frame 640 px, ~8 fps, errores de permiso, fallback por foto | `frontend/src/lib/escanerQr.ts` | ✅ |
-| Cámara/galería del alta de objetos (validación de tipo/tamaño, HEIC, anti doble-captura) | `frontend/src/lib/objetos/objetoArchivoImagen.ts` + `objetoCamara.ts` | ✅ |
-| Cámara explícita en edición de objeto (`capture="environment"`) | `frontend/src/pages/objetos/[id]/editar/index.astro` + `lib/editarObjetoFotos.ts` | ✅ |
+| Cámara/galería del alta de objetos: selector «📷 Tomar foto» (`capture="environment"`) / «🖼️ Elegir de la Galería» (validación de tipo/tamaño, HEIC, anti doble-captura) | `frontend/src/lib/objetos/objetoArchivoImagen.ts` + `objetoCamara.ts` + `components/objetos/CapturaFotosCompacta.astro` | ✅ |
+| Selector «📷 Tomar foto» (`capture="environment"`) / «🖼️ Elegir de la Galería» en edición de objeto | `frontend/src/pages/objetos/[id]/editar/index.astro` + `lib/editarObjetoFotos.ts` | ✅ |
 | Header `Permissions-Policy: camera=(self)` y `/.well-known/` | `nginx-combined.conf` | ✅ |
 | Targets de build para WebView (es2020/safari14) y host LAN en dev | `frontend/astro.config.mjs` | ✅ |
 
