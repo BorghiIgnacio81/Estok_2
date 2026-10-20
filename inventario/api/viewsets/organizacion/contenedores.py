@@ -118,16 +118,29 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             )
         return qs
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         """
         PUT con soporte de actualización parcial: permite que el Drag & Drop
         envíe únicamente las relaciones (ubicacion / parent_contenedor).
+
+        PUT UNIFICADO DEL ESPACIO/MUEBLE: si el payload trae el bloque del
+        objeto asociado con prefijo `objeto_*` (Dueño, Categoría, Estado,
+        Valor, Notas, patrimoniales y fotos), se persiste en la MISMA
+        transacción que los datos técnicos del Contenedor. Así el formulario
+        de edición envía ambas capas en una sola petición y no se pierde
+        ningún dato si algo falla.
         """
         partial = True
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        # El bloque del Objeto espejo se aplica DESPUÉS de que el Contenedor
+        # quedó guardado: necesita el nombre/descripción definitivos del
+        # espacio para sincronizar el rótulo del espejo.
+        if serializer.instance is not None:
+            self.aplicar_propiedades_objeto_del_put(serializer.instance)
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
         return Response(serializer.data)

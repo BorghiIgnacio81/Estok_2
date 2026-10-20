@@ -14,9 +14,15 @@ Este módulo es la AUTORIDAD ÚNICA para:
     regla legada de nombre/categoría nula),
   · crearlo cuando la pieza todavía no lo tenía (p. ej. una sub-división creada
     con `crear_espejo=false`),
-  · persistir sus propiedades editables desde el panel del espacio:
-    Dueño / Propietario, Categoría, Estado de conservación y Valor estimado,
-  · serializarlas para que el panel las precargue al abrir la pieza.
+  · persistir TODAS sus propiedades editables desde los formularios del
+    espacio: Dueño/Propietario, Categoría, Estado de conservación, Valor
+    estimado, Notas/Descripción, campos patrimoniales y FOTOS (galería o
+    cámara),
+  · serializarlas para que el panel y el modal de edición precarguen la pieza.
+
+El modal técnico envía el bloque del objeto PREFIJADO (`objeto_*`) dentro del
+MISMO PUT del Contenedor; `propiedades_desde_payload()` es la frontera entre
+las dos capas y `ContenedorViewSet.update()` las persiste en una transacción.
 
 MARCA DE ESPEJO
 ===============
@@ -31,7 +37,7 @@ Los `verbose_name` y la validación de entrada viven en
 `api.serializers.objeto_espacio`; acá sólo hay reglas de dominio y ORM.
 """
 
-from ..models import Objeto
+from ..models import FotoObjeto, Objeto
 
 # Clave de la marca de dualidad dentro de `Objeto.especificaciones` (JSON libre).
 MARCA_ESPEJO = 'es_espejo_contenedor'
@@ -45,13 +51,37 @@ ESTADOS_CONSERVACION_OBJETO = (
     'muy_malo',
 )
 
-# Campos que el panel del espacio puede persistir sobre el Objeto espejo.
+# Campos que los formularios del espacio pueden persistir sobre el Objeto espejo.
+# Incluye los cuatro datos de inventario y los campos patrimoniales/notas que el
+# operador completa al editar un mueble declarado como objeto.
 CAMPOS_PROPIEDADES = (
+    'descripcion',
     'dueno_original',
+    'dueno_externo_nombre',
+    'beneficiario',
     'categoria',
     'estado_conservacion',
     'valor_estimado',
+    'color',
+    'material',
+    'marca',
+    'modelo',
+    'numero_serie',
+    'autor',
+    'anio',
+    'artista_fabricante',
+    'tamano',
 )
+
+# Claves de entrada que no son campos del modelo (id del espejo y archivos).
+CAMPOS_ENTRADA = CAMPOS_PROPIEDADES + ('objeto_id', 'fotos')
+
+# Valores vacíos que deben viajar como NULL al ORM (FK y numéricos). Un string
+# vacío en un PrimaryKeyRelatedField es inválido para DRF, no "sin valor".
+CAMPOS_VACIOS_A_NULO = frozenset({
+    'objeto_id', 'dueno_original', 'beneficiario', 'categoria',
+    'valor_estimado', 'anio',
+})
 
 
 def espejo_de_contenedor(contenedor):
@@ -153,28 +183,42 @@ def crear_objeto_espejo(contenedor, estok_id=None):
 
 def guardar_propiedades_objeto(contenedor, datos):
     """
-    Persiste las propiedades de objeto del espacio en su Objeto espejo.
+    Persiste TODAS las propiedades de objeto del espacio en su Objeto espejo.
 
     `datos` es el `validated_data` del serializer homónimo: sólo se escriben
     las claves presentes en el payload (PUT/PATCH parcial), de modo que guardar
     un campo no borra los demás. Si la pieza no tenía espejo, se crea en el
     acto: declarar un espacio como objeto es justamente lo que lo materializa.
+
+    Las FOTOS viajan en `datos['fotos']` (lista de archivos validados) y se
+    persisten como FotoObjeto del espejo, sin tocar los demás campos.
     """
+    archivos = list(datos.get('fotos') or [])
+
     objeto = obtener_objeto_espejo(
         contenedor, datos.get('objeto_id'), incluir_categoria_nula=False,
     )
     if objeto is None:
         objeto = crear_objeto_espejo(contenedor)
 
+    campos_actualizados = set()
     for campo in CAMPOS_PROPIEDADES:
         if campo in datos:
             setattr(objeto, campo, datos[campo])
+            campos_actualizados.add(campo)
 
     # El espejo representa al espacio: su rótulo sigue al del Contenedor para
     # que la dualidad siga siendo reconocible en la pestaña de Objetos.
     objeto.nombre = contenedor.nombre
-    if contenedor.descripcion and not objeto.descripcion:
+    # La descripción del Contenedor es sólo un fallback histórico: si el
+    # formulario envía Notas/Descripción, ese valor MANDA y no se pisa.
+    if (
+        'descripcion' not in datos
+        and contenedor.descripcion
+        and not objeto.descripcion
+    ):
         objeto.descripcion = contenedor.descripcion
+        campos_actualizados.add('descripcion')
     # Los espejos HISTÓRICOS no traían la marca: se los marca al declararlos,
     # así la dualidad sobrevive a futuros renombres del Contenedor.
     especificaciones = dict(objeto.especificaciones or {})
@@ -182,43 +226,138 @@ def guardar_propiedades_objeto(contenedor, datos):
     objeto.especificaciones = especificaciones
     objeto.estado_carga = 'completo'
     objeto.campos_pendientes = []
+
     objeto.save(update_fields=[
-        'nombre', 'descripcion', 'dueno_original', 'categoria',
-        'estado_conservacion', 'valor_estimado', 'especificaciones',
-        'estado_carga', 'campos_pendientes', 'updated_at',
+        'nombre', 'especificaciones', 'estado_carga', 'campos_pendientes',
+        *sorted(campos_actualizados), 'updated_at',
     ])
+
+    if archivos:
+        agregar_fotos_objeto(objeto, archivos)
     return objeto
+
+
+def agregar_fotos_objeto(objeto, archivos, descripcion=''):
+    """
+    Crea las FotoObjeto del Objeto espejo respetando la foto principal.
+
+    La PRIMERA foto del espacio pasa a ser principal sólo si el objeto todavía
+    no tenía una: nunca se degrada la portada elegida por el operador.
+    """
+    total_previo = objeto.fotos.count()
+    tiene_principal = objeto.fotos.filter(es_principal=True).exists()
+    creadas = []
+    for indice, archivo in enumerate(archivos):
+        foto = FotoObjeto.objects.create(
+            objeto=objeto,
+            imagen=archivo,
+            descripcion=descripcion or f'Foto {total_previo + indice + 1}',
+            es_principal=(not tiene_principal and indice == 0),
+        )
+        creadas.append(foto)
+    return creadas
+
+
+def propiedades_desde_payload(datos, prefijo='objeto_'):
+    """
+    Extrae las propiedades del Objeto desde el payload de un PUT del espacio.
+
+    El modal técnico envía un ÚNICO `PUT /contenedores/{id}/` con los campos de
+    la ubicación/espacio y los del objeto asociado, distinguidos por prefijo
+    (`objeto_dueno_original`, `objeto_categoria`, `objeto_fotos`, ...). Esta
+    función es la frontera entre ambos mundos: devuelve sólo las claves del
+    objeto, ya sin prefijo y con los vacíos normalizados a None.
+    """
+    if not hasattr(datos, 'keys'):
+        return {}
+
+    propiedades = {}
+    for clave in list(datos.keys()):
+        if not clave.startswith(prefijo):
+            continue
+        destino = clave[len(prefijo):]
+        if destino not in CAMPOS_ENTRADA:
+            continue
+        if destino == 'fotos':
+            if hasattr(datos, 'getlist'):
+                propiedades['fotos'] = list(datos.getlist(clave))
+            else:
+                valor_fotos = datos.get(clave)
+                propiedades['fotos'] = (
+                    list(valor_fotos) if isinstance(valor_fotos, (list, tuple))
+                    else [valor_fotos]
+                )
+            continue
+        valor = datos.get(clave)
+        if destino in CAMPOS_VACIOS_A_NULO and (
+            valor is None or str(valor).strip() == ''
+        ):
+            valor = None
+        propiedades[destino] = valor
+    return propiedades
+
+
+def _foto_payload(foto):
+    """Contrato de lectura de una foto del objeto para los formularios."""
+    return {
+        'id': str(foto.pk),
+        'imagen': foto.imagen.url if foto.imagen else None,
+        'descripcion': foto.descripcion,
+        'es_principal': bool(foto.es_principal),
+    }
 
 
 def datos_propiedades_objeto(contenedor, objeto=None):
     """
-    Payload de lectura del panel del espacio (GET /propiedades_objeto/).
+    Payload de lectura de los formularios del espacio (GET /propiedades_objeto/).
 
-    Con `existe=False` devuelve los valores por defecto del formulario para que
-    el frontend pinte los campos sin ramas especiales.
+    Con `objeto=None` devuelve los valores por defecto del formulario para que
+    el frontend pinte TODOS los campos sin ramas especiales.
     """
     if objeto is None:
         return {
             'existe': False,
             'objeto_id': None,
             'nombre': contenedor.nombre,
+            'descripcion': contenedor.descripcion or '',
             'dueno_original': None,
             'dueno_original_nombre': None,
+            'dueno_externo_nombre': '',
+            'beneficiario': None,
+            'beneficiario_nombre': None,
             'categoria': None,
             'categoria_nombre': None,
             'estado_conservacion': 'bueno',
             'valor_estimado': None,
+            'color': '',
+            'material': contenedor.material or '',
+            'marca': '',
+            'modelo': '',
+            'numero_serie': '',
+            'autor': '',
+            'anio': None,
+            'artista_fabricante': '',
+            'tamano': '',
+            'fotos': [],
         }
 
     return {
         'existe': True,
         'objeto_id': str(objeto.pk),
         'nombre': objeto.nombre,
+        'descripcion': objeto.descripcion or '',
         'dueno_original': (
             str(objeto.dueno_original_id) if objeto.dueno_original_id else None
         ),
         'dueno_original_nombre': (
             str(objeto.dueno_original) if objeto.dueno_original_id else None
+        ),
+        'dueno_externo_nombre': objeto.dueno_externo_nombre or '',
+        'beneficiario': (
+            str(objeto.beneficiario_id) if objeto.beneficiario_id else None
+        ),
+        'beneficiario_nombre': (
+            str(objeto.beneficiario) if objeto.beneficiario_id else None
         ),
         'categoria': str(objeto.categoria_id) if objeto.categoria_id else None,
         'categoria_nombre': (
@@ -228,4 +367,14 @@ def datos_propiedades_objeto(contenedor, objeto=None):
         'valor_estimado': (
             str(objeto.valor_estimado) if objeto.valor_estimado is not None else None
         ),
+        'color': objeto.color or '',
+        'material': objeto.material or '',
+        'marca': objeto.marca or '',
+        'modelo': objeto.modelo or '',
+        'numero_serie': objeto.numero_serie or '',
+        'autor': objeto.autor or '',
+        'anio': objeto.anio,
+        'artista_fabricante': objeto.artista_fabricante or '',
+        'tamano': objeto.tamano or '',
+        'fotos': [_foto_payload(foto) for foto in objeto.fotos.all()],
     }

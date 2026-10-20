@@ -6,8 +6,9 @@
 // Destildado (default del Lote 25) = ARQUITECTURA del espacio, excluida de raíz.
 //
 // Al tildarlo se despliegan las PROPIEDADES DEL OBJETO declarado (Dueño,
-// Categoría, Estado de conservación y Valor estimado), persistidas en el
-// Objeto espejo del Contenedor (lib/objetoEspacio.ts + services.objeto_espacio).
+// Categoría, Estado de conservación, Valor estimado, Notas, datos patrimoniales
+// y fotos), persistidas en el Objeto espejo del Contenedor
+// (lib/objetoEspacio.ts + services.objeto_espacio).
 //
 // REGLA DE POSICIÓN (Lote 26): este control se renderiza SIEMPRE exactamente
 // DEBAJO del control «Espacio Único» (lib/espacioUnico.ts), para que el operador

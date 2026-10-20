@@ -222,7 +222,7 @@ import '../styles/almacenamiento-fuelle.css';
 
     <!-- Modal: Editar entidad (Ubicación / Contenedor) -->
     <div id="modalEditar" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+      <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-4">
           <h3 id="editarTitulo" class="text-lg font-semibold text-gray-900">Editar</h3>
           <button type="button" data-cerrar-modal="editar" class="text-gray-400 hover:text-gray-600">
@@ -320,6 +320,14 @@ import '../styles/almacenamiento-fuelle.css';
               </div>
             </div>
           </div>
+          <!-- ================================================================
+               PROPIEDADES DEL OBJETO (Mueble / Objeto declarado)
+               Sólo para contenedores con `declarado_movible = true`. El
+               contenido se inyecta desde lib/objetoEspacioModal.ts (misma
+               fuente de campos que el panel del editor de espacios) y viaja
+               en el MISMO PUT del espacio, prefijado `objeto_*`.
+               ================================================================ -->
+          <div id="editarObjetoCampos" class="hidden border-t border-gray-200 pt-4"></div>
           <div class="flex gap-3 pt-2">
             <button type="submit" id="editarSaveBtn"
               class="flex-1 px-4 py-2 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base disabled:opacity-50">

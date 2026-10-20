@@ -411,7 +411,8 @@
   color: #6b7280;
 }
 .portal-objeto-campo select,
-.portal-objeto-campo input {
+.portal-objeto-campo input,
+.portal-objeto-campo textarea {
   width: 100%;
   padding: 6px 8px;
   font-size: 12px;
@@ -422,10 +423,19 @@
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.portal-objeto-campo textarea {
+  resize: vertical;
+  min-height: 44px;
+}
 .portal-objeto-campo select:focus,
-.portal-objeto-campo input:focus {
+.portal-objeto-campo input:focus,
+.portal-objeto-campo textarea:focus {
   border-color: #f97316;
   box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.16);
+}
+/* Notas / Descripción ocupa el ancho completo de la grilla. */
+.portal-objeto-campo--ancho {
+  grid-column: 1 / -1;
 }
 .portal-objeto-propiedades-pie {
   display: flex;
@@ -458,4 +468,124 @@
   color: #047857;
 }
 
+/* -----------------------------------------------------------------------------
+   DATOS PATRIMONIALES + FOTOS DEL OBJETO
+   Compartidos por el panel del espacio declarado y el modal de edición.
+   --------------------------------------------------------------------------- */
+.portal-objeto-patrimoniales {
+  margin-top: 8px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #ffffff;
+}
+.portal-objeto-patrimoniales > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+  list-style: none;
+}
+.portal-objeto-patrimoniales > summary::-webkit-details-marker {
+  display: none;
+}
+.portal-objeto-patrimoniales[open] > summary {
+  margin-bottom: 8px;
+  color: #c2410c;
+}
+.portal-objeto-fotos {
+  margin-top: 10px;
+}
+.portal-objeto-fotos-titulo {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+}
+.portal-objeto-fotos-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.portal-objeto-fotos-grid[hidden] {
+  display: none;
+}
+.portal-objeto-foto {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+.portal-objeto-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.portal-objeto-foto-principal {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  padding: 1px 2px;
+  font-size: 8.5px;
+  font-weight: 700;
+  text-align: center;
+  color: #ffffff;
+  background: rgba(4, 120, 87, 0.85);
+}
+.portal-objeto-foto-quitar {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: #ffffff;
+  background: rgba(185, 28, 28, 0.85);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.portal-objeto-fotos-acciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.portal-objeto-foto-boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #1d4ed8;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.portal-objeto-foto-boton:hover {
+  background: #1e40af;
+}
+.portal-objeto-foto-boton--sec {
+  color: #374151;
+  background: #f3f4f6;
+}
+.portal-objeto-foto-boton--sec:hover {
+  background: #e5e7eb;
+}
+.portal-objeto-modal-ayuda {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #9ca3af;
+}
 

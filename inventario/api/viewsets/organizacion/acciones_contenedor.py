@@ -22,6 +22,7 @@ from ....services.objeto_espacio import (
     datos_propiedades_objeto,
     guardar_propiedades_objeto as guardar_propiedades_espacio,
     obtener_objeto_espejo,
+    propiedades_desde_payload,
 )
 from ..fusion_espacial import editar_grupo, fusionar_espacios, separar_espacios
 
@@ -129,12 +130,16 @@ class AccionesContenedorMixin:
     @action(detail=True, methods=['put', 'patch'], url_path='guardar_propiedades_objeto')
     def guardar_propiedades_objeto(self, request, pk=None):
         """
-        PUT/PATCH parcial: Dueño, Categoría, Estado de conservación y Valor
-        estimado del espacio declarado como objeto.
+        PUT/PATCH parcial de TODAS las propiedades del espacio declarado como
+        objeto: Dueño, Categoría, Estado, Valor, Notas/Descripción, campos
+        patrimoniales y fotos (multipart: galería o cámara).
         """
         contenedor = self.get_object()
+        # Normaliza el payload (JSON o multipart) con la MISMA frontera que el
+        # PUT unificado: vacíos de FK/numéricos → None y fotos → lista.
+        datos = propiedades_desde_payload(request.data, prefijo='')
         serializer = PropiedadesObjetoEspacioSerializer(
-            data=request.data,
+            data=datos,
             context={'request': request, 'contenedor': contenedor},
         )
         serializer.is_valid(raise_exception=True)
@@ -142,6 +147,29 @@ class AccionesContenedorMixin:
             contenedor, serializer.validated_data,
         )
         return Response(datos_propiedades_objeto(contenedor, objeto))
+
+    def aplicar_propiedades_objeto_del_put(self, contenedor):
+        """
+        Persiste el bloque de objeto que viaja PREFIJADO (`objeto_*`) en el
+        PUT unificado del espacio (`/contenedores/{id}/`).
+
+        El modal de edición de muebles envía en UNA sola petición los datos
+        técnicos del Contenedor (nombre, medidas, grilla, foto) y los del
+        Objeto asociado (Dueño, Categoría, Estado, Valor, Notas, patrimoniales
+        y fotos). Esta función aplica el segundo bloque sin tocar el primero.
+
+        Devuelve None cuando el payload no trae propiedades de objeto (p. ej.
+        un Drop de reubicación), de modo que el PUT técnico no se altera.
+        """
+        datos = propiedades_desde_payload(self.request.data, prefijo='objeto_')
+        if not datos:
+            return None
+        serializer = PropiedadesObjetoEspacioSerializer(
+            data=datos,
+            context={'request': self.request, 'contenedor': contenedor},
+        )
+        serializer.is_valid(raise_exception=True)
+        return guardar_propiedades_espacio(contenedor, serializer.validated_data)
 
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):

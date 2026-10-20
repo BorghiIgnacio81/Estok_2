@@ -25,6 +25,9 @@ import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi, envia
 import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
 import { hayGestoActivo, hayInteraccionReciente } from './pintorFrame';
 import { preservarScrollAsync } from './scrollPreservado';
+// 🧾 OBJETO DEL ESPACIO: el modal de un mueble declarado integra los campos
+// del Objeto espejo y los envía en el MISMO PUT (prefijados `objeto_*`).
+import { prepararSeccionObjeto, recolectarSeccionObjeto } from './objetoEspacioModal';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -1322,6 +1325,11 @@ export class AlmacenamientoBoard {
     // control canónico vive en el panel de portales, debajo de «Espacio Único»
     // del nivel activo (lib/muebleMovil.ts → PUT parcial al Contenedor).
     this.precargarFoto(entidad.foto ?? null);
+    // 🧾 MUEBLE / OBJETO DECLARADO: el formulario suma TODOS los campos del
+    // Objeto espejo (Dueño, Categoría, Estado, Valor, Notas, patrimoniales y
+    // fotos) y los precarga del backend al abrir la pieza.
+    const esMuebleDeclarado = tipo === 'contenedor' && Boolean(entidad.declarado_movible);
+    prepararSeccionObjeto(esMuebleDeclarado ? entidad.id : null, esMuebleDeclarado);
     const saveText = document.getElementById('editarSaveText');
     if (saveText) saveText.textContent = 'Guardar cambios';
     modal.classList.remove('hidden');
@@ -1340,6 +1348,8 @@ export class AlmacenamientoBoard {
     const form = document.getElementById('editarForm') as HTMLFormElement | null;
     form?.reset();
     this.precargarFoto(null);
+    // El alta todavía no tiene Objeto espejo: la sección de objeto no aplica.
+    prepararSeccionObjeto(null, false);
     (document.getElementById('editarTitulo') as HTMLElement).textContent =
       `➕ Crear Caja en «${detalle.habitacionNombre || 'la habitación'}» · F${detalle.fila}·C${detalle.col}`;
     (document.getElementById('editarTipo') as HTMLInputElement).value = 'contenedor';
@@ -1481,6 +1491,19 @@ export class AlmacenamientoBoard {
     // FOTO del modal técnico: puede venir de la cámara directa o de la galería;
     // el File único vive en `fotoSeleccionada` (mismo flujo para ambos inputs).
     if (this.fotoSeleccionada) formData.append('foto', this.fotoSeleccionada);
+
+    // 🧾 PUT UNIFICADO DEL ESPACIO: los datos técnicos del Contenedor y las
+    // propiedades del Objeto espejo viajan en la MISMA petición. El backend
+    // reconoce el bloque por el prefijo `objeto_` y lo persiste en la misma
+    // transacción (Dueño, Categoría, Estado, Valor, Notas, patrimoniales y
+    // fotos de galería/cámara).
+    const bloqueObjeto = recolectarSeccionObjeto();
+    if (bloqueObjeto) {
+      Object.entries(bloqueObjeto.datos).forEach(([clave, valor]) => {
+        formData.append(`objeto_${clave}`, valor);
+      });
+      bloqueObjeto.fotos.forEach((foto) => formData.append('objeto_fotos', foto));
+    }
 
     // Al cambiar las filas globales en el modal se reescala la configuración
     // asimétrica (grid_filas_config) para no perder las columnas por fila.
