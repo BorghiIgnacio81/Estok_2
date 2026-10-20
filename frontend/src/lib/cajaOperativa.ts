@@ -179,7 +179,8 @@ export function abrirModalEditarCaja(caja: CajaOperable): void {
     preview.innerHTML = '<img src="' + URL.createObjectURL(archivo) + '" alt="Nueva foto" class="h-20 w-20 rounded-xl object-cover border border-gray-200 bg-slate-50" />';
   });
 
-  form.querySelector<HTMLInputElement>('[name="nombre"]')?.focus();
+  // preventScroll: abrir la ficha no desplaza el lienzo bajo el dedo (iOS).
+  form.querySelector<HTMLInputElement>('[name="nombre"]')?.focus({ preventScroll: true });
 
   enlazarGuardado(overlay, form, async () => {
     const nombre = (form.querySelector<HTMLInputElement>('[name="nombre"]')?.value || '').trim();

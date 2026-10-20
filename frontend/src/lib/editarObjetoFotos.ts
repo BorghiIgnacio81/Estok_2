@@ -13,7 +13,7 @@
 // Auth centralizada: los headers salen SIEMPRE de services/auth.
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+import { getAuthHeaders, API_BASE_URL, enviarFormData } from '../services/auth';
 import { comprimirImagenBase64 } from '../services/image';
 import { ref, refOpcional } from './dom';
 import { showToast } from './toast';
@@ -233,11 +233,12 @@ async function subirFotoEditada(base64: string, index: number, esPrimera: boolea
     formData.append('es_principal', esPrimera && fotosActuales.length === 0 ? 'true' : 'false');
     formData.append('descripcion', `Foto ${index + 1}`);
 
-    const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/subir_foto/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: formData,
-    });
+    const res = await enviarFormData(`/objetos/${objetoId}/subir_foto/`, formData);
+    if (!res.ok) {
+      // 403: sin X-Estok-Id/Membresía o rol sin can_write/can_edit.
+      // 401: token vencido sin refresh válido (se informa en el resultado).
+      console.warn(`[fotos] subir_foto respondió ${res.status}`);
+    }
     return res.ok;
   } catch {
     return false;

@@ -213,6 +213,24 @@ body.modo-edicion [data-eliminar-grupo] {
 }
 
 /* ---------------------------------------------------------------------------
+   ASIDEROS DE REDIMENSIÓN (arrastre libre, estirado in-place y bloque fusionado)
+   ---------------------------------------------------------------------------
+   El gesto pertenece SIEMPRE al tirador, en edición y en navegación:
+   `touch-action: none` desactiva scroll/pinch de iOS Safari sobre el asidero y
+   `overscroll-behavior: contain` corta la cadena del rebote elástico (rubber-band)
+   de la página. Es el complemento CSS de blindarTiradorTactil() (JS).
+   --------------------------------------------------------------------------- */
+body [data-libre-resize],
+body [data-inplace-resize],
+body [data-grupo-resize] {
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------------------
    4. NIVEL 4 - CANVAS DE LA CAJA/ESTANTE + LISTADO FINO DE OBJETOS
    --------------------------------------------------------------------------- */
 .caja-detalle {

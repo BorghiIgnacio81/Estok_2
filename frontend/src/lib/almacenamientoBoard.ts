@@ -21,8 +21,10 @@
 // payloads parciales (el backend soporta update() con partial=True).
 // =============================================================================
 
-import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../services/auth';
+import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi, enviarFormData } from '../services/auth';
 import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
+import { hayGestoActivo, hayInteraccionReciente } from './pintorFrame';
+import { preservarScrollAsync } from './scrollPreservado';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -203,7 +205,10 @@ export class AlmacenamientoBoard {
     this.enlazarModales();
     document.getElementById('retryBtn')?.addEventListener('click', () => { void this.cargar(); });
     // Si el Mapa Jerárquico cambió ubicaciones/grillas, el tablero se refresca.
-    window.addEventListener('estok:espacios-cambiados', () => { void this.cargar(); });
+    // El refresco pesado (re-lectura + re-render) se DIFIERE: nunca cae en medio
+    // de un arrastre/resizing, no reemplaza el nodo bajo el dedo y conserva el
+    // scroll (anti-salto en iOS Safari).
+    window.addEventListener('estok:espacios-cambiados', () => { this.programarRecarga(); });
     // Edición en caliente pedida desde el Visor (✏️ junto a cada mueble).
     window.addEventListener('estok:editar-contenedor', (e) => {
       const id = (e as CustomEvent<{ id: string }>).detail?.id;
@@ -219,6 +224,30 @@ export class AlmacenamientoBoard {
       this.abrirModalCrearMuebleEnCelda(detalle);
     });
     await this.cargar();
+  }
+
+  // ---------------------------------------------------------------------------
+  // RECARGA DIFERIDA (anti-salto)
+  // ---------------------------------------------------------------------------
+  private recargaTimer: number | null = null;
+
+  /**
+   * Agenda la recarga completa del tablero sin interrumpir un gesto en curso.
+   * Mientras el dedo está en pantalla (o en la ventana de calma posterior) el
+   * aviso se reprograma; el re-render final se envuelve en `preservarScrollAsync`
+   * para que el viewport quede exactamente donde estaba.
+   */
+  private programarRecarga(): void {
+    if (this.recargaTimer !== null) window.clearTimeout(this.recargaTimer);
+    const espera = hayGestoActivo() || hayInteraccionReciente() ? 1000 : 250;
+    this.recargaTimer = window.setTimeout(() => {
+      this.recargaTimer = null;
+      if (hayGestoActivo() || hayInteraccionReciente()) {
+        this.programarRecarga();
+        return;
+      }
+      void preservarScrollAsync(() => this.cargar());
+    }, espera);
   }
 
   // ---------------------------------------------------------------------------
@@ -1333,7 +1362,8 @@ export class AlmacenamientoBoard {
     const error = document.getElementById('editarFormError');
     if (error) error.classList.add('hidden');
     modal.classList.remove('hidden');
-    (document.getElementById('editarNombre') as HTMLInputElement | null)?.focus();
+    // preventScroll: abrir el modal no debe desplazar el viewport en iOS.
+    (document.getElementById('editarNombre') as HTMLInputElement | null)?.focus({ preventScroll: true });
   }
 
   /**
@@ -1382,11 +1412,7 @@ export class AlmacenamientoBoard {
     // Sin Content-Type manual: el navegador fija el boundary de multipart/form-data.
     this.setGuardando('editar', true);
     try {
-      const res = await fetch(`${API_BASE_URL}/contenedores/`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders() },
-        body: formData,
-      });
+      const res = await enviarFormData('/contenedores/', formData);
       if (res.status === 401) {
         window.location.href = '/login';
         return;
@@ -1469,11 +1495,7 @@ export class AlmacenamientoBoard {
     // Sin Content-Type manual: el navegador fija el boundary de multipart/form-data.
     this.setGuardando('editar', true);
     try {
-      const res = await fetch(`${API_BASE_URL}/${recurso}/${id}/`, {
-        method: 'PUT',
-        headers: { ...getAuthHeaders() },
-        body: formData,
-      });
+      const res = await enviarFormData(`/${recurso}/${id}/`, formData, 'PUT');
       if (res.status === 401) {
         window.location.href = '/login';
         return;
@@ -1706,7 +1728,7 @@ export class AlmacenamientoBoard {
       const foto = (document.getElementById('ubiFotoInput') as HTMLInputElement).files?.[0];
       if (foto) formData.append('foto', foto);
 
-      const res = await fetch(`${API_BASE_URL}/ubicaciones/`, { method: 'POST', headers: getAuthHeaders(), body: formData });
+      const res = await enviarFormData('/ubicaciones/', formData);
       if (res.ok) {
         this.cerrarModal('ubicacion');
         form.reset();
@@ -1748,7 +1770,7 @@ export class AlmacenamientoBoard {
       const foto = (document.getElementById('conFotoInput') as HTMLInputElement).files?.[0];
       if (foto) formData.append('foto', foto);
 
-      const res = await fetch(`${API_BASE_URL}/contenedores/`, { method: 'POST', headers: getAuthHeaders(), body: formData });
+      const res = await enviarFormData('/contenedores/', formData);
       if (res.ok) {
         this.cerrarModal('contenedor');
         form.reset();

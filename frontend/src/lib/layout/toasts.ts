@@ -33,16 +33,23 @@ let toastCount = 0;
     const toast = document.createElement('div');
     toast.id = id;
     toast.setAttribute('role', 'status');
-    toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${TOAST_COLORS[type] || TOAST_COLORS.info} transform translate-x-full opacity-0 transition-all duration-300 ease-out max-w-sm`;
+    // `pointer-events: none`: la alerta NUNCA intercepta toques del lienzo.
+    // Sólo el botón de cierre recupera los eventos (área mínima).
+    toast.style.pointerEvents = 'none';
+    toast.className = `pointer-events-none flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${TOAST_COLORS[type] || TOAST_COLORS.info} transform translate-x-full opacity-0 transition-all duration-300 ease-out max-w-sm`;
     toast.innerHTML = `
       <span class="flex-shrink-0">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
       <span class="flex-1 text-sm font-medium">${message}</span>
-      <button onclick="document.getElementById('${id}')?.remove()" class="flex-shrink-0 opacity-70 hover:opacity-100">
+      <button type="button" data-toast-cerrar class="pointer-events-auto flex-shrink-0 opacity-70 hover:opacity-100">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     `;
+    // Cierre por listener (sin `onclick` inline ni foco: no mueve el viewport).
+    toast
+      .querySelector<HTMLButtonElement>('[data-toast-cerrar]')
+      ?.addEventListener('click', () => toast.remove());
     toastContainer.appendChild(toast);
 
     requestAnimationFrame(() => {

@@ -36,7 +36,21 @@ export function cacheUser(user: AuthUser): void {
 // =============================================================================
 
 export function getEstokActivoId(): string | null {
-  return localStorage.getItem(ESTOK_ACTIVO_KEY);
+  const guardado = localStorage.getItem(ESTOK_ACTIVO_KEY);
+  if (guardado) return guardado;
+
+  // AUTORREPARACIÓN (PWA / móvil): el sistema operativo puede limpiar SOLO esta
+  // clave de localStorage conservando el JWT. Sin `X-Estok-Id` el backend
+  // responde 403 Forbidden aunque el token sea válido (HasRolePermission no
+  // encuentra la Membresía). Se reconstruye con la MISMA regla que login():
+  // último Estok activo del usuario cacheado o, en su defecto, el primero.
+  const user = getCachedUser();
+  const recuperado = user?.ultimo_estok_activo_id || user?.estoks?.[0]?.id || null;
+  if (recuperado) {
+    localStorage.setItem(ESTOK_ACTIVO_KEY, recuperado);
+    return recuperado;
+  }
+  return null;
 }
 
 export function setEstokActivoId(estokId: string | null): void {
@@ -51,9 +65,31 @@ export function setEstokActivoId(estokId: string | null): void {
 // HEADERS DE AUTENTICACIÓN (centralizado)
 // =============================================================================
 
+/** Cookie CSRF que Django emite (p. ej. al entrar a /admin). */
+const CSRF_COOKIE = 'csrftoken';
+
+/**
+ * Lee el token CSRF de la cookie de Django, o null si no existe.
+ * No crea cookies: sólo reporta lo que el backend ya emitió.
+ */
+export function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const partes = document.cookie ? document.cookie.split(';') : [];
+  for (const parte of partes) {
+    const limpia = parte.trim();
+    if (limpia.startsWith(`${CSRF_COOKIE}=`)) {
+      return decodeURIComponent(limpia.slice(CSRF_COOKIE.length + 1));
+    }
+  }
+  return null;
+}
+
 /**
  * Construye los headers HTTP necesarios para requests autenticados.
- * Incluye Authorization (JWT) y X-Estok-Id si hay un estok activo.
+ * Incluye Authorization (JWT leído en CADA llamada de localStorage), X-Estok-Id
+ * e X-CSRFToken cuando Django emitió la cookie. Las subidas multipart (fotos de
+ * objetos, espacios y muebles) usan SIEMPRE esta función: nunca arman headers
+ * propios ni viajan sin credenciales.
  */
 export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -64,6 +100,10 @@ export function getAuthHeaders(): Record<string, string> {
   const estokId = getEstokActivoId();
   if (estokId) {
     headers['X-Estok-Id'] = estokId;
+  }
+  const csrf = getCsrfToken();
+  if (csrf) {
+    headers['X-CSRFToken'] = csrf;
   }
   return headers;
 }

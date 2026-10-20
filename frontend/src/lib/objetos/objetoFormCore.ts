@@ -5,15 +5,16 @@
 // modularización <400 líneas por archivo). Responsabilidades:
 //   · Persistencia/restauración del formulario en sessionStorage (sobrevive F5).
 //   · Reseteo absoluto tras guardar y ante una restauración de BFCache.
-//   · Validación final + ENVÍO multipart a POST /api/objetos/ firmado con
-//     getAuthHeaders() (Authorization: Bearer + X-Estok-Id multi-tenant). El
+//   · Validación final + ENVÍO multipart a POST /api/objetos/ mediante
+//     enviarFormData() (services/auth/uploads): Authorization: Bearer + X-Estok-Id
+//     multi-tenant + X-CSRFToken, con refresco de JWT ante 401. El
 //     dueño externo (no usuario) viaja como texto plano `dueno_externo_nombre`.
 //   · Modal de éxito direccional ("Cargar otro" / "Volver al inicio").
 // La galería de fotos la gestiona objetoCamara.ts (obtenerFotosObjeto /
 // limpiarCamara); acá solo se adjuntan los blobs al FormData.
 // =============================================================================
 
-import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
+import { enviarFormData } from '../../services/auth';
 import { base64ToBlob } from '../../services/image';
 import { refrescarBotonesIA } from '../botonAutocompletarIA';
 import { ref, refOpcional } from '../dom';
@@ -204,13 +205,10 @@ async function enviarFormulario(e: Event): Promise<void> {
       }
     }
 
-    // Crear el objeto + subir fotos en una única petición multipart.
+    // Crear el objeto + subir fotos en una única petición multipart con el JWT
+    // explícito y refresco automático (services/auth/uploads).
     // NO se fija Content-Type: el navegador agrega el boundary solo.
-    const createResponse = await fetch(`${API_BASE_URL}/objetos/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: formData,
-    });
+    const createResponse = await enviarFormData('/objetos/', formData);
 
     if (!createResponse.ok) {
       let errorMsg = 'Error al crear el objeto';

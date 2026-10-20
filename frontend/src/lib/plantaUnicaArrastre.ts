@@ -347,7 +347,7 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
           }
           marcarInteraccionEditor();
           if (!cambio) return;
-          // Consolidación LOCAL; el PUT viaja 900 ms después del arrastre.
+          // Consolidación LOCAL; el PUT viaja 1000 ms después del arrastre.
           aplicarFinal();
           programarGuardado(id, () => persistirTamano(card, base, opts));
         });

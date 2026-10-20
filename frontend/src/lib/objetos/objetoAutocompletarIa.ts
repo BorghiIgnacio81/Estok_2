@@ -161,8 +161,20 @@ async function analizarConIa(): Promise<void> {
     iaProgressText.textContent = '✅ Análisis completado';
 
     if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(errData.error || 'Error al analizar con IA');
+      // Respuesta NO exitosa: 429 (cuota Gemini agotada incluso tras el
+      // failover), 5xx o HTML de un proxy. Se tolera el caso no-JSON y se
+      // recuerda que el guardado MANUAL sigue disponible: el análisis por IA
+      // nunca bloquea el alta del objeto.
+      const errData = await response.json().catch(() => ({} as Record<string, unknown>));
+      const detalle = String(
+        (errData as any).error || (errData as any).detail || '',
+      ).trim();
+      const sugerencia = ' Podés completar los campos a mano y guardar igual.';
+      const mensaje =
+        response.status === 429
+          ? (detalle || 'Se alcanzó el límite de uso de la IA.') + sugerencia
+          : (detalle || `Error del servidor (${response.status}).`) + sugerencia;
+      throw new Error(mensaje);
     }
 
     const result = await response.json();

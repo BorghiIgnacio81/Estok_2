@@ -57,9 +57,15 @@ async function analizarObjetoConIa(): Promise<void> {
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
+      const errData = await response.json().catch(() => ({} as Record<string, unknown>));
+      const detalle = String(
+        (errData as any).error || (errData as any).detail || '',
+      ).trim();
+      const sugerencia = ' Podés completar los campos a mano y guardar igual.';
       throw new Error(
-        errData.error || errData.detail || `Error del servidor (${response.status})`,
+        response.status === 429
+          ? (detalle || 'Se alcanzó el límite de uso de la IA.') + sugerencia
+          : (detalle || `Error del servidor (${response.status}).`) + sugerencia,
       );
     }
 

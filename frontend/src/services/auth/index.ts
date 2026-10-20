@@ -32,6 +32,7 @@ export {
   cacheUser,
   getEstokActivoId,
   setEstokActivoId,
+  getCsrfToken,
   getAuthHeaders,
   login,
   logout,
@@ -39,6 +40,10 @@ export {
   fetchCurrentUser,
   cambiarEstokActivo,
 } from './session';
+
+// Subidas multipart (fotos) con JWT explícito y refresco automático
+export { enviarFormData } from './uploads';
+export type { MetodoFormData } from './uploads';
 
 // Gestión de Estoks (multi-tenant)
 export {

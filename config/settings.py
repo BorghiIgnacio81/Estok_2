@@ -34,11 +34,22 @@ ALLOWED_HOSTS = os.environ.get(
 
 # =============================================================================
 # CSRF TRUSTED ORIGINS (para /admin y formularios POST)
+# El dominio de producción SIEMPRE está presente, aunque la variable de entorno
+# DJANGO_CSRF_TRUSTED_ORIGINS llegue incompleta desde Coolify. Sin el esquema
+# completo (https://) Django rechaza los POST/upload de la PWA con 403.
 # =============================================================================
-CSRF_TRUSTED_ORIGINS = os.environ.get(
+_CSRF_ORIGENES_ENV = os.environ.get(
     'DJANGO_CSRF_TRUSTED_ORIGINS',
-    'https://eeestok.duckdns.org,https://sq641axhkdx4oz4oss522ht9.178.156.224.212.sslip.io'
+    ''
 ).split(',')
+CSRF_TRUSTED_ORIGINS = sorted({
+    origen.strip()
+    for origen in _CSRF_ORIGENES_ENV
+    if origen.strip()
+} | {
+    'https://eeestok.duckdns.org',
+    'https://sq641axhkdx4oz4oss522ht9.178.156.224.212.sslip.io',
+})
 
 # =============================================================================
 # CORS CONFIGURATION

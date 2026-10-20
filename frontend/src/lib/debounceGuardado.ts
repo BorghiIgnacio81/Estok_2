@@ -4,7 +4,7 @@
 // El movimiento del puntero corre a 60 FPS 100% en el CLIENTE (sólo transforma el
 // DOM). La persistencia NO puede viajar en cada píxel: durante el gesto NO se
 // dispara ninguna petición; al SOLTAR el elemento la geometría final se agenda
-// con `MS_GUARDADO_FINAL` (900 ms) y cualquier gesto nuevo REINICIA el reloj.
+// con `MS_GUARDADO_FINAL` (1000 ms) y cualquier gesto nuevo REINICIA el reloj.
 // Así una ráfaga de arrastres encadenados termina en UN ÚNICO lote de PUTs.
 //
 // Módulo PURO de temporización: no conoce HTTP, ni el DOM del lienzo, ni Tailwind.
@@ -13,8 +13,12 @@
 /** Ventana del notificador diferido de refrescos (ms). */
 export const MS_DEBOUNCE_GUARDADO = 500;
 
-/** Ventana del guardado posterior al gesto (ms): margen anti-salto en iOS. */
-export const MS_GUARDADO_FINAL = 900;
+/**
+ * Ventana del guardado posterior al gesto (ms): margen anti-salto en iOS.
+ * Mínimo estricto de 1000 ms desde que el dedo se levanta (pointerup/touchend):
+ * si el operador encadena otro arrastre, el reloj vuelve a cero.
+ */
+export const MS_GUARDADO_FINAL = 1000;
 
 /** Agendador de guardado DIFERIDO posterior al gesto (arrastre / resizing). */
 export interface AgendadorGuardado {
@@ -26,7 +30,7 @@ export interface AgendadorGuardado {
   programar(clave: string, ejecutar: () => void | Promise<void>): void;
   /**
    * Reinicia el reloj sin encolar nada. Lo llama el editor al iniciar un gesto
-   * nuevo: si el operador vuelve a mover algo antes de los 900 ms, la espera
+   * nuevo: si el operador vuelve a mover algo antes de los 1000 ms, la espera
    * arranca de cero.
    */
   posponer(): void;

@@ -114,6 +114,14 @@ Commit + push + Redeploy, y verificar:
 Invoke-WebRequest -Uri "https://eeestok.duckdns.org/.well-known/assetlinks.json" -UseBasicParsing | Select-Object StatusCode, Content
 ```
 
+> **Estado en el repo (oct 2026):** `frontend/public/.well-known/assetlinks.json`
+> ya existe con el `package_name` de la TWA (`org.eeestok.app`) y
+> `sha256_cert_fingerprints: []`. La ruta responde 200/JSON, pero **la
+> verificación de Digital Asset Links NO queda activa hasta cargar la huella
+> SHA-256 real del keystore que firma la APK** (paso `keytool` de arriba):
+> pegar cada huella como string dentro del array y volver a desplegar. Una lista
+> vacía equivale a "sin huellas declaradas": Chrome sigue abriendo con barra.
+
 > Si se publica en Google Play con **Play App Signing**, la huella válida es la
 > que muestra Play Console (App integrity), no la del keystore local.
 
