@@ -71,6 +71,9 @@ async function cargarObjeto(): Promise<void> {
     setFieldValue('estado_conservacion', obj.estado_conservacion);
     setFieldValue('color', obj.color);
     setFieldValue('valor_estimado', obj.valor_estimado);
+    // Dueño EXTERNO (metadata plana fuera de las subclases): la página ahora
+    // comparte el campo con el formulario unificado de espacios/muebles.
+    setFieldValue('dueno_externo_nombre', obj.dueno_externo_nombre);
 
     // === Cargar categorías (11 oficiales) y seleccionar la del objeto ===
     await cargarCategorias(obj.categoria);

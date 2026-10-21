@@ -23,6 +23,7 @@ import {
   categoriaMueblePorDefecto,
 } from './catalogosEstok';
 import type { CategoriaEstok } from './catalogosEstok';
+import { CAMPOS_PATRIMONIALES, patrimonialesPanelHtml } from './objetoCamposPatrimoniales';
 
 /** Foto del objeto tal como la devuelve el backend. */
 export interface FotoObjetoEspacio {
@@ -68,19 +69,6 @@ export const ESTADOS_CONSERVACION = [
   { valor: 'muy_malo', etiqueta: 'Muy deteriorado' },
 ] as const;
 
-/** Campos patrimoniales adicionales (todos opcionales). */
-const CAMPOS_PATRIMONIALES: { clave: string; etiqueta: string; placeholder: string; tipo?: string }[] = [
-  { clave: 'material', etiqueta: 'Material', placeholder: 'Madera, metal, vidrio…' },
-  { clave: 'color', etiqueta: 'Color', placeholder: 'Ej: Nogal' },
-  { clave: 'marca', etiqueta: 'Marca', placeholder: 'Ej: Siemens' },
-  { clave: 'modelo', etiqueta: 'Modelo', placeholder: 'Ej: KA92' },
-  { clave: 'numero_serie', etiqueta: 'N.º de serie', placeholder: 'Serie del fabricante' },
-  { clave: 'autor', etiqueta: 'Autor', placeholder: 'Autor o diseñador' },
-  { clave: 'anio', etiqueta: 'Año', placeholder: '1998', tipo: 'number' },
-  { clave: 'artista_fabricante', etiqueta: 'Artista / Fabricante', placeholder: 'Taller o artista' },
-  { clave: 'tamano', etiqueta: 'Tamaño', placeholder: 'Ej: 180×90 cm' },
-];
-
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -94,12 +82,6 @@ function escapeHtml(value: unknown): string {
 export function camposObjetoEspacioHtml(): string {
   const opcionesEstado = ESTADOS_CONSERVACION
     .map((e) => `<option value="${e.valor}">${e.etiqueta}</option>`)
-    .join('');
-  const patrimoniales = CAMPOS_PATRIMONIALES
-    .map((c) => `<label class="portal-objeto-campo">
-        <span>${c.etiqueta}</span>
-        <input type="${c.tipo || 'text'}" data-objeto-campo="${c.clave}" placeholder="${c.placeholder}" />
-      </label>`)
     .join('');
   return `<div class="portal-objeto-propiedades-grid">
       <label class="portal-objeto-campo">
@@ -140,7 +122,7 @@ export function camposObjetoEspacioHtml(): string {
             <option value="">Sin beneficiario</option>
           </select>
         </label>
-        ${patrimoniales}
+        ${patrimonialesPanelHtml()}
       </div>
     </details>
     <div class="portal-objeto-fotos">

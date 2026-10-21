@@ -8,8 +8,10 @@ métodos auxiliares viven en `helpers_organizacion.py`.
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ....models import Ubicacion, Contenedor, Objeto, Estok
@@ -25,6 +27,7 @@ from ..fusion_espacial import (
     separar_espacios,
 )
 from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia
+from .objeto_espacio_put import aplicar_propiedades_objeto
 
 
 class UbicacionViewSet(OrganizacionHelpersMixin, viewsets.ModelViewSet):
@@ -110,22 +113,58 @@ class UbicacionViewSet(OrganizacionHelpersMixin, viewsets.ModelViewSet):
         ubicacion = asegurar_ubicacion_limbo(estok)
         return Response(self.get_serializer(ubicacion).data)
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         """
-        PUT con soporte de actualización parcial: permite que el Drag & Drop
-        del Mapa Espacial envíe únicamente las coordenadas de cuadrante
+        PUT/PATCH con soporte de actualización parcial: permite que el Drag &
+        Drop del Mapa Espacial envíe únicamente las coordenadas de cuadrante
         (parent_grid_row / parent_grid_col), el piso, el nombre o la escala
-        sin requerir el resto de los campos obligatorios del modelo
-        (antes esto producía HTTP 400 "nombre: Este campo es obligatorio").
+        sin requerir el resto de los campos obligatorios del modelo.
+
+        EDICIÓN UNIFICADA ESPACIO + MUEBLE: si el payload incluye
+        `objeto_contenedor_id` (mueble declarado dentro de esta ubicación) y el
+        bloque prefijado `objeto_*`, ambos se guardan en la MISMA transacción.
+        Así el formulario de la ubicación no pierde las propiedades del Objeto
+        vinculado al mueble seleccionado.
         """
         partial = True
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        if serializer.instance is not None:
+            self._aplicar_objeto_vinculado(serializer.instance)
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
         return Response(serializer.data)
+
+    def _aplicar_objeto_vinculado(self, ubicacion):
+        """
+        Aplica el bloque `objeto_*` al Contenedor declarado indicado en
+        `objeto_contenedor_id`. Valida pertenencia y declaración explícita:
+        nunca se edita el objeto de un mueble de otra ubicación ni de una pieza
+        que no esté declarada «Mueble / Objeto».
+        """
+        datos = getattr(self.request, 'data', None)
+        contenedor_id = datos.get('objeto_contenedor_id') if hasattr(datos, 'get') else None
+        if not contenedor_id:
+            return None
+        try:
+            contenedor = Contenedor.objects.filter(
+                pk=contenedor_id,
+                ubicacion=ubicacion,
+                declarado_movible=True,
+            ).first()
+        except (DjangoValidationError, ValueError, TypeError):
+            contenedor = None
+        if contenedor is None:
+            raise ValidationError({
+                'objeto_contenedor_id': (
+                    'El mueble indicado no pertenece a esta ubicación o no está '
+                    'declarado como Mueble / Objeto.'
+                ),
+            })
+        return aplicar_propiedades_objeto(contenedor, self.request)
 
     def perform_create(self, serializer):
         """

@@ -1,11 +1,17 @@
 ---
 // =============================================================================
 // PÁGINA DE EDICIÓN DE UBICACIÓN (Mobile-First)
-// Formulario para editar nombre, descripción, dimensiones y foto
+// Formulario para editar nombre, descripción, dimensiones y foto.
+// Si la ubicación contiene muebles declarados «Mueble / Objeto», suma el panel
+// unificado de propiedades del Objeto (lib/ubicacionEditarObjeto.ts) y lo
+// guarda en el MISMO PATCH de la ubicación.
 // =============================================================================
 
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import AuthGuard from '../../../../components/AuthGuard.astro';
+// Estilos de los campos de objeto (misma interfaz que el panel de espacios):
+// clases namespaced (.portal-objeto-*), sin reglas globales de body/html.
+import '../../../../styles/portales-recursivos.css';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -109,15 +115,28 @@ export const prerender = false;
             <p class="text-xs text-gray-500 mb-2">Foto actual:</p>
             <img id="fotoActual" class="w-32 h-32 object-cover rounded-lg border border-gray-200" alt="Foto actual" />
           </div>
-          <label class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span id="fotoLabel">Cambiar foto</span>
-            <input id="fotoInput" type="file" accept="image/*" class="hidden" />
-          </label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label class="flex items-center justify-center gap-2 px-4 py-3 bg-blue-700 text-white font-medium rounded-lg hover:bg-blue-800 transition-base cursor-pointer">
+              <span aria-hidden="true">📷</span>
+              Tomar foto
+              <input id="fotoCamaraInput" type="file" accept="image/*" capture="environment" class="hidden" />
+            </label>
+            <label class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-base cursor-pointer">
+              <span aria-hidden="true">🖼️</span>
+              Elegir de la Galería
+              <input id="fotoInput" type="file" accept="image/*" class="hidden" />
+            </label>
+          </div>
+          <span id="fotoLabel" class="block mt-2 text-xs text-gray-400">Sin foto seleccionada</span>
         </div>
+
+        <!-- ================================================================
+             MUEBLE / OBJETO DECLARADO DENTRO DE ESTA UBICACIÓN
+             El contenido se inyecta desde lib/ubicacionEditarObjeto.ts y usa
+             la MISMA interfaz que el formulario de espacios. Viaja en este
+             mismo PATCH: la ubicación y el objeto se guardan en una operación.
+             ================================================================ -->
+        <div id="ubicacionObjetoCampos" class="hidden"></div>
 
         <!-- Botones -->
         <div class="flex gap-3 pt-4 border-t border-gray-100">
@@ -151,6 +170,8 @@ export const prerender = false;
   // ===========================================================================
 
   import {getAuthHeaders, getToken, API_BASE_URL} from '../../../../services/auth';
+  // Panel unificado del mueble declarado dentro de esta ubicación.
+  import { prepararObjetoUbicacion, recolectarObjetoUbicacion } from '../../../../lib/ubicacionEditarObjeto';
 
   const ubicacionId = window.location.pathname.split('/').filter(Boolean).slice(-2, -1)[0];
 
@@ -172,6 +193,7 @@ export const prerender = false;
   const anchoInput = document.getElementById('ancho') as HTMLInputElement;
   const altoInput = document.getElementById('alto') as HTMLInputElement;
   const fotoInput = document.getElementById('fotoInput') as HTMLInputElement;
+  const fotoCamaraInput = document.getElementById('fotoCamaraInput') as HTMLInputElement | null;
   const fotoLabel = document.getElementById('fotoLabel')!;
   const fotoActualContainer = document.getElementById('fotoActualContainer')!;
   const fotoActualImg = document.getElementById('fotoActual') as HTMLImageElement;
@@ -218,6 +240,9 @@ export const prerender = false;
       errorState.classList.add('hidden');
       formContainer.classList.remove('hidden');
 
+      // Mueble / Objeto declarado: se carga en paralelo y no bloquea el form.
+      void prepararObjetoUbicacion(ubicacionId);
+
     } catch (err: any) {
       console.error('Error al cargar ubicación:', err);
       loadingState.classList.add('hidden');
@@ -230,9 +255,9 @@ export const prerender = false;
   // FOTO
   // ===========================================================================
 
-  fotoInput?.addEventListener('change', () => {
-    fotoFile = fotoInput.files?.[0] || null;
-    fotoLabel.textContent = fotoFile ? fotoFile.name : 'Cambiar foto';
+  const seleccionarFoto = (input: HTMLInputElement): void => {
+    fotoFile = input.files?.[0] || null;
+    fotoLabel.textContent = fotoFile ? fotoFile.name : 'Sin foto seleccionada';
     if (fotoFile) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -241,6 +266,13 @@ export const prerender = false;
       };
       reader.readAsDataURL(fotoFile);
     }
+  };
+
+  fotoInput?.addEventListener('change', () => seleccionarFoto(fotoInput));
+  // Cámara TRASERA directa en móvil (capture="environment"): mismo flujo que
+  // la galería, un único `fotoFile` para el PATCH de la ubicación.
+  fotoCamaraInput?.addEventListener('change', () => {
+    if (fotoCamaraInput) seleccionarFoto(fotoCamaraInput);
   });
 
   // ===========================================================================
@@ -272,6 +304,18 @@ export const prerender = false;
       if (anchoInput.value) formData.append('ancho', anchoInput.value);
       if (altoInput.value) formData.append('alto', altoInput.value);
       if (fotoFile) formData.append('foto', fotoFile);
+
+      // 🧾 MUEBLE / OBJETO DECLARADO: la ubicación y las propiedades del objeto
+      // vinculado viajan en EL MISMO PATCH (el backend las aplica en una
+      // transacción). Sin mueble declarado, este bloque no se agrega.
+      const bloqueObjeto = recolectarObjetoUbicacion();
+      if (bloqueObjeto) {
+        formData.append('objeto_contenedor_id', bloqueObjeto.contenedorId);
+        Object.entries(bloqueObjeto.datos).forEach(([clave, valor]) => {
+          formData.append(`objeto_${clave}`, valor);
+        });
+        bloqueObjeto.fotos.forEach((foto) => formData.append('objeto_fotos', foto));
+      }
 
       const headers = getAuthHeaders();
       // No enviar Content-Type con FormData; el browser lo setea solo con boundary
