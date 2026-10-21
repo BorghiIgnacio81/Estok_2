@@ -132,9 +132,11 @@ function renderMinimapa(): void {
       totalPlantas: planta.total,
       sectores: sectoresDeItems(planta.hermanas, null),
       aspecto,
+      // Nivel 0 = plano general de las plantas: tocar la casa vuelve a la raíz.
+      nivel: 0,
     });
   }
-  for (const miga of migas()) {
+  migas().forEach((miga, indice) => {
     nodos.push({
       tipo: miga.tipo === 'habitacion' ? 'habitacion' : 'mueble',
       nombre: miga.nombre,
@@ -143,8 +145,11 @@ function renderMinimapa(): void {
       columnasPorFila: miga.columnasPorFila,
       sectores: sectoresDeItems(miga.hijos, miga.id),
       aspecto,
+      // BREADCRUMB NAVEGABLE: N = cantidad de nodos de la pila que quedan al
+      // volver a esta miniatura (planta → habitación → mueble → caja).
+      nivel: indice + 1,
     });
-  }
+  });
   // RESALTE NARANJA DE LA RUTA (migas de pan): el nodo activo de la pila
   // (`ruta: NodoPortal[]`) se marca por IDENTIDAD → su miniatura va en naranja
   // (#f97316) y, dentro del minimapa de su padre, el sector REAL también.
@@ -227,9 +232,12 @@ export function transicionar(): void {
 /** Habilita/oculta los botones de navegación según la profundidad activa. */
 function syncBotones(): void {
   const enRaiz = profundidad() === 0;
+  // NIVEL RAÍZ CON PLANTA FIJADA: también hay un camino de vuelta (a la vista
+  // general de Plantas), así que «⬅ Volver» sigue visible y operativo.
+  const sinNavegacion = enRaiz && !estadoPortales.planta?.fila;
   const nodo = nodoActual();
-  el('btnVolverNivel')?.classList.toggle('hidden', enRaiz);
-  el('btnVolverEscena')?.classList.toggle('hidden', enRaiz);
+  el('btnVolverNivel')?.classList.toggle('hidden', sinNavegacion);
+  el('btnVolverEscena')?.classList.toggle('hidden', sinNavegacion);
   el('btnOrganizarEscena4')?.classList.toggle(
     'hidden',
     !(nodo?.tipo === 'habitacion' && (interiorActual?.piezas.length ?? 0) > 0),
@@ -243,6 +251,24 @@ function syncBotones(): void {
 /** Repinta la guía de minimapas del nivel activo (latido de la planta). */
 export function renderMinimapaDelNivel(): void {
   renderMinimapa();
+}
+
+/**
+ * BREADCRUMB NAVEGABLE: un toque sobre una miniatura de la red (o sobre la
+ * casita del Estok) desapila la cascada hasta ESA profundidad. `nivel` es la
+ * cantidad de nodos de la pila que deben quedar: 0 = plano general de Plantas,
+ * 1 = primera habitación/planta elegida, N = el nodo que ocupa esa miniatura.
+ * Inocuo si ya estamos en ese nivel (no re-renderiza).
+ */
+export async function navegarAMiga(nivel: number): Promise<void> {
+  const destino = Math.max(0, Math.min(profundidad(), Math.floor(Number(nivel) || 0)));
+  if (destino === profundidad()) return;
+  if (destino === 0) {
+    await volverARaiz();
+    return;
+  }
+  desapilarHasta(destino);
+  await refrescarNivel();
 }
 
 /**
@@ -267,7 +293,15 @@ export async function seleccionarNodo(nodo: NodoPortal): Promise<void> {
 
 /** «⬅ Volver de Nivel»: desapila UN nivel a cualquier profundidad. */
 export function volverNivel(): void {
-  if (profundidad() === 0) return;
+  if (profundidad() === 0) {
+    // NIVEL RAÍZ CON PLANTA FIJADA: «Volver» regresa a la vista GENERAL de
+    // Plantas (mini-mapas independientes del Estok) limpiando la planta activa.
+    // El orquestador del lienzo acepta `fila: 0` como «soltar la planta».
+    if (estadoPortales.planta?.fila) {
+      window.dispatchEvent(new CustomEvent('estok:planta-elegida', { detail: { fila: 0 } }));
+    }
+    return;
+  }
   if (profundidad() === 1) {
     // Desde una habitación se vuelve al plano general de la planta. El propio
     // Visor de Habitación limpia su montaje al recibir `room: null`.

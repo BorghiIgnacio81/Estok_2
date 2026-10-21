@@ -194,7 +194,7 @@ import '../styles/almacenamiento-fuelle.css';
          Drop Zone de extracción viva. Lógica en src/lib/bandejaSinUbicar.ts.
          ========================================================================= -->
     <aside id="bandejaSinUbicar"
-      class="bandeja-lateral hidden md:flex fixed right-0 top-0 h-full w-64 sm:w-72 md:w-80 z-40"
+      class="bandeja-lateral hidden md:flex fixed right-0 w-64 sm:w-72 md:w-80 z-40"
       aria-label="Bandeja lateral de elementos por ubicar">
       <div class="bandeja-lateral-cab">
         <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
@@ -358,65 +358,10 @@ import '../styles/almacenamiento-fuelle.css';
 </BaseLayout>
 
 <script>
-  import { AlmacenamientoBoard } from '../lib/almacenamientoBoard';
-  import { initMapaCasita } from '../lib/mapaCasitaNavegable';
-  import { initVisor } from '../lib/visorHabitacion';
-  import { initVisorContenedorGrande } from '../lib/visorContenedorGrande';
-  import { initBandeja } from '../lib/bandejaSinUbicar';
-  import { initBandejaCargaFina } from '../lib/bandejaCargaFina';
-  import { iniciarPortalesAlmacenamiento } from '../lib/portalesAlmacenamiento';
-  import { iniciarModoLienzo } from '../lib/modoLienzo';
-  import { initCajaDetalle } from '../lib/cajaDetalle';
+  // La secuencia completa de arranque vive en src/lib/almacenamientoArranque.ts
+  // (modularización: la página sólo importa y dispara).
+  import { iniciarAlmacenamiento } from '../lib/almacenamientoArranque';
 
-  // ===========================================================================
-  // ARRANQUE CON GARANTÍA DE DOM LISTO
-  // El render del lienzo "Mapa Estok" se enlaza dentro de DOMContentLoaded para
-  // que la silueta con techo puntiagudo dibuje de forma instantánea el Nivel 1
-  // (divisiones raíz del Estok activo) apenas carga la página. Si el script ya
-  // corre con el DOM listo (módulo deferred), se ejecuta de inmediato.
-  // ===========================================================================
-  function alCargarDom(accion: () => void): void {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => accion());
-    } else {
-      accion();
-    }
-  }
-
-  alCargarDom(() => {
-    const tablero = new AlmacenamientoBoard();
-    void tablero.init();
-
-    // =========================================================================
-    // LA MÁQUINA DE NIVELES (PORTALES) Y EL MODO EDICIÓN/NAVEGACIÓN VIVEN EN src/lib/
-    // portalesAlmacenamiento.ts → flujo izquierda ⟵ derecha + minimapas anidados.
-    // modoLienzo.ts            → botones ✏️ Editar / 💾 Guardar (PUT ui_width/ui_height).
-    // =========================================================================
-
-    // =========================================================================
-    // ARRANQUE DE MÓDULOS
-    // =========================================================================
-    initBandeja({
-      contenedor: document.getElementById('bandejaContenido'),
-      // Responsive dual: el MISMO módulo alimenta la barra horizontal del pie en celulares.
-      contenedorMovil: document.getElementById('bandejaContenidoMovil'),
-      // Lote 31 · punto 2: y también el cuadrante derecho del visor cuando el
-      // nodo activo es un «Espacio Único» (ambiente sin muebles internos).
-      contenedorCuadrante: document.getElementById('canastaCuadranteContenido'),
-    });
-    initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });
-    initMapaCasita({
-      mapa: document.getElementById('mapaEstokPanel'),
-      badge: document.getElementById('mapaJerarquicoBadge'),
-    });
-    initVisor();
-    initBandejaCargaFina({ contenedor: document.getElementById('cargaFinaPanel') });
-    initCajaDetalle({
-      canvas: document.getElementById('cajaCanvas'),
-      lista: document.getElementById('cajaObjetos'),
-    });
-    // Modo ✏️ Editar ⇄ 💾 Guardar de los planos + navegación por PORTALES.
-    iniciarModoLienzo();
-    iniciarPortalesAlmacenamiento();
-  });
+  iniciarAlmacenamiento();
 </script>
+

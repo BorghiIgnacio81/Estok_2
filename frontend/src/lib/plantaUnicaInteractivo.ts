@@ -50,6 +50,7 @@ async function postJson(url: string, body: Record<string, unknown>): Promise<boo
 export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarRenombrado(opts);
   conectarCreacion(opts);
+  conectarDuplicacion(opts);
   conectarArrastreLibre(opts);
   conectarResizeLibre(opts);
   conectarSeleccionYFusion(opts);
@@ -193,6 +194,37 @@ async function crearRectangulo(opts: OpcionesPlantaUnica): Promise<void> {
   }
   toast('✅ Espacio libre inyectado. Arrastralo para acomodarlo.');
   opts.notificarCambios();
+}
+
+// =============================================================================
+// DUPLICAR ESPACIO / SUB-DIVISIÓN (⧉)
+// -----------------------------------------------------------------------------
+// El botón vive DENTRO de la tarjeta arrastrable y navegable: se frenan
+// `pointerdown` y `click` para no iniciar el arrastre ni disparar el portal del
+// nivel. El consumidor inyecta `duplicarItem`, que crea la copia REAL en el
+// backend (mismas dimensiones, tipo y configuración) desplazada al lado. Acá no
+// se dibuja nada por mano: el motor re-renderiza con el latido de cambios.
+// =============================================================================
+function conectarDuplicacion(opts: OpcionesPlantaUnica): void {
+  const duplicar = opts.duplicarItem;
+  if (!duplicar) return;
+  opts.scope.querySelectorAll<HTMLButtonElement>('[data-duplicar-item]').forEach((btn) => {
+    btn.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (btn.disabled) return;
+      const id = btn.dataset.id ?? '';
+      const card = btn.closest<HTMLElement>('.pu-celda');
+      const item = opts.rooms().find((r) => r.id === id);
+      if (!id || !card || !item) return;
+      btn.disabled = true;
+      try {
+        await duplicar(item, card);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 // =============================================================================

@@ -45,6 +45,16 @@ export interface ContenedorDto {
   ui_width: string | null;
   ui_height: string | null;
   fusion_grupo: string | null;
+  /**
+   * Campos físicos/config del contenedor que «Duplicar» replica para que la
+   * copia sea EXACTA (opcionales: sólo los consume el duplicador).
+   */
+  descripcion?: string | null;
+  largo?: string | null;
+  ancho?: string | null;
+  alto?: string | null;
+  material?: string | null;
+  tipo_madera?: string | null;
 }
 
 /** Objeto del padrón, normalizado para la cascada (grilla directa y tránsito). */
@@ -143,6 +153,12 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorDto {
     ui_width: texto(c.ui_width),
     ui_height: texto(c.ui_height),
     fusion_grupo: texto(c.fusion_grupo),
+    descripcion: texto(c.descripcion),
+    largo: texto(c.largo),
+    ancho: texto(c.ancho),
+    alto: texto(c.alto),
+    material: texto(c.material),
+    tipo_madera: texto(c.tipo_madera),
   };
 }
 

@@ -16,6 +16,7 @@
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import { modoLienzoActual } from '../../modoLienzo';
+import { hayGestoActivo } from '../../pintorFrame';
 import { invalidarCachePortales } from './datosNodosPortales';
 import { el, slotDer, slotIzq } from './domPortales';
 import {
@@ -29,6 +30,7 @@ import type { NodoPortal } from './estadoPortales';
 import {
   estaRefrescando,
   interiorDelNivel,
+  navegarAMiga,
   nodoDeContenedor,
   nodoDeHabitacion,
   portalANodo,
@@ -80,7 +82,7 @@ async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
  * TIRADORES DEL PERÍMETRO ámbar (ancho/alto del marco completo).
  */
 const CONTROLES_EDITOR =
-  '[data-fusion-check],[data-eliminar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-unico]';
+  '[data-fusion-check],[data-eliminar-item],[data-duplicar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-unico]';
 
 /**
  * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO del Panel Derecho (habitación
@@ -151,7 +153,9 @@ function conectarPortalesPorDelegacion(): void {
   // ESTADO DE ESPERA INICIAL: la tarjeta de PLANTA del Panel Derecho elige esa
   // planta → el orquestador del lienzo sube de nivel (planta fija a la
   // izquierda con sus habitaciones + derecha a la espera de una habitación).
-  slotDer()?.addEventListener('click', (ev) => {
+  // También responde al teclado: el render de las miniaturas emite cada tarjeta
+  // como `role="button" tabindex="0"` (navegación accesible).
+  const elegirPlanta = (ev: Event): void => {
     const tarjeta = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-planta-fila]');
     if (!tarjeta) return;
     const fila = Number(tarjeta.dataset.plantaFila);
@@ -161,6 +165,11 @@ function conectarPortalesPorDelegacion(): void {
         detail: { fila, nombre: tarjeta.dataset.plantaNombre ?? '' },
       }),
     );
+  };
+  slotDer()?.addEventListener('click', elegirPlanta);
+  slotDer()?.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    elegirPlanta(ev);
   });
 }
 
@@ -319,10 +328,54 @@ function alSeleccionarMueble(e: Event): void {
   })();
 }
 
+/** Temporizador único de refrescos diferidos por gesto activo. */
+let temporizadorRefresco = 0;
+
 function alCambiarEspacios(): void {
   if (estaRefrescando()) return;
   invalidarCachePortales();
+  // ANTI-SALTO DE PANTALLA: un latido que llega con el dedo/ratón apretado (o
+  // justo al soltar) NO debe repintar los dos paneles por innerHTML a mitad del
+  // gesto. Se reprograma en 200 ms hasta que el editor quede quieto; recién ahí
+  // se hace el refresco pesado (que además conserva el scroll).
+  if (hayGestoActivo()) {
+    window.clearTimeout(temporizadorRefresco);
+    temporizadorRefresco = window.setTimeout(alCambiarEspacios, 200);
+    return;
+  }
   void refrescarNivel();
+}
+
+/**
+ * BREADCRUMB NAVEGABLE (red de minimapas del nivel): cada miniatura de la barra
+ * `#minimapasAnidados` que trae `data-minimapa-nivel` es un acceso DIRECTO a esa
+ * planta/habitación/mueble de la pila. También responde al teclado (Enter/Space)
+ * porque el render la emite como `role="button" tabindex="0"`.
+ */
+function conectarBreadcrumbNavegable(): void {
+  const host = el('minimapasAnidados');
+  if (!host) return;
+  const destinoDe = (ev: Event): number | null => {
+    const objetivo = (ev.target as HTMLElement | null)?.closest<HTMLElement>(
+      '[data-minimapa-nivel]',
+    );
+    if (!objetivo) return null;
+    const nivel = Number(objetivo.dataset.minimapaNivel);
+    return Number.isFinite(nivel) ? nivel : null;
+  };
+  host.addEventListener('click', (ev) => {
+    const nivel = destinoDe(ev);
+    if (nivel === null) return;
+    ev.preventDefault();
+    void navegarAMiga(nivel);
+  });
+  host.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const nivel = destinoDe(ev);
+    if (nivel === null) return;
+    ev.preventDefault();
+    void navegarAMiga(nivel);
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -339,6 +392,7 @@ export function iniciarPortalesAlmacenamiento(): void {
   el('btnOrganizarEscena4')?.addEventListener('click', () => organizarContenido());
   conectarPortalesPorDelegacion();
   vigilarOrigenDelClic();
+  conectarBreadcrumbNavegable();
   conectarDropTarjetas();
   const izquierda = slotIzq();
   if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);

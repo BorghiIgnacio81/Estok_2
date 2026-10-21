@@ -56,6 +56,12 @@ export interface OpcionesPlantaUnica {
   adaptador?: AdaptadorEspacios;
   /** Crea un nuevo rectángulo en el lienzo. Por defecto: Ubicación de Planta Única. */
   crearItem?: () => Promise<boolean>;
+  /**
+   * «Duplicar» (⧉) del espacio/sub-división: crea una copia real en el backend con
+   * las mismas dimensiones, tipo y configuración, desplazada al lado del original.
+   * Sin este callback las tarjetas NO dibujan el botón (ver `permiteDuplicar`).
+   */
+  duplicarItem?: (item: ItemElastico, card: HTMLElement) => Promise<boolean>;
 }
 
 /** Adaptador de persistencia efectivo (Ubicación por defecto). */
@@ -65,7 +71,7 @@ export function adaptadorDe(opts: OpcionesPlantaUnica): AdaptadorEspacios {
 
 /** Controles que NO inician un arrastre (checkbox de fusión, tiradores y 🗑️). */
 const CONTROLES =
-  '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo],[data-eliminar-item]';
+  '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo],[data-eliminar-item],[data-duplicar-item]';
 
 // =============================================================================
 // HELPERS DE GESTO
@@ -309,6 +315,11 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
         // Referencias LOCALES del gesto: el tamaño definitivo se aplica al soltar.
         let dW = 0;
         let dH = 0;
+        // Últimos tokens CSS efectivamente escritos: durante el gesto sólo se
+        // tocan las DOS medidas que cambian (width/height). Escribir left/top en
+        // cada frame invalidaba estilos y forzaba trabajo de layout inútil.
+        let anchoEscrito = pct(base.width);
+        let altoEscrito = pct(base.height);
         // Gesto nuevo → la espera del guardado anterior arranca de cero y NINGÚN
         // PUT viaja hasta que el tirador se suelte.
         marcarInteraccionEditor();
@@ -317,12 +328,20 @@ export function conectarResizeLibre(opts: OpcionesPlantaUnica): void {
 
         const aplicarFinal = (): void => {
           if (!cambio) return;
-          aplicarCaja(card, {
-            left: base.left,
-            top: base.top,
-            width: acotar(base.width + dW, LADO_MIN, Math.max(LADO_MIN, 100 - base.left)),
-            height: acotar(base.height + dH, LADO_MIN, Math.max(LADO_MIN, 100 - base.top)),
-          });
+          const ancho = pct(
+            acotar(base.width + dW, LADO_MIN, Math.max(LADO_MIN, 100 - base.left)),
+          );
+          const alto = pct(
+            acotar(base.height + dH, LADO_MIN, Math.max(LADO_MIN, 100 - base.top)),
+          );
+          // Sin cambios reales (sub-píxel) no se escribe nada en el DOM.
+          if (ancho === anchoEscrito && alto === altoEscrito) return;
+          anchoEscrito = ancho;
+          altoEscrito = alto;
+          // Las tarjetas tienen `contain: layout style` (styles/planta-unica.css):
+          // este cambio de tamaño NO invalida el layout del resto de la página.
+          card.style.width = ancho;
+          card.style.height = alto;
         };
         const pintor = crearPintorFrame(aplicarFinal);
 

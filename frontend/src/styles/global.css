@@ -37,6 +37,11 @@
 html {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   scroll-behavior: smooth;
+  /* GUTTER ESTABLE: cuando el editor congela el documento durante un estirado
+     (`html.estok-resize-lock` → overflow:hidden) la barra de scroll desaparece.
+     Sin esta reserva el viewport se ensancha ~15px y la página "salta" al
+     empezar y al soltar el gesto. Con `stable`, el ancho útil no cambia. */
+  scrollbar-gutter: stable;
 }
 
 body {

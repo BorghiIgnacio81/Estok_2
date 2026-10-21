@@ -59,6 +59,14 @@ export interface NodoRuta {
   sectores?: SectorMinimapa[];
   /** Relación alto/ancho del lienzo real (evita deformar las proporciones). */
   aspecto?: number;
+  /**
+   * PROFUNDIDAD DE LA CASCADA a la que vuelve un toque sobre esta miniatura
+   * (0 = plano general de las plantas; N = pila con N nodos). Lo inyecta
+   * portalesAlmacenamiento.ts: las miniaturas de la cadena pasan a ser un
+   * BREADCRUMB NAVEGABLE. Sin este campo el nodo es de solo lectura (Objetos,
+   * Mudanza y demás consumidores del mismo motor puro).
+   */
+  nivel?: number | null;
   /** Casillero activo dentro de esa grilla (1-based). */
   celdaFila?: number | null;
   celdaCol?: number | null;
@@ -190,7 +198,13 @@ export function renderMinimapasAnidados(
       !hermanas &&
       (opts.todosActivos === true ||
         (opts.activoId != null ? nodo.id === opts.activoId : i === nodos.length - 1));
-    const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}" title="${escapeHtml(nodo.nombre)}">
+    // BREADCRUMB NAVEGABLE: sólo los nodos con `nivel` explícito son clicables.
+    const nivel = typeof nodo.nivel === 'number' ? nodo.nivel : null;
+    const navegable = nivel !== null;
+    const atributos = navegable
+      ? ` data-minimapa-nivel="${nivel}" role="button" tabindex="0" aria-label="Ir al nivel «${escapeHtml(nodo.nombre)}»" title="Ir a «${escapeHtml(nodo.nombre)}»"`
+      : ` title="${escapeHtml(nodo.nombre)}"`;
+    const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}"${atributos}>
       <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
       ${lienzoHtml(nodo, opts.activoId)}
       <span class="mini-anidado-nombre">${escapeHtml(nodo.nombre)}</span>

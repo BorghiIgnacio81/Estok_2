@@ -27,6 +27,8 @@ import { adaptadorUbicaciones } from './lienzoElastico';
 import { modoLienzoActual } from './modoLienzo';
 // Fix de jitter visual: los refrescos asíncronos conservan la posición de scroll.
 import { preservarScroll } from './scrollPreservado';
+// Anti-salto: un refresco pesado NUNCA cae con un gesto del editor en curso.
+import { hayGestoActivo } from './pintorFrame';
 import { estado } from './mapaCasita/estadoCasita';
 // Host DOM EXCLUSIVO del Panel Derecho (fuente única de los ids de panel).
 import { HOSTS } from './mapa/portales/panelesPortales';
@@ -270,8 +272,9 @@ export function initMapaCasita(opts: {
   // notifica a la cascada de portales, que despliega las habitaciones a la DERECHA.
   window.addEventListener('estok:planta-elegida', (e) => {
     const fila = Number((e as CustomEvent<{ fila?: number }>).detail?.fila) || 0;
-    if (!fila) return;
-    estado.filaActiva = fila;
+    // `fila: 0` = SOLTAR la planta activa: «⬅ Volver» desde una planta regresa a
+    // la vista GENERAL de Plantas del Estok (mini-mapas independientes).
+    estado.filaActiva = fila || null;
     // La izquierda queda RÍGIDA en el plano general: el despliegue de las
     // habitaciones ocurre SIEMPRE en el panel derecho (fuelle asimétrico).
     preservarScroll(() => {
@@ -295,10 +298,21 @@ export function initMapaCasita(opts: {
 
   // Refresco en vivo ante mutaciones externas (edición in-place del lienzo,
   // movimientos/eliminaciones): se recarga SIN re-enlazar controles fijos.
+  // ANTI-SALTO: si el latido llega con un arrastre/estirado en curso se reprograma
+  // 250 ms hasta que el operador suelte; reemplazar el DOM del lienzo debajo del
+  // puntero es justamente el salto visual que se quiere eliminar.
   window.addEventListener('estok:espacios-cambiados', () => {
+    if (hayGestoActivo()) {
+      window.clearTimeout(temporizadorRefrescoCasita);
+      temporizadorRefrescoCasita = window.setTimeout(() => void cargarYRefrescar(), 250);
+      return;
+    }
     void cargarYRefrescar();
   });
 }
+
+/** Temporizador único del refresco diferido por gesto activo (Mapa Estok). */
+let temporizadorRefrescoCasita = 0;
 
 /** Pinta el Nivel 1 (casa) de forma síncrona e inmediata con los datos actuales. */
 function pintarCasaInicial(): void {

@@ -79,6 +79,28 @@
   margin: 0 auto;
 }
 
+/* ---------------------------------------------------------------------------
+   MINIATURA DE PLANTA NAVEGABLE
+   ---------------------------------------------------------------------------
+   `tarjetaPlantaHtml` emite cada planta del bloque «Minimapas de las plantas»
+   con `data-planta-fila` + `role="button"`: un toque (o Enter/Espacio) fija esa
+   planta como activa y despliega sus habitaciones. El cursor y el anillo de
+   foco lo declaran como control, sin alterar el marco ámbar existente.
+   --------------------------------------------------------------------------- */
+.visor-minimapa-planta[data-planta-fila] {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.visor-minimapa-planta[data-planta-fila]:hover {
+  transform: translateY(-1px);
+}
+
+.visor-minimapa-planta[data-planta-fila]:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
 /* Miniatura unificada dentro de la tarjeta: el MISMO markup `.mini-anidado` del
    bar analítico, agrandado al ancho real de la tarjeta y SIN el marco punteado
    propio de la barra (la caja ámbar de `.visor-minimapa-planta` ya es el marco).
@@ -155,6 +177,19 @@
   box-shadow: -10px 0 28px rgba(0, 0, 0, 0.07);
   padding: 16px 14px;
   overflow: hidden;
+  /* ---------------------------------------------------------------------------
+     ANCLAJE BAJO LA BARRA DE NAVEGACIÓN SUPERIOR
+     ---------------------------------------------------------------------------
+     `--header-height` la mantiene sincronizada lib/layout/offsetHeaderBandeja.ts
+     con el borde INFERIOR real del <nav> principal (medido en vivo y acotado a 0
+     cuando el header ya scrolleó fuera de pantalla). Así el panel flotante NUNCA
+     se solapa con el logo / nombre de usuario / menú, y al scrollear no deja un
+     hueco muerto arriba. El fallback (7rem) es el alto del header de escritorio
+     por si el script todavía no corrió. */
+  top: var(--header-height, 7rem);
+  height: calc(100vh - var(--header-height, 7rem));
+  height: calc(100dvh - var(--header-height, 7rem));
+  box-sizing: border-box;
 }
 .bandeja-lateral-cab {
   display: flex;

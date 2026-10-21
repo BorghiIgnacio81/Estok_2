@@ -284,7 +284,7 @@ function gruposHtml(grupos: GrupoFusion[]): string {
     .join('');
 }
 
-function sueltasHtml(sueltas: ItemElastico[]): string {
+function sueltasHtml(sueltas: ItemElastico[], permiteDuplicar = false): string {
   return sueltas
     .map((item, i) => {
       const geo = geoDe(item, i);
@@ -308,6 +308,9 @@ function sueltasHtml(sueltas: ItemElastico[]): string {
       ${item.protegido ? '' : `<button type="button" data-eliminar-item data-id="${item.id}" data-nombre="${escapeHtml(item.nombre)}"
         class="pu-celda-eliminar"
         title="Eliminar «${escapeHtml(item.nombre)}» de forma definitiva: su contenido se desancla hacia la bandeja inferior de «por ubicar».">🗑️</button>`}
+      ${permiteDuplicar ? `<button type="button" data-duplicar-item data-id="${item.id}"
+        class="pu-celda-duplicar"
+        title="Duplicar «${escapeHtml(item.nombre)}»: crea una copia con las mismas dimensiones, tipo y configuración, pegada al lado del original.">⧉</button>` : ''}
       ${item.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(item.icono)}</span>` : ''}
       <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}
@@ -333,8 +336,14 @@ export function renderLienzoElastico(opts: {
   etiquetaCrear?: string;
   textoVacio?: string;
   tip?: string;
+  /**
+   * Habilita la acción «Duplicar» (⧉) en cada tarjeta suelta del lienzo. Sólo la
+   * enciende el editor de sub-divisiones de Almacenamiento, que inyecta el
+   * callback `duplicarItem` en `conectarLienzoElastico`.
+   */
+  permiteDuplicar?: boolean;
 }): string {
-  const { items, etiquetaCrear, textoVacio, tip } = opts;
+  const { items, etiquetaCrear, textoVacio, tip, permiteDuplicar } = opts;
   const { grupos, sueltas } = agruparFusiones(items);
   const botonCrear = etiquetaCrear
     ? `<button type="button" class="lienzo-elastico-nueva" data-lienzo-crear title="Crear un nuevo espacio libre en este lienzo">➕ ${escapeHtml(etiquetaCrear)}</button>`
@@ -354,7 +363,7 @@ export function renderLienzoElastico(opts: {
     <div class="planta-unica-lienzo" data-lienzo-pu>
       ${vacio}
       ${gruposHtml(grupos)}
-      ${sueltasHtml(sueltas)}
+      ${sueltasHtml(sueltas, permiteDuplicar === true)}
     </div>
   </div>`;
 }

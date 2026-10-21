@@ -245,7 +245,10 @@ export function tarjetaPlantaHtml(
     ],
     { hermanas: true },
   );
-  return `<div class="visor-minimapa-planta" title="Planta «${escapeHtml(division.nombre)}»: ${detalle} (proporciones reales ui_width × ui_height)">
+  const fila = division.parent_grid_row || 1;
+  return `<div class="visor-minimapa-planta" data-planta-fila="${fila}" data-planta-nombre="${escapeHtml(division.nombre)}"
+    role="button" tabindex="0"
+    title="Planta «${escapeHtml(division.nombre)}»: ${detalle} (proporciones reales ui_width × ui_height). Tocá para fijarla como planta activa.">
     ${miniatura}
     <span class="visor-minimapa-detalle">${detalle}</span>
   </div>`;

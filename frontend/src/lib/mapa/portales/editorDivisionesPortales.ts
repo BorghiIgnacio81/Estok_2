@@ -40,6 +40,8 @@ import { cargarContenedores } from './datosNodosPortales';
 // Disyuntores del espacio: persistencia compartida (PUT parcial multi-tenant).
 import { guardarDeclaradoMovible, guardarEspacioUnico } from './disyuntoresPersistencia';
 import type { InteriorNodo } from './datosNodosPortales';
+// «Duplicar» (⧉) del espacio/sub-división: copia exacta contigua en el backend.
+import { duplicarDivisionEnNodo } from './duplicarDivisionPortales';
 
 /** Ayuda contextual del editor del cuarto (micro-texto en español). */
 const TIP_DIVISIONES =
@@ -217,6 +219,8 @@ export function pintarEditorDivisiones(
       textoVacio:
         'Este nivel todavía no tiene divisiones internas. Usá «➕ Crear Espacio» para subdividirlo en zonas físicas.',
       tip: TIP_DIVISIONES,
+      // ⧉ «Duplicar» en cada tarjeta: copia exacta contigua del cajón/estante.
+      permiteDuplicar: true,
     }),
     nodo,
   );
@@ -237,6 +241,14 @@ export function pintarEditorDivisiones(
     rooms: () => items,
     adaptador: adaptadorContenedores(),
     crearItem: () => crearEspacioEnNodo(nodo, items.length),
+    // ⧉ DUPLICAR: copia exacta contigua del espacio/sub-división (mismas
+    // dimensiones, tipo y configuración) + nombre incremental. El latido de
+    // cambios re-renderiza el nivel con la nueva pieza ya en su lugar.
+    duplicarItem: async (item) => {
+      const ok = await duplicarDivisionEnNodo(nodo, item);
+      if (ok) window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      return ok;
+    },
     notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
   });
   // TIRADORES DEL PERÍMETRO (borde derecho / inferior / esquina): al estirar el

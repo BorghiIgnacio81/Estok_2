@@ -103,10 +103,13 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-  /* El gesto lo maneja el motor 2D: Safari NO debe robar el dedo para su
-     scroll nativo ni para el rebote elástico (rubber-band). */
-  touch-action: none;
-  overscroll-behavior: contain;
+  /* SCROLL DE PÁGINA LIMPIO (mobile-first): el lienzo es un contenedor de
+     contenido, no una superficie de scroll. `pan-y` permite arrastrar la página
+     con el dedo sobre el fondo del lienzo (antes `none` la trababa y no se podía
+     volver al encabezado). Las TARJETAS y los TIRADORES conservan su propio
+     `touch-action: none` (ver .pu-celda / [data-libre-resize]), así el gesto de
+     edición sigue siendo exclusivo cuando se toca una pieza. */
+  touch-action: pan-y;
   background:
     radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.6) 0 1.5px, transparent 2.5px),
     radial-gradient(circle at 78% 70%, rgba(255, 255, 255, 0.45) 0 1.5px, transparent 2.5px),
@@ -164,6 +167,10 @@
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   overscroll-behavior: contain;
+  /* AISLAMIENTO DE LAYOUT (anti-salto): durante el estirado la tarjeta cambia
+     width/height en el compositor local; con `contain` ese cambio NO invalida el
+     layout del resto de la página (cero reflow global, cero saltos). */
+  contain: layout style;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -185,6 +192,10 @@
 .pu-celda.pu-redimensionando {
   box-shadow: 0 0 0 2px #f97316;
   z-index: 5;
+  /* El tamaño viaja en referencias LOCALES y se pinta una sola vez por frame
+     (`crearPintorFrame`); la capa se promueve para que el navegador no recomponga
+     el resto del lienzo mientras el dedo está en el tirador. */
+  will-change: width, height;
 }
 
 .pu-check {
@@ -304,6 +315,8 @@
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+  /* Mismo aislamiento anti-salto que la tarjeta suelta. */
+  contain: layout style;
 }
 
 /* Cuerpo físico del bloque + controles: checkbox de fusión encadenada, nombre,
@@ -405,6 +418,35 @@
 
 .pu-celda-eliminar:hover {
   opacity: 1;
+}
+
+/* «Duplicar» (⧉) del espacio/sub-división: pegado a la izquierda del 🗑️, en la
+   misma esquina superior derecha de la tarjeta. Copia exacta contigua. */
+.pu-celda-duplicar {
+  position: absolute;
+  top: 2px;
+  right: 20px;
+  z-index: 6;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px;
+  border: none;
+  background: transparent;
+  color: #c2410c;
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0.55;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.pu-celda-duplicar:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.pu-celda-duplicar:disabled {
+  opacity: 0.3;
+  cursor: progress;
 }
 
 /* --- MUEBLE MÓVIL DECLARADO (Lote 25) ---------------------------------------

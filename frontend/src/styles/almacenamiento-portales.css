@@ -78,6 +78,35 @@
   opacity: 1;
   filter: none;
 }
+
+/* ---------------------------------------------------------------------------
+   2.0 MINIATURAS NAVEGABLES (BREADCRUMB INTERACTIVO)
+   ---------------------------------------------------------------------------
+   Cada nodo de la cadena que llegue con `data-minimapa-nivel` (lo inyecta
+   lib/minimapasAnidados.ts desde portalesAlmacenamiento.ts) es un acceso
+   DIRECTO a ese nivel: un toque desapila la cascada hasta esa planta,
+   habitación, mueble o caja. El resto de los consumidores de la cadena (Objetos,
+   Mudanza) no manda ese atributo y conserva su comportamiento de solo lectura.
+   --------------------------------------------------------------------------- */
+.mini-anidado[data-minimapa-nivel] {
+  cursor: pointer;
+  border-radius: 10px;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.mini-anidado[data-minimapa-nivel]:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.mini-anidado[data-minimapa-nivel]:hover .mini-anidado-nombre {
+  color: #c2410c;
+}
+
+.mini-anidado[data-minimapa-nivel]:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
 .mini-anidado-ico {
   font-size: 10px;
   line-height: 1;
@@ -173,6 +202,7 @@
 body.modo-navegacion .pu-check,
 body.modo-navegacion [data-eliminar-grupo],
 body.modo-navegacion [data-eliminar-item],
+body.modo-navegacion [data-duplicar-item],
 body.modo-navegacion [data-grupo-resize],
 body.modo-navegacion [data-libre-resize],
 body.modo-navegacion [data-inplace-resize],
@@ -193,6 +223,13 @@ body.modo-navegacion [data-inplace-card] {
   /* En navegación el toque NO edita: se permite scrollear la página. */
   touch-action: pan-y;
 }
+/* Bloques FUSIONADOS (espacios en «L») en navegación: la malla SVG y sus tiles
+   son portadores del clic del portal, pero NO deben secuestrar el scroll vertical
+   de la página (antes heredaban `touch-action: none` del bloque). */
+body.modo-navegacion .pu-grupo-svg,
+body.modo-navegacion .pu-grupo-malla {
+  touch-action: pan-y;
+}
 body.modo-edicion [data-libre-drag],
 body.modo-edicion [data-inplace-card] {
   cursor: grab;
@@ -208,6 +245,7 @@ body.modo-edicion [data-inplace-card] {
 body.modo-edicion [data-inplace-renombrar],
 body.modo-edicion [data-fusion-check],
 body.modo-edicion [data-eliminar-item],
+body.modo-edicion [data-duplicar-item],
 body.modo-edicion [data-eliminar-grupo] {
   touch-action: manipulation;
 }
