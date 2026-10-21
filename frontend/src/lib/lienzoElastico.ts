@@ -49,6 +49,18 @@ export interface ItemElastico {
   /** Conteos opcionales: si no hay `meta`, la tarjeta los compone automáticamente. */
   objetos_count?: number;
   contenedores_count?: number;
+  /**
+   * ESPACIO VIRTUAL / DE SISTEMA (limbo «En Tránsito» / «Zona de Mudanza»).
+   * El motor 2D lo excluye SIEMPRE del lienzo: es una ubicación del tablero de
+   * mudanzas, no un ambiente físico con geometría propia.
+   */
+  es_espacio_virtual?: boolean;
+  /** Alias del mismo flag expuesto por otros DTOs. */
+  es_virtual?: boolean;
+  /** Alias legacy del mismo concepto. */
+  virtual?: boolean;
+  /** Slug canónico opcional del espacio (`en-transito`). */
+  slug?: string | null;
 }
 
 /** Resultado del borrado físico de una estructura espacial (macro-espacio). */

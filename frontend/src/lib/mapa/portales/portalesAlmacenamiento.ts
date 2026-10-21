@@ -130,7 +130,10 @@ function renderMinimapa(): void {
       nombre: planta.nombre || 'Estok',
       filaActiva: planta.fila,
       totalPlantas: planta.total,
-      sectores: sectoresDeItems(planta.hermanas, null),
+      // Plano de la PLANTA: excluye limbo «En Tránsito» y espacios sin geometría.
+      sectores: sectoresDeItems(planta.hermanas, null, undefined, {
+        excluirSinGeometria: true,
+      }),
       aspecto,
       // Nivel 0 = plano general de las plantas: tocar la casa vuelve a la raíz.
       nivel: 0,

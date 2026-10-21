@@ -23,6 +23,9 @@
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi, enviarFormData } from '../services/auth';
 import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
+// FILTRO CENTRAL DEL PLANO: el limbo «En Tránsito» es un espacio VIRTUAL de
+// sistema: nunca se lista como habitación ni se dibuja en los minimapas.
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 import { hayGestoActivo, hayInteraccionReciente } from './pintorFrame';
 import { preservarScrollAsync } from './scrollPreservado';
 // 🧾 OBJETO DEL ESPACIO: el modal de un mueble declarado integra los campos
@@ -85,6 +88,8 @@ export interface UbicacionDnD {
   parent_ubicacion_nombre?: string | null;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
+  /** Espacio VIRTUAL de sistema (limbo «En Tránsito»): fuera del plano. */
+  es_espacio_virtual?: boolean;
   /** Sub-grilla interna de la división (Filas Internas / Columnas / asimétrica). */
   grid_filas?: number | null;
   grid_columnas?: number | null;
@@ -316,12 +321,13 @@ export class AlmacenamientoBoard {
         // (celda fila × columna).
         this.divisionesPorId.clear();
         for (const u of ubiData as UbicacionDnD[]) {
+          if (esEspacioVirtual(u)) continue;
           if (u.parent_grid_row && !u.parent_ubicacion) {
             this.divisionesPorId.set(u.id, { ...u, raices: [] });
           }
         }
         this.ubicaciones = (ubiData as UbicacionDnD[])
-          .filter((u) => !(u.parent_grid_row && !u.parent_ubicacion))
+          .filter((u) => !esEspacioVirtual(u) && !(u.parent_grid_row && !u.parent_ubicacion))
           .map((u) => ({ ...u, raices: [] }));
         this.contenedores = contData.map((c) => ({
           ...c,
@@ -1781,6 +1787,13 @@ export class AlmacenamientoBoard {
       if (alto) formData.append('alto', alto);
       const foto = (document.getElementById('ubiFotoInput') as HTMLInputElement).files?.[0];
       if (foto) formData.append('foto', foto);
+      // GEOMETRÍA FÍSICA: el plano descarta los espacios sin coordenadas `ui_*`
+      // válidas (así no se inventan cajas que tapen ambientes reales). Una
+      // ubicación nueva nace con una caja visible y movible en el lienzo.
+      formData.append('ui_left', '6%');
+      formData.append('ui_top', '8%');
+      formData.append('ui_width', '28%');
+      formData.append('ui_height', '24%');
 
       const res = await enviarFormData('/ubicaciones/', formData);
       if (res.ok) {

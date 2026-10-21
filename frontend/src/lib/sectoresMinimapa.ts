@@ -25,18 +25,37 @@ import { pctValor } from './mapaPlantaUnica';
 import { unirCeldasAdyacentes } from './plantaFusionSilueta';
 import type { CajaBloque } from './plantaFusionSilueta';
 import type { SectorMinimapa } from './minimapa';
+// FILTRO CENTRAL DEL PLANO (componente base de minimapas): ningún espacio virtual
+// (limbo «En Tránsito») ni sin coordenadas físicas puede llegar al SVG.
+import { esEspacioVirtual, tieneGeometriaPlano } from './ubicacionesVirtuales';
 
 /** Geometría mínima que necesita un ítem para posicionarse en un minimapa. */
 export interface ItemGeometria {
   id?: string | null;
   /** Nombre legible del ítem (tooltip / icono contextual). */
   nombre?: string | null;
+  /** Slug canónico opcional (limbo «En Tránsito» → `en-transito`). */
+  slug?: string | null;
+  /** Flags de espacio virtual expuestos por el backend/DTO. */
+  es_espacio_virtual?: boolean;
+  es_virtual?: boolean;
+  virtual?: boolean;
   ui_left?: string | null;
   ui_top?: string | null;
   ui_width?: string | null;
   ui_height?: string | null;
   /** ID relacional del grupo de fusión (espacios en "L" / pasillos fusionados). */
   fusion_grupo?: string | null;
+}
+
+/** Opciones del motor de sectores (retrocompatibles: 4º parámetro opcional). */
+export interface OpcionesSectores {
+  /**
+   * Excluye además los ítems SIN geometría física (`ui_*` porcentuales válidas).
+   * Se activa en los planos de UBICACIONES (planta/ambientes); los interiores de
+   * contenedores conservan su cascada de geometría por defecto.
+   */
+  excluirSinGeometria?: boolean;
 }
 
 const ANCHO_DEFECTO = 28;
@@ -121,8 +140,16 @@ export function sectoresDeItems(
   items: ItemGeometria[] | null | undefined,
   activoId?: string | null,
   iconoDe?: (item: ItemGeometria) => string | null,
+  opciones: OpcionesSectores = {},
 ): SectorMinimapa[] {
-  const lista = items ?? [];
+  // FILTRO EN EL COMPONENTE BASE: el limbo «En Tránsito» (flag, nombre o slug)
+  // JAMÁS llega al SVG. Sin geometría física válida tampoco se le inventa una
+  // caja por defecto que taparía los ambientes reales cuando la vista lo exige.
+  const lista = (items ?? []).filter(
+    (item) =>
+      !esEspacioVirtual(item) &&
+      (opciones.excluirSinGeometria !== true || tieneGeometriaPlano(item)),
+  );
   const cajas = lista.map((item, i) => geoDeItem(item, i));
 
   // Índices por grupo de fusión (los grupos de un solo miembro no agrupan).

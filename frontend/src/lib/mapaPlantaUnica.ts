@@ -25,6 +25,10 @@ import { escapeHtml } from './mapaJerarquico';
 import { estiloPerimetro, tiradoresPerimetro } from './perimetroElastico';
 import { siluetaContinua, unirCeldasAdyacentes } from './plantaFusionSilueta';
 import type { ItemElastico } from './lienzoElastico';
+// FILTRO CENTRAL DEL LIENZO: el limbo «En Tránsito» (y cualquier espacio sin
+// coordenadas físicas válidas) se descarta ACÁ, en el motor reutilizable, para
+// que TODAS las pantallas que lo importan hereden el comportamiento.
+import { esEspacioVirtual, tieneGeometriaPlano } from './ubicacionesVirtuales';
 
 // =============================================================================
 // GEOMETRÍA ELÁSTICA (porcentajes sobre el lienzo del departamento)
@@ -342,8 +346,27 @@ export function renderLienzoElastico(opts: {
    * callback `duplicarItem` en `conectarLienzoElastico`.
    */
   permiteDuplicar?: boolean;
+  /**
+   * Excluye del lienzo los ítems SIN geometría física (`ui_*` porcentuales
+   * válidas). Lo activan los planos de UBICACIONES (habitaciones/ambientes);
+   * los interiores de contenedores conservan la cascada de geometría por defecto.
+   * Los espacios VIRTUALES (limbo «En Tránsito») se excluyen SIEMPRE.
+   */
+  excluirSinGeometria?: boolean;
 }): string {
-  const { items, etiquetaCrear, textoVacio, tip, permiteDuplicar } = opts;
+  const {
+    items: itemsRecibidos,
+    etiquetaCrear,
+    textoVacio,
+    tip,
+    permiteDuplicar,
+    excluirSinGeometria,
+  } = opts;
+  const items = (itemsRecibidos ?? []).filter(
+    (item) =>
+      !esEspacioVirtual(item) &&
+      (excluirSinGeometria !== true || tieneGeometriaPlano(item)),
+  );
   const { grupos, sueltas } = agruparFusiones(items);
   const botonCrear = etiquetaCrear
     ? `<button type="button" class="lienzo-elastico-nueva" data-lienzo-crear title="Crear un nuevo espacio libre en este lienzo">➕ ${escapeHtml(etiquetaCrear)}</button>`
@@ -386,7 +409,13 @@ export function renderPlantaUnica(opts: {
   etiquetaCrear?: string;
   tip?: string;
 }): string {
-  const { apartamento, rooms, etiquetaCrear, tip } = opts;
+  const { apartamento, rooms: roomsRecibidas, etiquetaCrear, tip } = opts;
+  // PLANO DE UBICACIONES: se excluyen de RAÍZ los espacios virtuales de sistema
+  // (limbo «En Tránsito») y los que carecen de coordenadas físicas válidas. Lo
+  // resuelve el motor reutilizable, así toda página que lo importe hereda la regla.
+  const rooms = (roomsRecibidas ?? []).filter(
+    (room) => !esEspacioVirtual(room) && tieneGeometriaPlano(room),
+  );
   const { grupos, sueltas } = agruparFusiones(rooms);
   const textoCrear = etiquetaCrear ?? 'Nueva ubicación';
 

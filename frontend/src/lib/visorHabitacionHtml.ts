@@ -17,6 +17,9 @@ import { ASPECTO_LIENZO, minimapaRectangularSvg } from './minimapa';
 import { renderMinimapasAnidados } from './minimapasAnidados';
 import { sectoresDeItems } from './sectoresMinimapa';
 import { iconoDeHabitacion } from './planoHabitaciones';
+// FILTRO CENTRAL DEL PLANO: la tarjeta de planta jamás dibuja el limbo
+// «En Tránsito» ni espacios sin geometría física válida.
+import { filtrarEspaciosDePlano } from './ubicacionesVirtuales';
 // ICONOGRAFÍA FÍSICA ÚNICA: el icono de un contenedor mueble se resuelve con la
 // MISMA fuente que el lienzo de edición de Almacenamiento (subtipo por nombre +
 // taxonomía). Si no hay subtipo reconocido se devuelve '' y el visor cae a la
@@ -225,9 +228,15 @@ export function tarjetaPlantaHtml(
   habitaciones: UbicacionPlano[] | null | undefined,
 ): string {
   if (!division) return '';
-  const rooms = habitaciones ?? [];
+  // Filtro central del plano antes de proyectar los sectores del SVG.
+  const rooms = filtrarEspaciosDePlano(habitaciones);
   // Sectores con geometría real (y fusiones ya unificadas) + icono contextual.
-  const sectores = sectoresDeItems(rooms, null, (item) => iconoDeHabitacion(String(item.nombre ?? '')));
+  const sectores = sectoresDeItems(
+    rooms,
+    null,
+    (item) => iconoDeHabitacion(String(item.nombre ?? '')),
+    { excluirSinGeometria: true },
+  );
   const detalle = sectores.length
     ? `${sectores.length} ambiente${sectores.length === 1 ? '' : 's'} · silueta real`
     : 'Sin ambientes todavía';

@@ -108,6 +108,9 @@ export function renderHabitacionesHtml(params: {
         renderLienzoElastico({
           items,
           etiquetaCrear: 'Habitación',
+          // PLANO DE HABITACIONES (Ubicaciones): el motor descarta el limbo
+          // «En Tránsito» y los espacios sin geometría física válida.
+          excluirSinGeometria: true,
           textoVacio:
             'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
           // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del

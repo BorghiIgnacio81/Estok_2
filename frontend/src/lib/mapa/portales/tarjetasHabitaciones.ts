@@ -18,6 +18,9 @@
 import { escapeHtml } from '../../mapaJerarquico';
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import { iconoDeHabitacion } from '../../planoHabitaciones';
+// FILTRO CENTRAL DEL PLANO: los mini-mapas de planta son planos de UBICACIONES:
+// se descarta el limbo «En Tránsito» y cualquier espacio sin geometría física.
+import { filtrarEspaciosDePlano } from '../../ubicacionesVirtuales';
 import { lienzoAmpliadoHtml } from './lienzoHijos';
 import type { PiezaLienzo } from './lienzoHijos';
 import type { ContenedorDto } from './datosNodosPortales';
@@ -65,14 +68,15 @@ export function listaHabitacionesHtml(
   nombrePlanta: string | null = null,
   activoId: string | null = null,
 ): string {
-  if (!rooms.length) {
+  const dibujables = filtrarEspaciosDePlano(rooms);
+  if (!dibujables.length) {
     return `<div class="portal-vacio">
       <span class="portal-vacio-ico" aria-hidden="true">🚪</span>
       <p class="portal-vacio-texto">Esta planta todavía no tiene habitaciones encastradas. Modelala en el plano de la izquierda para poder entrar a su interior.</p>
     </div>`;
   }
   const planta = String(nombrePlanta ?? '').trim() || 'Planta activa';
-  const piezas = rooms.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
+  const piezas = dibujables.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
   return `<div class="portal-lienzo-planta">${lienzoAmpliadoHtml(piezas, aspecto, planta, {
     tip: `🗺️ <strong>Mini-mapa ampliado de «${escapeHtml(planta)}»</strong>: tocá la silueta de una habitación para entrar a su interior.`,
     activoId,
@@ -98,8 +102,10 @@ function tarjetaPlantaEsperaHtml(
 ): string {
   const fila = plant.parent_grid_row || 1;
   const nombre = String(plant.nombre ?? 'Planta');
-  const piezas = rooms.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
-  const contador = rooms.length === 1 ? '1 habitación' : `${rooms.length} habitaciones`;
+  const dibujables = filtrarEspaciosDePlano(rooms);
+  const piezas = dibujables.map((r) => piezaDeHabitacion(r, espaciosPorRoom.get(String(r.id)) ?? []));
+  const contador =
+    dibujables.length === 1 ? '1 habitación' : `${dibujables.length} habitaciones`;
   return `<section class="portal-planta-espera" data-planta-fila="${fila}" data-planta-nombre="${escapeHtml(nombre)}"
       title="Tocá para fijar «${escapeHtml(nombre)}» en el plano de la izquierda">
     <header class="portal-planta-espera-cab">

@@ -22,11 +22,29 @@
 /** Nombres normalizados del limbo de mudanza (sin acentos, minúsculas). */
 export const NOMBRES_ESPACIO_VIRTUAL = ['en transito', 'zona de mudanza'] as const;
 
+/**
+ * Slugs canónicos del limbo: cubren payloads/DTOs que identifican el espacio
+ * virtual por slug en vez de por nombre (`en-transito`, `zona-de-mudanza`…).
+ */
+export const SLUGS_ESPACIO_VIRTUAL = [
+  'en-transito',
+  'en_transito',
+  'zona-de-mudanza',
+  'zona_de_mudanza',
+] as const;
+
 /** Estructura mínima para clasificar un espacio (UbicacionPlano es compatible). */
 export interface EspacioConGeometria {
+  id?: string | null;
+  /** Slug opcional del espacio (algunos DTOs lo exponen). */
+  slug?: string | null;
   nombre?: string | null;
   /** Flag autoritativo del backend (UbicacionSerializer.es_espacio_virtual). */
   es_espacio_virtual?: boolean;
+  /** Alias de `es_espacio_virtual` que usan otros DTOs/endpoints (es_virtual). */
+  es_virtual?: boolean;
+  /** Alias legacy del mismo concepto. */
+  virtual?: boolean;
   ui_left?: string | null;
   ui_top?: string | null;
   ui_width?: string | null;
@@ -42,17 +60,31 @@ function normalizarNombre(texto: string): string {
     .trim();
 }
 
+/** Normaliza un slug (`En Tránsito` → `en-transito`) para comparar. */
+function normalizarSlug(texto: string): string {
+  return normalizarNombre(texto).replace(/\s+/g, '-');
+}
+
 /**
  * ¿Es un espacio VIRTUAL/de sistema que NUNCA debe dibujarse en un plano?
- * Prioriza el flag del backend y cae al nombre canónico del limbo.
+ * Prioriza los flags del backend (`es_espacio_virtual` / `es_virtual` / `virtual`)
+ * y cae al nombre y al slug canónicos del limbo de mudanza.
  */
 export function esEspacioVirtual(
   espacio: EspacioConGeometria | null | undefined,
 ): boolean {
   if (!espacio) return false;
-  if (espacio.es_espacio_virtual === true) return true;
+  if (
+    espacio.es_espacio_virtual === true ||
+    espacio.es_virtual === true ||
+    espacio.virtual === true
+  ) {
+    return true;
+  }
   const nombre = normalizarNombre(String(espacio.nombre ?? ''));
-  return (NOMBRES_ESPACIO_VIRTUAL as readonly string[]).includes(nombre);
+  if ((NOMBRES_ESPACIO_VIRTUAL as readonly string[]).includes(nombre)) return true;
+  const slug = normalizarSlug(String(espacio.slug ?? ''));
+  return (SLUGS_ESPACIO_VIRTUAL as readonly string[]).includes(slug);
 }
 
 /**
@@ -99,6 +131,28 @@ export function esHabitacionDibujable(
   espacio: EspacioConGeometria | null | undefined,
 ): boolean {
   return !esEspacioVirtual(espacio) && tieneGeometriaPlano(espacio);
+}
+
+/**
+ * Filtro CENTRAL de todo plano/lienzo/minimapa: descarta los espacios virtuales
+ * y los que no tienen coordenadas físicas válidas. Toda vista que dibuje el
+ * plano de una planta debe pasar sus espacios por acá (nunca duplicar la regla).
+ */
+export function filtrarEspaciosDePlano<T extends EspacioConGeometria>(
+  espacios: T[] | null | undefined,
+): T[] {
+  return (espacios ?? []).filter(esHabitacionDibujable);
+}
+
+/**
+ * Descarta únicamente los espacios VIRTUALES conservando la geometría pendiente.
+ * Lo usan las capas de navegación/edición, donde un espacio todavía sin `ui_*`
+ * debe seguir siendo alcanzable aunque el plano no lo dibuje.
+ */
+export function filtrarEspaciosVirtuales<T extends EspacioConGeometria>(
+  espacios: T[] | null | undefined,
+): T[] {
+  return (espacios ?? []).filter((espacio) => !esEspacioVirtual(espacio));
 }
 
 /**

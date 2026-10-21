@@ -20,7 +20,7 @@ import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import type { NodoPortal } from './estadoPortales';
 // Espacios VIRTUALES (limbo «En Tránsito»): nunca son habitaciones navegables.
-import { esEspacioVirtual } from '../../ubicacionesVirtuales';
+import { esEspacioVirtual, filtrarEspaciosDePlano } from '../../ubicacionesVirtuales';
 
 /** Contenedor del padrón, normalizado para la cascada. */
 export interface ContenedorDto {
@@ -362,8 +362,10 @@ export async function datosDeNivelPlanta(plantaId: string | null): Promise<{
   const plant = plantaId
     ? todas.find((u) => String(u.id) === plantaId && esDivisionUbicacion(u)) ?? null
     : null;
-  const rooms = todas.filter(
-    (u) => !esDivisionUbicacion(u) && (!plantaId || u.parent_ubicacion === plantaId),
+  const rooms = filtrarEspaciosDePlano(
+    todas.filter(
+      (u) => !esDivisionUbicacion(u) && (!plantaId || u.parent_ubicacion === plantaId),
+    ),
   );
   const conts = await cargarContenedores();
   const espaciosPorRoom = new Map<string, ContenedorDto[]>();

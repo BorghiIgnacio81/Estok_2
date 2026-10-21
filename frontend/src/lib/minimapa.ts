@@ -13,6 +13,10 @@
 import { sectoresAcotados } from './sectoresProporcionales';
 import { contornoUnion, pathContorno } from './plantaFusionSilueta';
 import type { CajaBloque, PuntoBloque } from './plantaFusionSilueta';
+// ÚLTIMA RED DE SEGURIDAD DEL MOTOR SVG: ningún sector virtual de sistema
+// (limbo «En Tránsito» / «Zona de Mudanza») se dibuja, aunque una pantalla
+// arme los sectores a mano sin pasar por sectoresDeItems.
+import { esEspacioVirtual } from './ubicacionesVirtuales';
 // ETIQUETAS DE LECTURA (icono + nombre del ambiente): capa HTML que se emite
 // DESPUÉS del SVG cuando la pantalla la pide (`etiquetas: true`). Vive en su
 // propio módulo puro para no acoplar el dibujo con la iconografía.
@@ -335,7 +339,9 @@ function acotar(n: number, min: number, max: number): number {
 }
 
 export function minimapaSectoresSvg(opts: MinimapaSectoresOpts): string {
-  const sectores = sectoresAcotados(opts.sectores, opts.activoId);
+  const sectores = sectoresAcotados(opts.sectores, opts.activoId).filter(
+    (sector) => !esEspacioVirtual(sector),
+  );
   if (!sectores.length) return '';
 
   const responsive = opts.responsive === true;

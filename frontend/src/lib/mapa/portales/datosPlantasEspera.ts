@@ -12,6 +12,10 @@ import { esDivisionUbicacion } from '../../mapaJerarquico';
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import { cargarContenedores, cargarUbicaciones } from './datosNodosPortales';
 import type { ContenedorDto } from './datosNodosPortales';
+// FILTRO CENTRAL DEL PLANO: ni el limbo «En Tránsito» ni los espacios sin
+// coordenadas físicas se asignan a una planta (antes se dibujaban con una caja
+// por defecto que tapaba las habitaciones reales del mini-mapa).
+import { filtrarEspaciosDePlano } from '../../ubicacionesVirtuales';
 
 /** Agrupación lista para el estado de espera inicial del Nivel Estok. */
 export interface DatosPlantasEspera {
@@ -29,7 +33,7 @@ export async function datosDePlantasIndependientes(): Promise<DatosPlantasEspera
   const plantas = todas
     .filter(esDivisionUbicacion)
     .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
-  const sueltas = todas.filter((u) => !esDivisionUbicacion(u));
+  const sueltas = filtrarEspaciosDePlano(todas.filter((u) => !esDivisionUbicacion(u)));
   const habitacionesPorPlanta = new Map<string, UbicacionPlano[]>();
   for (const planta of plantas) {
     const fila = planta.parent_grid_row || 1;

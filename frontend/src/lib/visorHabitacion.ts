@@ -28,7 +28,7 @@ import {
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 // Espacios VIRTUALES (limbo «En Tránsito»): no son habitaciones del Visor.
-import { esEspacioVirtual } from './ubicacionesVirtuales';
+import { esEspacioVirtual, filtrarEspaciosDePlano } from './ubicacionesVirtuales';
 import {
   conectarRenombradoEnVivo,
   conectarResizeElastico,
@@ -149,10 +149,12 @@ async function cargarDivisionesIniciales(): Promise<void> {
     const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`);
     const todas = data as unknown as UbicacionPlano[];
     divisionesIniciales = todas
-      .filter(esDivisionUbicacion)
+      .filter((u) => esDivisionUbicacion(u) && !esEspacioVirtual(u))
       .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
-    habitacionesIniciales = todas.filter(
-      (u) => !esDivisionUbicacion(u) && !esEspacioVirtual(u),
+    // Habitaciones dibujables del plano: sin limbo «En Tránsito» y CON geometría
+    // física válida (una caja inventada taparía los ambientes reales).
+    habitacionesIniciales = filtrarEspaciosDePlano(
+      todas.filter((u) => !esDivisionUbicacion(u)),
     );
   } catch {
     divisionesIniciales = [];
