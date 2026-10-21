@@ -29,7 +29,35 @@ const {
 <!-- Modal overlay (creado dinámicamente en el script para evitar duplicados) -->
 
 <script>
-  import { getAuthHeaders, getEstokActivoId, API_BASE_URL } from '../services/auth';
+  // AUTENTICACIÓN CENTRALIZADA (regla del proyecto): getAuthHeaders()/getToken()
+  // viven ÚNICAMENTE en src/services/auth. Acá NO se arma un Bearer propio.
+  import { getAuthHeaders, getEstokActivoId, getToken, API_BASE_URL } from '../services/auth';
+
+  /**
+   * Texto legible del error de DRF (400/403): prioriza los campos del
+   * serializer (`nombre`, `estok`, `parent`), luego `detail`/`error`/
+   * `non_field_errors` y, por último, el primer mensaje disponible.
+   * Nunca muestra un "Error 500" crudo al operador.
+   */
+  function mensajeDeErrorCategoria(data: any, status: number): string {
+    const deCampo = (valor: any): string => {
+      const primero = Array.isArray(valor) ? valor[0] : valor;
+      return typeof primero === 'string' ? primero.trim() : '';
+    };
+    const primeroPlano = Object.values(data ?? {})
+      .flat()
+      .find((v) => typeof v === 'string' && v.trim());
+    return (
+      deCampo(data?.nombre) ||
+      deCampo(data?.estok) ||
+      deCampo(data?.parent) ||
+      deCampo(data?.detail) ||
+      deCampo(data?.error) ||
+      deCampo(data?.non_field_errors) ||
+      (typeof primeroPlano === 'string' ? primeroPlano : '') ||
+      `Error del servidor (${status})`
+    );
+  }
 
   function initCategoriaCreator() {
     const btn = document.getElementById('btn-nueva-categoria') || document.getElementById('btnNuevaCategoria');
@@ -175,26 +203,45 @@ const {
       guardarBtn.textContent = 'Guardando...';
 
       try {
+        // 1) SESIÓN: sin token no se dispara la request (evita un 401 inútil).
+        const token = getToken();
+        if (!token) {
+          throw new Error('Sesión expirada. Volvé a iniciar sesión.');
+        }
+        // 2) TENANT: el backend exige el Estok activo para asignar la categoría.
         const estokId = getEstokActivoId();
+        if (!estokId) {
+          throw new Error('No hay un Estok activo seleccionado. Elegí uno en el menú y volvé a intentar.');
+        }
+        // 3) HEADERS: Authorization: Bearer <estok_access_token> + X-Estok-Id,
+        //    SIEMPRE desde el helper central (fuente única de auth).
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
+          Accept: 'application/json',
           ...getAuthHeaders(),
         };
-        if (estokId) {
-          headers['X-Estok-Id'] = estokId;
-        }
+        // Red de seguridad: si el helper no hubiera traído el header (p. ej.
+        // una versión vieja en caché), se completa con el MISMO token.
+        if (!headers.Authorization) headers.Authorization = `Bearer ${token}`;
+        if (!headers['X-Estok-Id']) headers['X-Estok-Id'] = estokId;
 
         const icono = inputIcono.value.trim() || '🏷️';
         const response = await fetch(`${API_BASE_URL}/categorias/`, {
           method: 'POST',
           headers,
+          // Claves EXACTAS del CategoriaSerializer: `nombre` (obligatorio) e
+          // `icono` (opcional). El Estok viaja por X-Estok-Id, nunca en el body.
           body: JSON.stringify({ nombre, icono }),
         });
 
+        if (response.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          const msg = errData.nombre?.[0] || errData.detail || `Error del servidor (${response.status})`;
-          throw new Error(msg);
+          throw new Error(mensajeDeErrorCategoria(errData, response.status));
         }
 
         const data = await response.json();
