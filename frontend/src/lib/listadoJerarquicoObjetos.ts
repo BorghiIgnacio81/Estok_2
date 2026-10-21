@@ -341,6 +341,21 @@ export function initListadoJerarquicoObjetos(): void {
     agregarCategoriaAlFiltro((event as CustomEvent).detail);
   });
 
+  // BAJA REACTIVA: al eliminar una categoría desde el gestor del modal
+  // «Nueva Categoría», su opción desaparece del combobox de filtros. Si era el
+  // filtro activo se limpia y se re-pinta el listado (sus objetos quedaron
+  // «Sin categoría»). Sin recargar la página.
+  window.addEventListener('categoriaEliminada', (event) => {
+    const id = String((event as CustomEvent).detail?.id || '');
+    if (!id || !filtroCategoria) return;
+    Array.from(filtroCategoria.options).find((opt) => opt.value === id)?.remove();
+    if (filtroCategoria.value === id) {
+      filtroCategoria.value = '';
+      filtros.categoria = '';
+      void cargar();
+    }
+  });
+
   // Capacidades operacionales de las tarjetas de contenedor: los botones
   // Mover/Editar/Eliminar abren micro-modales que persisten en la API y, al
   // guardar/eliminar, re-pintan el árbol en caliente.

@@ -32,6 +32,12 @@ const {
   // AUTENTICACIÓN CENTRALIZADA (regla del proyecto): getAuthHeaders()/getToken()
   // viven ÚNICAMENTE en src/services/auth. Acá NO se arma un Bearer propio.
   import { getAuthHeaders, getEstokActivoId, getToken, API_BASE_URL } from '../services/auth';
+  // GESTIÓN de categorías (listado + baja con confirmación): vive en lib/ para
+  // que este componente quede sólo en el ALTA (y por debajo de 400 líneas).
+  import {
+    initCategoriasGestion,
+    refrescarCategoriasGestion,
+  } from '../lib/categoriasGestion';
 
   /**
    * Texto legible del error de DRF (400/403): prioriza los campos del
@@ -98,7 +104,7 @@ const {
         </div>
 
         <!-- Body -->
-        <div class="p-6 space-y-4">
+        <div class="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
           <div>
             <label for="inputIconoCategoria" class="block text-sm font-medium text-gray-700 mb-1">
               Ícono
@@ -134,6 +140,18 @@ const {
 
           <div id="errorCategoria" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"></div>
           <div id="successCategoria" class="hidden p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700"></div>
+
+          <!-- GESTIÓN: listado de categorías existentes con baja por fila.
+               Lo pinta lib/categoriasGestion.ts (listado + modal de confirmación
+               + DELETE /api/categorias/{id}/). Las 11 oficiales del sistema se
+               muestran con candado porque el backend responde 403. -->
+          <div class="border-t border-gray-200 pt-4">
+            <p class="text-sm font-semibold text-gray-700">Categorías existentes</p>
+            <p class="text-xs text-gray-400 mb-2">
+              Eliminá las que ya no uses: los objetos asociados pasan a «Sin categoría».
+            </p>
+            <div id="gestionCategoriasHost"></div>
+          </div>
         </div>
 
         <!-- Footer -->
@@ -159,6 +177,9 @@ const {
     const guardarBtn = document.getElementById('guardarCategoriaBtn') as HTMLButtonElement;
     const cerrarBtn = document.getElementById('cerrarModalCategoriaBtn')!;
     const cancelarBtn = document.getElementById('cancelarCategoriaBtn')!;
+
+    // Listado de categorías existentes + tacho de eliminar por fila.
+    initCategoriasGestion(document.getElementById('gestionCategoriasHost'));
 
     function cerrar() {
       overlay.remove();
@@ -254,6 +275,8 @@ const {
 
         // Emitir evento para que otras partes de la UI puedan reaccionar
         window.dispatchEvent(new CustomEvent('categoriaCreada', { detail: data }));
+        // Refresco en caliente del listado de gestión (invalida caché + repinta).
+        refrescarCategoriasGestion();
 
         // Cerrar después de 1.5s
         setTimeout(cerrar, 1500);

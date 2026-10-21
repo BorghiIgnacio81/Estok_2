@@ -5,8 +5,9 @@ ViewSets para Categorias.
 import logging
 
 from django.db import IntegrityError, transaction
-from rest_framework import viewsets, permissions
+from rest_framework import status, viewsets, permissions
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
 
 from ...models import Categoria, Membresia
 from ..serializers import CategoriaSerializer
@@ -102,4 +103,65 @@ class CategoriaViewSet(viewsets.ModelViewSet):
             raise ValidationError(
                 {'nombre': ['Ya existe una categoría con ese nombre en este Estok.']}
             )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        DELETE /api/categorias/{id}/ — baja de una categoría del usuario.
+
+        INTEGRIDAD DE DATOS (el inventario jamás se pierde):
+          1. Los OBJETOS vinculados NO se eliminan: `Objeto.categoria` es
+             `on_delete=SET_NULL`, así que quedan con `categoria=None`
+             («Sin categoría»). Se informa el conteo real desvinculado.
+          2. Las SUBcategorías NO se borran en cascada (`Categoria.parent` es
+             CASCADE a nivel modelo): se PROMUEVEN al padre de la categoría
+             eliminada para no perder la taxonomía del usuario.
+          3. Todo ocurre dentro de una única transacción atómica.
+
+        PROTECCIÓN MULTI-TENANT:
+          4. Sólo un miembro del MISMO Estok (o un superuser) puede borrar. Un
+             `X-Estok-Id` ajeno ya corta antes en 404 (get_queryset filtra por
+             tenant); la membresía se revalida acá como defensa en profundidad.
+          5. Las categorías OFICIALES del sistema (`es_sistema=True`, las 11 de
+             Mercado Libre) son INMUTABLES: `cargar_categorias_meli` las vuelve
+             a sembrar en cada arranque, así que borrarlas daría una falsa
+             sensación de limpieza. Se responde 403.
+        """
+        instancia = self.get_object()
+        self._validar_membresia(request.user, instancia.estok)
+
+        if instancia.es_sistema:
+            raise PermissionDenied(
+                f'«{instancia.nombre}» es una categoría oficial del sistema y no '
+                'se puede eliminar.'
+            )
+
+        nombre = instancia.nombre
+        categoria_id = str(instancia.pk)
+        estok_id = instancia.estok_id
+
+        with transaction.atomic():
+            objetos_desvinculados = instancia.objetos.filter(
+                deleted_at__isnull=True
+            ).count()
+            subcategorias_reasignadas = instancia.hijas.update(parent=instancia.parent)
+            instancia.delete()
+
+        logger.info(
+            "Categoría '%s' eliminada del Estok %s (%s objetos a 'Sin categoría', "
+            "%s subcategorías reasignadas)",
+            nombre,
+            estok_id,
+            objetos_desvinculados,
+            subcategorias_reasignadas,
+        )
+        return Response(
+            {
+                'detail': 'Categoría eliminada. Los objetos asociados pasaron a "Sin categoría".',
+                'id': categoria_id,
+                'nombre': nombre,
+                'objetos_desvinculados': objetos_desvinculados,
+                'subcategorias_reasignadas': subcategorias_reasignadas,
+            },
+            status=status.HTTP_200_OK,
+        )
 

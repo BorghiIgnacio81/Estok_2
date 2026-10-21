@@ -15,7 +15,7 @@
 // (Lote 22) para que la interfaz sea IDÉNTICA en toda la aplicación.
 // =============================================================================
 
-import { cargarCategoriasEstok, cargarUsuariosEstok } from '../catalogosEstok';
+import { cargarCategoriasEstok, cargarUsuariosEstok, invalidarCategoriasEstok } from '../catalogosEstok';
 import { refOpcional } from '../dom';
 
 // =============================================================================
@@ -81,8 +81,14 @@ export function initObjetoCatalogos(): void {
   void cargarUsuarios();
   void cargarCategorias();
 
-  // Recargar las categorías cuando se crea una nueva.
+  // Recargar las categorías cuando se crea o se elimina una: la caché se
+  // invalida primero para que el combobox refleje el servidor sin F5.
   window.addEventListener('categoriaCreada', () => {
+    invalidarCategoriasEstok();
+    void cargarCategorias();
+  });
+  window.addEventListener('categoriaEliminada', () => {
+    invalidarCategoriasEstok();
     void cargarCategorias();
   });
 }

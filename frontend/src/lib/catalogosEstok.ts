@@ -30,6 +30,10 @@ export interface CategoriaEstok {
   icono: string;
   /** ID oficial de Mercado Libre (MLAxxxxx) cuando existe. */
   meliId: string | null;
+  /** true en las 11 categorías oficiales del sistema (NO eliminables). */
+  esSistema: boolean;
+  /** Objetos vivos vinculados (para el aviso de baja → «Sin categoría»). */
+  objetosCount: number;
 }
 
 let cacheUsuarios: UsuarioEstok[] | null = null;
@@ -79,9 +83,22 @@ export async function cargarCategoriasEstok(forzar = false): Promise<CategoriaEs
       meliId: c.mercadolibre_category_id
         ? String(c.mercadolibre_category_id)
         : null,
+      esSistema: Boolean(c.es_sistema),
+      objetosCount: Number(c.objetos_count ?? 0) || 0,
     }))
     .filter((c) => c.id && c.nombre);
   return cacheCategorias;
+}
+
+/**
+ * Invalida la caché en memoria de categorías.
+ *
+ * La llaman los flujos que CREAN o ELIMINAN una categoría (modal
+ * CategoriaCreator / gestor de categorías) para que el resto de los comboboxes
+ * de la sesión de página no siga ofreciendo datos viejos al re-cargar.
+ */
+export function invalidarCategoriasEstok(): void {
+  cacheCategorias = null;
 }
 
 /**
