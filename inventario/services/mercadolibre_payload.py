@@ -20,6 +20,9 @@ mercadolibre_api.py:
    "attributes" se limita a los atributos estándar (BRAND / MODEL): los
    obligatorios de cada categoría los agrega mercadolibre_atributos.py
    consultando el catálogo real (GET /categories/{id}/attributes).
+   "family_name" viaja SIEMPRE como propiedad de la RAÍZ del body: Mercado
+   Libre lo exige como campo del recurso y no solo como atributo FAMILY_NAME
+   dentro de "attributes".
 
 2. EXTRACCIÓN DE ERRORES de Mercado Libre (HTTP 400/422): normaliza las causas
    y devuelve el campo exacto que falta o que fue rechazado, para responderle al
@@ -40,6 +43,7 @@ from django.conf import settings
 
 from .mercadolibre_imagenes import normalizar_pictures, normalizar_url
 from .mercadolibre_saneamiento import (
+    family_name_publicable,
     limpiar_texto,
     limpiar_titulo,
     normalizar_attributes,
@@ -93,6 +97,9 @@ CAMPOS_PERMITIDOS_ML = (
     "description",
     "pictures",
     "attributes",
+    # Propiedad DIRECTA del recurso: ML la exige en la raíz del body además
+    # del atributo FAMILY_NAME. Si se descarta acá, nunca llega a la API.
+    "family_name",
     "shipping",
     "sale_terms",
 )
@@ -206,8 +213,9 @@ def solo_campos_permitidos(body: Dict[str, Any]) -> Dict[str, Any]:
     Descarta cualquier clave de primer nivel fuera de la spec de POST /items.
 
     Se aplica al body FINAL (y antes de cada reintento): una sola clave
-    inventada (ej: "warranty" o "family_name" en la raíz) hace que Mercado Libre
-    responda HTTP 400 "body.invalid_fields".
+    inventada (ej: "warranty" en la raíz) hace que Mercado Libre responda HTTP
+    400 "body.invalid_fields". "family_name" SÍ es una propiedad válida de la
+    raíz del recurso y por eso está incluida en CAMPOS_PERMITIDOS_ML.
     """
     return {
         clave: valor for clave, valor in (body or {}).items()
@@ -364,6 +372,8 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
       - pictures           → [{"source": "https://..."}] solo si hay URLs
                              públicas; sin fotos NO se envía la clave
       - attributes         → solo atributos válidos (BRAND / MODEL por defecto)
+      - family_name        → texto plano ≤ 60 caracteres (familia → marca →
+                             nombre → título); propiedad DIRECTA de la raíz
       - shipping           → {"mode": "not_specified", "local_pick_up": True}
       - sale_terms         → solo si se especifican términos válidos
       - Cualquier otra clave se descarta (whitelist CAMPOS_PERMITIDOS_ML).
@@ -423,6 +433,14 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
         # Envío: modo neutro + retiro en persona (default de la spec de ML).
         "shipping": {"mode": "not_specified", "local_pick_up": True},
     }
+
+    # family_name: propiedad DIRECTA de la RAÍZ del body (no solo el atributo
+    # FAMILY_NAME). Mercado Libre la exige como campo del recurso; se publica
+    # con la identidad REAL del objeto (familia → marca → nombre) o, como
+    # fallback, con el título. Saneada y truncada a 60 caracteres.
+    family_name = family_name_publicable(item_data, title)
+    if family_name:
+        body["family_name"] = family_name
 
     # Pictures: ÚNICA clave de imágenes, normalizada al formato oficial
     # [{"source": "https://..."}] (absoluta y HTTPS). Sin fotos públicas NO se

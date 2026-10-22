@@ -11,6 +11,8 @@ Este módulo centraliza las funciones PURAS de normalización que usa
 `mercadolibre_payload.construir_payload_item()` y la vista de publicación:
 
     limpiar_texto / limpiar_titulo  → título y descripción en texto plano
+    normalizar_family_name          → familia raíz del ítem (≤ 60 caracteres)
+    family_name_publicable          → familia raíz publicable (identidad o título)
     normalizar_precio               → float > 0 con 2 decimales
     normalizar_category_id          → "MLA" + dígitos o "" si no es válido
     normalizar_attributes           → [{"id": ..., "value_name"/"value_id": ...}]
@@ -24,6 +26,7 @@ import re
 
 # Límites y valores por defecto de la especificación de POST /items.
 TITULO_MAX_ML = 60          # límite duro de la API para el título
+FAMILY_NAME_MAX_ML = 60     # límite de ML para family_name (raíz del ítem)
 PRECIO_MIN_ML = 0.01        # ML no acepta precio 0 ni negativo
 SALE_TERMS_PERMITIDOS = ("WARRANTY_TYPE", "WARRANTY_TIME")
 
@@ -59,6 +62,37 @@ def limpiar_texto(valor, maximo: int = 0) -> str:
 def limpiar_titulo(valor) -> str:
     """Título publicable: texto plano y truncado a TITULO_MAX_ML (60) chars."""
     return limpiar_texto(valor, TITULO_MAX_ML)
+
+
+def normalizar_family_name(valor) -> str:
+    """
+    `family_name` de la RAÍZ del body: texto plano y truncado a 60 caracteres.
+
+    Mercado Libre exige `family_name` como propiedad DIRECTA del recurso
+    (además del atributo FAMILY_NAME dentro de `attributes`). Un valor con HTML
+    o de más de 60 caracteres provoca HTTP 400 "body.invalid_fields".
+    """
+    return limpiar_texto(valor, FAMILY_NAME_MAX_ML)
+
+
+def family_name_publicable(item_data, title: str = "") -> str:
+    """
+    Valor de `family_name` para la RAÍZ del body de POST /items.
+
+    Mercado Libre exige `family_name` como propiedad DIRECTA del recurso (no
+    alcanza con el atributo FAMILY_NAME dentro de `attributes`). Se usa el dato
+    de identidad REAL del objeto en orden de preferencia:
+
+        familia → marca → nombre → título
+
+    Siempre texto plano y truncado a 60 caracteres.
+    """
+    origen = item_data if isinstance(item_data, dict) else {}
+    for clave in ("family_name", "familia", "marca", "nombre"):
+        valor = normalizar_family_name(origen.get(clave))
+        if valor:
+            return valor
+    return normalizar_family_name(title)
 
 
 def normalizar_precio(valor) -> float:

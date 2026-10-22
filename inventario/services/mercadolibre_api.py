@@ -224,6 +224,8 @@ def create_item(user, item_data: Dict[str, Any],
               solo BRAND / MODEL; los obligatorios que falten los completa
               `completar_attributes_requeridos()` con el catálogo real de la
               categoría.
+            - family_name (str, opcional): familia en la RAÍZ del body (ML la
+              exige como propiedad directa). Fallback: familia→marca→nombre→título.
             - marca / modelo (str, opcional): datos de identidad del objeto,
               usados para completar BRAND / MODEL cuando ML los exige.
             - sale_terms (list, opcional): solo WARRANTY_TYPE / WARRANTY_TIME.
