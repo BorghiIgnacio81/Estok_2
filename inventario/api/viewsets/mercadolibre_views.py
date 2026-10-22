@@ -16,11 +16,19 @@ from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
 from ...services.mercadolibre_api import (
-    create_item, construir_attributes_desde_objeto,
+    construir_attributes_desde_objeto,
+    create_item,
 )
 from ...services.mercadolibre_imagenes import construir_pictures
+from ...services.mercadolibre_payload import (
+    cantidad_disponible_ml,
+    condition_desde_objeto,
+    extraer_error_ml,
+    mapear_condition_ml,
+)
 from ...services.categorias_meli import (
     normalizar_id_ml,
+    predecir_id_ml,
     resolver_category_id_ml,
 )
 from ...models import Objeto
@@ -133,7 +141,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             price: 850.00,                     (float, debe ser mayor a 0)
             description: "...",
             foto_url: "https://...",           (opcional, foto elegida en el modal)
-            condition: "used"                  (opcional: "new" | "used", default "used")
+            condition: "new" | "used"          (opcional: si no viene se mapea el
+                                                estado del objeto: 'nuevo' → 'new',
+                                                cualquier otro estado → 'used')
         }
 
         CATEGORÍA: manda la categoría del objeto
@@ -141,12 +151,21 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         el NOMBRE de la categoría y se persiste en la BD. Nunca se predice con el
         título del ítem (desviaba publicaciones a categorías absurdas). El
         `category_id` del body solo se acepta si el objeto no tiene categoría.
+        Si no hay forma de resolverla se devuelve 400 con
+        "Falta asignar una categoría de Mercado Libre al objeto".
 
         FOTOS: "pictures" se arma como [{"source": "https://url-publica"}] con
         las fotos reales del objeto (settings.SITE_URL + /media/...), que es lo
-        que Mercado Libre exige para descargar la imagen.
+        que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
+        se envía la clave "pictures" (nunca valores nulos).
 
-        Nota: currency_id se fuerza a "ARS" y listing_type_id a "bronze".
+        Otros defaults obligatorios (los completa el servicio):
+        currency_id="ARS", buying_mode="buy_it_now", listing_type_id="bronze",
+        available_quantity = objeto.cantidad si existe (si no, 1).
+
+        ERRORES DE MERCADO LIBRE: las causas del 400/422 se registran con
+        logger.error() y se devuelven al frontend como
+        "Mercado Libre requiere especificar: [campo / campo]".
         """
         if not has_valid_token(request.user):
             return Response(
@@ -164,10 +183,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         foto_url = request.data.get('foto_url') or ''
         # Moneda: MLA Argentina opera estrictamente en ARS (se ignora cualquier otro valor)
         currency_id = "ARS"
-        # Condición: solo valores nativos aceptados por MLA (default "used": inventario usado)
-        condition = str(request.data.get('condition', 'used')).strip().lower()
-        if condition not in ('new', 'used'):
-            condition = 'used'
+        # Condición pedida explícitamente por el modal. Si no viene (o no es un
+        # valor nativo), más abajo se mapea el estado del objeto:
+        # 'nuevo' → 'new'; cualquier otro estado → 'used'.
+        condition_solicitada = mapear_condition_ml(request.data.get('condition'))
 
         if not objeto_id or not title or price is None or price == '':
             return Response(
@@ -203,18 +222,21 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ── Condición nativa de Mercado Libre ───────────────────────────────
+        # Mapea el estado del objeto ('nuevo' → 'new', cualquier otro → 'used')
+        # salvo que el request haya pedido explícitamente "new"/"used".
+        condition = condition_solicitada or condition_desde_objeto(objeto)
+
         # ── Fotos en el formato oficial de ML ────────────────────────────────
         # ML descarga la imagen: se arman URLs absolutas y públicas
-        # (SITE_URL + /media/...) y se descartan rutas relativas o localhost,
-        # que eran la causa de las publicaciones SIN foto.
+        # (SITE_URL + /media/...) y se descartan rutas relativas o localhost.
+        # Sin fotos públicas NO se envía la clave "pictures" (ML no acepta
+        # elementos nulos); el rechazo, si aplica, lo informa la propia API.
         pictures = construir_pictures(objeto, foto_url)
         if not pictures:
-            return Response(
-                {
-                    "error": "Este objeto no tiene fotos públicas. Subí al menos "
-                             "una foto antes de publicar en Mercado Libre."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
+            logger.warning(
+                "Objeto %s sin fotos públicas: se publica SIN el atributo "
+                "'pictures' (Mercado Libre decidirá si lo exige).", objeto.id,
             )
 
         # ── Categoría de Mercado Libre (mapeo dinámico y estricto) ───────────
@@ -231,14 +253,35 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             # Solo si el objeto no tiene categoría se acepta un ID del request.
             category_id = normalizar_id_ml(request.data.get('category_id')) or category_id
 
+        if not normalizar_id_ml(category_id):
+            # Último intento: predicción automática con el NOMBRE de la categoría.
+            category_id = predecir_id_ml(
+                objeto.categoria.nombre if objeto.categoria else "",
+                access_token=access_token or "",
+            )
+            logger.warning(
+                "category_id ausente para el objeto %s: predicción automática → %s",
+                objeto.id, category_id,
+            )
+        if not normalizar_id_ml(category_id):
+            # Mercado Libre rechaza el POST /items con "body.required_fields".
+            return Response(
+                {
+                    "success": False,
+                    "error": "Falta asignar una categoría de Mercado Libre al objeto",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Crear ítem en ML con payload blindado (title ≤ 60 chars, moneda ARS,
-        # condition nativa, attributes dinámicos de categoría y modo de compra fijo)
+        # condition nativa, stock, attributes dinámicos y modo de compra fijo)
         item_data = {
             "title": title,
             "category_id": category_id,
             "categoria_nombre": objeto.categoria.nombre if objeto.categoria else "",
             "price": price,
             "currency_id": currency_id,
+            "available_quantity": cantidad_disponible_ml(objeto),
             "description": description,
             "condition": condition,
             "buying_mode": "buy_it_now",
@@ -277,28 +320,27 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "fotos_enviadas": len(pictures),
             })
 
-        # Error de ML
-        error_msg = result.get("message", "") if result else "Error desconocido"
-        error_details = []
-        if not error_msg and result:
-            for cause in (result.get("cause") or []):
-                detail = cause.get("message", str(cause))
-                # Agregar info del atributo en cuestión si existe
-                attr = cause.get("attribute")
-                if attr:
-                    detail = f"[{attr}] {detail}"
-                error_details.append(detail)
-            error_msg = "; ".join(error_details) if error_details else json.dumps(result)
-        
-        # Si hay cause pero no message, construir desde cause
-        if not error_msg and result and (result.get("cause") or result.get("error")):
-            error_msg = result.get("error", json.dumps(result))
+        # ── Error de Mercado Libre (400/422): causas detalladas ──────────────
+        # extraer_error_ml() normaliza la respuesta de ML: si faltó un campo
+        # obligatorio devuelve "Mercado Libre requiere especificar: [campo]".
+        error_ml = extraer_error_ml(result)
+        logger.error(
+            "Error al publicar en ML (objeto %s, categoría %s, condition %s): %s "
+            "| campos_faltantes=%s | respuesta=%s",
+            objeto.id, category_id, condition, error_ml["mensaje"],
+            error_ml["campos"] or "-",
+            json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
+        )
 
-        logger.error("Error al publicar en ML. Resultado completo: %s", json.dumps(result, ensure_ascii=False))
+        mensaje = error_ml["mensaje"]
+        if not mensaje.startswith("Mercado Libre"):
+            mensaje = f"Error al publicar en Mercado Libre: {mensaje}"
+
         return Response(
             {
                 "success": False,
-                "error": f"Error al publicar en Mercado Libre: {error_msg}",
+                "error": mensaje,
+                "campos_faltantes": error_ml["campos"],
                 "ml_response": result,
             },
             status=status.HTTP_400_BAD_REQUEST,

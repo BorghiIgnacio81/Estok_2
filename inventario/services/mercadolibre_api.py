@@ -11,7 +11,7 @@ import urllib.parse
 from typing import Optional, Dict, Any
 
 from .mercadolibre_oauth import get_valid_access_token
-from .mercadolibre_imagenes import normalizar_pictures
+from .mercadolibre_payload import construir_payload_item, extraer_error_ml
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
 
 logger = logging.getLogger(__name__)
@@ -191,15 +191,17 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             - warranty (str, opcional)
             - attributes (list, opcional): Atributos de categoría
 
-        El servicio fuerza: currency_id="ARS", buying_mode="buy_it_now",
-        listing_type_id="bronze" (exposición clásica gratuita / baja comisión)
-        y shipping mode="me2" (Mercado Envíos estándar).
+        El servicio fuerza los defaults de Mercado Libre: currency_id="ARS",
+        buying_mode="buy_it_now", listing_type_id="bronze" (exposición clásica
+        gratuita / baja comisión), condition ("new" si el estado es nuevo, si no
+        "used"), available_quantity (1 por defecto) y shipping mode="me2".
 
     Returns:
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
 
     Raises:
-        ValueError: si el título está vacío, el precio no es numérico o es <= 0.
+        ValueError: si el título está vacío, falta la categoría, el precio no es
+            numérico o es <= 0, o si el payload queda incompleto.
     """
     access_token = get_valid_access_token(user)
     if not access_token:
@@ -207,66 +209,13 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         return None
 
     # =====================================================================
-    # BLINDAJE DEL PAYLOAD (anti 400 "Validation error" de MLA)
+    # BLINDAJE DEL PAYLOAD (anti 400 "body.required_fields" / "Validation error")
     # =====================================================================
-    # Título: truncado estricto a 60 caracteres (límite de la API de ML)
-    title = str(item_data.get("title") or "").strip()[:60]
-    if not title:
-        raise ValueError("El título es obligatorio para publicar en Mercado Libre.")
-
-    # Precio: float válido y estrictamente mayor a 0
-    try:
-        price = float(item_data.get("price"))
-    except (TypeError, ValueError):
-        raise ValueError("El precio debe ser un número válido.")
-    if price <= 0:
-        raise ValueError("El precio debe ser mayor a 0 para publicar en Mercado Libre.")
-
-    # Condición: solo valores nativos aceptados por MLA ("used" para inventario usado)
-    condition = str(item_data.get("condition") or "used").strip().lower()
-    if condition not in ("new", "used"):
-        condition = "used"
-
-    # Moneda: MLA Argentina opera estrictamente en ARS
-    body = {
-        "title": title,
-        "category_id": item_data.get("category_id", CATEGORIA_MELI_DEFAULT),  # Argentina - Otros por defecto (MLA1383, verificada)
-        "price": price,
-        "currency_id": "ARS",
-        "available_quantity": int(item_data.get("available_quantity", 1) or 1),
-        "buying_mode": "buy_it_now",
-        "listing_type_id": "bronze",  # Exposición clásica gratuita / baja comisión
-        "condition": condition,
-        # Mercado Envíos (ME2): bloque estándar para limpiar las advertencias
-        # obligatorias de shipping que arroja el log de MLA.
-        "shipping": {
-            "mode": "me2",
-            "local_pick_up": True,
-            "free_shipping": False,
-        },
-    }
-
-    # Eliminar claves de imágenes alternativas que puedan confundir al
-    # serializador de MLA: la ÚNICA clave de imágenes permitida es "pictures".
-    body.pop("images", None)
-    body.pop("pictures_url", None)
-
-    if item_data.get("description"):
-        body["description"] = {"plain_text": item_data["description"]}
-
-    if item_data.get("pictures"):
-        # Pictures: ÚNICA clave de imágenes en la raíz, normalizada
-        # estrictamente al formato [{"source": url}] que exige MLA.
-        # Cualquier formato plano o clave alternativa se descarta aquí.
-        pictures = normalizar_pictures(item_data["pictures"])
-        if pictures:
-            body["pictures"] = pictures
-
-    if item_data.get("attributes"):
-        body["attributes"] = item_data["attributes"]
-
-    if item_data.get("warranty"):
-        body["warranty"] = item_data["warranty"]
+    # Todo el armado del body (título, moneda, condición, stock, fotos, etc.)
+    # vive en construir_payload_item(): garantiza los campos obligatorios de ML
+    # y aborta con un ValueError descriptivo si algo no se puede resolver.
+    body = construir_payload_item(item_data)
+    logger.info("Payload POST /items: %s", json.dumps(body, ensure_ascii=False))
 
     MAX_RETRIES = 4
     retry_count = 0
@@ -277,6 +226,17 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         
         if result and result.get("id"):
             break  # Éxito
+
+        # Diagnóstico explícito de CADA rechazo de Mercado Libre (400/422):
+        # se loguea el mensaje normalizado, las causas y la respuesta cruda.
+        intento = extraer_error_ml(result)
+        logger.error(
+            "Mercado Libre rechazó el ítem (intento %d/%d): %s | causas=%s | "
+            "respuesta=%s",
+            retry_count, MAX_RETRIES, intento["mensaje"],
+            intento["detalles"] or "-",
+            json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
+        )
         
         if retry_count >= MAX_RETRIES:
             logger.error("Agotados %d reintentos. Último error: %s", MAX_RETRIES, result)
@@ -351,5 +311,13 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         )
         return result
 
-    logger.error("Error al crear ítem en ML: %s", result)
+    error = extraer_error_ml(result)
+    logger.error(
+        "Error al crear ítem en ML: %s | campos_faltantes=%s | detalles=%s | "
+        "respuesta=%s",
+        error["mensaje"],
+        error["campos"] or "-",
+        error["detalles"] or "-",
+        json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
+    )
     return result  # Retornar el error para diagnóstico
