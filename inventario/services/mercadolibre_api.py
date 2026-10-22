@@ -24,6 +24,7 @@ from .mercadolibre_atributos import (
     completar_attributes_requeridos,
     ids_requeridos,
 )
+from .mercadolibre_atributos_diagnostico import atributos_detectados
 from .mercadolibre_atributos_reintentos import (
     ACCION_CORTAR,
     ACCION_REINTENTAR,
@@ -73,9 +74,13 @@ def _api_request(method: str, endpoint: str, access_token: str, body: Optional[d
             e.code, e.reason, method, endpoint, error_body,
         )
         try:
-            return json.loads(error_body)
+            data = json.loads(error_body)
         except json.JSONDecodeError:
-            return {"error": f"HTTP {e.code}: {e.reason}", "detail": error_body[:500]}
+            data = {"error": f"HTTP {e.code}: {e.reason}", "detail": error_body[:500]}
+        # Status HTTP real de ML para el diagnóstico (no pisa `status` del body).
+        if isinstance(data, dict):
+            data.setdefault("http_status", e.code)
+        return data
     except Exception as e:
         logger.error("ML API Exception: %s", e)
         return {"error": str(e)}
@@ -191,12 +196,17 @@ def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None
         )
 
 
-def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
+def create_item(user, item_data: Dict[str, Any],
+                diagnostico: Optional[dict] = None) -> Optional[dict]:
     """
     Crea una publicación en MercadoLibre.
 
     Args:
         user: Usuario autenticado (dueño del token OAuth)
+        diagnostico: Dict opcional que se completa IN-PLACE con
+            `payload_enviado`, `atributos_detectados_categoria`, `error_ml`,
+            `category_id` e `intentos`. La vista lo devuelve en el HTTP 400 para
+            que el frontend muestre exactamente qué se envió y qué respondió ML.
         item_data: Dict con:
             - title (str): Título del producto (se trunca a 60 caracteres)
             - category_id (str): ID de categoría de ML (ej: "MLA1648" para Computación)
@@ -235,6 +245,10 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     access_token = get_valid_access_token(user)
     if not access_token:
         logger.warning("No hay access_token para el usuario %s", user.username)
+        if diagnostico is not None:
+            diagnostico["error_ml"] = {
+                "error": "No hay access_token de Mercado Libre para el usuario.",
+            }
         return None
 
     # =====================================================================
@@ -276,6 +290,13 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         json.dumps(body.get("attributes", []), ensure_ascii=False),
     )
 
+    # Diagnóstico HTTP 400 (se recalcula si cambia la categoría).
+    if diagnostico is not None:
+        diagnostico["category_id"] = body.get("category_id")
+        diagnostico["atributos_detectados_categoria"] = atributos_detectados(
+            body.get("category_id"), access_token
+        )
+
     # 8 intentos: categoría, condition, listing_type, POWER_SUPPLY_TYPE,
     # atributos inválidos, atributos obligatorios y campos de primer nivel
     # inválidos (body.invalid_fields), todos guiados por las causas REALES de ML.
@@ -295,10 +316,16 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         # nivel fuera de la spec de POST /items (origen del 400
         # "body.invalid_fields").
         body = solo_campos_permitidos(body)
-        # Diagnóstico exacto del cuerpo que se envía en CADA intento (el
-        # payload puede mutar entre reintentos).
+        # Copia EXACTA del payload de este intento para el diagnóstico HTTP 400.
+        if diagnostico is not None:
+            diagnostico["payload_enviado"] = json.loads(
+                json.dumps(body, ensure_ascii=False)
+            )
+            diagnostico["intentos"] = retry_count + 1
         logger.info("Payload ML enviado: %s", json.dumps(body, ensure_ascii=False))
         result = _api_request("POST", "/items", access_token, body)
+        if diagnostico is not None:
+            diagnostico["error_ml"] = result
         retry_count += 1
         
         if result and result.get("id"):
@@ -348,6 +375,11 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
                     predicted,
                     json.dumps(body.get("attributes", []), ensure_ascii=False),
                 )
+                if diagnostico is not None:
+                    diagnostico["category_id"] = predicted
+                    diagnostico["atributos_detectados_categoria"] = (
+                        atributos_detectados(predicted, access_token)
+                    )
                 continue
         
         # Intento 2: cambiar condition de used a new

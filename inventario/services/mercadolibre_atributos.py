@@ -12,10 +12,11 @@ Este módulo centraliza el blindaje de la lista `attributes`:
 1. `obtener_atributos_categoria()`: GET /categories/{id}/attributes (endpoint
    público), con caché en memoria por categoría para no golpear la API en cada
    publicación y con enfriamiento si la API falla.
-2. `completar_attributes_requeridos()`: agrega SOLO los atributos marcados con
-   `tags.required` en el catálogo real, con el dato REAL del objeto si existe y,
-   si no, un valor válido por tipo (value_id de lista, "No" booleano, número +
-   unidad o texto por defecto: "Sin marca", "Genérico", "Sin especificar").
+2. `completar_attributes_requeridos()`: agrega los atributos que ML exige o
+   reconoce como identidad (`tags.required`, `tags.catalog_required` o IDs con
+   FAMILY / BRAND / MODEL), con el dato REAL del objeto si existe y, si no, un
+   valor válido por tipo (value_id de lista, "No" booleano, número + unidad o
+   texto por defecto: "Sin marca", "Genérico", "Sin especificar").
    Nunca duplica ni pisa los valores ya cargados en el objeto.
 3. `atributos_faltantes_por_causas()` y `atributos_invalidos_por_causas()`:
    ayudantes para que `create_item` reintente con evidencia REAL de la respuesta
@@ -46,6 +47,10 @@ from .mercadolibre_atributos_valores import (
     normalizar_id as _normalizar_id,
     valor_para_atributo,
     valor_por_defecto,
+)
+from .mercadolibre_atributos_reglas import (
+    debe_incluir as _debe_incluir,
+    es_requerido as _es_requerido,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,26 +138,6 @@ def obtener_atributos_categoria(category_id, access_token: str = "") -> List[dic
     return data
 
 
-def _es_requerido(atributo: dict) -> bool:
-    """
-    True si el atributo de categoría está marcado como obligatorio por ML.
-
-    El catálogo real lo informa en `tags.required` (a veces como lista, a veces
-    como dict) y, de forma defensiva, también se acepta `required: true` en el
-    primer nivel o la palabra "required" dentro de `hierarchy`.
-    """
-    tags = atributo.get("tags") or {}
-    if isinstance(tags, dict):
-        if str(tags.get("required")).strip().lower() in ("true", "1", "yes"):
-            return True
-    elif isinstance(tags, list):
-        if any(str(tag).strip().lower() == "required" for tag in tags):
-            return True
-    if atributo.get("required") is True:
-        return True
-    return "required" in str(atributo.get("hierarchy") or "").strip().lower()
-
-
 def _definicion_por_id(definidos, atributo_id) -> Optional[dict]:
     """Definición del catálogo para un ID de atributo (None si no existe)."""
     aid = _normalizar_id(atributo_id)
@@ -229,8 +214,10 @@ def completar_attributes_requeridos(
 
     Flujo dinámico (sin valores inventados a ciegas):
 
-    1. GET /categories/{id}/attributes y filtro de `tags.required`.
-    2. Por cada obligatorio faltante se construye su valor respetando el
+    1. GET /categories/{id}/attributes y filtro de los atributos que ML exige o
+       reconoce como identidad: `tags.required`, `tags.catalog_required` o IDs
+       con FAMILY / BRAND / MODEL.
+    2. Por cada atributo faltante se construye su valor respetando el
        `value_type` del catálogo (lista → value_id, booleano, numérico,
        number_unit, texto) con el dato REAL del objeto si existe.
     3. Se descartan los atributos que la categoría no define (claves inventadas
@@ -288,7 +275,7 @@ def completar_attributes_requeridos(
 
     agregados: List[str] = []
     for atributo in definidos:
-        if not isinstance(atributo, dict) or not _es_requerido(atributo):
+        if not isinstance(atributo, dict) or not _debe_incluir(atributo):
             continue
         aid = _normalizar_id(atributo.get("id"))
         if not aid or aid in presentes:
@@ -335,8 +322,10 @@ def atributos_faltantes_por_causas(
     unidad, booleano o texto con dato real / default.
 
     Sin `definidos` (la consulta del catálogo falló) solo se completan los
-    atributos de identidad conocidos en ATRIBUTOS_OBJETO, como red de
-    seguridad. Nunca se agrega texto libre a un atributo de lista.
+    atributos de identidad conocidos en ATRIBUTOS_OBJETO. Tampoco se descarta
+    un ID que ML pida explícitamente aunque no esté en /attributes (caso
+    `family_name`): se agrega con el valor de identidad o "Genérico".
+    Nunca se agrega texto libre a un atributo de lista.
     """
     existentes = {
         _normalizar_id(a.get("id"))
@@ -356,7 +345,9 @@ def atributos_faltantes_por_causas(
         for a in (definidos or [])
         if isinstance(a, dict)
     }
-    conocidos = ids_catalogo or set(ATRIBUTOS_OBJETO)
+    # Se aceptan IDs del catálogo Y los de identidad conocidos: ML puede pedir
+    # family_name aunque la categoría no lo publique en /attributes.
+    conocidos = ids_catalogo | set(ATRIBUTOS_OBJETO)
     pedidos: List[str] = []
 
     for causa in causes or []:

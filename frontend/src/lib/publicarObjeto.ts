@@ -15,7 +15,8 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { publicarEnMercadoLibre } from '../services/mercadolibre';
+import { MercadoLibreError, publicarEnMercadoLibre } from '../services/mercadolibre';
+import { escaparHtml } from './invitacionEstok';
 // Aviso "en caliente": al publicar (o marcar como publicado) se refrescan la
 // sección destacada de venta y el bloque de «ya publicados» del tablero.
 import { notificarPublicacionActualizada } from './eventosDecisiones';
@@ -290,7 +291,14 @@ async function publicarAhora(): Promise<void> {
     notificarPublicacionActualizada();
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : 'Error al publicar en Mercado Libre';
-    mostrarStatus('error', `❌ ${mensaje}`);
+    // Diagnóstico en pantalla: el JSON exacto enviado a ML + su respuesta.
+    const diagnostico = err instanceof MercadoLibreError
+      ? `<details class="mt-2"><summary class="cursor-pointer font-medium">` +
+        `Ver payload enviado y respuesta de Mercado Libre</summary>` +
+        `<pre class="mt-1 text-xs whitespace-pre-wrap break-all">` +
+        `${escaparHtml(JSON.stringify(err.diagnostico, null, 2))}</pre></details>`
+      : '';
+    mostrarStatus('error', `❌ ${mensaje}${diagnostico}`);
   }
 }
 

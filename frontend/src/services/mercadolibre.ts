@@ -13,6 +13,33 @@ export interface PublicarMLParams {
   fotoUrl?: string;
 }
 
+export interface DiagnosticoPublicacionML {
+  /** Respuesta cruda de Mercado Libre (status 400/422). */
+  error_ml: unknown;
+  /** JSON exacto que el backend envió a POST /items. */
+  payload_enviado: unknown;
+  /** Atributos que el backend detectó en la categoría (required/catalog/identidad). */
+  atributos_detectados_categoria: unknown;
+  categoria_ml?: string;
+  intentos_ml?: number;
+}
+
+/**
+ * Error de publicación con el diagnóstico completo adjunto.
+ *
+ * La UI puede leer `diagnostico` para mostrar el payload exacto y la respuesta
+ * de Mercado Libre sin perder información al convertir el error a string.
+ */
+export class MercadoLibreError extends Error {
+  diagnostico: DiagnosticoPublicacionML;
+
+  constructor(message: string, diagnostico: DiagnosticoPublicacionML) {
+    super(message);
+    this.name = 'MercadoLibreError';
+    this.diagnostico = diagnostico;
+  }
+}
+
 /**
  * Publica un objeto en Mercado Libre.
  *
@@ -70,7 +97,22 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
           : '';
     const base = result.error || result.detail || result.ml_response?.message
       || `Error (${response.status})`;
-    throw new Error(`${base}${detalle}`);
+    // Diagnóstico TRANSPARENTE: el backend devuelve el payload exacto enviado a
+    // ML, la respuesta cruda y los atributos detectados de la categoría.
+    const diagnostico: DiagnosticoPublicacionML = {
+      error_ml: result.error_ml ?? result.ml_response ?? null,
+      payload_enviado: result.payload_enviado ?? null,
+      atributos_detectados_categoria:
+        result.atributos_detectados_categoria ?? [],
+      categoria_ml: result.categoria_ml,
+      intentos_ml: result.intentos_ml,
+    };
+    // Queda entero en la consola del navegador (F12), sin truncar.
+    console.error(
+      '[Mercado Libre] Publicación rechazada. Diagnóstico completo:',
+      JSON.parse(JSON.stringify(diagnostico)),
+    );
+    throw new MercadoLibreError(`${base}${detalle}`, diagnostico);
   }
 
   return result;

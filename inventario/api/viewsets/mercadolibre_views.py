@@ -311,12 +311,23 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "attributes": construir_attributes_desde_objeto(objeto, category_id),
         }
 
+        diagnostico: dict = {}
         try:
-            result = create_item(request.user, item_data)
+            result = create_item(
+                request.user, item_data, diagnostico=diagnostico
+            )
         except ValueError as e:
             # Excepción controlada lanzada por el servicio de publicación
             return Response(
-                {"success": False, "error": str(e)},
+                {
+                    "success": False,
+                    "error": str(e),
+                    "error_ml": diagnostico.get("error_ml"),
+                    "payload_enviado": diagnostico.get("payload_enviado", {}),
+                    "atributos_detectados_categoria": diagnostico.get(
+                        "atributos_detectados_categoria", []
+                    ),
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -363,6 +374,16 @@ class MercadoLibreViewSet(viewsets.ViewSet):
 
         return Response(
             {
+                # Diagnóstico TRANSPARENTE (formato pedido): JSON exacto que se
+                # envió a ML, respuesta de ML y atributos detectados de la
+                # categoría, para verlo en pantalla o en la consola (F12).
+                "error_ml": diagnostico.get("error_ml", result),
+                "payload_enviado": diagnostico.get("payload_enviado", {}),
+                "atributos_detectados_categoria": diagnostico.get(
+                    "atributos_detectados_categoria", []
+                ),
+                "categoria_ml": diagnostico.get("category_id", category_id),
+                "intentos_ml": diagnostico.get("intentos", 0),
                 # Contrato pedido por el frontend: detalle + causas + raw.
                 "detail": "Error en campos de Mercado Libre",
                 "causes": causas,
