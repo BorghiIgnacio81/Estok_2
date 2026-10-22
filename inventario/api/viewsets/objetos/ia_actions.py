@@ -99,11 +99,16 @@ class IAActionsMixin:
 
         except AIQuotaExceededError:
             logger.error(
-                "Rate limit o cuota de la API de IA al analizar objeto %s",
+                "Rate limit o cuota de la API de IA al analizar objeto %s "
+                "(toda la cadena de respaldo agotada)",
                 objeto.id,
             )
             return Response(
-                {"error": MENSAJE_LIMITE_IA},
+                {
+                    "error": MENSAJE_LIMITE_IA,
+                    "ia_disponible": False,
+                    "fallback_agotado": True,
+                },
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
@@ -322,9 +327,16 @@ class IAActionsMixin:
             return Response(response_data, status=status.HTTP_200_OK)
 
         except AIQuotaExceededError:
-            logger.error("Rate limit o cuota de la API de IA al analizar imagen")
+            logger.error(
+                "[IA Fallback] Cuota agotada en TODA la cadena de IA al "
+                "analizar la imagen (Gemini + respaldos)."
+            )
             return Response(
-                {"error": MENSAJE_LIMITE_IA},
+                {
+                    "error": MENSAJE_LIMITE_IA,
+                    "ia_disponible": False,
+                    "fallback_agotado": True,
+                },
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 

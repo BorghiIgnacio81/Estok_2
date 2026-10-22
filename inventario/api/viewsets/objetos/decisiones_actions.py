@@ -31,13 +31,17 @@ los dos endpoints y el mixin de descarte: no se duplica el armado de tarjetas.
 Aislamiento multi-tenant: SIEMPRE por el header X-Estok-Id.
 """
 
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service, decisiones_service
-from ....services.espejo_contenedor import q_objeto_es_espejo
+from ....services.espejo_contenedor import (
+    q_objeto_es_espejo,
+    q_objeto_espejo_explicito,
+)
 
 # Estados de decisión patrimonial que significan «marcado para vender».
 # El modelo persiste el valor canónico `vender` (Objeto.OWNER_ACTION_CHOICES);
@@ -238,6 +242,40 @@ class DecisionesActionsMixin:
             qs = qs.filter(estok_id=estok_id)
         return qs
 
+    def _objetos_con_decision(self):
+        """
+        Queryset base de los objetos que YA tienen una decisión patrimonial.
+
+        REGLA DE RECUPERACIÓN (fix del listado «Objetos para Vender»):
+        a diferencia de `_objetos_del_estok`, este queryset NO aplica la
+        heurística estructural de espejos (`q_objeto_es_espejo`). Una decisión
+        HUMANA explícita (vender / conservar / tirar / mudar) pesa más que esa
+        heurística: si el objeto fue marcado, DEBE aparecer en el tablero.
+        Solo se descarta la marca EXPLÍCITA de espejo de contenedor
+        (`especificaciones.es_espejo_contenedor = true`, NULL-safe).
+
+        Multi-tenant: incluye además los objetos legacy con `estok` nulo que
+        cuelgan de una ubicación del Estok activo, para que una carga vieja
+        marcada para vender nunca desaparezca del listado.
+        """
+        qs = (
+            Objeto.objects.select_related(
+                'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
+                'categoria', 'despachado_por',
+            )
+            .prefetch_related('fotos')
+            .filter(deleted_at__isnull=True)
+            .exclude(q_objeto_espejo_explicito())
+        )
+
+        estok_id = self._estok_id(self.request)
+        if estok_id:
+            qs = qs.filter(
+                Q(estok_id=estok_id)
+                | Q(estok__isnull=True, ubicacion__estok_id=estok_id)
+            )
+        return qs
+
     @staticmethod
     def _ids_en_votacion():
         """Objetos ya en votación democrática (no vuelven a los bloques de decisión)."""
@@ -289,8 +327,11 @@ class DecisionesActionsMixin:
         Reglas (explícitas, sin exclusiones implícitas):
           · `owner_action` en DECISIONES_VENTA (`vender`; alias `para_vender`).
           · sin baja lógica.
-          · mismo Estok activo del header X-Estok-Id.
-          · los registros espejo de Contenedores siguen excluidos (no son stock).
+          · mismo Estok activo del header X-Estok-Id (+ legacy sin estok con
+            ubicación del Estok activo).
+          · se descarta SOLO la marca explícita de espejo de contenedor: una
+            decisión humana de vender NUNCA se pierde por la heurística
+            estructural (fix del listado «Objetos para Vender»).
 
         NO excluye objetos con votación pendiente: si la decisión de venta ya
         está persistida, el objeto DEBE aparecer acá. Devuelve el payload único
@@ -298,7 +339,7 @@ class DecisionesActionsMixin:
         publicación) + un resumen para el encabezado.
         """
         qs = (
-            self._objetos_del_estok()
+            self._objetos_con_decision()
             .filter(owner_action__in=DECISIONES_VENTA)
             .order_by('-updated_at')
         )
@@ -345,7 +386,7 @@ class DecisionesActionsMixin:
         """
         estok_id = self._estok_id(request)
         decididos = (
-            self._objetos_del_estok()
+            self._objetos_con_decision()
             .filter(owner_action__isnull=False)
             .exclude(id__in=self._ids_en_votacion())
             .order_by('-updated_at')

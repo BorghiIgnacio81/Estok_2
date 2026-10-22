@@ -74,24 +74,27 @@ export const prerender = false;
     <!-- Facebook) y «Ver detalle». Lo alimenta GET /api/objetos/        -->
     <!-- en_venta/ desde lib/ventasDestacadas.ts.                        -->
     <!-- ============================================================== -->
-    <section id="ventaDestacada" class="mb-10">
+    <section id="ventaDestacada"
+      class="mb-10 rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-4 sm:p-5">
       <div class="flex flex-wrap items-center gap-2 mb-1">
-        <h2 class="text-lg font-semibold text-gray-900">
+        <h2 class="text-lg font-bold text-emerald-900">
           🏷️ Objetos con Decisión de Venta / Listos para Publicar
         </h2>
         <span id="ventaDestacadaCount"
-          class="hidden px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">0</span>
+          class="hidden px-2 py-0.5 rounded-full bg-emerald-600 text-white text-xs font-bold">0</span>
         <button id="btnRefrescarVenta" type="button"
-          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
+          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition-base">
           ↻ Actualizar
         </button>
       </div>
-      <p class="text-xs text-gray-500 mb-2">
-        Acceso rápido a los objetos que el Estok decidió vender: publicalos en
-        Mercado Libre / Facebook Marketplace o abrí su ficha para revisarlos.
+      <p class="text-xs text-emerald-900/70 mb-2">
+        Acceso rápido a los objetos que el Estok decidió vender: los
+        <strong>listos para publicar</strong> aparecen primero con el botón
+        directo a <strong>Publicar / Generar Anuncio</strong> (Mercado Libre /
+        Facebook Marketplace); los ya publicados muestran su link.
       </p>
       <p id="ventaDestacadaResumen" class="text-xs font-semibold text-emerald-800 mb-3"></p>
-      <p id="ventaDestacadaLoading" class="text-sm text-gray-500">Cargando objetos marcados para vender...</p>
+      <p id="ventaDestacadaLoading" class="text-sm text-gray-600">Cargando objetos marcados para vender...</p>
       <p id="ventaDestacadaError"
         class="hidden mb-3 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
         ⚠️ No se pudieron cargar los objetos en venta.

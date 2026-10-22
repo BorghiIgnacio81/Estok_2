@@ -23,8 +23,6 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field, asdict
 from decimal import Decimal
 
-from django.core.exceptions import ImproperlyConfigured
-
 # --- Contrato publico re-exportado (compatibilidad de imports existentes) ---
 from .ai_vision_nucleo import (  # noqa: F401
     CONFIANZA_MINIMA, MAX_IMAGE_SIZE_MB, COMPRESS_QUALITY, MAX_IMAGE_DIMENSION,
@@ -55,9 +53,13 @@ class AIVisionService(AIVisionCreacionMixin):
         self._gemini_client = None
 
     def _get_gemini_client(self) -> GeminiClient:
-        """Lazy initialization del cliente Gemini."""
+        """Lazy initialization del cliente Gemini (con timeout acotado)."""
         if self._gemini_client is None:
-            self._gemini_client = GeminiClient()
+            from django.conf import settings
+
+            self._gemini_client = GeminiClient(
+                timeout=getattr(settings, 'GEMINI_TIMEOUT', 120)
+            )
         return self._gemini_client
 
     def _buscar_objetos_similares(self, max_resultados: int = 5) -> str:
@@ -221,18 +223,6 @@ class AIVisionService(AIVisionCreacionMixin):
         result.campos_pendientes = self._determinar_campos_pendientes(raw_result)
         return result
 
-    def _vision_result_no_disponible(self, mensaje: str) -> VisionResult:
-        """Retorna un VisionResult con todos los campos como pendientes."""
-        return VisionResult(
-            confianza_general=0.0,
-            campos_pendientes=[
-                "nombre", "marca", "autor", "anio",
-                "estado_conservacion", "precio_estimado_mercado",
-                "descripcion", "color", "categoria"
-            ],
-            raw_response=mensaje,
-        )
-
     def procesar_imagen(self, image_path: str) -> VisionResult:
         """
         Procesa una imagen desde una ruta de archivo y retorna un VisionResult.
@@ -312,12 +302,12 @@ class AIVisionService(AIVisionCreacionMixin):
             )
         except AIQuotaExceededError as e:
             # FAILOVER AUTOMÁTICO: Gemini devolvió HTTP 429 (rate limit /
-            # cuota agotada). Se conmuta al motor de respaldo (OpenRouter /
-            # DeepSeek u otro OpenAI-compatible) sin que el usuario note el
-            # corte. El motor de respaldo devuelve el MISMO JSON unificado.
+            # cuota agotada). Se conmuta a la IA secundaria EN CADENA
+            # (otro modelo Gemini con cuota propia, otra API key o un
+            # proveedor OpenAI-compatible) sin que el usuario note el corte.
             logger.warning(
-                "Cuota/rate limit de Gemini (HTTP 429) al procesar imagen. "
-                "Ejecutando failover automático al motor de respaldo..."
+                "[IA Fallback] Gemini rate limit (429) alcanzado. "
+                "Conmutando a IA secundaria..."
             )
             return self._procesar_con_failover(
                 image_base64_comprimida,
@@ -326,7 +316,18 @@ class AIVisionService(AIVisionCreacionMixin):
             )
 
         if raw_result is None:
-            return self._vision_result_no_disponible("Gemini no disponible")
+            # Gemini respondió sin JSON (503 por demanda, 404 de modelo,
+            # respuesta truncada, etc.): la cadena secundaria también puede
+            # salvar el análisis. Nunca se deja al usuario sin intento.
+            logger.warning(
+                "[IA Fallback] Gemini no devolvió un resultado válido. "
+                "Conmutando a IA secundaria..."
+            )
+            return self._procesar_con_failover(
+                image_base64_comprimida,
+                rag_context=rag_context,
+                error_original=None,
+            )
 
         return self._mapear_resultado(raw_result)
 
@@ -337,57 +338,43 @@ class AIVisionService(AIVisionCreacionMixin):
         error_original: Optional[Exception] = None,
     ) -> VisionResult:
         """
-        Conmuta al motor de respaldo (OpenAI-compatible) cuando Gemini devuelve
-        HTTP 429.
+        Conmuta a la cadena de IA secundaria cuando Gemini falla (429 o sin
+        resultado).
 
-        Si el motor de respaldo también falla o no está configurado, re-lanza
-        la excepción original de cuota para que el endpoint responda 429 con
-        el mensaje claro al usuario (nunca se deja al usuario sin respuesta).
+        Cadena (ver ai_failover_service.crear_cadena_respaldo):
+          1. Gemini con OTRO modelo y la misma key (cuota diaria POR MODELO).
+          2. Gemini con API keys adicionales.
+          3. Proveedor OpenAI-compatible (OpenRouter/Groq/HuggingFace).
+
+        Si TODA la cadena falla, re-lanza la excepción original de cuota para
+        que el endpoint responda 429 con un mensaje claro (nunca se deja al
+        usuario sin respuesta; el formulario sigue siendo editable a mano).
         """
         from django.conf import settings
 
         if not getattr(settings, 'FALLBACK_AI_ENABLED', True):
             logger.warning(
-                "Failover deshabilitado (FALLBACK_AI_ENABLED=False). "
-                "Se propaga el error original de cuota."
+                "[IA Fallback] Failover deshabilitado "
+                "(FALLBACK_AI_ENABLED=False). Se propaga el error original."
             )
             raise error_original if error_original else AIQuotaExceededError()
 
         try:
-            from .ai_failover_service import OpenAICompatVisionClient
+            from .ai_failover_service import analizar_con_cadena
 
-            fallback = OpenAICompatVisionClient()
-            raw_result = fallback.analyze_base64(
+            raw_result, etiqueta = analizar_con_cadena(
                 image_base64, rag_context=rag_context
             )
-        except ImproperlyConfigured as e:
+        except Exception as e:  # noqa: BLE001 — el endpoint responde 429/500
             logger.error(
-                "Motor de respaldo no configurado (%s). Re-propagando el error "
-                "original de cuota.",
-                e,
+                "[IA Fallback] Toda la cadena de IA secundaria falló: %s", e
             )
-            raise error_original if error_original else AIQuotaExceededError()
-        except Exception as e:
-            logger.error(
-                "El motor de respaldo también falló (%s). Re-propagando el "
-                "error original de cuota.",
-                e,
-            )
-            raise error_original if error_original else AIQuotaExceededError()
-
-        if raw_result is None:
-            logger.error(
-                "El motor de respaldo no devolvió resultado. Re-propagando el "
-                "error original de cuota."
-            )
-            raise error_original if error_original else AIQuotaExceededError()
+            raise error_original if error_original else AIQuotaExceededError(str(e))
 
         logger.warning(
-            "Failover exitoso: la imagen se procesó con el motor de respaldo "
-            "(%s) en lugar de Gemini.",
-            fallback.model,
+            "[IA Fallback] Análisis completado con IA secundaria: %s", etiqueta
         )
         resultado = self._mapear_resultado(raw_result)
-        resultado.motor_utilizado = fallback.model
+        resultado.motor_utilizado = etiqueta
         return resultado
 

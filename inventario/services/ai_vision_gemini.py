@@ -21,16 +21,45 @@ from .ai_vision_nucleo import (
 logger = logging.getLogger(__name__)
 
 
+# Cache de clientes del SDK de Google: la cadena de failover instancia un
+# GeminiClient por MODELO, pero todos comparten el mismo cliente HTTP.
+_CLIENTES_SDK: Dict[Any, Any] = {}
+
+
+def _cliente_sdk(api_key: str, timeout_segundos: Optional[int]):
+    """Devuelve (y cachea) un `google.genai.Client` por (key, timeout)."""
+    largo = int(timeout_segundos * 1000) if timeout_segundos else None
+    clave = (api_key, largo)
+    if clave not in _CLIENTES_SDK:
+        import google.genai as genai
+        from google.genai import types as genai_types
+
+        opciones = (
+            genai_types.HttpOptions(timeout=largo) if largo else None
+        )
+        _CLIENTES_SDK[clave] = genai.Client(
+            api_key=api_key, http_options=opciones
+        )
+    return _CLIENTES_SDK[clave]
+
+
 # =============================================================================
 # CLIENTE GEMINI (Google Gen AI SDK)
 # =============================================================================
 class GeminiClient:
     """
-    Cliente para conectar con la API de Gemini 2.5 Flash-Lite de Google.
+    Cliente para conectar con la API de Gemini de Google.
     Utiliza el SDK oficial `google-genai` (google.genai).
 
-    Lee la API key desde la variable de entorno GEMINI_API_KEY.
-    Si no está configurada, lanza ImproperlyConfigured al intentar usarlo.
+    Lee la API key desde la variable de entorno GEMINI_API_KEY si no se pasa
+    una explícita. Si no está configurada, lanza ImproperlyConfigured.
+
+    Parámetros opcionales (los usa la cadena de failover):
+      · api_key → permite probar una SEGUNDA cuenta/key de Gemini.
+      · model   → permite probar OTRO modelo con la misma key (la cuota
+                  gratuita diaria es POR MODELO, así que un modelo alternativo
+                  tiene cuota propia cuando el primario responde 429).
+      · timeout → segundos máximos por intento (acota la latencia total).
 
     Nota: El paquete `google-generativeai` (0.8.x) está deprecado.
     Esta implementación usa `google-genai` (>=2.0) que es el SDK actual.
@@ -38,29 +67,34 @@ class GeminiClient:
 
     MODEL_NAME = "gemini-2.5-flash-lite"  # alias estable de Gemini 2.5 Flash-Lite
 
-    def __init__(self):
-        self.api_key = os.environ.get('GEMINI_API_KEY')
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: Optional[int] = None,
+    ):
+        self.api_key = (api_key or os.environ.get('GEMINI_API_KEY') or '').strip()
         if not self.api_key:
             raise ImproperlyConfigured(
                 "GEMINI_API_KEY no está configurada en el entorno. "
                 "Configúrala en Coolify o en el archivo .env antes de usar "
                 "el servicio de visión por IA."
             )
-        self._client = None
+        self._model = (model or '').strip() or None
+        self._timeout = timeout
 
     def _get_client(self):
-        """Inicializa el cliente de Gemini si no está creado."""
-        if self._client is None:
-            import google.genai as genai
-            self._client = genai.Client(api_key=self.api_key)
-        return self._client
+        """Inicializa (o reutiliza) el cliente de Gemini."""
+        return _cliente_sdk(self.api_key, self._timeout)
 
     def _get_model_name(self) -> str:
         """
-        Retorna el modelo Gemini configurado (GEMINI_MODEL de settings) o el
-        default gemini-2.5-flash-lite. Permite cambiar de modelo (p. ej.
-        gemini-1.5-flash) sin tocar código, solo con variable de entorno.
+        Retorna el modelo Gemini EXPLÍCITO del cliente (cadena de failover) o
+        GEMINI_MODEL de settings (default gemini-2.5-flash-lite).
         """
+        if self._model:
+            return self._model
+
         from django.conf import settings
 
         return getattr(settings, 'GEMINI_MODEL', None) or self.MODEL_NAME

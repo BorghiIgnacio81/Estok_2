@@ -26,8 +26,8 @@ MAX_IMAGE_DIMENSION = 1024   # resolución máxima en lado mayor
 # EXCEPCIÓN DE CUOTA / RATE LIMIT DE LA API DE IA
 # =============================================================================
 MENSAJE_LIMITE_IA = (
-    "Error: Límite de la API de IA excedido temporalmente. "
-    "Por favor, espera un minuto."
+    "La IA no está disponible temporalmente (se alcanzó el límite de uso). "
+    "Podés completar los campos a mano y guardar el objeto igual."
 )
 
 
@@ -38,7 +38,8 @@ class AIQuotaExceededError(Exception):
 
     Permite a los endpoints distinguir un límite temporal de la API de un
     fallo genérico de análisis y devolver un mensaje claro al usuario en
-    producción en lugar del mensaje genérico de "foto incorrecta".
+    producción en lugar del mensaje genérico de "foto incorrecta". También es
+    la señal que dispara el failover en cadena (ver ai_failover_service).
     """
 
 
@@ -46,13 +47,30 @@ def es_error_cuota_excedida(error: Exception) -> bool:
     """
     Detecta errores de cuota / rate limit en las excepciones de la API de IA.
 
-    Compatible con google.genai.errors.APIError (expone el atributo `.code`
-    con el status HTTP real) y con cualquier otra excepción cuyo texto
-    contenga las marcas típicas de límite de uso (429, quota, rate limit).
+    Compatible con:
+      · google.genai.errors.APIError / ClientError / ServerError (SDK actual):
+        exponen `.code` con el status HTTP real (429).
+      · google.api_core.exceptions.ResourceExhausted (.code == 429 o texto
+        RESOURCE_EXHAUSTED) y errores de grpc.
+      · openai.APIStatusError (.status_code == 429).
+      · Cualquier excepción cuyo texto contenga las marcas típicas de límite
+        de uso (429, quota, rate limit, too many requests).
     """
-    codigo = getattr(error, 'code', None)
-    if codigo == 429:
+    for atributo in ('code', 'status_code', 'http_status'):
+        codigo = getattr(error, atributo, None)
+        if codigo == 429:
+            return True
+        # google.api_core expone `.code` como (StatusCode, mensaje) en algunas
+        # versiones y httpx como HTTPStatus (IntEnum), que ya cubre == 429.
+        if isinstance(codigo, tuple) and codigo and str(codigo[0]).upper().endswith(
+            'RESOURCE_EXHAUSTED'
+        ):
+            return True
+
+    respuesta = getattr(error, 'response', None)
+    if getattr(respuesta, 'status_code', None) == 429:
         return True
+
     texto = str(error).lower()
     return any(
         marca in texto

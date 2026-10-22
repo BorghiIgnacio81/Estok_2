@@ -48,6 +48,27 @@ TIPOS_ESPACIO = (
 )
 
 
+def q_objeto_espejo_explicito():
+    """
+    `Q` de ORM de la MARCA EXPLÍCITA de dualidad (espejos nuevos).
+
+    Es NULL-safe a propósito: `isnull=False` + `has_key` evitan el NULL que
+    PostgreSQL devuelve en un JSON sin la clave (ver BUG HISTÓRICO en
+    `q_objeto_es_espejo`). Inmune a renombres del Contenedor y a que el
+    operador asigne una Categoría al objeto.
+
+    Se usa solo para excluir registros espejo en listados que SÍ deben incluir
+    objetos con decisión patrimonial explícita (p. ej. `en_venta`): una
+    decisión humana de vender/guardar/tirar pesa más que la heurística
+    estructural de `q_objeto_es_espejo`.
+    """
+    return Q(
+        especificaciones__isnull=False,
+        especificaciones__has_key='es_espejo_contenedor',
+        especificaciones__es_espejo_contenedor=True,
+    )
+
+
 def q_objeto_es_espejo():
     """
     `Q` de ORM que marca los registros ESPEJO (duales) de un Contenedor.
@@ -68,15 +89,7 @@ def q_objeto_es_espejo():
     (`FALSE AND NULL = FALSE`) y nunca propaga NULL al `NOT` del `exclude`.
     """
     return (
-        # MARCA EXPLÍCITA de dualidad (espejos nuevos): inmune a renombres del
-        # Contenedor y a que el operador asigne una Categoría al objeto.
-        # `isnull=False` + `has_key` evitan el NULL del JSON cuando la clave no
-        # existe (ver BUG HISTÓRICO arriba).
-        Q(
-            especificaciones__isnull=False,
-            especificaciones__has_key='es_espejo_contenedor',
-            especificaciones__es_espejo_contenedor=True,
-        )
+        q_objeto_espejo_explicito()
         | (
             Q(contenedor__isnull=False)
             & Q(parent_grid_row__isnull=True)

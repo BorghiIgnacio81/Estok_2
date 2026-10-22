@@ -161,20 +161,31 @@ async function analizarConIa(): Promise<void> {
     iaProgressText.textContent = '✅ Análisis completado';
 
     if (!response.ok) {
-      // Respuesta NO exitosa: 429 (cuota Gemini agotada incluso tras el
+      // Respuesta NO exitosa: 429 (cuota agotada incluso tras la CADENA de
       // failover), 5xx o HTML de un proxy. Se tolera el caso no-JSON y se
       // recuerda que el guardado MANUAL sigue disponible: el análisis por IA
-      // nunca bloquea el alta del objeto.
+      // NUNCA bloquea el alta del objeto.
       const errData = await response.json().catch(() => ({} as Record<string, unknown>));
       const detalle = String(
         (errData as any).error || (errData as any).detail || '',
       ).trim();
       const sugerencia = ' Podés completar los campos a mano y guardar igual.';
-      const mensaje =
-        response.status === 429
-          ? (detalle || 'Se alcanzó el límite de uso de la IA.') + sugerencia
-          : (detalle || `Error del servidor (${response.status}).`) + sugerencia;
-      throw new Error(mensaje);
+
+      if (response.status === 429) {
+        // Aviso DISCRETO (warning, no error): la IA no está disponible
+        // temporalmente y el operador sigue cargando el objeto a mano.
+        iaProgressText.textContent = '⏳ IA no disponible por ahora';
+        iaProgressSubtext.textContent = 'Se alcanzó el límite de uso de la IA.' + sugerencia;
+        showToast(
+          'La IA no está disponible temporalmente. Completá los campos a mano y guardá el objeto.',
+          'warning',
+        );
+        return;
+      }
+
+      throw new Error(
+        (detalle || `Error del servidor (${response.status}).`) + sugerencia,
+      );
     }
 
     const result = await response.json();
@@ -184,6 +195,9 @@ async function analizarConIa(): Promise<void> {
     // (debug de sincronización de keys entre Django y este módulo).
     console.log('[IA] Respuesta cruda del backend:', JSON.stringify(result));
     console.log('[IA] Claves de datos_ia:', Object.keys(datos));
+    if (datos.motor_utilizado && datos.motor_utilizado !== 'gemini') {
+      console.info(`[IA] Análisis resuelto por la IA secundaria: ${datos.motor_utilizado}`);
+    }
 
     aplicarCamposIa(datos);
     reportarResultadoIa(datos, result);

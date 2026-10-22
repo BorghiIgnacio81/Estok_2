@@ -131,3 +131,33 @@ export function ordenarGrupoDecisiones<T extends ObjetoOrdenable>(
     ]),
   );
 }
+
+// -----------------------------------------------------------------------------
+// SECCIÓN DESTACADA · 🏷️ Objetos con decisión de venta (/alertas-stock)
+// -----------------------------------------------------------------------------
+
+/** Objeto vendible: publicado en alguna plataforma de venta o no. */
+export interface ObjetoVendibleOrdenable extends ObjetoOrdenable {
+  publicado?: boolean | null;
+  plataformas_publicadas?: string[] | null;
+}
+
+/** ¿Ya está publicado en Mercado Libre / Facebook? */
+export function estaPublicado(obj: ObjetoVendibleOrdenable): boolean {
+  return Boolean(obj.publicado) || (obj.plataformas_publicadas?.length ?? 0) > 0;
+}
+
+/**
+ * Orden de la sección destacada de venta: PRIMERO los que están listos para
+ * publicar (📢 acción directa «Publicar / Generar Anuncio»), después los ya
+ * publicados (🔗 link a la publicación) y al fondo los ya despachados.
+ */
+export function ordenarVentasDestacadas<T extends ObjetoVendibleOrdenable>(
+  objetos: T[],
+): T[] {
+  return [...objetos].sort((a, b) =>
+    comparar(a, b, [
+      (o) => (o.despachado_en ? 2 : estaPublicado(o) ? 1 : 0),
+    ]),
+  );
+}

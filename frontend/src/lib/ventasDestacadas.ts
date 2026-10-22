@@ -22,7 +22,7 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { escapar, formatUSD, tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
-import { ordenarGrupoDecisiones } from './decisionesOrden';
+import { estaPublicado, ordenarVentasDestacadas } from './decisionesOrden';
 import { abrirPublicarObjeto } from './publicarObjeto';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
@@ -70,7 +70,17 @@ async function traerVentas(): Promise<RespuestaVenta> {
   return res.json();
 }
 
-/** Recarga la sección destacada de venta (también desde otras islas). */
+/**
+ * Recarga la sección destacada de venta (también desde otras islas).
+ *
+ * ORDEN DE CARGA A PRUEBA DE FALLOS: primero se piden y pintan las tarjetas
+ * de venta y DESPUÉS se intenta cargar el contexto geográfico de minimapas.
+ * El contexto es SECUNDARIO: si `cargarContextoRutaCaja()` falla (403 de un
+ * rol, endpoint caído, estok sin plano), las tarjetas YA están visibles y el
+ * listado de venta NO se pierde. Bug real corregido: antes un fallo del
+ * contexto vaciaba la sección completa y parecía que no había objetos para
+ * vender cuando el backend sí los devolvía.
+ */
 async function refrescarVentasDestacadas(): Promise<void> {
   if (cargando) return;
   cargando = true;
@@ -78,11 +88,20 @@ async function refrescarVentasDestacadas(): Promise<void> {
   mostrar('ventaDestacadaError', false);
   try {
     const data = await traerVentas();
-    // Los todavía activos arriba; los ya despachados al fondo (mismo criterio
-    // de lectura que el bloque de venta del tablero).
-    objetos = ordenarGrupoDecisiones(data.results || [], 'vender');
-    await cargarContextoRutaCaja();
+    // Listos para publicar arriba; ya publicados después; despachados al fondo.
+    objetos = ordenarVentasDestacadas(data.results || []);
     render(data.resumen);
+
+    try {
+      await cargarContextoRutaCaja();
+      // Re-render para dibujar la mini-guía geográfica ya con el contexto.
+      render(data.resumen);
+    } catch (contextoError) {
+      console.warn(
+        '[Ventas] Contexto de minimapas no disponible (la lista se mantiene):',
+        contextoError,
+      );
+    }
   } catch (error) {
     objetos = [];
     render();
@@ -107,16 +126,15 @@ async function refrescarVentasDestacadas(): Promise<void> {
 // -----------------------------------------------------------------------------
 
 function piePublicacionHtml(obj: ObjetoDecision): string {
-  const publicado = obj.plataformas_publicadas.length > 0 || obj.publicado;
-  if (publicado) {
+  if (estaPublicado(obj)) {
     return `
       <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-[11px] text-emerald-800 font-semibold">
         🔗 ${escapar(obj.estado_publicacion_label || 'Publicado')} · listo para vender
       </div>`;
   }
   return `
-    <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 text-[11px] text-amber-800 font-semibold">
-      🏷️ Sin publicar · listo para armar el anuncio
+    <div class="bg-emerald-600 text-white rounded-lg p-2 text-[11px] font-bold text-center tracking-wide">
+      📢 LISTO PARA PUBLICAR
     </div>`;
 }
 
@@ -129,15 +147,14 @@ function accionesVentaHtml(obj: ObjetoDecision): string {
       👁️ Ver detalle
     </a>`;
 
-  const publicado = obj.plataformas_publicadas.length > 0 || obj.publicado;
-  const accionPrincipal = publicado
+  const accionPrincipal = estaPublicado(obj)
     ? `<a href="${escapar(obj.url_publicacion || `/objetos/${obj.id}`)}"
         ${obj.url_publicacion ? 'target="_blank" rel="noopener"' : ''}
         class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">
         🔗 Ver publicación
       </a>`
     : `<button type="button" data-publicar="${id}"
-        class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-base">
+        class="inline-flex items-center justify-center gap-1 px-2 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-base">
         📢 Publicar / Generar Anuncio
       </button>`;
 
@@ -145,11 +162,16 @@ function accionesVentaHtml(obj: ObjetoDecision): string {
 }
 
 function cardVenta(obj: ObjetoDecision): string {
+  // Las tarjetas PENDIENTES de publicar son el foco de la sección: borde y
+  // sombra más fuertes para que el acceso directo se vea de un vistazo.
+  const listoParaPublicar = !estaPublicado(obj) && !obj.despachado_en;
   return tarjetaObjetoHtml(obj, {
     pie: piePublicacionHtml(obj),
     acciones: accionesVentaHtml(obj),
     atributos: 'data-grupo="venta-destacada"',
-    extraClases: 'ring-1 ring-emerald-200',
+    extraClases: listoParaPublicar
+      ? 'ring-2 ring-emerald-400 shadow-md'
+      : 'ring-1 ring-emerald-200',
   });
 }
 
@@ -170,7 +192,7 @@ function render(resumen?: RespuestaVenta['resumen']): void {
   const detalle = el('ventaDestacadaResumen');
   if (detalle) {
     const sinPublicar = resumen?.sin_publicar
-      ?? objetos.filter((o) => !o.plataformas_publicadas.length && !o.publicado).length;
+      ?? objetos.filter((o) => !estaPublicado(o)).length;
     const publicados = resumen?.publicados ?? objetos.length - sinPublicar;
     const valor = resumen?.valor_total
       ?? objetos.reduce((total, o) => total + (parseFloat(o.valor_estimado || '0') || 0), 0);

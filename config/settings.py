@@ -238,17 +238,62 @@ MEDIA_ROOT = os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media'))
 SITE_URL = os.environ.get('SITE_URL', 'https://eeestok.duckdns.org')
 
 # =============================================================================
-# IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER)
+# IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER EN CADENA)
 # El análisis de imágenes es 100% en la NUBE (no hay motor local).
-# Motor primario : Gemini (GEMINI_API_KEY) aprovechando su capa gratuita.
-# Motor de respaldo: cliente OpenAI-compatible (OpenRouter, DeepSeek u otro
-# proveedor con /v1/chat/completions + soporte de imágenes). Se activa de forma
-# AUTOMÁTICA cuando Gemini responde HTTP 429 (Rate Limit / cuota agotada).
-# El respaldo devuelve el MISMO esquema JSON unificado, por lo que el usuario
-# no nota el corte.
+#
+# Cadena de motores (se recorre EN ORDEN hasta que uno responda):
+#   1. Gemini primario      → GEMINI_MODEL con GEMINI_API_KEY.
+#   2. Gemini de respaldo   → GEMINI_FALLBACK_MODELS con la MISMA API key.
+#      ⚠️ Google aplica la cuota gratuita DIARIA POR MODELO
+#      (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`): cuando
+#      gemini-2.5-flash-lite agota sus 20 análisis/día, otro modelo
+#      (gemini-3.1-flash-lite, gemini-3.5-flash-lite, …) tiene cuota PROPIA.
+#      Verificado en producción: aceptan imágenes con la misma key.
+#   3. Gemini con key extra → GEMINI_FALLBACK_API_KEYS / GEMINI_API_KEY_2..N.
+#   4. OpenAI-compatible     → FALLBACK_AI_* (OpenRouter/DeepSeek/Groq/HF).
+#
+# El respaldo devuelve el MISMO esquema JSON unificado (PROMPT_SISTEMA_
+# CATALOGACION), por lo que el usuario no nota el corte. Solo si TODA la
+# cadena falla, el endpoint responde 429 y el frontend invita a completar el
+# formulario a mano (nunca se bloquea el alta).
 # =============================================================================
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash-lite')
+
+# Modelos Gemini alternativos con la MISMA API key. Lista separada por comas;
+# se prueban en el orden declarado (cuota diaria independiente por modelo).
+GEMINI_FALLBACK_MODELS = [
+    modelo.strip()
+    for modelo in os.environ.get(
+        'GEMINI_FALLBACK_MODELS',
+        'gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-3.5-flash',
+    ).split(',')
+    if modelo.strip()
+]
+
+# API keys Gemini ADICIONALES (opcional): GEMINI_API_KEY_2..5 o una lista
+# separada por comas en GEMINI_FALLBACK_API_KEYS / GEMINI_API_KEYS.
+GEMINI_FALLBACK_API_KEYS = list(dict.fromkeys(
+    clave.strip()
+    for clave in (
+        ','.join([
+            os.environ.get('GEMINI_FALLBACK_API_KEYS', ''),
+            os.environ.get('GEMINI_API_KEYS', ''),
+            *(os.environ.get(f'GEMINI_API_KEY_{n}', '') for n in range(2, 6)),
+        ])
+    ).split(',')
+    if clave.strip() and clave.strip() != GEMINI_API_KEY
+))
+
+# Timeout (segundos) de CADA intento de la IA secundaria. Acota la latencia
+# total de la cadena para no superar el timeout del fetch del frontend.
+GEMINI_FALLBACK_TIMEOUT = int(os.environ.get('GEMINI_FALLBACK_TIMEOUT', '60'))
+# Timeout (segundos) del análisis PRIMARIO con Gemini.
+GEMINI_TIMEOUT = int(os.environ.get('GEMINI_TIMEOUT', '120'))
+# Presupuesto TOTAL (segundos) de la cadena de respaldo. Agotado el plazo se
+# corta la cadena y el endpoint responde 429 con un mensaje claro en vez de
+# dejar colgado el fetch del navegador (que aborta a los 250s).
+FALLBACK_AI_MAX_TOTAL = int(os.environ.get('FALLBACK_AI_MAX_TOTAL', '180'))
 
 # Habilita/deshabilita el failover (la llamada primaria a Gemini no cambia).
 FALLBACK_AI_ENABLED = os.environ.get(
@@ -264,10 +309,11 @@ FALLBACK_AI_API_KEY = (
     or ''
 )
 
-# Por defecto apunta a OpenRouter con un modelo de visión gratuito/barato.
+# URL del proveedor OpenAI-compatible. El servicio normaliza automáticamente
+# los casos incompletos: `https://groq.com` → `https://api.groq.com/openai/v1`,
+# `https://openrouter.ai` → `https://openrouter.ai/api/v1`, etc.
 # Para DeepSeek: FALLBACK_AI_BASE_URL=https://api.deepseek.com
-# (NOTA: la API pública de DeepSeek es texto-only; verificar soporte de
-# imágenes antes de usarla como fallback de visión).
+# (NOTA: la API pública de DeepSeek es texto-only; no sirve para visión).
 FALLBACK_AI_BASE_URL = os.environ.get(
     'FALLBACK_AI_BASE_URL', 'https://openrouter.ai/api/v1'
 )
@@ -275,6 +321,19 @@ FALLBACK_AI_MODEL = os.environ.get(
     'FALLBACK_AI_MODEL', 'meta-llama/llama-3.2-11b-vision-instruct:free'
 )
 FALLBACK_AI_TIMEOUT = int(os.environ.get('FALLBACK_AI_TIMEOUT', '120'))
+
+# Proveedores OpenAI-compatible ADICIONALES (opcionales). Se agregan al final
+# de la cadena SOLO si su key está configurada y difiere de la principal.
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
+GROQ_VISION_MODEL = os.environ.get(
+    'GROQ_VISION_MODEL', 'meta-llama/llama-4-scout-17b-16e-instruct'
+)
+HUGGINGFACE_API_KEY = (
+    os.environ.get('HUGGINGFACE_API_KEY') or os.environ.get('HF_TOKEN') or ''
+)
+HUGGINGFACE_VISION_MODEL = os.environ.get(
+    'HUGGINGFACE_VISION_MODEL', 'Qwen/Qwen2.5-VL-7B-Instruct'
+)
 
 # =============================================================================
 # DJANGO ADMIN - Personalización
