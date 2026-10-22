@@ -227,7 +227,13 @@ def _valor_para_atributo(
     if not aid:
         return None
 
-    if aid in ATRIBUTOS_IDENTIDAD:
+    # Atributo de LISTA (la categoría define `values`): Mercado Libre solo
+    # acepta una opción existente. Enviar texto libre produce HTTP 400
+    # "body.invalid_fields" / "item.attribute.invalid", así que se usa la
+    # opción neutra si existe y, si no, el atributo se omite.
+    tiene_valores = bool(atributo.get("values"))
+
+    if aid in ATRIBUTOS_IDENTIDAD and not tiene_valores:
         fuente, valor_defecto = ATRIBUTOS_IDENTIDAD[aid]
         return {
             "id": aid,
@@ -278,6 +284,29 @@ def completar_attributes_requeridos(
     definidos = obtener_atributos_categoria(category_id, access_token)
     if not definidos:
         return resultado
+
+    # Catálogo REAL de la categoría: se descartan los atributos que la categoría
+    # no define (claves inventadas → HTTP 400 "body.invalid_fields").
+    ids_catalogo = {
+        _normalizar_id(atributo.get("id"))
+        for atributo in definidos
+        if isinstance(atributo, dict)
+    }
+    fuera_catalogo = [
+        atributo for atributo in resultado
+        if _normalizar_id(atributo.get("id")) not in ids_catalogo
+    ]
+    if fuera_catalogo:
+        logger.info(
+            "Atributos fuera del catálogo de %s descartados: %s",
+            category_id,
+            ", ".join(str(atributo.get("id")) for atributo in fuera_catalogo),
+        )
+        resultado = [
+            atributo for atributo in resultado
+            if _normalizar_id(atributo.get("id")) in ids_catalogo
+        ]
+        presentes = {_normalizar_id(a.get("id")) for a in resultado}
 
     agregados: List[str] = []
     for atributo in definidos:

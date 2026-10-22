@@ -22,8 +22,14 @@ Usado por:
 - inventario/api/viewsets/mercadolibre_views.py: al publicar un objeto.
 """
 
+import json
 import logging
 import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Optional
 
 from inventario.management.commands.cargar_categorias_meli import (
     CATEGORIAS_OFICIALES,
@@ -31,6 +37,7 @@ from inventario.management.commands.cargar_categorias_meli import (
 from inventario.models.clasificacion import Categoria
 from inventario.services.mercadolibre_api import (
     CATEGORIA_MELI_DEFAULT,
+    ML_API_BASE,
     predict_category,
 )
 
@@ -38,6 +45,13 @@ logger = logging.getLogger(__name__)
 
 # Formato oficial de la API de Mercado Libre para el ID de categoría (MLAxxxxx).
 PATRON_ID_ML = re.compile(r'^MLA\d+$')
+
+# Verificación de categorías HOJA (GET /categories/{id}): caché en memoria por
+# categoría + enfriamiento para no golpear la API en cada publicación.
+TIMEOUT_CATEGORIA = 10
+ENFRIAMIENTO_FALLO = 300
+CACHE_HOJAS: dict = {}
+CACHE_FALLOS_HOJAS: dict = {}
 
 
 def es_id_ml_valido(valor) -> bool:
@@ -112,17 +126,125 @@ def resolver_category_id_ml(categoria, texto_fallback: str = "",
     nombre = (getattr(categoria, 'nombre', '') or '').strip() or str(texto_fallback or '').strip()
     predicho = predecir_id_ml(nombre, access_token=access_token)
 
-    if categoria is not None and hasattr(categoria, 'save'):
-        try:
-            categoria.mercadolibre_category_id = predicho
-            categoria.save(update_fields=['mercadolibre_category_id'])
-            logger.info(
-                "Mapeo ML persistido: categoría '%s' → %s",
-                getattr(categoria, 'nombre', ''), predicho,
-            )
-        except Exception as exc:  # noqa: BLE001 - persistir es best-effort
-            logger.warning("No se pudo persistir el mapeo ML: %s", exc)
+    _persistir_mapeo(categoria, predicho)
+    return predicho
 
+
+def _persistir_mapeo(categoria, categoria_ml: str) -> None:
+    """Persiste (best-effort) el mapeo ML en la categoría; nunca aborta."""
+    if categoria is None or not hasattr(categoria, 'save'):
+        return
+    try:
+        categoria.mercadolibre_category_id = categoria_ml
+        categoria.save(update_fields=['mercadolibre_category_id'])
+        logger.info(
+            "Mapeo ML persistido: categoría '%s' → %s",
+            getattr(categoria, 'nombre', ''), categoria_ml,
+        )
+    except Exception as exc:  # noqa: BLE001 - persistir es best-effort
+        logger.warning("No se pudo persistir el mapeo ML: %s", exc)
+
+
+def es_categoria_hoja_ml(category_id, access_token: str = "") -> Optional[bool]:
+    """
+    Indica si `category_id` es una categoría HOJA publicable de Mercado Libre.
+
+    Mercado Libre solo permite publicar (POST /items) en categorías sin
+    subcategorías: un ID contenedor o inexistente produce HTTP 400.
+
+    Returns:
+        True  → existe, no tiene `children_categories` y admite publicaciones.
+        False → no existe (404 / formato inválido) o es una categoría contenedor.
+        None  → no se pudo verificar (API caída / sin red): el llamador decide.
+
+    El resultado se cachea en memoria; los fallos se reintentan después de
+    ENFRIAMIENTO_FALLO segundos para no penalizar cada publicación.
+    """
+    cid = normalizar_id_ml(category_id)
+    if not cid:
+        return False
+    if cid in CACHE_HOJAS:
+        return CACHE_HOJAS[cid]
+    if time.time() - CACHE_FALLOS_HOJAS.get(cid, 0) < ENFRIAMIENTO_FALLO:
+        return None
+
+    url = f"{ML_API_BASE}/categories/{urllib.parse.quote(cid)}"
+    headers = {"Accept": "application/json"}
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
+
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=TIMEOUT_CATEGORIA) as resp:
+            datos = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            logger.warning("Categoría ML %s inexistente (HTTP 404)", cid)
+            CACHE_HOJAS[cid] = False
+            return False
+        CACHE_FALLOS_HOJAS[cid] = time.time()
+        logger.warning("No se pudo verificar la categoría ML %s: %s", cid, exc)
+        return None
+    except Exception as exc:  # noqa: BLE001 - verificar es best-effort
+        CACHE_FALLOS_HOJAS[cid] = time.time()
+        logger.warning("No se pudo verificar la categoría ML %s: %s", cid, exc)
+        return None
+
+    hijos = datos.get("children_categories") or []
+    listing_allowed = (datos.get("settings") or {}).get("listing_allowed")
+    es_hoja = not hijos and listing_allowed is not False
+    if not es_hoja:
+        logger.warning(
+            "Categoría ML %s (%s) no publicable: subcategorías=%d, listing_allowed=%s",
+            cid, datos.get("name", ""), len(hijos), listing_allowed,
+        )
+    CACHE_HOJAS[cid] = es_hoja
+    return es_hoja
+
+
+def garantizar_categoria_hoja_ml(categoria, category_id,
+                                 access_token: str = "") -> str:
+    """
+    Devuelve el `category_id` HOJA con el que se puede publicar (o "" si no hay).
+
+    Orden:
+      1. El ID recibido, si tiene formato MLA y la API confirma que es hoja.
+      2. Predicción con el NOMBRE de la categoría (nunca con el título) y
+         persistencia del mapeo corregido.
+      3. "" → el llamador responde 400 "Debes asignar una categoría válida de
+         Mercado Libre" antes de gastar una llamada a POST /items.
+
+    Si la API no se puede consultar (None), el ID se respeta tal cual: un fallo
+    de red no debe bloquear la publicación.
+    """
+    cid = normalizar_id_ml(category_id)
+    if cid and es_categoria_hoja_ml(cid, access_token) is not False:
+        return cid
+
+    nombre = (getattr(categoria, 'nombre', '') or '').strip()
+    if not nombre:
+        logger.error(
+            "Sin categoría ML válida (ID=%s) y sin nombre de categoría para predecir",
+            cid or '(vacío)',
+        )
+        return ''
+
+    predicho = normalizar_id_ml(predecir_id_ml(nombre, access_token=access_token))
+    if not predicho:
+        return ''
+    if es_categoria_hoja_ml(predicho, access_token) is False:
+        logger.error(
+            "La predicción ML %s para la categoría '%s' tampoco es una categoría hoja",
+            predicho, nombre,
+        )
+        return ''
+
+    if predicho != cid:
+        logger.warning(
+            "Categoría ML %s inválida o no hoja → se publica en %s (categoría '%s')",
+            cid or '(vacía)', predicho, nombre,
+        )
+        _persistir_mapeo(categoria, predicho)
     return predicho
 
 

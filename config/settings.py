@@ -237,6 +237,15 @@ MEDIA_ROOT = os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media'))
 # Mercado Libre pueda descargar, ej: https://eeestok.duckdns.org/media/...)
 SITE_URL = os.environ.get('SITE_URL', 'https://eeestok.duckdns.org')
 
+# Tipo de publicación con el que se crean los ítems en Mercado Libre
+# (POST /items → listing_type_id). Valores válidos de MLA:
+#   gold_special (default) | gold_pro | silver | bronze | free
+# Si el tipo configurado no es válido, el servicio cae a 'gold_special' y, si
+# ML lo rechaza, reintenta con 'free'.
+MERCADOLIBRE_LISTING_TYPE_ID = os.environ.get(
+    'MERCADOLIBRE_LISTING_TYPE_ID', 'gold_special'
+)
+
 # =============================================================================
 # IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER EN CADENA)
 # El análisis de imágenes es 100% en la NUBE (no hay motor local).

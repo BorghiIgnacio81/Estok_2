@@ -56,7 +56,12 @@ def _api_request(method: str, endpoint: str, access_token: str, body: Optional[d
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else "sin cuerpo"
-        logger.error("ML API Error %d %s: %s", e.code, e.reason, error_body)
+        # Diagnóstico COMPLETO del rechazo: código, motivo y cuerpo crudo que
+        # devuelve Mercado Libre (fuente de verdad para saber qué campo falló).
+        logger.error(
+            "Respuesta ML Error (%d %s) %s %s: %s",
+            e.code, e.reason, method, endpoint, error_body,
+        )
         try:
             return json.loads(error_body)
         except json.JSONDecodeError:
@@ -95,9 +100,9 @@ def _agregar_atributo(attributes: list, atributo_id: str, value_name) -> bool:
     """
     Agrega un atributo a la lista sin duplicar IDs y sin valores vacíos.
 
-    Devuelve True si lo agregó. Se usa para garantizar los atributos de
-    identidad obligatorios (BRAND / FAMILY_NAME / MODEL) sin pisar ni repetir
-    los valores que ya vengan del objeto.
+    Devuelve True si lo agregó. Se usa para garantizar los atributos estándar
+    de identidad (BRAND / MODEL) sin pisar ni repetir los valores que ya vengan
+    del objeto.
     """
     valor = str(value_name or '').strip()
     aid = str(atributo_id or '').strip().upper()
@@ -111,99 +116,32 @@ def _agregar_atributo(attributes: list, atributo_id: str, value_name) -> bool:
 
 def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     """
-    Construye la lista "attributes" de la API de MercadoLibre a partir de un
-    Objeto de inventario, omitiendo campos nulos o vacíos para no romper la
-    validación de la categoría (evita el 400 "Validation error").
+    Construye la lista "attributes" ESTÁNDAR que viaja en el payload de ML.
 
-    - Tecnología (Computación/Electrónica) y electrodomésticos/cocina:
-      marca → BRAND y modelo → MODEL (rellenados con "Genérico"/"Sin
-      especificar" si el formulario viene vacío).
-    - SIEMPRE se garantizan los atributos de identidad que Mercado Libre pide
-      como obligatorios en la mayoría de las categorías: BRAND, FAMILY_NAME
-      (marca/familia del producto) y MODEL cuando aplica. Si el objeto no los
-      trae cargados se usa un valor seguro ("Genérico", "Sin especificar" o el
-      nombre de la categoría): un atributo obligatorio ausente hace que ML
-      responda HTTP 400 "Validation error" (bug real: family_name).
-      Los obligatorios específicos de cada categoría (MANUFACTURER, COLOR,
-      etc.) los completa `completar_attributes_requeridos()` en create_item.
-    - Electrodomésticos/cocina (ej: MLA104680 Licuadoras): añade el atributo
-      obligatorio POWER_SUPPLY_TYPE ("Batería recargable" si el título indica
-      portátil/inalámbrico, si no "Corriente eléctrica").
-    - Libros/revistas (detectados por autor/editorial/isbn): autor → AUTHOR,
-      editorial → PUBLISHER.
+    Mercado Libre responde HTTP 400 "body.invalid_fields" cuando el body trae
+    atributos que no pertenecen al catálogo de la categoría destino. Por eso acá
+    SOLO se envían los atributos estándar de identidad (BRAND / MODEL): los
+    obligatorios de cada categoría los agrega
+    `mercadolibre_atributos.completar_attributes_requeridos()` consultando
+    GET /categories/{id}/attributes (catálogo real, nunca por suposición).
+
+    - BRAND: marca del objeto o "Genérico".
+    - MODEL: modelo del objeto o "Genérico".
 
     Args:
         objeto: Instancia de Objeto (puede ser None).
-        category_id: ID final de categoría ML que viajará en el payload
-            (ej: "MLA104680"), para detectar categorías de cocina que el
-            inventario no mapea entre las 11 oficiales.
+        category_id: ID final de categoría ML (se mantiene por compatibilidad de
+            firma; la selección de atributos ya no depende de la categoría).
     """
     attributes: list = []
     if objeto is None:
         return attributes
 
-    nombre = ''
-    meli_id = ''
-    if objeto.categoria:
-        nombre = (objeto.categoria.nombre or '').strip().lower()
-        meli_id = (objeto.categoria.mercadolibre_category_id or '').strip().upper()
-    cid = str(category_id or '').strip().upper()
-
-    es_tecnologia = (
-        nombre in ('computación', 'computacion', 'electrónica', 'electronica')
-        or meli_id in ('MLA1648', 'MLA1051')
-        or cid in ('MLA1648', 'MLA1051')
-    )
-
-    es_cocina_electro = (
-        nombre in ('cocina', 'electrodomésticos', 'electrodomesticos',
-                   'electrodoméstico', 'electrodomestico', 'electro')
-        or meli_id in ('MLA1403', 'MLA104680')
-        or cid in ('MLA1403', 'MLA104680')
-    )
-
-    es_libro = bool(
-        getattr(objeto, 'autor', '') or getattr(objeto, 'editorial', '')
-        or getattr(objeto, 'isbn_issn', '')
-    )
-
     marca = (getattr(objeto, 'marca', '') or '').strip()
     modelo = (getattr(objeto, 'modelo', '') or '').strip()
-    autor = (getattr(objeto, 'autor', '') or '').strip()
-    editorial = (getattr(objeto, 'editorial', '') or '').strip()
-    nombre_categoria = (
-        objeto.categoria.nombre.strip() if objeto.categoria and objeto.categoria.nombre else ''
-    )
 
-    # BRAND / FAMILY_NAME / MODEL: atributos de identidad que Mercado Libre
-    # exige en la mayoría de las categorías. Se AGREGAN SIEMPRE con un valor
-    # seguro cuando el objeto no los trae cargados (bug real: ML rechazaba la
-    # publicación pidiendo el atributo obligatorio family_name).
     _agregar_atributo(attributes, "BRAND", marca or "Genérico")
-    _agregar_atributo(attributes, "FAMILY_NAME", marca or nombre_categoria or "Genérico")
-    if es_tecnologia or es_cocina_electro or modelo:
-        _agregar_atributo(attributes, "MODEL", modelo or "Sin especificar")
-
-    if es_cocina_electro:
-        # POWER_SUPPLY_TYPE: atributo técnico obligatorio en electrodomésticos
-        # de cocina (ej: licuadoras portátiles MLA104680).
-        titulo = (getattr(objeto, 'nombre', '') or '').lower()
-        es_portatil = any(
-            k in titulo
-            for k in ('portatil', 'portátil', 'inalambric', 'inalámbric',
-                      'recargable', 'bateria', 'batería')
-        )
-        attributes.append({
-            "id": "POWER_SUPPLY_TYPE",
-            "value_name": "Batería recargable" if es_portatil else "Corriente eléctrica",
-        })
-
-    if es_libro:
-        if autor:
-            attributes.append({"id": "AUTHOR", "value_name": autor})
-        if editorial:
-            attributes.append({"id": "PUBLISHER", "value_name": editorial})
-
+    _agregar_atributo(attributes, "MODEL", modelo or "Genérico")
     return attributes
 
 
@@ -226,19 +164,20 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
               objeto, usado SOLO para el reintento cuando MLA rechaza el
               category_id (se predice desde el nombre de la categoría, jamás
               desde el título del ítem).
-            - video_id (str, opcional)
-            - warranty (str, opcional)
-            - attributes (list, opcional): Atributos de categoría. Se completan
-              automáticamente los obligatorios que falten (BRAND, FAMILY_NAME,
-              MODEL, MANUFACTURER...) con valores por defecto seguros.
+            - attributes (list, opcional): Atributos de categoría. Por defecto
+              solo BRAND / MODEL; los obligatorios que falten los completa
+              `completar_attributes_requeridos()` con el catálogo real de la
+              categoría.
             - marca / modelo (str, opcional): datos de identidad del objeto,
-              usados para completar FAMILY_NAME / BRAND / MODEL cuando ML los
-              exige y el atributo no vino en `attributes`.
+              usados para completar BRAND / MODEL cuando ML los exige.
+            - sale_terms (list, opcional): solo WARRANTY_TYPE / WARRANTY_TIME.
 
         El servicio fuerza los defaults de Mercado Libre: currency_id="ARS",
-        buying_mode="buy_it_now", listing_type_id="bronze" (exposición clásica
-        gratuita / baja comisión), condition ("new" si el estado es nuevo, si no
-        "used"), available_quantity (1 por defecto) y shipping mode="me2".
+        buying_mode="buy_it_now", listing_type_id="gold_special" (o el
+        configurado en settings.MERCADOLIBRE_LISTING_TYPE_ID), condition ("new"
+        si el estado es nuevo, si no "used"), available_quantity (1 por defecto),
+        description {"plain_text": ...} y shipping {"mode": "not_specified",
+        "local_pick_up": True}.
 
     Returns:
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
@@ -253,22 +192,20 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         return None
 
     # =====================================================================
-    # BLINDAJE DEL PAYLOAD (anti 400 "body.required_fields" / "Validation error")
+    # BLINDAJE DEL PAYLOAD (anti 400 "body.invalid_fields" / "required_fields")
     # =====================================================================
     # Todo el armado del body (título, moneda, condición, stock, fotos, etc.)
-    # vive en construir_payload_item(): garantiza los campos obligatorios de ML
-    # y aborta con un ValueError descriptivo si algo no se puede resolver.
+    # vive en construir_payload_item(): sanea tipos, aplica la whitelist de
+    # campos de la API y aborta con un ValueError descriptivo si algo falta.
     body = construir_payload_item(item_data)
-    logger.info("Payload POST /items: %s", json.dumps(body, ensure_ascii=False))
 
     # =====================================================================
-    # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA (fix FAMILY_NAME / BRAND / MODEL)
+    # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA
     # =====================================================================
     # GET /categories/{id}/attributes indica qué atributos exige la categoría.
-    # Se completan los que falten con valores por defecto seguros (marca →
-    # BRAND, familia → FAMILY_NAME, modelo → MODEL...). Si la consulta falla
-    # se conserva la lista de `construir_attributes_desde_objeto()` y el
-    # reintento de abajo usa las causas reales del error de Mercado Libre.
+    # Solo se agregan los marcados como obligatorios por el catálogo real. Si la
+    # consulta falla se conserva BRAND / MODEL y el reintento de abajo usa las
+    # causas reales del error de Mercado Libre.
     atributos_completos = completar_attributes_requeridos(
         body.get("attributes"),
         body.get("category_id"),
@@ -287,6 +224,9 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     retry_count = 0
     
     while retry_count < MAX_RETRIES:
+        # Diagnóstico exacto del cuerpo que se envía en CADA intento (el
+        # payload puede mutar entre reintentos).
+        logger.info("Payload ML enviado: %s", json.dumps(body, ensure_ascii=False))
         result = _api_request("POST", "/items", access_token, body)
         retry_count += 1
         
@@ -435,10 +375,11 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
 
     error = extraer_error_ml(result)
     logger.error(
-        "Error al crear ítem en ML: %s | campos_faltantes=%s | detalles=%s | "
-        "respuesta=%s",
+        "Error al crear ítem en ML: %s | campos_faltantes=%s | campos_invalidos=%s | "
+        "detalles=%s | respuesta=%s",
         error["mensaje"],
         error["campos"] or "-",
+        error.get("invalidos") or "-",
         error["detalles"] or "-",
         json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
     )

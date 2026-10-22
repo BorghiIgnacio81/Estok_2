@@ -26,9 +26,10 @@ from ...services.mercadolibre_payload import (
     extraer_error_ml,
     mapear_condition_ml,
 )
+from ...services.mercadolibre_saneamiento import limpiar_titulo
 from ...services.categorias_meli import (
+    garantizar_categoria_hoja_ml,
     normalizar_id_ml,
-    predecir_id_ml,
     resolver_category_id_ml,
 )
 from ...models import Objeto
@@ -151,27 +152,32 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         el NOMBRE de la categoría y se persiste en la BD. Nunca se predice con el
         título del ítem (desviaba publicaciones a categorías absurdas). El
         `category_id` del body solo se acepta si el objeto no tiene categoría.
-        Si no hay forma de resolverla se devuelve 400 con
-        "Falta asignar una categoría de Mercado Libre al objeto".
+        Antes de llamar a ML se verifica que el ID exista y sea una categoría
+        HOJA: si no lo es, se vuelve a predecir; si no hay forma de resolverla se
+        devuelve 400 con "Debes asignar una categoría válida de Mercado Libre".
 
         FOTOS: "pictures" se arma como [{"source": "https://url-publica"}] con
         las fotos reales del objeto (settings.SITE_URL + /media/...), que es lo
         que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
         se envía la clave "pictures" (nunca valores nulos).
 
-        ATRIBUTOS: `construir_attributes_desde_objeto()` garantiza BRAND,
-        FAMILY_NAME y MODEL (con "Genérico"/"Sin especificar" si el objeto no
-        los trae cargados) y `create_item()` completa los que la categoría
-        marque como obligatorios. Sin esto Mercado Libre responde 400 pidiendo
-        el atributo family_name.
+        ATRIBUTOS: `construir_attributes_desde_objeto()` envía SOLO los
+        atributos estándar BRAND y MODEL (con "Genérico" si el objeto no los
+        trae cargados) y `create_item()` agrega únicamente los que el catálogo
+        REAL de la categoría marca como obligatorios
+        (GET /categories/{id}/attributes). Nunca se inventan claves.
 
-        Otros defaults obligatorios (los completa el servicio):
-        currency_id="ARS", buying_mode="buy_it_now", listing_type_id="bronze",
-        available_quantity = objeto.cantidad si existe (si no, 1).
+        Defaults obligatorios (los fuerza `construir_payload_item`):
+        currency_id="ARS", buying_mode="buy_it_now",
+        listing_type_id="gold_special" (o settings.MERCADOLIBRE_LISTING_TYPE_ID),
+        available_quantity = objeto.cantidad (mínimo 1),
+        condition 'new'/'used', description {"plain_text": ...} y
+        shipping {"mode": "not_specified", "local_pick_up": True}.
 
-        ERRORES DE MERCADO LIBRE: las causas del 400/422 se registran con
-        logger.error() y se devuelven al frontend como
-        "Mercado Libre requiere especificar: [campo / campo]".
+        ERRORES DE MERCADO LIBRE: el payload exacto se registra con
+        logger.info("Payload ML enviado: ...") y, ante 400/422, el cuerpo
+        completo de la respuesta con logger.error("Respuesta ML Error: ...").
+        Al frontend se le devuelve el detalle (campos faltantes / inválidos).
         """
         if not has_valid_token(request.user):
             return Response(
@@ -185,10 +191,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         objeto_id = request.data.get('objeto_id')
         title = request.data.get('title', '')
         price = request.data.get('price')
-        description = request.data.get('description', '').strip()
+        description = str(request.data.get('description') or '').strip()
         foto_url = request.data.get('foto_url') or ''
-        # Moneda: MLA Argentina opera estrictamente en ARS (se ignora cualquier otro valor)
-        currency_id = "ARS"
+        # La moneda NO se toma del request: MLA opera estrictamente en ARS y
+        # construir_payload_item() la fuerza siempre a "ARS".
         # Condición pedida explícitamente por el modal. Si no viene (o no es un
         # valor nativo), más abajo se mapea el estado del objeto:
         # 'nuevo' → 'new'; cualquier otro estado → 'used'.
@@ -209,9 +215,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Título definitivo: usar el del request o el nombre del objeto,
-        # truncado estrictamente a 60 caracteres (límite de la API de ML)
-        title = (title or objeto.nombre or '').strip()[:60]
+        # Título definitivo: el del request o el nombre del objeto, siempre
+        # como texto plano (sin HTML) y truncado a 60 caracteres (límite de ML)
+        title = limpiar_titulo(title or objeto.nombre)
 
         # Precio: float válido y estrictamente mayor a 0 (validación temprana
         # antes de pegarle a Mercado Libre)
@@ -245,10 +251,12 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "'pictures' (Mercado Libre decidirá si lo exige).", objeto.id,
             )
 
-        # ── Categoría de Mercado Libre (mapeo dinámico y estricto) ───────────
-        # 1) Se usa `Categoria.mercadolibre_category_id` tal cual.
+        # ── Categoría de Mercado Libre (mapeo dinámico, estricto y hoja) ──────
+        # 1) Se usa `Categoria.mercadolibre_category_id` si es válido.
         # 2) Sin mapeo: se predice con el NOMBRE de la categoría y se persiste.
-        # 3) Nunca se predice desde el título del ítem.
+        # 3) Se verifica contra la API que el ID exista y NO tenga subcategorías
+        #    (ML rechaza con 400 publicar en categorías contenedor).
+        # 4) Nunca se predice desde el título del ítem.
         access_token = get_valid_access_token(request.user)
         category_id = resolver_category_id_ml(
             objeto.categoria,
@@ -259,28 +267,22 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             # Solo si el objeto no tiene categoría se acepta un ID del request.
             category_id = normalizar_id_ml(request.data.get('category_id')) or category_id
 
+        category_id = garantizar_categoria_hoja_ml(
+            objeto.categoria, category_id, access_token=access_token or "",
+        )
         if not normalizar_id_ml(category_id):
-            # Último intento: predicción automática con el NOMBRE de la categoría.
-            category_id = predecir_id_ml(
-                objeto.categoria.nombre if objeto.categoria else "",
-                access_token=access_token or "",
-            )
-            logger.warning(
-                "category_id ausente para el objeto %s: predicción automática → %s",
-                objeto.id, category_id,
-            )
-        if not normalizar_id_ml(category_id):
-            # Mercado Libre rechaza el POST /items con "body.required_fields".
+            # Se aborta ANTES de llamar a ML (evita 400 body.invalid_fields /
+            # body.required_fields por category_id vacío o no publicable).
             return Response(
                 {
                     "success": False,
-                    "error": "Falta asignar una categoría de Mercado Libre al objeto",
+                    "error": "Debes asignar una categoría válida de Mercado Libre",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Crear ítem en ML con payload blindado (title ≤ 60 chars, moneda ARS,
-        # condition nativa, stock, attributes dinámicos y modo de compra fijo)
+        # Payload para el servicio: solo datos crudos del objeto. El saneamiento
+        # de tipos y los defaults obligatorios viven en construir_payload_item().
         item_data = {
             "title": title,
             "category_id": category_id,
@@ -288,12 +290,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "marca": (getattr(objeto, 'marca', '') or '').strip(),
             "modelo": (getattr(objeto, 'modelo', '') or '').strip(),
             "price": price,
-            "currency_id": currency_id,
             "available_quantity": cantidad_disponible_ml(objeto),
-            "description": description,
+            "description": description or (getattr(objeto, 'descripcion', '') or objeto.nombre),
             "condition": condition,
-            "buying_mode": "buy_it_now",
-            "listing_type_id": "bronze",
             "pictures": pictures,
             "attributes": construir_attributes_desde_objeto(objeto, category_id),
         }
@@ -329,14 +328,17 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             })
 
         # ── Error de Mercado Libre (400/422): causas detalladas ──────────────
-        # extraer_error_ml() normaliza la respuesta de ML: si faltó un campo
-        # obligatorio devuelve "Mercado Libre requiere especificar: [campo]".
+        # extraer_error_ml() normaliza la respuesta de ML: devuelve el campo que
+        # falta ("requiere especificar") o el que fue rechazado
+        # ("rechazó los campos", origen del body.invalid_fields) y el detalle
+        # completo de cada causa para que el frontend sepa EXACTAMENTE qué pasó.
         error_ml = extraer_error_ml(result)
         logger.error(
             "Error al publicar en ML (objeto %s, categoría %s, condition %s): %s "
-            "| campos_faltantes=%s | respuesta=%s",
+            "| campos_faltantes=%s | campos_invalidos=%s | respuesta=%s",
             objeto.id, category_id, condition, error_ml["mensaje"],
             error_ml["campos"] or "-",
+            error_ml.get("invalidos") or "-",
             json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
         )
 
@@ -349,6 +351,8 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "success": False,
                 "error": mensaje,
                 "campos_faltantes": error_ml["campos"],
+                "campos_invalidos": error_ml.get("invalidos", []),
+                "detalles": error_ml["detalles"],
                 "ml_response": result,
             },
             status=status.HTTP_400_BAD_REQUEST,

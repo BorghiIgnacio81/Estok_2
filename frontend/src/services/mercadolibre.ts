@@ -45,7 +45,19 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
 
   const result = await response.json();
   if (!response.ok || !result.success) {
-    throw new Error(result.error || result.ml_response?.message || `Error (${response.status})`);
+    // Detalle específico devuelto por el backend a partir de la respuesta de
+    // Mercado Libre: `campos_invalidos` / `campos_faltantes` / `detalles`.
+    const campos: string[] = [
+      ...(result.campos_invalidos ?? []),
+      ...(result.campos_faltantes ?? []),
+    ];
+    const detalle = campos.length
+      ? ` [${campos.join(', ')}]`
+      : Array.isArray(result.detalles) && result.detalles.length
+        ? ` (${result.detalles.join('; ')})`
+        : '';
+    const base = result.error || result.ml_response?.message || `Error (${response.status})`;
+    throw new Error(`${base}${detalle}`);
   }
 
   return result;
