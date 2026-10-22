@@ -132,10 +132,13 @@ function piePublicacionHtml(obj: ObjetoDecision): string {
         🔗 ${escapar(obj.estado_publicacion_label || 'Publicado')} · listo para vender
       </div>`;
   }
+  // TÍTULO DE SECCIÓN, NO un botón: sin fondo de CTA, sin borde interactivo,
+  // sin hover ni cursor pointer. Antes compartía el estilo del botón
+  // «📢 Publicar / Generar Anuncio» y parecía clickeable.
   return `
-    <div class="bg-emerald-600 text-white rounded-lg p-2 text-[11px] font-bold text-center tracking-wide">
-      📢 LISTO PARA PUBLICAR
-    </div>`;
+    <h3 class="pt-1.5 border-t border-emerald-200 text-[11px] font-semibold uppercase tracking-wider text-emerald-900/70">
+      📢 Listo para publicar
+    </h3>`;
 }
 
 /** Acciones rápidas: publicar/generar anuncio + acceso a la ficha. */

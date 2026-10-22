@@ -159,6 +159,12 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
         se envía la clave "pictures" (nunca valores nulos).
 
+        ATRIBUTOS: `construir_attributes_desde_objeto()` garantiza BRAND,
+        FAMILY_NAME y MODEL (con "Genérico"/"Sin especificar" si el objeto no
+        los trae cargados) y `create_item()` completa los que la categoría
+        marque como obligatorios. Sin esto Mercado Libre responde 400 pidiendo
+        el atributo family_name.
+
         Otros defaults obligatorios (los completa el servicio):
         currency_id="ARS", buying_mode="buy_it_now", listing_type_id="bronze",
         available_quantity = objeto.cantidad si existe (si no, 1).
@@ -279,6 +285,8 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "title": title,
             "category_id": category_id,
             "categoria_nombre": objeto.categoria.nombre if objeto.categoria else "",
+            "marca": (getattr(objeto, 'marca', '') or '').strip(),
+            "modelo": (getattr(objeto, 'modelo', '') or '').strip(),
             "price": price,
             "currency_id": currency_id,
             "available_quantity": cantidad_disponible_ml(objeto),

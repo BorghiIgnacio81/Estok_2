@@ -13,6 +13,13 @@ from typing import Optional, Dict, Any
 from .mercadolibre_oauth import get_valid_access_token
 from .mercadolibre_payload import construir_payload_item, extraer_error_ml
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
+from .mercadolibre_atributos import (
+    atributos_faltantes_por_causas,
+    atributos_invalidos_por_causas,
+    completar_attributes_requeridos,
+    familia_por_defecto,
+    menciona_family_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +91,24 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
+def _agregar_atributo(attributes: list, atributo_id: str, value_name) -> bool:
+    """
+    Agrega un atributo a la lista sin duplicar IDs y sin valores vacíos.
+
+    Devuelve True si lo agregó. Se usa para garantizar los atributos de
+    identidad obligatorios (BRAND / FAMILY_NAME / MODEL) sin pisar ni repetir
+    los valores que ya vengan del objeto.
+    """
+    valor = str(value_name or '').strip()
+    aid = str(atributo_id or '').strip().upper()
+    if not aid or not valor:
+        return False
+    if any(str(a.get("id", "")).strip().upper() == aid for a in attributes):
+        return False
+    attributes.append({"id": aid, "value_name": valor})
+    return True
+
+
 def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     """
     Construye la lista "attributes" de la API de MercadoLibre a partir de un
@@ -93,6 +118,14 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     - Tecnología (Computación/Electrónica) y electrodomésticos/cocina:
       marca → BRAND y modelo → MODEL (rellenados con "Genérico"/"Sin
       especificar" si el formulario viene vacío).
+    - SIEMPRE se garantizan los atributos de identidad que Mercado Libre pide
+      como obligatorios en la mayoría de las categorías: BRAND, FAMILY_NAME
+      (marca/familia del producto) y MODEL cuando aplica. Si el objeto no los
+      trae cargados se usa un valor seguro ("Genérico", "Sin especificar" o el
+      nombre de la categoría): un atributo obligatorio ausente hace que ML
+      responda HTTP 400 "Validation error" (bug real: family_name).
+      Los obligatorios específicos de cada categoría (MANUFACTURER, COLOR,
+      etc.) los completa `completar_attributes_requeridos()` en create_item.
     - Electrodomésticos/cocina (ej: MLA104680 Licuadoras): añade el atributo
       obligatorio POWER_SUPPLY_TYPE ("Batería recargable" si el título indica
       portátil/inalámbrico, si no "Corriente eléctrica").
@@ -138,12 +171,18 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     modelo = (getattr(objeto, 'modelo', '') or '').strip()
     autor = (getattr(objeto, 'autor', '') or '').strip()
     editorial = (getattr(objeto, 'editorial', '') or '').strip()
+    nombre_categoria = (
+        objeto.categoria.nombre.strip() if objeto.categoria and objeto.categoria.nombre else ''
+    )
 
-    if es_tecnologia or es_cocina_electro:
-        # BRAND/MODEL: rellenar con texto genérico si el formulario viene vacío
-        # para no faltar a requisitos obligatorios de estas categorías.
-        attributes.append({"id": "BRAND", "value_name": marca or "Genérico"})
-        attributes.append({"id": "MODEL", "value_name": modelo or "Sin especificar"})
+    # BRAND / FAMILY_NAME / MODEL: atributos de identidad que Mercado Libre
+    # exige en la mayoría de las categorías. Se AGREGAN SIEMPRE con un valor
+    # seguro cuando el objeto no los trae cargados (bug real: ML rechazaba la
+    # publicación pidiendo el atributo obligatorio family_name).
+    _agregar_atributo(attributes, "BRAND", marca or "Genérico")
+    _agregar_atributo(attributes, "FAMILY_NAME", marca or nombre_categoria or "Genérico")
+    if es_tecnologia or es_cocina_electro or modelo:
+        _agregar_atributo(attributes, "MODEL", modelo or "Sin especificar")
 
     if es_cocina_electro:
         # POWER_SUPPLY_TYPE: atributo técnico obligatorio en electrodomésticos
@@ -189,7 +228,12 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
               desde el título del ítem).
             - video_id (str, opcional)
             - warranty (str, opcional)
-            - attributes (list, opcional): Atributos de categoría
+            - attributes (list, opcional): Atributos de categoría. Se completan
+              automáticamente los obligatorios que falten (BRAND, FAMILY_NAME,
+              MODEL, MANUFACTURER...) con valores por defecto seguros.
+            - marca / modelo (str, opcional): datos de identidad del objeto,
+              usados para completar FAMILY_NAME / BRAND / MODEL cuando ML los
+              exige y el atributo no vino en `attributes`.
 
         El servicio fuerza los defaults de Mercado Libre: currency_id="ARS",
         buying_mode="buy_it_now", listing_type_id="bronze" (exposición clásica
@@ -217,7 +261,29 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     body = construir_payload_item(item_data)
     logger.info("Payload POST /items: %s", json.dumps(body, ensure_ascii=False))
 
-    MAX_RETRIES = 4
+    # =====================================================================
+    # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA (fix FAMILY_NAME / BRAND / MODEL)
+    # =====================================================================
+    # GET /categories/{id}/attributes indica qué atributos exige la categoría.
+    # Se completan los que falten con valores por defecto seguros (marca →
+    # BRAND, familia → FAMILY_NAME, modelo → MODEL...). Si la consulta falla
+    # se conserva la lista de `construir_attributes_desde_objeto()` y el
+    # reintento de abajo usa las causas reales del error de Mercado Libre.
+    atributos_completos = completar_attributes_requeridos(
+        body.get("attributes"),
+        body.get("category_id"),
+        access_token=access_token,
+        marca=item_data.get("marca", ""),
+        modelo=item_data.get("modelo", ""),
+        nombre_categoria=item_data.get("categoria_nombre", ""),
+        titulo=body.get("title", ""),
+    )
+    if atributos_completos:
+        body["attributes"] = atributos_completos
+
+    # 6 intentos: los 4 históricos (categoría, condition, listing_type,
+    # POWER_SUPPLY_TYPE) + atributos obligatorios + family_name de nivel raíz.
+    MAX_RETRIES = 6
     retry_count = 0
     
     while retry_count < MAX_RETRIES:
@@ -298,6 +364,62 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             body.setdefault("attributes", []).append(
                 {"id": "POWER_SUPPLY_TYPE", "value_name": "Corriente eléctrica"}
             )
+            continue
+
+        # Intento 5: Mercado Libre rechazó un atributo por no pertenecer a la
+        # categoría (ej: FAMILY_NAME en categorías que no lo definen). Se quita
+        # ese atributo y se reintenta en vez de abortar la publicación.
+        invalidos = atributos_invalidos_por_causas(
+            causes, body.get("attributes", [])
+        )
+        if invalidos:
+            logger.info(
+                "Reintento %d: quitando atributos inválidos para la categoría %s: %s",
+                retry_count, body.get("category_id"), ", ".join(invalidos),
+            )
+            restantes = [
+                a for a in body.get("attributes", [])
+                if str(a.get("id", "")).strip().upper() not in invalidos
+            ]
+            if restantes:
+                body["attributes"] = restantes
+            else:
+                body.pop("attributes", None)
+            continue
+
+        # Intento 6: atributo obligatorio de identidad ausente que ML pide por
+        # nombre (FAMILY_NAME, BRAND, MODEL, MANUFACTURER...). Cubre el caso en
+        # que la consulta de atributos de la categoría no esté disponible.
+        faltantes = atributos_faltantes_por_causas(
+            causes,
+            body.get("attributes", []),
+            marca=item_data.get("marca", ""),
+            modelo=item_data.get("modelo", ""),
+            nombre_categoria=item_data.get("categoria_nombre", ""),
+            titulo=body.get("title", ""),
+        )
+        if faltantes:
+            logger.info(
+                "Reintento %d: añadiendo atributos obligatorios %s",
+                retry_count, ", ".join(a["id"] for a in faltantes),
+            )
+            body.setdefault("attributes", []).extend(faltantes)
+            continue
+
+        # Intento 7: family_name de nivel raíz (publicaciones de catálogo /
+        # User Products de ML, que no viajan dentro de "attributes").
+        if menciona_family_name(causes) and not body.get("family_name"):
+            familia = familia_por_defecto(
+                marca=item_data.get("marca", ""),
+                modelo=item_data.get("modelo", ""),
+                nombre_categoria=item_data.get("categoria_nombre", ""),
+                titulo=body.get("title", ""),
+            )
+            logger.info(
+                "Reintento %d: añadiendo family_name de nivel raíz: %s",
+                retry_count, familia,
+            )
+            body["family_name"] = familia
             continue
 
         # Si el error no es de los que sabemos manejar, salir
