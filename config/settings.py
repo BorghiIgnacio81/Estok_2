@@ -395,3 +395,45 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER
 # Timeout de conexión SMTP en segundos: evita que un cuelgue del servidor de
 # correo deje un worker de Gunicorn bloqueado hasta que el proxy corte con 502.
 EMAIL_TIMEOUT = 10
+
+# =============================================================================
+# LOGGING - Diagnóstico de publicaciones en Mercado Libre
+# =============================================================================
+# Los módulos de publicación registran en INFO el payload final y el array de
+# `attributes` generado dinámicamente. Django NO configura logging por defecto
+# (el root queda en WARNING), así que sin esto los logger.info() no aparecen en
+# `docker logs`. La configuración está ACOTADA a Mercado Libre para no inundar
+# el log del resto de la aplicación.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'estok': {
+            'format': '[{levelname}] {asctime} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'estok_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'estok',
+        },
+    },
+    'loggers': {
+        'inventario.services.mercadolibre_api': {
+            'handlers': ['estok_console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'inventario.services.mercadolibre_atributos': {
+            'handlers': ['estok_console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'inventario.services.mercadolibre_atributos_reintentos': {
+            'handlers': ['estok_console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

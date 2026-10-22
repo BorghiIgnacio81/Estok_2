@@ -21,10 +21,15 @@ from .mercadolibre_payload import (
 )
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
 from .mercadolibre_atributos import (
-    atributos_faltantes_por_causas,
-    atributos_invalidos_por_causas,
     completar_attributes_requeridos,
+    ids_requeridos,
 )
+from .mercadolibre_atributos_reintentos import (
+    ACCION_CORTAR,
+    ACCION_REINTENTAR,
+    aplicar_causas_atributos,
+)
+from .mercadolibre_atributos_valores import construir_datos_objeto
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +137,9 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
 
     - BRAND: solo si el objeto tiene marca cargada.
     - MODEL: solo si el objeto tiene modelo cargado.
-    - Sin datos reales NO se envía la clave `attributes` (los valores genéricos
-      inventados son una fuente real de rechazos en ML).
+    - Acá NO se inventan valores: los atributos obligatorios de la categoría los
+      completa `completar_attributes_requeridos()` con un valor válido según el
+      `value_type` del catálogo (nunca texto libre en atributos de lista).
 
     Args:
         objeto: Instancia de Objeto (puede ser None).
@@ -240,23 +246,35 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     body = construir_payload_item(item_data)
 
     # =====================================================================
-    # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA
+    # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA (100% DINÁMICO)
     # =====================================================================
-    # GET /categories/{id}/attributes indica qué atributos exige la categoría.
-    # Solo se agregan los marcados como obligatorios por el catálogo real. Si la
-    # consulta falla se conserva BRAND / MODEL y el reintento de abajo usa las
-    # causas reales del error de Mercado Libre.
-    atributos_completos = completar_attributes_requeridos(
-        body.get("attributes"),
+    # Datos REALES del objeto (marca, modelo, material, talle, especificaciones)
+    # + atributos base que ya trae el objeto. El catálogo de la categoría se
+    # consulta en cada publicación: GET /categories/{id}/attributes (con caché)
+    # y solo se completan los atributos con `tags.required`.
+    datos_atributos = construir_datos_objeto(item_data, body.get("title", ""))
+    atributos_base = list(item_data.get("attributes") or [])
+
+    def _atributos_para(categoria: str) -> list:
+        """Atributos válidos para la categoría: base + obligatorios del catálogo."""
+        return completar_attributes_requeridos(
+            atributos_base,
+            categoria,
+            access_token=access_token,
+            datos=datos_atributos,
+        )
+
+    body["attributes"] = _atributos_para(body["category_id"])
+    if not body["attributes"]:
+        body.pop("attributes", None)
+
+    # Log EXPLÍCITO del array generado dinámicamente antes del POST: permite
+    # auditar exactamente qué atributos y valores se le mandan a Mercado Libre.
+    logger.info(
+        "Attributes dinámicos para la categoría %s (obligatorios del catálogo ML): %s",
         body.get("category_id"),
-        access_token=access_token,
-        marca=item_data.get("marca", ""),
-        modelo=item_data.get("modelo", ""),
-        nombre_categoria=item_data.get("categoria_nombre", ""),
-        titulo=body.get("title", ""),
+        json.dumps(body.get("attributes", []), ensure_ascii=False),
     )
-    if atributos_completos:
-        body["attributes"] = atributos_completos
 
     # 8 intentos: categoría, condition, listing_type, POWER_SUPPLY_TYPE,
     # atributos inválidos, atributos obligatorios y campos de primer nivel
@@ -266,6 +284,11 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     # Descripción que ML rechazó en el body: se crea aparte con
     # POST /items/{id}/description una vez creado el ítem.
     descripcion_pendiente = ""
+    # Anti-bucle required_fields ↔ invalid_fields: IDs obligatorios de la
+    # categoría actual, atributos que ML ya rechazó y correcciones ya intentadas.
+    requeridos = ids_requeridos(body["category_id"], access_token)
+    atributos_descartados: set = set()
+    atributos_corregidos: set = set()
 
     while retry_count < MAX_RETRIES:
         # Garantía final: NINGÚN reintento puede agregar una clave de primer
@@ -311,6 +334,20 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
                 logger.info("Reintento %d: categoría predicha %s → %s", 
                             retry_count, body.get("category_id"), predicted)
                 body["category_id"] = predicted
+                # La categoría cambió: los obligatorios son OTROS. Se
+                # reconstruye `attributes` con el catálogo de la nueva categoría
+                # (si no, ML responde required_fields ↔ invalid_fields).
+                body["attributes"] = _atributos_para(predicted)
+                if not body["attributes"]:
+                    body.pop("attributes", None)
+                requeridos = ids_requeridos(predicted, access_token)
+                atributos_descartados.clear()
+                atributos_corregidos.clear()
+                logger.info(
+                    "Attributes recalculados para la categoría %s: %s",
+                    predicted,
+                    json.dumps(body.get("attributes", []), ensure_ascii=False),
+                )
                 continue
         
         # Intento 2: cambiar condition de used a new
@@ -354,45 +391,27 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             )
             continue
 
-        # Intento 5: Mercado Libre rechazó un atributo por no pertenecer a la
-        # categoría (ej: FAMILY_NAME en categorías que no lo definen). Se quita
-        # ese atributo y se reintenta en vez de abortar la publicación.
-        invalidos = atributos_invalidos_por_causas(
-            causes, body.get("attributes", [])
+        # Intentos 5 y 6: corrección/descarte de atributos rechazados y adición
+        # de obligatorios faltantes, guiados por las causas REALES de ML. La
+        # lógica anti-bucle vive en mercadolibre_atributos_reintentos.py.
+        decision = aplicar_causas_atributos(
+            causes,
+            body.get("attributes", []),
+            body.get("category_id"),
+            access_token,
+            datos_atributos,
+            requeridos,
+            atributos_corregidos,
+            atributos_descartados,
         )
-        if invalidos:
-            logger.info(
-                "Reintento %d: quitando atributos inválidos para la categoría %s: %s",
-                retry_count, body.get("category_id"), ", ".join(invalidos),
-            )
-            restantes = [
-                a for a in body.get("attributes", [])
-                if str(a.get("id", "")).strip().upper() not in invalidos
-            ]
-            if restantes:
-                body["attributes"] = restantes
+        if decision["accion"] == ACCION_REINTENTAR:
+            if decision["attributes"]:
+                body["attributes"] = decision["attributes"]
             else:
                 body.pop("attributes", None)
             continue
-
-        # Intento 6: atributo obligatorio de identidad ausente que ML pide por
-        # nombre (FAMILY_NAME, BRAND, MODEL, MANUFACTURER...). Cubre el caso en
-        # que la consulta de atributos de la categoría no esté disponible.
-        faltantes = atributos_faltantes_por_causas(
-            causes,
-            body.get("attributes", []),
-            marca=item_data.get("marca", ""),
-            modelo=item_data.get("modelo", ""),
-            nombre_categoria=item_data.get("categoria_nombre", ""),
-            titulo=body.get("title", ""),
-        )
-        if faltantes:
-            logger.info(
-                "Reintento %d: añadiendo atributos obligatorios %s",
-                retry_count, ", ".join(a["id"] for a in faltantes),
-            )
-            body.setdefault("attributes", []).extend(faltantes)
-            continue
+        if decision["accion"] == ACCION_CORTAR:
+            break
 
         # Intento 7: campo de PRIMER NIVEL rechazado (body.invalid_fields). Se
         # usa la causa REAL de ML (campo entre corchetes o `references`) para

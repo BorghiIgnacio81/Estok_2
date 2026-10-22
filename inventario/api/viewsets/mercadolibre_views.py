@@ -162,11 +162,13 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
         se envía la clave "pictures" (nunca valores nulos).
 
-        ATRIBUTOS: `construir_attributes_desde_objeto()` envía SOLO datos reales
-        del objeto (BRAND si tiene marca, MODEL si tiene modelo): nunca valores
-        genéricos inventados. `create_item()` agrega únicamente los atributos
-        que el catálogo REAL de la categoría marca como obligatorios
-        (GET /categories/{id}/attributes).
+        ATRIBUTOS: `construir_attributes_desde_objeto()` envía los datos REALES
+        del objeto (BRAND si tiene marca, MODEL si tiene modelo). Después,
+        `create_item()` consulta GET /categories/{id}/attributes y agrega TODOS
+        los atributos obligatorios de la categoría con un valor VÁLIDO según su
+        `value_type` (value_id de catálogo para listas, "No" para booleanos,
+        número + unidad, o el dato real / default "Sin marca" / "Genérico").
+        Así se evita el bucle body.required_fields ↔ body.invalid_fields.
 
         Defaults obligatorios (los fuerza `construir_payload_item`):
         currency_id="ARS", buying_mode="buy_it_now",
@@ -288,8 +290,19 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "title": title,
             "category_id": category_id,
             "categoria_nombre": objeto.categoria.nombre if objeto.categoria else "",
+            "nombre": (getattr(objeto, 'nombre', '') or '').strip(),
             "marca": (getattr(objeto, 'marca', '') or '').strip(),
             "modelo": (getattr(objeto, 'modelo', '') or '').strip(),
+            # Datos REALES adicionales: alimentan los atributos obligatorios que
+            # exige el catálogo de la categoría (COLOR, SIZE, MATERIAL, etc.).
+            "material": (getattr(objeto, 'material', '') or '').strip(),
+            "tamano": (getattr(objeto, 'tamano', '') or '').strip(),
+            "idioma": (getattr(objeto, 'idioma', '') or '').strip(),
+            "editorial": (getattr(objeto, 'editorial', '') or '').strip(),
+            "numero_serie": (getattr(objeto, 'numero_serie', '') or '').strip(),
+            "artista_fabricante": (getattr(objeto, 'artista_fabricante', '') or '').strip(),
+            "peso": str(getattr(objeto, 'peso', '') or '').strip(),
+            "especificaciones": getattr(objeto, 'especificaciones', None) or {},
             "price": price,
             "available_quantity": cantidad_disponible_ml(objeto),
             "description": description or (getattr(objeto, 'descripcion', '') or objeto.nombre),

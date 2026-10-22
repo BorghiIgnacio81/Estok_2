@@ -1,29 +1,31 @@
 """
-Atributos obligatorios de la categoría de Mercado Libre (fix FAMILY_NAME).
+Atributos obligatorios de la categoría de Mercado Libre (100% dinámicos).
 
-Mercado Libre rechaza POST /items con HTTP 400 "Validation error" cuando falta
-un atributo obligatorio de la categoría destino. El caso reportado es
-FAMILY_NAME (marca/familia del producto), pero el mismo problema aparece con
-BRAND / MODEL / MANUFACTURER / PRODUCT_NAME según la categoría.
+Mercado Libre rechaza POST /items con HTTP 400 "body.required_fields" cuando
+falta un atributo obligatorio de la categoría destino y con
+"body.invalid_fields" cuando el valor no pertenece al catálogo de esa categoría
+(ej: enviar "Genérico" en un atributo de lista). El bucle entre ambos errores se
+evita construyendo cada valor según el `value_type` real del atributo.
 
 Este módulo centraliza el blindaje de la lista `attributes`:
 
 1. `obtener_atributos_categoria()`: GET /categories/{id}/attributes (endpoint
    público), con caché en memoria por categoría para no golpear la API en cada
    publicación y con enfriamiento si la API falla.
-2. `completar_attributes_requeridos()`: agrega a la lista `attributes` los
-   atributos obligatorios de la categoría que falten, con VALORES POR DEFECTO
-   SEGUROS (marca → BRAND / MANUFACTURER, familia → FAMILY_NAME, modelo →
-   MODEL, ...). Nunca duplica ni pisa los valores ya cargados en el objeto.
+2. `completar_attributes_requeridos()`: agrega SOLO los atributos marcados con
+   `tags.required` en el catálogo real, con el dato REAL del objeto si existe y,
+   si no, un valor válido por tipo (value_id de lista, "No" booleano, número +
+   unidad o texto por defecto: "Sin marca", "Genérico", "Sin especificar").
+   Nunca duplica ni pisa los valores ya cargados en el objeto.
 3. `atributos_faltantes_por_causas()` y `atributos_invalidos_por_causas()`:
    ayudantes para que `create_item` reintente con evidencia REAL de la respuesta
    de Mercado Libre (por si la consulta de atributos de la categoría no está
-   disponible).
+   disponible), sin re-agregar atributos que ML ya rechazó.
+4. `ids_requeridos()` y `valor_catalogo_atributo()`: soporte del anti-bucle
+   `required_fields` ↔ `invalid_fields`.
 
-Regla de honestidad: NO se inventan valores para atributos que exigen un dato
-verificable (GTIN/ISBN, talles, compatibilidades de vehículos, etc.). Solo se
-completan atributos de identidad de producto y, en atributos de lista, se elige
-una opción neutra SOLO si la categoría la ofrece ("Otro", "No aplica", ...).
+Los valores en sí (lista / booleano / numérico / texto y datos del objeto) viven
+en mercadolibre_atributos_valores.py.
 
 Usado por:
 - inventario/services/mercadolibre_api.py (create_item + reintentos).
@@ -38,6 +40,13 @@ import urllib.request
 from typing import Dict, List, Optional
 
 from .mercadolibre_prediccion import ML_API_BASE
+from .mercadolibre_atributos_valores import (
+    ATRIBUTOS_OBJETO,
+    construir_datos_objeto,
+    normalizar_id as _normalizar_id,
+    valor_para_atributo,
+    valor_por_defecto,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,29 +57,9 @@ TIMEOUT_CATEGORIA = 10       # segundos por consulta a /categories/{id}/attribut
 CACHE_MAX_CATEGORIAS = 200   # tope del caché en memoria (una entrada por categoría)
 ENFRIAMIENTO_FALLO = 300     # segundos sin reintentar una categoría que falló
 
-# Valor genérico para atributos de identidad de texto libre sin dato cargado.
-VALOR_GENERICO = "Genérico"
-
-# Fuente de cada atributo de identidad + valor por defecto cuando viene vacío.
-#   marca / modelo / familia / nombre → campos del objeto o su categoría.
-ATRIBUTOS_IDENTIDAD = {
-    "BRAND": ("marca", VALOR_GENERICO),
-    "FAMILY_NAME": ("familia", VALOR_GENERICO),
-    "MANUFACTURER": ("marca", VALOR_GENERICO),
-    "MODEL": ("modelo", "Sin especificar"),
-    "MODEL_NAME": ("modelo", "Sin especificar"),
-    "LINE": ("marca", "Genérica"),
-    "PART_NUMBER": ("modelo", "Sin especificar"),
-    "MPN": ("modelo", "Sin especificar"),
-    "PRODUCT_NAME": ("nombre", "Producto"),
-}
-
-# Opciones neutras aceptables en atributos de lista (value_type = "list").
-OPCIONES_NEUTRAS = (
-    "otro", "otra", "otros", "otras", "no aplica", "no corresponde",
-    "sin marca", "generico", "genérico", "generica", "genérica",
-    "universal", "estandar", "estándar", "sin especificar",
-)
+# Los valores de cada atributo (lista / booleano / numérico / texto) y los datos
+# reales del objeto viven en mercadolibre_atributos_valores.py: acá solo se
+# consulta el catálogo de la categoría y se decide QUÉ atributos completar.
 
 # Palabras que indican que Mercado Libre está pidiendo un atributo faltante.
 _SENALES_FALTANTE = (
@@ -78,7 +67,9 @@ _SENALES_FALTANTE = (
 )
 
 # IDs de atributo dentro de un mensaje ("The attributes [BRAND] are required").
-_RE_ID_ATRIBUTO = re.compile(r"\b([A-Z][A-Z0-9_]{2,})\b")
+# Mercado Libre también los nombra en minúsculas ("[family_name]"), por eso se
+# aceptan ambos formatos y se normalizan a MAYÚSCULAS al extraerlos.
+_RE_ID_ATRIBUTO = re.compile(r"\b([A-Za-z][A-Za-z0-9_]{2,})\b")
 
 # Caché en memoria: category_id → lista de atributos de la categoría.
 _CACHE_ATRIBUTOS: Dict[str, List[dict]] = {}
@@ -89,11 +80,6 @@ _CACHE_FALLOS: Dict[str, float] = {}
 # =============================================================================
 # CONSULTA DE ATRIBUTOS DE LA CATEGORÍA
 # =============================================================================
-
-def _normalizar_id(valor) -> str:
-    """ID de atributo normalizado (mayúsculas, sin espacios)."""
-    return str(valor or "").strip().upper()
-
 
 def obtener_atributos_categoria(category_id, access_token: str = "") -> List[dict]:
     """
@@ -148,9 +134,64 @@ def obtener_atributos_categoria(category_id, access_token: str = "") -> List[dic
 
 
 def _es_requerido(atributo: dict) -> bool:
-    """True si el atributo de categoría está marcado como obligatorio por ML."""
+    """
+    True si el atributo de categoría está marcado como obligatorio por ML.
+
+    El catálogo real lo informa en `tags.required` (a veces como lista, a veces
+    como dict) y, de forma defensiva, también se acepta `required: true` en el
+    primer nivel o la palabra "required" dentro de `hierarchy`.
+    """
     tags = atributo.get("tags") or {}
-    return bool(tags.get("required"))
+    if isinstance(tags, dict):
+        if str(tags.get("required")).strip().lower() in ("true", "1", "yes"):
+            return True
+    elif isinstance(tags, list):
+        if any(str(tag).strip().lower() == "required" for tag in tags):
+            return True
+    if atributo.get("required") is True:
+        return True
+    return "required" in str(atributo.get("hierarchy") or "").strip().lower()
+
+
+def _definicion_por_id(definidos, atributo_id) -> Optional[dict]:
+    """Definición del catálogo para un ID de atributo (None si no existe)."""
+    aid = _normalizar_id(atributo_id)
+    if not aid:
+        return None
+    for atributo in definidos or []:
+        if isinstance(atributo, dict) and _normalizar_id(atributo.get("id")) == aid:
+            return atributo
+    return None
+
+
+def ids_requeridos(category_id, access_token: str = "") -> set:
+    """IDs de atributo que el catálogo REAL de la categoría marca como obligatorios."""
+    return {
+        _normalizar_id(atributo.get("id"))
+        for atributo in obtener_atributos_categoria(category_id, access_token)
+        if isinstance(atributo, dict) and _es_requerido(atributo)
+    }
+
+
+def valor_catalogo_atributo(
+    atributo_id,
+    category_id,
+    access_token: str = "",
+    datos: Optional[dict] = None,
+) -> Optional[dict]:
+    """
+    Valor SOLO de catálogo para un atributo que Mercado Libre rechazó.
+
+    Se usa para corregir UNA vez el valor de un atributo obligatorio (elegir un
+    `value_id` válido en lugar del dato real del objeto) antes de descartarlo y
+    evitar el bucle `required_fields` ↔ `invalid_fields`.
+    """
+    definicion = _definicion_por_id(
+        obtener_atributos_categoria(category_id, access_token), atributo_id
+    )
+    if definicion is None:
+        return None
+    return valor_para_atributo(definicion, datos, preferir_catalogo=True)
 
 
 def _ids_desde_texto(valor) -> List[str]:
@@ -169,88 +210,8 @@ def _ids_desde_texto(valor) -> List[str]:
         return encontrados
     if not valor:
         return []
-    return _RE_ID_ATRIBUTO.findall(str(valor))
-
-
-def _valor_desde_campos(
-    fuente: str,
-    valor_defecto: str,
-    marca: str,
-    modelo: str,
-    nombre_categoria: str,
-    titulo: str,
-) -> str:
-    """Resuelve el valor por defecto de un atributo de identidad."""
-    campos = {
-        "marca": marca,
-        "modelo": modelo,
-        "familia": marca or nombre_categoria or titulo,
-        "nombre": nombre_categoria or titulo,
-        "titulo": titulo,
-    }
-    valor = str(campos.get(fuente, "") or "").strip()
-    return valor or valor_defecto
-
-
-def _opcion_neutra(atributo: dict) -> Optional[dict]:
-    """
-    Devuelve `{"value_id", "value_name"}` con la primera opción neutra que
-    ofrezca un atributo de lista (ej: "Otro", "No aplica"), o None.
-    """
-    for opcion in atributo.get("values") or []:
-        if not isinstance(opcion, dict):
-            continue
-        nombre = str(opcion.get("name") or "").strip().lower()
-        valor_id = str(opcion.get("id") or "").strip()
-        if not valor_id:
-            continue
-        if nombre in OPCIONES_NEUTRAS or valor_id.lower() in OPCIONES_NEUTRAS:
-            return {"value_id": valor_id, "value_name": opcion.get("name") or valor_id}
-    return None
-
-
-def _valor_para_atributo(
-    atributo: dict,
-    marca: str,
-    modelo: str,
-    nombre_categoria: str,
-    titulo: str,
-) -> Optional[dict]:
-    """
-    Construye el valor con el que se completa un atributo obligatorio faltante.
-
-    - Atributos de identidad: marca/modelo/familia/nombre con default genérico.
-    - Atributos de lista: opción neutra si existe (si no, no se completa).
-    - Cualquier otro atributo (GTIN, talles, compatibilidades...): no se inventa.
-    """
-    aid = _normalizar_id(atributo.get("id"))
-    if not aid:
-        return None
-
-    # Atributo de LISTA (la categoría define `values`): Mercado Libre solo
-    # acepta una opción existente. Enviar texto libre produce HTTP 400
-    # "body.invalid_fields" / "item.attribute.invalid", así que se usa la
-    # opción neutra si existe y, si no, el atributo se omite.
-    tiene_valores = bool(atributo.get("values"))
-
-    if aid in ATRIBUTOS_IDENTIDAD and not tiene_valores:
-        fuente, valor_defecto = ATRIBUTOS_IDENTIDAD[aid]
-        return {
-            "id": aid,
-            "value_name": _valor_desde_campos(
-                fuente, valor_defecto, marca, modelo, nombre_categoria, titulo
-            ),
-        }
-
-    opcion = _opcion_neutra(atributo)
-    if opcion:
-        return {"id": aid, **opcion}
-
-    logger.info(
-        "Atributo obligatorio %s sin valor seguro disponible: se omite "
-        "(requiere un dato real del objeto).", aid,
-    )
-    return None
+    # ML puede nombrar el atributo en minúsculas ("family_name"): se normaliza.
+    return [token.upper() for token in _RE_ID_ATRIBUTO.findall(str(valor))]
 
 
 def completar_attributes_requeridos(
@@ -261,18 +222,27 @@ def completar_attributes_requeridos(
     modelo: str = "",
     nombre_categoria: str = "",
     titulo: str = "",
+    datos: Optional[dict] = None,
 ) -> List[dict]:
     """
-    Completa la lista `attributes` con los obligatorios de la categoría.
+    Completa la lista `attributes` con los obligatorios REALES de la categoría.
 
-    Solo agrega atributos que Mercado Libre define para la categoría destino y
-    que están marcados como `required`, con un valor por defecto seguro cuando
-    el objeto no trae el dato. Los atributos ya presentes nunca se modifican.
+    Flujo dinámico (sin valores inventados a ciegas):
 
-    Si la consulta de atributos de la categoría falla, devuelve la lista tal
-    cual llegó: los atributos de identidad ya vienen garantizados por
-    `construir_attributes_desde_objeto()` y `create_item` reintenta con las
-    causas reales del error.
+    1. GET /categories/{id}/attributes y filtro de `tags.required`.
+    2. Por cada obligatorio faltante se construye su valor respetando el
+       `value_type` del catálogo (lista → value_id, booleano, numérico,
+       number_unit, texto) con el dato REAL del objeto si existe.
+    3. Se descartan los atributos que la categoría no define (claves inventadas
+       → HTTP 400 "body.invalid_fields").
+
+    `datos` es el mapa de datos reales del objeto construido con
+    `mercadolibre_atributos_valores.construir_datos_objeto()`. Los parámetros
+    sueltos (marca / modelo / nombre_categoria / titulo) se mantienen por
+    compatibilidad y se usan cuando `datos` no viene.
+
+    Si la consulta del catálogo falla, devuelve la lista tal cual llegó y
+    `create_item` reintenta con las causas reales del error de ML.
     """
     resultado: List[dict] = [
         dict(atributo)
@@ -308,6 +278,14 @@ def completar_attributes_requeridos(
         ]
         presentes = {_normalizar_id(a.get("id")) for a in resultado}
 
+    if datos is None:
+        datos = construir_datos_objeto({
+            "marca": marca,
+            "modelo": modelo,
+            "categoria_nombre": nombre_categoria,
+            "title": titulo,
+        })
+
     agregados: List[str] = []
     for atributo in definidos:
         if not isinstance(atributo, dict) or not _es_requerido(atributo):
@@ -315,10 +293,11 @@ def completar_attributes_requeridos(
         aid = _normalizar_id(atributo.get("id"))
         if not aid or aid in presentes:
             continue
-        valor = _valor_para_atributo(
-            atributo, marca, modelo, nombre_categoria, titulo
-        )
+        valor = valor_para_atributo(atributo, datos)
         if not valor:
+            logger.warning(
+                "Atributo obligatorio %s sin valor seguro disponible: se omite.", aid
+            )
             continue
         resultado.append(valor)
         presentes.add(aid)
@@ -343,20 +322,41 @@ def atributos_faltantes_por_causas(
     modelo: str = "",
     nombre_categoria: str = "",
     titulo: str = "",
+    definidos=None,
+    datos: Optional[dict] = None,
 ) -> List[dict]:
     """
-    Devuelve los atributos de identidad que Mercado Libre pide y faltan.
+    Devuelve los atributos que Mercado Libre pide y faltan, con valor VÁLIDO.
 
     Se usa en los reintentos de `create_item`: analiza las causas del 400/422 y,
-    si ML nombra un atributo obligatorio conocido (FAMILY_NAME, BRAND, MODEL,
-    MANUFACTURER, ...) que no está en el payload, lo construye con valor por
-    defecto. No agrega nada para atributos que exigen un dato verificable.
+    si ML nombra un atributo obligatorio (FAMILY_NAME, BRAND, MODEL, COLOR...)
+    que no está en el payload, lo construye respetando el `value_type` del
+    catálogo de la categoría (`definidos`): value_id para listas, número +
+    unidad, booleano o texto con dato real / default.
+
+    Sin `definidos` (la consulta del catálogo falló) solo se completan los
+    atributos de identidad conocidos en ATRIBUTOS_OBJETO, como red de
+    seguridad. Nunca se agrega texto libre a un atributo de lista.
     """
     existentes = {
         _normalizar_id(a.get("id"))
         for a in (attributes or [])
         if isinstance(a, dict)
     }
+    if datos is None:
+        datos = construir_datos_objeto({
+            "marca": marca,
+            "modelo": modelo,
+            "categoria_nombre": nombre_categoria,
+            "title": titulo,
+        })
+
+    ids_catalogo = {
+        _normalizar_id(a.get("id"))
+        for a in (definidos or [])
+        if isinstance(a, dict)
+    }
+    conocidos = ids_catalogo or set(ATRIBUTOS_OBJETO)
     pedidos: List[str] = []
 
     for causa in causes or []:
@@ -368,7 +368,7 @@ def atributos_faltantes_por_causas(
         for referencia in (causa.get("attribute"), causa.get("message")):
             for aid in _ids_desde_texto(referencia):
                 if (
-                    aid in ATRIBUTOS_IDENTIDAD
+                    aid in conocidos
                     and aid not in existentes
                     and aid not in pedidos
                 ):
@@ -376,13 +376,19 @@ def atributos_faltantes_por_causas(
 
     nuevos: List[dict] = []
     for aid in pedidos:
-        fuente, valor_defecto = ATRIBUTOS_IDENTIDAD[aid]
-        nuevos.append({
-            "id": aid,
-            "value_name": _valor_desde_campos(
-                fuente, valor_defecto, marca, modelo, nombre_categoria, titulo
-            ),
-        })
+        definicion = _definicion_por_id(definidos, aid)
+        if definicion is not None:
+            valor = valor_para_atributo(definicion, datos)
+        else:
+            valor = valor_por_defecto(aid, datos)
+            valor = {"id": aid, "value_name": valor} if valor else None
+        if not valor:
+            logger.warning(
+                "Mercado Libre exige %s pero no hay un valor seguro para la "
+                "categoría: se omite.", aid,
+            )
+            continue
+        nuevos.append(valor)
         existentes.add(aid)
     return nuevos
 
