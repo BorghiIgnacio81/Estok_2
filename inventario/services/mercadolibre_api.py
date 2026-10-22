@@ -11,14 +11,19 @@ import urllib.parse
 from typing import Optional, Dict, Any
 
 from .mercadolibre_oauth import get_valid_access_token
-from .mercadolibre_payload import construir_payload_item, extraer_error_ml
+from .mercadolibre_payload import (
+    CAMPOS_REQUERIDOS_ML,
+    campos_invalidos_ml,
+    construir_payload_item,
+    extraer_causas_ml,
+    extraer_error_ml,
+    solo_campos_permitidos,
+)
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
 from .mercadolibre_atributos import (
     atributos_faltantes_por_causas,
     atributos_invalidos_por_causas,
     completar_attributes_requeridos,
-    familia_por_defecto,
-    menciona_family_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,8 +130,10 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     `mercadolibre_atributos.completar_attributes_requeridos()` consultando
     GET /categories/{id}/attributes (catálogo real, nunca por suposición).
 
-    - BRAND: marca del objeto o "Genérico".
-    - MODEL: modelo del objeto o "Genérico".
+    - BRAND: solo si el objeto tiene marca cargada.
+    - MODEL: solo si el objeto tiene modelo cargado.
+    - Sin datos reales NO se envía la clave `attributes` (los valores genéricos
+      inventados son una fuente real de rechazos en ML).
 
     Args:
         objeto: Instancia de Objeto (puede ser None).
@@ -140,9 +147,42 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
     marca = (getattr(objeto, 'marca', '') or '').strip()
     modelo = (getattr(objeto, 'modelo', '') or '').strip()
 
-    _agregar_atributo(attributes, "BRAND", marca or "Genérico")
-    _agregar_atributo(attributes, "MODEL", modelo or "Genérico")
+    # Solo datos REALES del objeto: nada de "Genérico"/"Sin especificar". Si la
+    # categoría no exige atributos, el body va sin la clave `attributes`, que es
+    # lo que evita los rechazos por claves/valores inventados.
+    if marca:
+        _agregar_atributo(attributes, "BRAND", marca)
+    if modelo:
+        _agregar_atributo(attributes, "MODEL", modelo)
     return attributes
+
+
+def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None:
+    """
+    Crea la descripción con POST /items/{id}/description.
+
+    Se usa cuando Mercado Libre rechazó la clave "description" dentro del body de
+    POST /items (causa body.invalid_fields): el ítem ya quedó publicado y la
+    descripción se agrega con el endpoint dedicado. Best-effort: si falla solo se
+    registra el error, no se revierte la publicación.
+    """
+    item_id = str((item or {}).get("id") or "").strip()
+    texto = str(texto or "").strip()
+    if not item_id or not texto:
+        return
+
+    respuesta = _api_request(
+        "POST", f"/items/{item_id}/description", access_token,
+        {"plain_text": texto},
+    )
+    if respuesta and (respuesta.get("id") or respuesta.get("plain_text")):
+        logger.info("Descripción creada aparte para el ítem %s", item_id)
+    else:
+        logger.error(
+            "No se pudo crear la descripción del ítem %s: %s",
+            item_id,
+            json.dumps(respuesta, ensure_ascii=False) if respuesta else "sin respuesta",
+        )
 
 
 def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
@@ -218,12 +258,20 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
     if atributos_completos:
         body["attributes"] = atributos_completos
 
-    # 6 intentos: los 4 históricos (categoría, condition, listing_type,
-    # POWER_SUPPLY_TYPE) + atributos obligatorios + family_name de nivel raíz.
-    MAX_RETRIES = 6
+    # 8 intentos: categoría, condition, listing_type, POWER_SUPPLY_TYPE,
+    # atributos inválidos, atributos obligatorios y campos de primer nivel
+    # inválidos (body.invalid_fields), todos guiados por las causas REALES de ML.
+    MAX_RETRIES = 8
     retry_count = 0
-    
+    # Descripción que ML rechazó en el body: se crea aparte con
+    # POST /items/{id}/description una vez creado el ítem.
+    descripcion_pendiente = ""
+
     while retry_count < MAX_RETRIES:
+        # Garantía final: NINGÚN reintento puede agregar una clave de primer
+        # nivel fuera de la spec de POST /items (origen del 400
+        # "body.invalid_fields").
+        body = solo_campos_permitidos(body)
         # Diagnóstico exacto del cuerpo que se envía en CADA intento (el
         # payload puede mutar entre reintentos).
         logger.info("Payload ML enviado: %s", json.dumps(body, ensure_ascii=False))
@@ -236,19 +284,19 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
         # Diagnóstico explícito de CADA rechazo de Mercado Libre (400/422):
         # se loguea el mensaje normalizado, las causas y la respuesta cruda.
         intento = extraer_error_ml(result)
+        logger.error("Error detallado ML: %s",
+                     json.dumps(result, ensure_ascii=False) if result else "sin respuesta")
         logger.error(
-            "Mercado Libre rechazó el ítem (intento %d/%d): %s | causas=%s | "
-            "respuesta=%s",
+            "Mercado Libre rechazó el ítem (intento %d/%d): %s | causas=%s",
             retry_count, MAX_RETRIES, intento["mensaje"],
             intento["detalles"] or "-",
-            json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
         )
         
         if retry_count >= MAX_RETRIES:
             logger.error("Agotados %d reintentos. Último error: %s", MAX_RETRIES, result)
             break
         
-        causes = result.get("cause", []) if result else []
+        causes = [c for c in extraer_causas_ml(result) if isinstance(c, dict)]
         
         # Intento 1: predecir la categoría hoja con el NOMBRE DE LA CATEGORÍA
         # del objeto (nunca con el título: predecir con el título desviaba la
@@ -346,20 +394,30 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             body.setdefault("attributes", []).extend(faltantes)
             continue
 
-        # Intento 7: family_name de nivel raíz (publicaciones de catálogo /
-        # User Products de ML, que no viajan dentro de "attributes").
-        if menciona_family_name(causes) and not body.get("family_name"):
-            familia = familia_por_defecto(
-                marca=item_data.get("marca", ""),
-                modelo=item_data.get("modelo", ""),
-                nombre_categoria=item_data.get("categoria_nombre", ""),
-                titulo=body.get("title", ""),
-            )
+        # Intento 7: campo de PRIMER NIVEL rechazado (body.invalid_fields). Se
+        # usa la causa REAL de ML (campo entre corchetes o `references`) para
+        # quitarlo y reintentar. NUNCA se quitan campos obligatorios y NUNCA se
+        # agregan claves nuevas en la raíz (eso era lo que generaba el 400).
+        invalidos_raiz: list = []
+        for campo in campos_invalidos_ml(result):
+            raiz = str(campo or "").split(".")[0].strip()
+            if (
+                raiz in body
+                and raiz not in CAMPOS_REQUERIDOS_ML
+                and raiz not in invalidos_raiz
+            ):
+                invalidos_raiz.append(raiz)
+        if invalidos_raiz:
+            for campo in invalidos_raiz:
+                valor = body.pop(campo, None)
+                if campo == "description" and isinstance(valor, dict):
+                    # La descripción no se pierde: se crea aparte al publicar.
+                    descripcion_pendiente = str(valor.get("plain_text") or "")
             logger.info(
-                "Reintento %d: añadiendo family_name de nivel raíz: %s",
-                retry_count, familia,
+                "Reintento %d: ML rechazó los campos [%s] (%s) → se reintenta "
+                "sin ellos",
+                retry_count, ", ".join(invalidos_raiz), intento["mensaje"],
             )
-            body["family_name"] = familia
             continue
 
         # Si el error no es de los que sabemos manejar, salir
@@ -371,6 +429,9 @@ def create_item(user, item_data: Dict[str, Any]) -> Optional[dict]:
             result["id"],
             result.get("permalink", "N/A"),
         )
+        # Si ML había rechazado "description" en el body, se crea ahora con el
+        # endpoint oficial (POST /items/{id}/description).
+        _crear_descripcion_aparte(result, access_token, descripcion_pendiente)
         return result
 
     error = extraer_error_ml(result)

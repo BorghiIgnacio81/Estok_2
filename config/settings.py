@@ -246,6 +246,14 @@ MERCADOLIBRE_LISTING_TYPE_ID = os.environ.get(
     'MERCADOLIBRE_LISTING_TYPE_ID', 'gold_special'
 )
 
+# Imagen pública por defecto para las publicaciones sin fotos válidas
+# (debe ser una URL absoluta HTTPS descargable por Mercado Libre, por ejemplo
+# https://eeestok.duckdns.org/media/objetos/default.jpg). Si queda vacía, la
+# clave "pictures" simplemente NO se envía y Mercado Libre decide.
+MERCADOLIBRE_DEFAULT_PICTURE_URL = os.environ.get(
+    'MERCADOLIBRE_DEFAULT_PICTURE_URL', ''
+)
+
 # =============================================================================
 # IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER EN CADENA)
 # El análisis de imágenes es 100% en la NUBE (no hay motor local).

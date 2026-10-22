@@ -38,7 +38,7 @@ from typing import Any, Dict
 
 from django.conf import settings
 
-from .mercadolibre_imagenes import normalizar_pictures
+from .mercadolibre_imagenes import normalizar_pictures, normalizar_url
 from .mercadolibre_saneamiento import (
     limpiar_texto,
     limpiar_titulo,
@@ -160,14 +160,64 @@ def _listing_type_configurado() -> str:
     return LISTING_TYPE_DEFAULT
 
 
-def _causes_ml(result: Any) -> list:
-    """Lista de causas (dicts) de una respuesta de error de Mercado Libre."""
+def _pictures_publicables(pictures) -> list:
+    """
+    Imágenes publicables: [{"source": "https://..."}] estrictamente HTTPS.
+
+    Devuelve solo URLs absolutas descargables por ML (hosts públicos). Si el
+    objeto no tiene fotos válidas se usa la imagen por defecto configurada en
+    settings.MERCADOLIBRE_DEFAULT_PICTURE_URL; si tampoco hay, devuelve [] y la
+    clave "pictures" NO se envía (nunca elementos nulos ni rutas relativas).
+    """
+    validas = normalizar_pictures(pictures)
+    if validas:
+        return validas
+
+    por_defecto = normalizar_url(
+        getattr(settings, "MERCADOLIBRE_DEFAULT_PICTURE_URL", "")
+    )
+    if por_defecto:
+        logger.info("Sin fotos públicas: se usa la imagen por defecto %s", por_defecto)
+        return [{"source": por_defecto}]
+
+    logger.warning(
+        "Sin fotos públicas para publicar: la clave 'pictures' no se envía "
+        "(MERCADOLIBRE_DEFAULT_PICTURE_URL sin configurar)."
+    )
+    return []
+
+
+def extraer_causas_ml(result: Any) -> list:
+    """
+    Arreglo `cause` (o `causes`) TAL CUAL lo devuelve Mercado Libre.
+
+    Es la fuente de verdad para saber qué campo rechaza la API: se registra en
+    logs con logger.error("Error detallado ML: ...") y se devuelve al frontend
+    junto con la respuesta cruda.
+    """
     if not isinstance(result, dict):
         return []
     causas = result.get("cause") or result.get("causes") or []
-    if not isinstance(causas, list):
-        return []
-    return [causa for causa in causas if isinstance(causa, dict)]
+    return causas if isinstance(causas, list) else []
+
+
+def solo_campos_permitidos(body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Descarta cualquier clave de primer nivel fuera de la spec de POST /items.
+
+    Se aplica al body FINAL (y antes de cada reintento): una sola clave
+    inventada (ej: "warranty" o "family_name" en la raíz) hace que Mercado Libre
+    responda HTTP 400 "body.invalid_fields".
+    """
+    return {
+        clave: valor for clave, valor in (body or {}).items()
+        if clave in CAMPOS_PERMITIDOS_ML
+    }
+
+
+def _causes_ml(result: Any) -> list:
+    """Lista de causas (dicts) de una respuesta de error de Mercado Libre."""
+    return [causa for causa in extraer_causas_ml(result) if isinstance(causa, dict)]
 
 
 def campos_requeridos_faltantes(result: Any) -> list:
@@ -375,15 +425,17 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     # Pictures: ÚNICA clave de imágenes, normalizada al formato oficial
-    # [{"source": url}]. Sin fotos públicas NO se envía la clave (jamás un
-    # {"source": None}, que ML rechaza con "body.invalid_fields").
-    pictures = normalizar_pictures(item_data.get("pictures"))
+    # [{"source": "https://..."}] (absoluta y HTTPS). Sin fotos públicas NO se
+    # envía la clave —jamás un {"source": None}— salvo que exista una imagen por
+    # defecto configurada en MERCADOLIBRE_DEFAULT_PICTURE_URL.
+    pictures = _pictures_publicables(item_data.get("pictures"))
     if pictures:
         body["pictures"] = pictures
 
-    # Attributes: solo IDs válidos con valor. Por defecto BRAND y MODEL; los
-    # obligatorios de la categoría los agrega mercadolibre_atributos.py
-    # consultando el catálogo real, nunca por suposición.
+    # Attributes: solo atributos con VALOR REAL. No se inventan claves ni se
+    # rellenan con "Genérico" para categorías que no los exigen (esa era una
+    # fuente real de rechazos). Los obligatorios de la categoría los agrega
+    # mercadolibre_atributos.py consultando el catálogo real.
     attributes = normalizar_attributes(item_data.get("attributes"))
     if attributes:
         body["attributes"] = attributes
@@ -396,10 +448,7 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
 
     # Whitelist final: cualquier clave fuera de la spec se descarta antes de
     # enviar la petición (origen real del 400 "body.invalid_fields").
-    body = {
-        clave: valor for clave, valor in body.items()
-        if clave in CAMPOS_PERMITIDOS_ML
-    }
+    body = solo_campos_permitidos(body)
 
     # Pre-validación local: si algo obligatorio quedó nulo/vacío, se aborta con
     # un mensaje que nombra el campo exacto en vez de esperar el 400 de ML.

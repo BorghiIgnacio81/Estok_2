@@ -46,17 +46,30 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
   const result = await response.json();
   if (!response.ok || !result.success) {
     // Detalle específico devuelto por el backend a partir de la respuesta de
-    // Mercado Libre: `campos_invalidos` / `campos_faltantes` / `detalles`.
+    // Mercado Libre: `causes` (arreglo `cause` crudo de ML), `campos_invalidos`
+    // y `campos_faltantes`.
+    const causas: string[] = Array.isArray(result.causes)
+      ? result.causes
+          .map((c: any) => {
+            const mensaje = String(c?.message ?? '').trim();
+            const codigo = String(c?.code ?? '').trim();
+            return mensaje ? (codigo ? `${codigo}: ${mensaje}` : mensaje) : codigo;
+          })
+          .filter((texto: string) => texto.length > 0)
+      : [];
     const campos: string[] = [
       ...(result.campos_invalidos ?? []),
       ...(result.campos_faltantes ?? []),
     ];
     const detalle = campos.length
       ? ` [${campos.join(', ')}]`
-      : Array.isArray(result.detalles) && result.detalles.length
-        ? ` (${result.detalles.join('; ')})`
-        : '';
-    const base = result.error || result.ml_response?.message || `Error (${response.status})`;
+      : causas.length
+        ? ` (${causas.join('; ')})`
+        : Array.isArray(result.detalles) && result.detalles.length
+          ? ` (${result.detalles.join('; ')})`
+          : '';
+    const base = result.error || result.detail || result.ml_response?.message
+      || `Error (${response.status})`;
     throw new Error(`${base}${detalle}`);
   }
 

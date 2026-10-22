@@ -15,10 +15,10 @@ Este módulo centraliza el blindaje de la lista `attributes`:
    atributos obligatorios de la categoría que falten, con VALORES POR DEFECTO
    SEGUROS (marca → BRAND / MANUFACTURER, familia → FAMILY_NAME, modelo →
    MODEL, ...). Nunca duplica ni pisa los valores ya cargados en el objeto.
-3. `atributos_faltantes_por_causas()`, `atributos_invalidos_por_causas()`,
-   `familia_por_defecto()` y `menciona_family_name()`: ayudantes para que
-   `create_item` reintente con evidencia REAL de la respuesta de Mercado Libre
-   (por si la consulta de atributos de la categoría no está disponible).
+3. `atributos_faltantes_por_causas()` y `atributos_invalidos_por_causas()`:
+   ayudantes para que `create_item` reintente con evidencia REAL de la respuesta
+   de Mercado Libre (por si la consulta de atributos de la categoría no está
+   disponible).
 
 Regla de honestidad: NO se inventan valores para atributos que exigen un dato
 verificable (GTIN/ISBN, talles, compatibilidades de vehículos, etc.). Solo se
@@ -420,31 +420,3 @@ def atributos_invalidos_por_causas(causes, attributes) -> List[str]:
                     invalidos.append(aid)
     return invalidos
 
-
-def menciona_family_name(causes) -> bool:
-    """True si Mercado Libre exige `family_name` (atributo o campo raíz)."""
-    texto = json.dumps(causes or [], ensure_ascii=False).lower()
-    if "family_name" not in texto and "family name" not in texto:
-        return False
-    return any(senal in texto for senal in _SENALES_FALTANTE)
-
-
-def familia_por_defecto(
-    marca: str = "",
-    modelo: str = "",
-    nombre_categoria: str = "",
-    titulo: str = "",
-) -> str:
-    """
-    Valor de familia para el campo raíz `family_name` de Mercado Libre.
-
-    Prioriza marca + modelo; si no hay datos, usa la categoría y, por último,
-    las primeras palabras del título. Nunca devuelve vacío (ML exige valor).
-    """
-    partes = [str(marca or "").strip(), str(modelo or "").strip()]
-    valor = " ".join(parte for parte in partes if parte).strip()
-    if not valor:
-        valor = str(nombre_categoria or "").strip()
-    if not valor:
-        valor = " ".join(str(titulo or "").split()[:5])
-    return (valor or VALOR_GENERICO)[:60]

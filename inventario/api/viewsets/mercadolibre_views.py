@@ -23,6 +23,7 @@ from ...services.mercadolibre_imagenes import construir_pictures
 from ...services.mercadolibre_payload import (
     cantidad_disponible_ml,
     condition_desde_objeto,
+    extraer_causas_ml,
     extraer_error_ml,
     mapear_condition_ml,
 )
@@ -161,11 +162,11 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
         se envía la clave "pictures" (nunca valores nulos).
 
-        ATRIBUTOS: `construir_attributes_desde_objeto()` envía SOLO los
-        atributos estándar BRAND y MODEL (con "Genérico" si el objeto no los
-        trae cargados) y `create_item()` agrega únicamente los que el catálogo
-        REAL de la categoría marca como obligatorios
-        (GET /categories/{id}/attributes). Nunca se inventan claves.
+        ATRIBUTOS: `construir_attributes_desde_objeto()` envía SOLO datos reales
+        del objeto (BRAND si tiene marca, MODEL si tiene modelo): nunca valores
+        genéricos inventados. `create_item()` agrega únicamente los atributos
+        que el catálogo REAL de la categoría marca como obligatorios
+        (GET /categories/{id}/attributes).
 
         Defaults obligatorios (los fuerza `construir_payload_item`):
         currency_id="ARS", buying_mode="buy_it_now",
@@ -327,18 +328,19 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "fotos_enviadas": len(pictures),
             })
 
-        # ── Error de Mercado Libre (400/422): causas detalladas ──────────────
-        # extraer_error_ml() normaliza la respuesta de ML: devuelve el campo que
-        # falta ("requiere especificar") o el que fue rechazado
-        # ("rechazó los campos", origen del body.invalid_fields) y el detalle
-        # completo de cada causa para que el frontend sepa EXACTAMENTE qué pasó.
+        # ── Error de Mercado Libre (400/422): causas EXACTAS ─────────────────
+        # Se devuelve el arreglo `cause` tal cual lo manda ML (campo y motivo)
+        # junto con la respuesta cruda, para que el frontend sepa exactamente
+        # qué campo rechazó: nunca más un "body.invalid_fields" genérico.
+        causas = extraer_causas_ml(result)
         error_ml = extraer_error_ml(result)
         logger.error(
             "Error al publicar en ML (objeto %s, categoría %s, condition %s): %s "
-            "| campos_faltantes=%s | campos_invalidos=%s | respuesta=%s",
+            "| campos_faltantes=%s | campos_invalidos=%s | causes=%s | raw=%s",
             objeto.id, category_id, condition, error_ml["mensaje"],
             error_ml["campos"] or "-",
             error_ml.get("invalidos") or "-",
+            json.dumps(causas, ensure_ascii=False),
             json.dumps(result, ensure_ascii=False) if result else "sin respuesta",
         )
 
@@ -348,6 +350,11 @@ class MercadoLibreViewSet(viewsets.ViewSet):
 
         return Response(
             {
+                # Contrato pedido por el frontend: detalle + causas + raw.
+                "detail": "Error en campos de Mercado Libre",
+                "causes": causas,
+                "raw": result,
+                # Compatibilidad con la UI existente (mensaje legible y campos).
                 "success": False,
                 "error": mensaje,
                 "campos_faltantes": error_ml["campos"],
