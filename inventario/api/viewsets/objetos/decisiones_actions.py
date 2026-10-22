@@ -39,6 +39,12 @@ from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service, decisiones_service
 from ....services.espejo_contenedor import q_objeto_es_espejo
 
+# Estados de decisión patrimonial que significan «marcado para vender».
+# El modelo persiste el valor canónico `vender` (Objeto.OWNER_ACTION_CHOICES);
+# `para_vender` se acepta como alias de LECTURA por compatibilidad con cargas
+# históricas/importaciones, para que ningún objeto quede fuera del bloque.
+DECISIONES_VENTA = ('vender', 'para_vender')
+
 
 def nombre_mostrable(usuario):
     """Nombre legible de un usuario (o None si no hay usuario)."""
@@ -61,6 +67,21 @@ def _url_publicacion(objeto):
     return f"https://articulo.mercadolibre.com.ar/{str(meli_id).strip()}"
 
 
+def _esta_publicado(objeto):
+    """
+    True si el objeto ya fue publicado en alguna plataforma de venta.
+
+    FUENTE ÚNICA de la regla (la comparten el payload y los grupos del panel):
+    se acepta cualquier plataforma registrada en `plataformas_publicadas`
+    (`mercadolibre`, `facebook`) o el id legacy de Mercado Libre.
+    """
+    if getattr(objeto, 'plataformas_publicadas', None):
+        return True
+    return bool(
+        getattr(objeto, 'meli_id', None) or getattr(objeto, 'meli_item_id', None)
+    )
+
+
 def payload_objeto_decision(obj, request):
     """
     Payload plano de un objeto del módulo de Decisiones.
@@ -81,6 +102,8 @@ def payload_objeto_decision(obj, request):
     es_decision_propia = bool(usuario_id) and usuario_id in (
         obj.dueno_original_id, obj.beneficiario_id,
     )
+    plataformas = list(obj.plataformas_publicadas or [])
+    publicado = _esta_publicado(obj)
 
     return {
         "id": str(obj.id),
@@ -89,12 +112,18 @@ def payload_objeto_decision(obj, request):
         "estado_conservacion": obj.estado_conservacion,
         "valor_estimado": str(obj.valor_estimado) if obj.valor_estimado else None,
         "categoria_nombre": obj.categoria.nombre if obj.categoria else None,
-        # --- Publicación (Bloque 3) ---
-        "plataformas_publicadas": list(obj.plataformas_publicadas or []),
+        # --- Publicación (Bloque 3 + sección destacada de venta) ---
+        "plataformas_publicadas": plataformas,
+        "publicado": publicado,
+        "estado_publicacion": "publicado" if publicado else "sin_publicar",
+        "estado_publicacion_label": (
+            "Publicado" if publicado else "Sin publicar"
+        ),
         # Enlace externo a la publicación cuando el objeto tiene id de Mercado
         # Libre persistido (campo legacy `meli_id`, presente solo en algunos
         # despliegues); si no, la UI enlaza a la ficha interna del objeto.
         "url_publicacion": _url_publicacion(obj),
+
         "dueno_original": (
             str(obj.dueno_original_id) if obj.dueno_original_id else None
         ),
@@ -243,6 +272,57 @@ class DecisionesActionsMixin:
         })
 
     # ------------------------------------------------------------------
+    # Bloque destacado: objetos CON decisión de VENTA (acceso rápido)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['get'], url_path='en_venta')
+    def en_venta(self, request):
+        """
+        Objetos del Estok activo marcados EXPLÍCITAMENTE para vender.
+
+        GET /api/objetos/en_venta/
+
+        Alimenta la sección destacada 🏷️ «Objetos con Decisión de Venta /
+        Listos para Publicar» de la cima de /alertas-stock, para que el usuario
+        tenga a mano los objetos que decidió publicar (Mercado Libre / Facebook)
+        sin depender del resto del tablero.
+
+        Reglas (explícitas, sin exclusiones implícitas):
+          · `owner_action` en DECISIONES_VENTA (`vender`; alias `para_vender`).
+          · sin baja lógica.
+          · mismo Estok activo del header X-Estok-Id.
+          · los registros espejo de Contenedores siguen excluidos (no son stock).
+
+        NO excluye objetos con votación pendiente: si la decisión de venta ya
+        está persistida, el objeto DEBE aparecer acá. Devuelve el payload único
+        `payload_objeto_decision` (nombre, foto, valor, ubicación y estado de
+        publicación) + un resumen para el encabezado.
+        """
+        qs = (
+            self._objetos_del_estok()
+            .filter(owner_action__in=DECISIONES_VENTA)
+            .order_by('-updated_at')
+        )
+
+        resultados = [payload_objeto_decision(obj, request) for obj in qs]
+        publicados = sum(1 for obj in resultados if obj['publicado'])
+        valor_total = sum(
+            float(obj['valor_estimado'])
+            for obj in resultados
+            if obj['valor_estimado']
+        )
+
+        return Response({
+            "count": len(resultados),
+            "results": resultados,
+            "resumen": {
+                "total": len(resultados),
+                "sin_publicar": len(resultados) - publicados,
+                "publicados": publicados,
+                "valor_total": valor_total,
+            },
+        })
+
+    # ------------------------------------------------------------------
     # Bloques 3, 4 y 5 + Alerta Rojo del Bloque 2
     # ------------------------------------------------------------------
     @action(detail=False, methods=['get'])
@@ -284,10 +364,10 @@ class DecisionesActionsMixin:
             payload = payload_objeto_decision(obj, request)
             accion = obj.owner_action
 
-            if accion == 'vender':
+            if accion in DECISIONES_VENTA:
                 clave = (
                     'vender_publicados'
-                    if payload['plataformas_publicadas']
+                    if payload['publicado']
                     else 'vender_sin_publicar'
                 )
                 grupos[clave].append(payload)

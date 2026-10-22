@@ -36,6 +36,7 @@ import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 // Lote 31 · punto 1: dentro de cada grilla, los casos TODAVÍA ACTIVOS se leen
 // arriba y los ya CERRADOS (despachados / plazo vencido) quedan al fondo.
 import { ordenarGrupoDecisiones } from './decisionesOrden';
+import { EVENTO_DECISION_CAMBIADA, EVENTO_PUBLICACION_ACTUALIZADA } from './eventosDecisiones';
 
 /** Respuesta completa del tablero de la pestaña Decisiones. */
 interface PanelDecisiones {
@@ -408,6 +409,10 @@ export function iniciarPanelDecisiones(): void {
   // Cualquier cambio de descarte (reclamo, vencimiento, confirmación o despacho)
   // vuelve a traer los bloques desde el backend.
   window.addEventListener(EVENTO_CAMBIO_DESCARTE, () => void refrescarPanelDecisiones());
+  // Decisión recién tomada (vender / conservar / tirar) o publicación nueva:
+  // los bloques se recargan al instante, sin esperar el refresh manual.
+  window.addEventListener(EVENTO_DECISION_CAMBIADA, () => void refrescarPanelDecisiones());
+  window.addEventListener(EVENTO_PUBLICACION_ACTUALIZADA, () => void refrescarPanelDecisiones());
 
   void refrescarPanelDecisiones();
 }

@@ -33,6 +33,9 @@ import { tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import { solicitarDescarte } from './descarteModales';
 import { esErrorPermisoAjeno, ofrecerNotificarDueno } from './notificacionDueno';
+// Aviso "en caliente" para que la sección destacada de venta y el tablero de
+// decisiones tomadas se recarguen sin esperar a un refresh manual.
+import { notificarDecisionCambiada } from './eventosDecisiones';
 // Lote 31 · punto 1: los objetos todavía SIN decisión se leen arriba; los ya
 // decididos (si el endpoint devolviera alguno) caen al fondo de la grilla.
 import { ordenarPendientesDecision } from './decisionesOrden';
@@ -297,6 +300,9 @@ async function decidir(obj: ObjetoPendiente, accion: string): Promise<void> {
   try {
     await guardarDecision(obj, accion);
     marcarTarjetaDecidida(obj, accion);
+    // La decisión ya está persistida: refresca la sección destacada de venta
+    // (objetos marcados para vender) y los bloques de decisiones tomadas.
+    notificarDecisionCambiada();
 
     if (accion === 'vender') {
       mostrarAviso(`💰 "${obj.nombre}" marcado para vender. Revisá la vista previa de publicación.`);

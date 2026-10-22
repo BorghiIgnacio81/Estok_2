@@ -16,6 +16,9 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { publicarEnMercadoLibre } from '../services/mercadolibre';
+// Aviso "en caliente": al publicar (o marcar como publicado) se refrescan la
+// sección destacada de venta y el bloque de «ya publicados» del tablero.
+import { notificarPublicacionActualizada } from './eventosDecisiones';
 
 /** Objeto que se va a publicar (los datos que muestra el paso 1 del modal). */
 export interface ObjetoPublicable {
@@ -283,6 +286,8 @@ async function publicarAhora(): Promise<void> {
       'success',
       `✅ ¡Publicado en Mercado Libre!${detalle}<br><a href="${result.permalink}" target="_blank" class="underline text-blue-700">Ver publicación →</a>`,
     );
+    // Publicación real concretada: refresca las islas del tablero.
+    notificarPublicacionActualizada();
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : 'Error al publicar en Mercado Libre';
     mostrarStatus('error', `❌ ${mensaje}`);
@@ -301,6 +306,9 @@ async function marcarPublicado(plataformaPublicada: Plataforma): Promise<void> {
   } catch {
     // Silencioso: la publicación en sí ya se resolvió.
   }
+  // El estado de publicación cambió (aunque el marcado interno falle): las
+  // islas del tablero recargan sus datos para mover la tarjeta de grupo.
+  notificarPublicacionActualizada();
 }
 
 // -----------------------------------------------------------------------------

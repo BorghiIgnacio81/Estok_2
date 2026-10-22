@@ -3,8 +3,9 @@
 // PÁGINA DE DECISIONES (pestaña del menú) · ORDEN ESTRICTO DE BLOQUES
 // -----------------------------------------------------------------------------
 // Todo el tablero se lee de ARRIBA hacia ABAJO priorizando LO URGENTE primero:
-//
-//   BLOQUE 1 (cima) · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
+//   BLOQUE 0 (cima) · 🏷️ Objetos con Decisión de Venta / Listos para Publicar
+//              → lib/ventasDestacadas.ts (GET /api/objetos/en_venta/)
+//   BLOQUE 1 · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
 //              contador Días:Horas:Minutos:Segundos de los objetos que serán
 //              tirados a la basura (período de gracia vigente) y el enlace para
 //              reclamarlos → components/VotacionesPendientes.astro +
@@ -66,7 +67,45 @@ export const prerender = false;
     </div>
 
     <!-- ============================================================== -->
-    <!-- BLOQUE 1 (CIMA) · 🗳️ VOTACIONES PENDIENTES DEL ESTOK            -->
+    <!-- BLOQUE 0 (CIMA) · 🏷️ OBJETOS CON DECISIÓN DE VENTA              -->
+    <!-- Acceso rápido a TODO objeto marcado para vender (publicado o    -->
+    <!-- no): foto, nombre, valor estimado, ubicación actual y estado de -->
+    <!-- publicación, con «Publicar / Generar Anuncio» (Mercado Libre /  -->
+    <!-- Facebook) y «Ver detalle». Lo alimenta GET /api/objetos/        -->
+    <!-- en_venta/ desde lib/ventasDestacadas.ts.                        -->
+    <!-- ============================================================== -->
+    <section id="ventaDestacada" class="mb-10">
+      <div class="flex flex-wrap items-center gap-2 mb-1">
+        <h2 class="text-lg font-semibold text-gray-900">
+          🏷️ Objetos con Decisión de Venta / Listos para Publicar
+        </h2>
+        <span id="ventaDestacadaCount"
+          class="hidden px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">0</span>
+        <button id="btnRefrescarVenta" type="button"
+          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
+          ↻ Actualizar
+        </button>
+      </div>
+      <p class="text-xs text-gray-500 mb-2">
+        Acceso rápido a los objetos que el Estok decidió vender: publicalos en
+        Mercado Libre / Facebook Marketplace o abrí su ficha para revisarlos.
+      </p>
+      <p id="ventaDestacadaResumen" class="text-xs font-semibold text-emerald-800 mb-3"></p>
+      <p id="ventaDestacadaLoading" class="text-sm text-gray-500">Cargando objetos marcados para vender...</p>
+      <p id="ventaDestacadaError"
+        class="hidden mb-3 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
+        ⚠️ No se pudieron cargar los objetos en venta.
+      </p>
+      <p id="ventaDestacadaVacio"
+        class="hidden text-sm text-gray-400 bg-white border border-dashed border-gray-300 rounded-xl px-4 py-6 text-center">
+        No hay objetos marcados para vender en este momento.
+      </p>
+      <div id="ventaDestacadaGrid"
+        class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- BLOQUE 1 · 🗳️ VOTACIONES PENDIENTES DEL ESTOK            -->
     <!-- Lo URGENTE primero: se abren solas cuando un objeto tiene Dueño -->
     <!-- y Beneficiario vacío (todo el Estok vota el destino). A la      -->
     <!-- derecha del cabezal vive el 🚨 ALERTA ROJO con el contador      -->
@@ -198,9 +237,11 @@ export const prerender = false;
     import { iniciarDecisionesPendientes } from '../../lib/decisionesPendientes';
     import { iniciarModalPublicar } from '../../lib/publicarObjeto';
     import { iniciarPanelDecisiones } from '../../lib/decisionesGrupos';
+    import { iniciarVentasDestacadas } from '../../lib/ventasDestacadas';
     import { iniciarModalesDescarte } from '../../lib/descarteModales';
     import { iniciarModalNotificarDueno } from '../../lib/notificacionDueno';
 
+    iniciarVentasDestacadas();
     iniciarDecisionesPendientes();
     iniciarPanelDecisiones();
     iniciarModalPublicar();

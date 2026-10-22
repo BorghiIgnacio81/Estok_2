@@ -24,6 +24,12 @@ export interface ObjetoDecision {
   valor_estimado: string | null;
   categoria_nombre: string | null;
   plataformas_publicadas: string[];
+  /** True si el objeto ya fue publicado en alguna plataforma de venta. */
+  publicado?: boolean;
+  /** Estado de publicación canónico del backend: 'publicado' | 'sin_publicar'. */
+  estado_publicacion?: string;
+  /** Etiqueta legible del estado de publicación ('Publicado' / 'Sin publicar'). */
+  estado_publicacion_label?: string | null;
   /** Enlace externo a la publicación (Mercado Libre) cuando existe. */
   url_publicacion?: string | null;
   dueno_original: string | null;

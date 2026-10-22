@@ -55,11 +55,28 @@ def q_objeto_es_espejo():
     Se usa con `.exclude(q_objeto_es_espejo())` para dejar SOLO los objetos
     finales del inventario. Funciona en cualquier jerarquía: no exige que el
     contenedor sea raíz ni mudable, a diferencia del criterio anterior.
+
+    ⚠️ BUG HISTÓRICO CORREGIDO (regresión del tablero de Decisiones):
+    el lookup `especificaciones__es_espejo_contenedor=True` sobre un objeto
+    cuyo JSON NO tiene esa clave devuelve `NULL` en PostgreSQL (no `FALSE`).
+    Al negar la regla con `.exclude(...)`, SQL evalúa `NOT (NULL OR FALSE)` =
+    `NULL`, que NO es verdadero → PostgreSQL descarta la fila. Resultado real
+    en producción: los 100 objetos del inventario (`especificaciones = {}`)
+    desaparecían del tablero /alertas-stock, incluidos los marcados para
+    vender. La marca explícita se evalúa ahora con `isnull=False` +
+    `has_key` + valor, una conjunción que SIEMPRE devuelve TRUE/FALSE
+    (`FALSE AND NULL = FALSE`) y nunca propaga NULL al `NOT` del `exclude`.
     """
     return (
         # MARCA EXPLÍCITA de dualidad (espejos nuevos): inmune a renombres del
         # Contenedor y a que el operador asigne una Categoría al objeto.
-        Q(especificaciones__es_espejo_contenedor=True)
+        # `isnull=False` + `has_key` evitan el NULL del JSON cuando la clave no
+        # existe (ver BUG HISTÓRICO arriba).
+        Q(
+            especificaciones__isnull=False,
+            especificaciones__has_key='es_espejo_contenedor',
+            especificaciones__es_espejo_contenedor=True,
+        )
         | (
             Q(contenedor__isnull=False)
             & Q(parent_grid_row__isnull=True)

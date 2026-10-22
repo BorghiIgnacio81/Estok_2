@@ -461,6 +461,16 @@ export const prerender = false;
         return;
       }
 
+      // 202: el dueño es EXTERNO/fallecido y la decisión se derivó a la
+      // votación del inquilinato (período FOMO). Se avisa explícitamente para
+      // que el usuario no crea que el objeto quedó marcado para vender.
+      if (response.status === 202) {
+        const data = await response.json().catch(() => ({}));
+        alert(`🗳️ ${data.mensaje || 'La decisión quedó derivada a la votación del inquilinato.'}`);
+        cargarDetalle();
+        return;
+      }
+
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         alert(`❌ Error: ${err.detail || err.error || 'No se pudo registrar la acción'}`);
