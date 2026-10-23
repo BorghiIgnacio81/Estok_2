@@ -272,6 +272,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
 
         category_id = garantizar_categoria_hoja_ml(
             objeto.categoria, category_id, access_token=access_token or "",
+            # En categorías contenedor ("Electrónica", "Hogar") la hoja se
+            # predice con el NOMBRE REAL DEL OBJETO: el nombre de la categoría
+            # es demasiado amplio y desviaba la publicación (GPS → Software).
+            texto_objeto=(getattr(objeto, 'nombre', '') or ''),
         )
         if not normalizar_id_ml(category_id):
             # Se aborta ANTES de llamar a ML (evita 400 body.invalid_fields /

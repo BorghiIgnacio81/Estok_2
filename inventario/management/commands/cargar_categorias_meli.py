@@ -142,19 +142,23 @@ class Command(BaseCommand):
 
     def _adoptar_categoria_de_usuario(self, estok, cat):
         """
-        Autocuración anti unique_together(nombre, estok):
-        si existe una categoría de usuario (es_sistema=False) con el MISMO
-        nombre de una oficial y aún sin mercadolibre_category_id oficial, se la adopta
-        asignándole el ID oficial. Así el seeding no intenta crear un duplicado
-        (IntegrityError) ni borra la categoría del usuario.
+        Autocuración anti unique_together(nombre, estok).
+
+        Si existe una categoría con el MISMO nombre de una oficial y un
+        mercadolibre_category_id distinto del oficial, se le restaura el ID
+        oficial. Cubre dos casos:
+          - categoría de usuario sin ID oficial → se adopta como oficial;
+          - categoría de SISTEMA con el ID corrupto (bug real: "Electrónica"
+            quedó en MLA1728 "Software Comercial" y el seeding abortaba con
+            UniqueViolation al intentar crear la oficial).
+        Así el seeding no duplica ni borra categorías.
         """
         fila = (
             Categoria.objects.filter(
                 estok=estok,
                 nombre__iexact=cat["nombre"],
-                es_sistema=False,
             )
-            .exclude(mercadolibre_category_id__in=IDS_OFICIALES)
+            .exclude(mercadolibre_category_id=cat["mercadolibre_category_id"])
             .first()
         )
         if fila is None:
@@ -168,7 +172,7 @@ class Command(BaseCommand):
             "mercadolibre_category_id", "nombre", "icono", "es_contenedor", "es_sistema",
         ])
         self.stdout.write(self.style.WARNING(
-            f'🔄 Categoría de usuario "{cat["nombre"]}" adoptada como oficial '
+            f'🔄 Categoría "{cat["nombre"]}" adoptada/restaurada como oficial '
             f'({cat["mercadolibre_category_id"]}) en Estok {estok.id}.'
         ))
         return True

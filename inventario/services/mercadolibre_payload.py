@@ -196,16 +196,32 @@ def _pictures_publicables(pictures) -> list:
 
 def extraer_causas_ml(result: Any) -> list:
     """
-    Arreglo `cause` (o `causes`) TAL CUAL lo devuelve Mercado Libre.
+    Arreglo `cause` (o `causes`) TAL CUAL lo devuelve Mercado Libre: fuente de
+    verdad del campo rechazado (se loguea y se devuelve al frontend).
 
-    Es la fuente de verdad para saber qué campo rechaza la API: se registra en
-    logs con logger.error("Error detallado ML: ...") y se devuelve al frontend
-    junto con la respuesta cruda.
+    ML también responde 400 con `cause: []` y el motivo SOLO en `error` /
+    `message` (ej: "The fields [title] are invalid..."): en ese caso se
+    sintetiza una causa para que el diagnóstico y los reintentos vean el campo.
     """
     if not isinstance(result, dict):
         return []
     causas = result.get("cause") or result.get("causes") or []
-    return causas if isinstance(causas, list) else []
+    if isinstance(causas, list) and causas:
+        return causas
+
+    mensaje = str(result.get("error") or result.get("message") or "").strip()
+    if not mensaje:
+        return []
+    # Solo se sintetiza para respuestas REALES de ML (400/422 con `message` y/o
+    # `status`). Los errores de red ({"error": "..."}) se dejan sin causas.
+    if not result.get("message") and not result.get("status"):
+        return []
+    texto = mensaje.lower()
+    if "invalid" in texto or "no es válido" in texto or "no válido" in texto:
+        codigo = "body.invalid_fields"
+    else:
+        codigo = str(result.get("message") or "body.required_fields").strip()
+    return [{"code": codigo, "message": mensaje}]
 
 
 def solo_campos_permitidos(body: Dict[str, Any]) -> Dict[str, Any]:

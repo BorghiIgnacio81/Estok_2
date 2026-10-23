@@ -93,6 +93,41 @@ def predecir_id_ml(nombre_categoria: str, access_token: str = "") -> str:
     return predicho
 
 
+def _id_oficial_por_nombre(nombre: str) -> str:
+    """ID de ML hardcodeado para una categoría oficial (o "" si no lo es)."""
+    buscado = str(nombre or "").strip().casefold()
+    if not buscado:
+        return ""
+    for cat in CATEGORIAS_OFICIALES:
+        if str(cat["nombre"]).strip().casefold() == buscado:
+            return cat["mercadolibre_category_id"]
+    return ""
+
+
+def _mapeo_vigente(categoria, category_id) -> str:
+    """
+    ID de ML vigente de la categoría, autocorrigiendo los mapeos oficiales.
+
+    Las 11 categorías del sistema tienen un ID hardcodeado
+    (CATEGORIAS_OFICIALES). Si en la BD quedó otro ID, se restaura el oficial y
+    se persiste la corrección: bug histórico real, "Electrónica" quedó apuntando
+    a MLA1728 ("Software Comercial") porque una hoja predicha se persistió
+    encima del ID oficial.
+    """
+    cid = normalizar_id_ml(category_id)
+    if not getattr(categoria, "es_sistema", False):
+        return cid
+    oficial = _id_oficial_por_nombre(getattr(categoria, "nombre", ""))
+    if oficial and cid != oficial:
+        logger.warning(
+            "Mapeo ML corrupto en la categoría oficial '%s': %s → se restaura %s",
+            getattr(categoria, "nombre", ""), cid or "(vacío)", oficial,
+        )
+        _persistir_mapeo(categoria, oficial)
+        return oficial
+    return cid
+
+
 def resolver_category_id_ml(categoria, texto_fallback: str = "",
                             access_token: str = "") -> str:
     """
@@ -102,9 +137,12 @@ def resolver_category_id_ml(categoria, texto_fallback: str = "",
     1. `Categoria.mercadolibre_category_id` guardado y con formato válido
        (ej: "MLA412445") → se usa tal cual, SIN llamar a la API.
     2. Sin mapeo → se predice con el NOMBRE de la categoría (`texto_fallback`
-       se usa solo si la categoría no tiene nombre) y el resultado se PERSISTE
-       en la base de datos, para que esa categoría —aunque la haya creado el
-       usuario— quede mapeada y funcional en la próxima publicación.
+       se usa solo si la categoría no tiene nombre). El resultado se PERSISTE
+       solo en categorías del usuario (es_sistema=False y no contenedor); en
+       las oficiales/contenedor se resuelve la hoja por publicación para no
+       corromper el ID oficial.
+    2b. Mapeo oficial corrupto (distinto de CATEGORIAS_OFICIALES) → se restaura
+        el ID oficial y se persiste la corrección.
     3. Si no hay forma de predecir → CATEGORIA_MELI_DEFAULT.
 
     Args:
@@ -115,7 +153,9 @@ def resolver_category_id_ml(categoria, texto_fallback: str = "",
     Returns:
         str con el category_id (formato MLAxxxxx).
     """
-    guardado = normalizar_id_ml(getattr(categoria, 'mercadolibre_category_id', ''))
+    guardado = _mapeo_vigente(
+        categoria, getattr(categoria, 'mercadolibre_category_id', '')
+    )
     if guardado:
         logger.info(
             "category_id estricto desde la BD: %s (categoría '%s')",
@@ -126,7 +166,18 @@ def resolver_category_id_ml(categoria, texto_fallback: str = "",
     nombre = (getattr(categoria, 'nombre', '') or '').strip() or str(texto_fallback or '').strip()
     predicho = predecir_id_ml(nombre, access_token=access_token)
 
-    _persistir_mapeo(categoria, predicho)
+    # Las categorías CONTENEDOR / del sistema NO se persisten: agrupan objetos
+    # distintos y guardar una hoja predicha corrompía el ID oficial (bug real:
+    # "Electrónica" terminó apuntando a MLA1728 "Software Comercial"). La hoja
+    # se resuelve por publicación en garantizar_categoria_hoja_ml().
+    if getattr(categoria, "es_sistema", False) or getattr(categoria, "es_contenedor", False):
+        logger.info(
+            "Categoría contenedor '%s': %s se usa solo para esta publicación "
+            "(no se persiste)",
+            getattr(categoria, 'nombre', ''), predicho,
+        )
+    else:
+        _persistir_mapeo(categoria, predicho)
     return predicho
 
 
@@ -203,48 +254,67 @@ def es_categoria_hoja_ml(category_id, access_token: str = "") -> Optional[bool]:
 
 
 def garantizar_categoria_hoja_ml(categoria, category_id,
-                                 access_token: str = "") -> str:
+                                 access_token: str = "",
+                                 texto_objeto: str = "") -> str:
     """
     Devuelve el `category_id` HOJA con el que se puede publicar (o "" si no hay).
 
     Orden:
       1. El ID recibido, si tiene formato MLA y la API confirma que es hoja.
-      2. Predicción con el NOMBRE de la categoría (nunca con el título) y
-         persistencia del mapeo corregido.
+      2. Predicción y persistencia del mapeo corregido:
+         - Categoría CONTENEDOR del sistema (las 11 oficiales, ej: "Electrónica"
+           → MLA1051): se predice con el NOMBRE REAL DEL OBJETO, que es el dato
+           específico del ítem. NUNCA se persiste la hoja: la categoría agrupa
+           objetos distintos y persistirla corrompía el ID oficial (bug real:
+           un GPS terminó en MLA1728 "Software Comercial").
+         - Categoría del usuario sin mapeo: se predice con su NOMBRE y se
+           persiste (comportamiento histórico, sin cambios).
       3. "" → el llamador responde 400 "Debes asignar una categoría válida de
          Mercado Libre" antes de gastar una llamada a POST /items.
 
     Si la API no se puede consultar (None), el ID se respeta tal cual: un fallo
     de red no debe bloquear la publicación.
     """
-    cid = normalizar_id_ml(category_id)
+    cid = _mapeo_vigente(categoria, category_id)
     if cid and es_categoria_hoja_ml(cid, access_token) is not False:
         return cid
 
     nombre = (getattr(categoria, 'nombre', '') or '').strip()
-    if not nombre:
+    texto_objeto = str(texto_objeto or '').strip()
+    es_contenedor = bool(getattr(categoria, 'es_contenedor', False))
+    # En categorías contenedor el nombre ("Electrónica", "Hogar") no identifica
+    # el producto: se usa el nombre del objeto para acertar la hoja real.
+    texto_prediccion = texto_objeto if (es_contenedor and texto_objeto) else nombre
+    if not texto_prediccion:
         logger.error(
-            "Sin categoría ML válida (ID=%s) y sin nombre de categoría para predecir",
+            "Sin categoría ML válida (ID=%s) y sin nombre para predecir",
             cid or '(vacío)',
         )
         return ''
 
-    predicho = normalizar_id_ml(predecir_id_ml(nombre, access_token=access_token))
+    predicho = normalizar_id_ml(predecir_id_ml(texto_prediccion, access_token=access_token))
     if not predicho:
         return ''
     if es_categoria_hoja_ml(predicho, access_token) is False:
         logger.error(
-            "La predicción ML %s para la categoría '%s' tampoco es una categoría hoja",
-            predicho, nombre,
+            "La predicción ML %s para '%s' tampoco es una categoría hoja",
+            predicho, texto_prediccion[:50],
         )
         return ''
 
     if predicho != cid:
         logger.warning(
-            "Categoría ML %s inválida o no hoja → se publica en %s (categoría '%s')",
-            cid or '(vacía)', predicho, nombre,
+            "Categoría ML %s inválida o no hoja → se publica en %s (texto '%s')",
+            cid or '(vacía)', predicho, texto_prediccion[:50],
         )
-        _persistir_mapeo(categoria, predicho)
+        if getattr(categoria, 'es_sistema', False) or es_contenedor:
+            logger.info(
+                "Categoría contenedor '%s': se mantiene el mapeo %s; la hoja %s "
+                "se resuelve por publicación",
+                nombre, cid or '(vacío)', predicho,
+            )
+        else:
+            _persistir_mapeo(categoria, predicho)
     return predicho
 
 

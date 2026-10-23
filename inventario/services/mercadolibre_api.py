@@ -299,9 +299,10 @@ def create_item(user, item_data: Dict[str, Any],
             body.get("category_id"), access_token
         )
 
-    # 8 intentos: categoría, condition, listing_type, POWER_SUPPLY_TYPE,
-    # atributos inválidos, atributos obligatorios y campos de primer nivel
-    # inválidos (body.invalid_fields), todos guiados por las causas REALES de ML.
+    # 8 intentos: categoría, título inválido (re-predicción con el nombre del
+    # objeto), condition, listing_type, POWER_SUPPLY_TYPE, atributos inválidos,
+    # atributos obligatorios y campos de primer nivel inválidos
+    # (body.invalid_fields), todos guiados por las causas REALES de ML.
     MAX_RETRIES = 8
     retry_count = 0
     # Descripción que ML rechazó en el body: se crea aparte con
@@ -312,6 +313,27 @@ def create_item(user, item_data: Dict[str, Any],
     requeridos = ids_requeridos(body["category_id"], access_token)
     atributos_descartados: set = set()
     atributos_corregidos: set = set()
+    # Anti-bucle de la re-predicción por título inválido (se intenta UNA vez).
+    categoria_repredicha = False
+
+    def _mover_categoria(nueva: str):
+        """Mueve el payload a `nueva` y recalcula sus atributos obligatorios."""
+        body["category_id"] = nueva
+        body["attributes"] = _atributos_para(nueva)
+        if not body["attributes"]:
+            body.pop("attributes", None)
+        atributos_descartados.clear()
+        atributos_corregidos.clear()
+        logger.info(
+            "Attributes recalculados para la categoría %s: %s",
+            nueva, json.dumps(body.get("attributes", []), ensure_ascii=False),
+        )
+        if diagnostico is not None:
+            diagnostico["category_id"] = nueva
+            diagnostico["atributos_detectados_categoria"] = atributos_detectados(
+                nueva, access_token
+            )
+        return ids_requeridos(nueva, access_token)
 
     while retry_count < MAX_RETRIES:
         # Garantía final: NINGÚN reintento puede agregar una clave de primer
@@ -362,27 +384,35 @@ def create_item(user, item_data: Dict[str, Any],
             if predicted and predicted != body.get("category_id"):
                 logger.info("Reintento %d: categoría predicha %s → %s", 
                             retry_count, body.get("category_id"), predicted)
-                body["category_id"] = predicted
-                # La categoría cambió: los obligatorios son OTROS. Se
-                # reconstruye `attributes` con el catálogo de la nueva categoría
-                # (si no, ML responde required_fields ↔ invalid_fields).
-                body["attributes"] = _atributos_para(predicted)
-                if not body["attributes"]:
-                    body.pop("attributes", None)
-                requeridos = ids_requeridos(predicted, access_token)
-                atributos_descartados.clear()
-                atributos_corregidos.clear()
-                logger.info(
-                    "Attributes recalculados para la categoría %s: %s",
-                    predicted,
-                    json.dumps(body.get("attributes", []), ensure_ascii=False),
-                )
-                if diagnostico is not None:
-                    diagnostico["category_id"] = predicted
-                    diagnostico["atributos_detectados_categoria"] = (
-                        atributos_detectados(predicted, access_token)
-                    )
+                requeridos = _mover_categoria(predicted)
                 continue
+
+        # Intento 1b: ML rechazó el TÍTULO para la categoría resuelta
+        # ("The fields [title] are invalid for requested call"). Pasa cuando el
+        # inventario tiene el objeto en una categoría que no corresponde (bug
+        # real: un GPS en "Electrónica" → MLA1728 "Software Comercial"). Se
+        # re-predice UNA vez con el NOMBRE DEL OBJETO (dato del inventario) y se
+        # reintenta en la categoría hoja que devuelve Mercado Libre.
+        if not categoria_repredicha:
+            titulo_invalido = any(
+                str(campo).split(".")[-1].strip().lower() == "title"
+                for campo in campos_invalidos_ml(result)
+            )
+            if titulo_invalido:
+                categoria_repredicha = True
+                texto_objeto = str(
+                    item_data.get("nombre") or item_data.get("title") or ""
+                ).strip()
+                predicted = predict_category(texto_objeto) if texto_objeto else None
+                if predicted and predicted != body.get("category_id"):
+                    logger.info(
+                        "Reintento %d: ML rechazó el título en %s → se re-predice "
+                        "%s con el objeto '%s'",
+                        retry_count, body.get("category_id"), predicted,
+                        texto_objeto[:50],
+                    )
+                    requeridos = _mover_categoria(predicted)
+                    continue
         
         # Intento 2: cambiar condition de used a new
         is_condition_error = any(
