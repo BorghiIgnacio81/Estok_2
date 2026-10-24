@@ -27,7 +27,7 @@ from ...services.mercadolibre_payload import (
     extraer_error_ml,
     mapear_condition_ml,
 )
-from ...services.mercadolibre_saneamiento import limpiar_titulo
+from ...services.mercadolibre_saneamiento import recortar_titulo
 from ...services.categorias_meli import (
     garantizar_categoria_hoja_ml,
     normalizar_id_ml,
@@ -139,9 +139,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         POST /api/mercadolibre/publicar_item/
         Body: {
             objeto_id: "<uuid>",
-            title: "iPhone 14 Pro Max 256GB",  (se trunca a 60 caracteres)
+            title: "iPhone 14 Pro Max 256GB",  (rango obligatorio de 15 a 60)
             price: 850.00,                     (float, debe ser mayor a 0)
-            description: "...",
+            description: "...",                (se envía aparte, tras el 201)
             foto_url: "https://...",           (opcional, foto elegida en el modal)
             condition: "new" | "used"          (opcional: si no viene se mapea el
                                                 estado del objeto: 'nuevo' → 'new',
@@ -167,15 +167,17 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         `create_item()` consulta GET /categories/{id}/attributes y agrega TODOS
         los atributos obligatorios de la categoría con un valor VÁLIDO según su
         `value_type` (value_id de catálogo para listas, "No" para booleanos,
-        número + unidad, o el dato real / default "Sin marca" / "Genérico").
-        Así se evita el bucle body.required_fields ↔ body.invalid_fields.
+        número + unidad, o el dato real; los genéricos "Sin marca"/"Genérico"
+        son el ÚLTIMO recurso y nunca pisan un dato cargado). Evita el bucle
+        body.required_fields ↔ invalid_fields.
 
-        Defaults obligatorios (los fuerza `construir_payload_item`):
-        currency_id="ARS", buying_mode="buy_it_now",
-        listing_type_id="gold_special" (o settings.MERCADOLIBRE_LISTING_TYPE_ID),
-        available_quantity = objeto.cantidad (mínimo 1),
-        condition 'new'/'used', description {"plain_text": ...} y
-        shipping {"mode": "not_specified", "local_pick_up": True}.
+        Defaults obligatorios (`construir_payload_item`): currency_id="ARS",
+        buying_mode="buy_it_now", listing_type_id="gold_special" (o settings),
+        available_quantity = objeto.cantidad (mínimo 1), condition 'new'/'used',
+        title de 15 a 60 caracteres y shipping con retiro en persona.
+
+        DESCRIPCIÓN: ML prohíbe "description" en POST /items; se crea después del
+        201 con POST /items/{item_id}/description. "family_name" tampoco se envía.
 
         ERRORES DE MERCADO LIBRE: el payload exacto se registra con
         logger.info("Payload ML enviado: ...") y, ante 400/422, el cuerpo
@@ -218,9 +220,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Título definitivo: el del request o el nombre del objeto, siempre
-        # como texto plano (sin HTML) y truncado a 60 caracteres (límite de ML)
-        title = limpiar_titulo(title or objeto.nombre)
+        # Título definitivo: el del request o el nombre del objeto, como texto
+        # plano y con corte limpio en 60; el mínimo de 15 lo completa el payload.
+        title = recortar_titulo(title or objeto.nombre)
 
         # Precio: float válido y estrictamente mayor a 0 (validación temprana
         # antes de pegarle a Mercado Libre)

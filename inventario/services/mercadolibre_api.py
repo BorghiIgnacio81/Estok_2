@@ -19,6 +19,7 @@ from .mercadolibre_payload import (
     extraer_error_ml,
     solo_campos_permitidos,
 )
+from .mercadolibre_saneamiento import descripcion_publicable
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
 from .mercadolibre_atributos import (
     completar_attributes_requeridos,
@@ -170,12 +171,12 @@ def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
 
 def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None:
     """
-    Crea la descripción con POST /items/{id}/description.
+    Crea la descripción con POST /items/{item_id}/description.
 
-    Se usa cuando Mercado Libre rechazó la clave "description" dentro del body de
-    POST /items (causa body.invalid_fields): el ítem ya quedó publicado y la
-    descripción se agrega con el endpoint dedicado. Best-effort: si falla solo se
-    registra el error, no se revierte la publicación.
+    La API actual de Mercado Libre PROHÍBE enviar "description" dentro del body
+    de POST /items (HTTP 400 "body.invalid_fields"). Por eso esta llamada se
+    hace SIEMPRE después del HTTP 201 que devuelve el item_id. Best-effort: si
+    falla solo se registra el error, no se revierte la publicación.
     """
     item_id = str((item or {}).get("id") or "").strip()
     texto = str(texto or "").strip()
@@ -187,7 +188,7 @@ def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None
         {"plain_text": texto},
     )
     if respuesta and (respuesta.get("id") or respuesta.get("plain_text")):
-        logger.info("Descripción creada aparte para el ítem %s", item_id)
+        logger.info("Descripción creada para el ítem %s", item_id)
     else:
         logger.error(
             "No se pudo crear la descripción del ítem %s: %s",
@@ -208,12 +209,16 @@ def create_item(user, item_data: Dict[str, Any],
             `category_id` e `intentos`. La vista lo devuelve en el HTTP 400 para
             que el frontend muestre exactamente qué se envió y qué respondió ML.
         item_data: Dict con:
-            - title (str): Título del producto (se trunca a 60 caracteres)
+            - title (str): Título del producto. Se sanea y se lleva al rango
+              obligatorio de 15 a 60 caracteres (si es más corto se completa
+              con la marca, el modelo, la condición y el tipo de vehículo).
             - category_id (str): ID de categoría de ML (ej: "MLA1648" para Computación)
             - price (float): Precio en ARS (debe ser mayor a 0)
             - available_quantity (int): Stock disponible (default 1)
             - condition (str): "new" o "used" (default "used")
-            - description (str): Descripción en texto plano
+            - description (str): Descripción en texto plano. NO viaja en el body
+              de POST /items: se envía aparte con POST /items/{id}/description
+              apenas la publicación devuelve el item_id.
             - pictures (list): Lista de dicts {"source": "url"} (formato único
               que acepta MLA; este servicio lo normaliza y deduplica)
             - categoria_nombre (str, opcional): nombre de la categoría del
@@ -224,8 +229,6 @@ def create_item(user, item_data: Dict[str, Any],
               solo BRAND / MODEL; los obligatorios que falten los completa
               `completar_attributes_requeridos()` con el catálogo real de la
               categoría.
-            - family_name (str, opcional): familia en la RAÍZ del body (ML la
-              exige como propiedad directa). Fallback: familia→marca→nombre→título.
             - marca / modelo (str, opcional): datos de identidad del objeto,
               usados para completar BRAND / MODEL cuando ML los exige.
             - sale_terms (list, opcional): solo WARRANTY_TYPE / WARRANTY_TIME.
@@ -233,9 +236,8 @@ def create_item(user, item_data: Dict[str, Any],
         El servicio fuerza los defaults de Mercado Libre: currency_id="ARS",
         buying_mode="buy_it_now", listing_type_id="gold_special" (o el
         configurado en settings.MERCADOLIBRE_LISTING_TYPE_ID), condition ("new"
-        si el estado es nuevo, si no "used"), available_quantity (1 por defecto),
-        description {"plain_text": ...} y shipping {"mode": "not_specified",
-        "local_pick_up": True}.
+        si el estado es nuevo, si no "used"), available_quantity (1 por defecto)
+        y shipping {"mode": "not_specified", "local_pick_up": True}.
 
     Returns:
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
@@ -260,6 +262,10 @@ def create_item(user, item_data: Dict[str, Any],
     # vive en construir_payload_item(): sanea tipos, aplica la whitelist de
     # campos de la API y aborta con un ValueError descriptivo si algo falta.
     body = construir_payload_item(item_data)
+    # La descripción NO viaja en el body de POST /items (la API actual la
+    # rechaza con 400 "body.invalid_fields"): se guarda para crearla con
+    # POST /items/{item_id}/description apenas ML devuelva el item_id.
+    descripcion = descripcion_publicable(item_data, body.get("title", ""))
 
     # =====================================================================
     # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA (100% DINÁMICO)
@@ -305,9 +311,6 @@ def create_item(user, item_data: Dict[str, Any],
     # (body.invalid_fields), todos guiados por las causas REALES de ML.
     MAX_RETRIES = 8
     retry_count = 0
-    # Descripción que ML rechazó en el body: se crea aparte con
-    # POST /items/{id}/description una vez creado el ítem.
-    descripcion_pendiente = ""
     # Anti-bucle required_fields ↔ invalid_fields: IDs obligatorios de la
     # categoría actual, atributos que ML ya rechazó y correcciones ya intentadas.
     requeridos = ids_requeridos(body["category_id"], access_token)
@@ -492,10 +495,7 @@ def create_item(user, item_data: Dict[str, Any],
                 invalidos_raiz.append(raiz)
         if invalidos_raiz:
             for campo in invalidos_raiz:
-                valor = body.pop(campo, None)
-                if campo == "description" and isinstance(valor, dict):
-                    # La descripción no se pierde: se crea aparte al publicar.
-                    descripcion_pendiente = str(valor.get("plain_text") or "")
+                body.pop(campo, None)
             logger.info(
                 "Reintento %d: ML rechazó los campos [%s] (%s) → se reintenta "
                 "sin ellos",
@@ -512,9 +512,9 @@ def create_item(user, item_data: Dict[str, Any],
             result["id"],
             result.get("permalink", "N/A"),
         )
-        # Si ML había rechazado "description" en el body, se crea ahora con el
-        # endpoint oficial (POST /items/{id}/description).
-        _crear_descripcion_aparte(result, access_token, descripcion_pendiente)
+        # La descripción se crea SIEMPRE después del 201, con el endpoint
+        # oficial (POST /items/{item_id}/description). Nunca viaja en el body.
+        _crear_descripcion_aparte(result, access_token, descripcion)
         return result
 
     error = extraer_error_ml(result)

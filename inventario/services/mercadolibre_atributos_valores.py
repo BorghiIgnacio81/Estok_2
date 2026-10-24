@@ -38,9 +38,9 @@ VALOR_MARCA = "Sin marca"
 # Atributo → (valor por defecto, campos REALES del objeto en orden de preferencia).
 # Los IDs son los del catálogo de Mercado Libre (siempre en MAYÚSCULAS).
 ATRIBUTOS_OBJETO = {
-    "BRAND": (VALOR_MARCA, ("marca", "artista_fabricante")),
-    "MANUFACTURER": (VALOR_MARCA, ("marca", "artista_fabricante")),
-    "FAMILY_NAME": (VALOR_GENERICO, ("familia", "marca", "nombre", "categoria")),
+    "BRAND": (VALOR_MARCA, ("marca", "artista_fabricante", "fabricante")),
+    "MANUFACTURER": (VALOR_MARCA, ("marca", "artista_fabricante", "fabricante")),
+    "FAMILY_NAME": (VALOR_GENERICO, ("marca", "familia", "nombre", "categoria")),
     "MODEL": ("Sin especificar", ("modelo", "numero_serie")),
     "MODEL_NAME": ("Sin especificar", ("modelo",)),
     "LINE": ("Genérica", ("marca", "linea")),
@@ -105,14 +105,15 @@ def construir_datos_objeto(item_data: Optional[Dict[str, Any]] = None,
     categoria = str(
         origen.get("categoria_nombre") or origen.get("categoria") or ""
     ).strip()
-    marca = str(origen.get("marca") or "").strip()
+    marca = str(origen.get("marca") or origen.get("fabricante") or "").strip()
     especificaciones = origen.get("especificaciones")
     if not isinstance(especificaciones, dict):
         especificaciones = {}
 
     datos: Dict[str, Any] = {
         "marca": marca,
-        "modelo": str(origen.get("modelo") or "").strip(),
+        "modelo": str(origen.get("modelo") or origen.get("model") or "").strip(),
+        "fabricante": str(origen.get("fabricante") or "").strip(),
         "nombre": nombre or titulo,
         "titulo": titulo,
         "categoria": categoria,
@@ -125,8 +126,19 @@ def construir_datos_objeto(item_data: Optional[Dict[str, Any]] = None,
         "peso": str(origen.get("peso") or "").strip(),
         "especificaciones": especificaciones,
     }
+    # BRAND / MODEL: antes de aceptar un valor genérico ("Sin marca" /
+    # "Sin especificar", que ML puede rechazar) se busca el dato REAL del
+    # objeto en `especificaciones` (marca / brand / fabricante / modelo).
+    if not datos["marca"]:
+        datos["marca"] = _dato_desde_especificaciones(
+            {"id": "BRAND", "name": "Marca"}, datos
+        )
+    if not datos["modelo"]:
+        datos["modelo"] = _dato_desde_especificaciones(
+            {"id": "MODEL", "name": "Modelo"}, datos
+        )
     # Familia del producto: marca real; si no hay, nombre o categoría Estok.
-    datos["familia"] = marca or datos["nombre"] or categoria
+    datos["familia"] = datos["marca"] or datos["nombre"] or categoria
     return datos
 
 

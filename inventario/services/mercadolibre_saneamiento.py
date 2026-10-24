@@ -3,16 +3,20 @@ Saneamiento de los valores que viajan a la API de Mercado Libre.
 
 Mercado Libre responde HTTP 400 "body.invalid_fields" cuando el body de
 POST /items trae campos con tipos o valores que no pertenecen a la
-especificación (título con HTML de más de 60 caracteres, precio en texto o 0,
-category_id sin formato MLAxxxxx, atributos con IDs inventados, elementos nulos
-en "pictures", etc.).
+especificación (título con HTML o fuera del rango de 15 a 60 caracteres, precio
+en texto o 0, category_id sin formato MLAxxxxx, atributos con IDs inventados,
+elementos nulos en "pictures", claves raíz ajenas al recurso como
+"family_name" o "description", etc.).
 
 Este módulo centraliza las funciones PURAS de normalización que usa
 `mercadolibre_payload.construir_payload_item()` y la vista de publicación:
 
-    limpiar_texto / limpiar_titulo  → título y descripción en texto plano
-    normalizar_family_name          → familia raíz del ítem (≤ 60 caracteres)
-    family_name_publicable          → familia raíz publicable (identidad o título)
+    limpiar_texto                   → texto plano (sin HTML ni entidades)
+    descripcion_publicable          → descripción del endpoint secundario
+    recortar_titulo                 → título con corte limpio en 60 caracteres
+    tipo_vehiculo_desde_texto       → "Auto" / "Camioneta" / "Moto" ...
+    formatear_titulo                → título publicable de 15 a 60 caracteres
+    validar_titulo                  → motivo exacto si el título no sirve
     normalizar_precio               → float > 0 con 2 decimales
     normalizar_category_id          → "MLA" + dígitos o "" si no es válido
     normalizar_attributes           → [{"id": ..., "value_name"/"value_id": ...}]
@@ -23,12 +27,35 @@ por eso son fáciles de testear de forma aislada.
 """
 
 import re
+import unicodedata
 
 # Límites y valores por defecto de la especificación de POST /items.
+TITULO_MIN_ML = 15          # mínimo que exigen las categorías de MLA
 TITULO_MAX_ML = 60          # límite duro de la API para el título
-FAMILY_NAME_MAX_ML = 60     # límite de ML para family_name (raíz del ítem)
 PRECIO_MIN_ML = 0.01        # ML no acepta precio 0 ni negativo
 SALE_TERMS_PERMITIDOS = ("WARRANTY_TYPE", "WARRANTY_TIME")
+
+# Condición nativa de ML → palabras que se agregan a un título demasiado corto
+# (se contemplan ambas variantes de género para no duplicar "Usado"/"Usada").
+CONDICION_TEXTO_ML = {"new": ("Nuevo", "Nueva"), "used": ("Usado", "Usada")}
+
+# Último recurso para llegar al mínimo de 15 caracteres cuando el objeto no
+# aporta ningún dato descriptivo (título de 3 letras sin marca, modelo,
+# categoría ni condición).
+RELLENO_TITULO = ("En venta", "Producto")
+
+# Tipo de vehículo deducible del título o de la categoría del objeto. Se
+# comparan PALABRAS completas (singular y plural) para no confundir
+# "auto" con "automático".
+TIPOS_VEHICULO = (
+    ("auto", "Auto"), ("autos", "Auto"),
+    ("automovil", "Automóvil"), ("automoviles", "Automóvil"),
+    ("camioneta", "Camioneta"), ("camionetas", "Camioneta"),
+    ("moto", "Moto"), ("motos", "Moto"),
+    ("bicicleta", "Bicicleta"), ("bicicletas", "Bicicleta"),
+    ("camion", "Camión"), ("camiones", "Camión"),
+    ("utilitario", "Utilitario"), ("utilitarios", "Utilitario"),
+)
 
 # Saneamiento de textos e IDs.
 _RE_HTML = re.compile(r"<[^>]+>")
@@ -59,40 +86,159 @@ def limpiar_texto(valor, maximo: int = 0) -> str:
     return texto
 
 
-def limpiar_titulo(valor) -> str:
-    """Título publicable: texto plano y truncado a TITULO_MAX_ML (60) chars."""
-    return limpiar_texto(valor, TITULO_MAX_ML)
-
-
-def normalizar_family_name(valor) -> str:
+def descripcion_publicable(item_data, title: str = "") -> str:
     """
-    `family_name` de la RAÍZ del body: texto plano y truncado a 60 caracteres.
+    Texto plano de la descripción para POST /items/{item_id}/description.
 
-    Mercado Libre exige `family_name` como propiedad DIRECTA del recurso
-    (además del atributo FAMILY_NAME dentro de `attributes`). Un valor con HTML
-    o de más de 60 caracteres provoca HTTP 400 "body.invalid_fields".
-    """
-    return limpiar_texto(valor, FAMILY_NAME_MAX_ML)
-
-
-def family_name_publicable(item_data, title: str = "") -> str:
-    """
-    Valor de `family_name` para la RAÍZ del body de POST /items.
-
-    Mercado Libre exige `family_name` como propiedad DIRECTA del recurso (no
-    alcanza con el atributo FAMILY_NAME dentro de `attributes`). Se usa el dato
-    de identidad REAL del objeto en orden de preferencia:
-
-        familia → marca → nombre → título
-
-    Siempre texto plano y truncado a 60 caracteres.
+    La API actual de Mercado Libre PROHÍBE enviar la descripción dentro del
+    body de POST /items (HTTP 400 "body.invalid_fields"): se crea con una
+    segunda llamada, después del 201. Si el objeto no tiene descripción se usa
+    el título, porque ML rechaza una descripción vacía.
     """
     origen = item_data if isinstance(item_data, dict) else {}
-    for clave in ("family_name", "familia", "marca", "nombre"):
-        valor = normalizar_family_name(origen.get(clave))
-        if valor:
-            return valor
-    return normalizar_family_name(title)
+    return limpiar_texto(origen.get("description")) or limpiar_texto(title)
+
+
+# =============================================================================
+# TÍTULO PUBLICABLE (15 a 60 caracteres)
+# =============================================================================
+_RE_NO_ALFANUM = re.compile(r"[^a-z0-9]+")
+
+
+def _clave(valor) -> str:
+    """Texto comparable: minúsculas, sin acentos y sin signos."""
+    texto = unicodedata.normalize("NFKD", str(valor or ""))
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return _RE_NO_ALFANUM.sub(" ", texto.lower()).strip()
+
+
+def _mencionado(texto: str, fragmento: str) -> bool:
+    """True si TODAS las palabras del fragmento ya aparecen en el texto."""
+    palabras = _clave(fragmento).split()
+    if not palabras:
+        return True
+    presentes = set(_clave(texto).split())
+    return all(palabra in presentes for palabra in palabras)
+
+
+def recortar_titulo(valor) -> str:
+    """
+    Título en texto plano truncado LIMPIAMENTE en el límite de 60 caracteres.
+
+    Se corta en el último espacio cuando el resultado sigue respetando el
+    mínimo de 15; si no, se corta en el límite exacto. Nunca deja espacios
+    colgando al final.
+    """
+    titulo = limpiar_texto(valor)
+    if len(titulo) <= TITULO_MAX_ML:
+        return titulo
+    corte = titulo[:TITULO_MAX_ML]
+    if " " in corte:
+        candidato = corte.rsplit(" ", 1)[0].rstrip()
+        if len(candidato) >= TITULO_MIN_ML:
+            return candidato
+    return corte.rstrip()
+
+
+def validar_titulo(valor) -> str:
+    """
+    Motivo por el que el título NO es publicable, o "" si está dentro del rango.
+
+    Mercado Libre rechaza POST /items con HTTP 400 "body.invalid_fields"
+    ("The fields [title] are invalid for requested call") cuando el título no
+    tiene entre 15 y 60 caracteres.
+    """
+    titulo = limpiar_texto(valor)
+    if not titulo:
+        return "El título es obligatorio para publicar en Mercado Libre."
+    if len(titulo) < TITULO_MIN_ML:
+        return (
+            f"El título debe tener al menos {TITULO_MIN_ML} caracteres "
+            f"(tiene {len(titulo)})."
+        )
+    if len(titulo) > TITULO_MAX_ML:
+        return (
+            f"El título no puede superar los {TITULO_MAX_ML} caracteres "
+            f"(tiene {len(titulo)})."
+        )
+    return ""
+
+
+def tipo_vehiculo_desde_texto(*textos) -> str:
+    """
+    Tipo de vehículo mencionado en los textos ("Auto", "Camioneta", "Moto"...).
+
+    Se usa para completar un título demasiado corto con información REAL del
+    objeto o de su categoría ("Accesorios para Autos y Camionetas" → "Auto/
+    Camioneta"). Devuelve "" si ninguno de los textos menciona un vehículo.
+    """
+    palabras = set(_clave(" ".join(str(texto or "") for texto in textos)).split())
+    encontrados: list = []
+    for aguja, etiqueta in TIPOS_VEHICULO:
+        if aguja in palabras and etiqueta not in encontrados:
+            encontrados.append(etiqueta)
+    return "/".join(encontrados[:2])
+
+
+def formatear_titulo(
+    valor,
+    condition: str = "",
+    marca: str = "",
+    modelo: str = "",
+    categoria: str = "",
+    tipo_vehiculo: str = "",
+) -> str:
+    """
+    Título publicable de Mercado Libre: entre 15 y 60 caracteres.
+
+    Si el título original ya tiene 15 caracteres o más se devuelve saneado y
+    recortado a 60. Si es más corto se completa con información REAL del
+    objeto, en este orden: marca, modelo, tipo de vehículo ("Para Auto") y
+    nombre de la categoría. La condición ("Usado"/"Nuevo") SIEMPRE se agrega
+    en los títulos cortos: es el dato que distingue una publicación usada de
+    una nueva.
+
+    - Nunca repite un dato que ya esté en el título ("GPS Garmin" no vuelve a
+      agregar "Garmin").
+    - El resultado se recorta limpiamente en el límite de 60 caracteres, sin
+      cortar palabras a la mitad.
+    """
+    titulo = recortar_titulo(valor)
+    if not titulo or len(titulo) >= TITULO_MIN_ML:
+        return titulo
+
+    condiciones = CONDICION_TEXTO_ML.get(str(condition or "").strip().lower(), ())
+    vehiculo = limpiar_texto(tipo_vehiculo) or tipo_vehiculo_desde_texto(
+        titulo, categoria
+    )
+
+    descriptivos = [limpiar_texto(marca), limpiar_texto(modelo)]
+    if vehiculo:
+        descriptivos.append(f"Para {vehiculo}")
+    descriptivos.append(limpiar_texto(categoria))
+
+    for fragmento in descriptivos:
+        if len(titulo) >= TITULO_MIN_ML:
+            break
+        if not fragmento or _mencionado(titulo, fragmento):
+            continue
+        candidato = f"{titulo} {fragmento}"
+        if len(candidato) <= TITULO_MAX_ML:
+            titulo = candidato
+
+    if condiciones and not any(_mencionado(titulo, c) for c in condiciones):
+        candidato = f"{titulo} {condiciones[0]}"
+        if len(candidato) <= TITULO_MAX_ML:
+            titulo = candidato
+
+    for relleno in RELLENO_TITULO:
+        if len(titulo) >= TITULO_MIN_ML:
+            break
+        candidato = f"{titulo} {relleno}"
+        if len(candidato) <= TITULO_MAX_ML:
+            titulo = candidato
+
+    return recortar_titulo(titulo)
 
 
 def normalizar_precio(valor) -> float:

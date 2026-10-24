@@ -6,23 +6,18 @@ mercadolibre_api.py:
 
 1. ARMADO DEL BODY con saneamiento integral. Se envía ÚNICAMENTE el conjunto de
    campos de primer nivel que acepta POST /items (whitelist CAMPOS_PERMITIDOS_ML)
-   con los tipos exactos de la API. Mercado Libre responde HTTP 400
-   "body.invalid_fields" cuando llega una clave que no pertenece al recurso
-   (bug real: la clave raíz "warranty") y "body.required_fields" cuando falta un
-   campo obligatorio, por eso el body garantiza siempre:
-     currency_id='ARS', buying_mode='buy_it_now',
-     listing_type_id (gold_special o el configurado en settings),
-     condition ('nuevo' → 'new', cualquier otro estado → 'used'),
-     available_quantity entero ≥ 1, title limpio ≤ 60 caracteres,
-     description {"plain_text": ...},
-     shipping {"mode": "not_specified", "local_pick_up": True}.
-   "pictures" solo se envía si hay URLs absolutas HTTPS: nunca valores nulos.
-   "attributes" se limita a los atributos estándar (BRAND / MODEL): los
-   obligatorios de cada categoría los agrega mercadolibre_atributos.py
-   consultando el catálogo real (GET /categories/{id}/attributes).
-   "family_name" viaja SIEMPRE como propiedad de la RAÍZ del body: Mercado
-   Libre lo exige como campo del recurso y no solo como atributo FAMILY_NAME
-   dentro de "attributes".
+   con los tipos exactos de la API: ML responde 400 "body.invalid_fields" por una
+   clave ajena al recurso (bugs reales: "warranty", "family_name", "description")
+   y "body.required_fields" si falta un obligatorio. El body garantiza
+   currency_id='ARS', buying_mode='buy_it_now', listing_type_id válido,
+   condition 'new'/'used', available_quantity ≥ 1, title de 15 a 60 caracteres y
+   shipping {"mode": "not_specified", "local_pick_up": True}. "pictures" solo con
+   URLs HTTPS públicas y "attributes" solo con valores válidos (los obligatorios
+   de la categoría los agrega mercadolibre_atributos.py con el catálogo real).
+
+   La DESCRIPCIÓN no viaja en este body: `mercadolibre_saneamiento
+   .descripcion_publicable()` devuelve el texto plano y `create_item()` lo envía
+   DESPUÉS del 201 con POST /items/{item_id}/description.
 
 2. EXTRACCIÓN DE ERRORES de Mercado Libre (HTTP 400/422): normaliza las causas
    y devuelve el campo exacto que falta o que fue rechazado, para responderle al
@@ -43,13 +38,12 @@ from django.conf import settings
 
 from .mercadolibre_imagenes import normalizar_pictures, normalizar_url
 from .mercadolibre_saneamiento import (
-    family_name_publicable,
-    limpiar_texto,
-    limpiar_titulo,
     normalizar_attributes,
     normalizar_category_id,
     normalizar_precio,
     normalizar_sale_terms,
+    formatear_titulo,
+    validar_titulo,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,6 +79,10 @@ CAMPOS_REQUERIDOS_ML = (
 
 # Whitelist de campos de primer nivel que acepta POST /items: cualquier otra
 # clave se descarta antes de enviar el body (origen de "body.invalid_fields").
+# "description" y "family_name" NO pertenecen al recurso: ML rechaza el POST
+# completo si aparecen en la raíz (la descripción va a
+# POST /items/{id}/description y la familia, si la categoría lo pide, va en
+# "attributes" como FAMILY_NAME).
 CAMPOS_PERMITIDOS_ML = (
     "title",
     "category_id",
@@ -94,12 +92,8 @@ CAMPOS_PERMITIDOS_ML = (
     "buying_mode",
     "listing_type_id",
     "condition",
-    "description",
     "pictures",
     "attributes",
-    # Propiedad DIRECTA del recurso: ML la exige en la raíz del body además
-    # del atributo FAMILY_NAME. Si se descarta acá, nunca llega a la API.
-    "family_name",
     "shipping",
     "sale_terms",
 )
@@ -229,9 +223,9 @@ def solo_campos_permitidos(body: Dict[str, Any]) -> Dict[str, Any]:
     Descarta cualquier clave de primer nivel fuera de la spec de POST /items.
 
     Se aplica al body FINAL (y antes de cada reintento): una sola clave
-    inventada (ej: "warranty" en la raíz) hace que Mercado Libre responda HTTP
-    400 "body.invalid_fields". "family_name" SÍ es una propiedad válida de la
-    raíz del recurso y por eso está incluida en CAMPOS_PERMITIDOS_ML.
+    inventada (ej: "warranty", "family_name" o "description" en la raíz) hace
+    que Mercado Libre responda HTTP 400 "body.invalid_fields". Solo las claves
+    de CAMPOS_PERMITIDOS_ML llegan a la API.
     """
     return {
         clave: valor for clave, valor in (body or {}).items()
@@ -375,7 +369,8 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
     "body.required_fields" cuando falta un campo obligatorio. Por eso el body
     final cumple estrictamente:
 
-      - title              → texto plano (sin HTML) truncado a 60 caracteres
+      - title              → texto plano de 15 a 60 caracteres (si es más corto
+                             se completa con datos reales del objeto)
       - category_id        → MLA + dígitos; se aborta si no es válido (la vista
                              resuelve la categoría hoja y la predicción)
       - price              → float > 0; se aborta si es <= 0 (no se inventa)
@@ -384,27 +379,43 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
       - buying_mode        → buy_it_now (siempre)
       - listing_type_id    → gold_special o el configurado en settings
       - condition          → 'new' si el estado es nuevo, si no 'used'
-      - description        → {"plain_text": ...} (cae al título si viene vacía)
       - pictures           → [{"source": "https://..."}] solo si hay URLs
                              públicas; sin fotos NO se envía la clave
       - attributes         → solo atributos válidos (BRAND / MODEL por defecto)
-      - family_name        → texto plano ≤ 60 caracteres (familia → marca →
-                             nombre → título); propiedad DIRECTA de la raíz
       - shipping           → {"mode": "not_specified", "local_pick_up": True}
       - sale_terms         → solo si se especifican términos válidos
       - Cualquier otra clave se descarta (whitelist CAMPOS_PERMITIDOS_ML).
 
+    "description" y "family_name" NO se envían: no son propiedades del recurso
+    POST /items. La descripción se publica aparte con
+    `descripcion_publicable()` (POST /items/{id}/description).
+
     Raises:
-        ValueError: título vacío, categoría inválida, precio inválido o payload
-            incompleto (mensaje listo para devolverse al frontend).
+        ValueError: título vacío o fuera de rango, categoría inválida, precio
+            inválido o payload incompleto (mensaje listo para el frontend).
     """
     if not isinstance(item_data, dict):
         item_data = {}
 
-    # Título: texto plano (sin HTML) y truncado estricto a 60 caracteres
-    title = limpiar_titulo(item_data.get("title"))
-    if not title:
-        raise ValueError("El título es obligatorio para publicar en Mercado Libre.")
+    # Condición: solo valores nativos ('usado' en español jamás llega a ML).
+    # Se calcula ANTES del título porque es uno de los datos que completa un
+    # título demasiado corto ("... Usado").
+    condition = mapear_condition_ml(item_data.get("condition")) or CONDITION_DEFAULT
+
+    # Título: entre 15 y 60 caracteres. Si el título del inventario es más
+    # corto que el mínimo de ML se completa con datos REALES del objeto (marca,
+    # modelo, tipo de vehículo, categoría y condición) y se recorta en 60 sin
+    # cortar palabras a la mitad.
+    title = formatear_titulo(
+        item_data.get("title"),
+        condition=condition,
+        marca=item_data.get("marca"),
+        modelo=item_data.get("modelo"),
+        categoria=item_data.get("categoria_nombre"),
+    )
+    error_titulo = validar_titulo(title)
+    if error_titulo:
+        raise ValueError(error_titulo)
 
     # Categoría: NUNCA nula ni con formato raro (la vista resuelve la hoja)
     category_id = normalizar_category_id(item_data.get("category_id"))
@@ -423,18 +434,11 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
         available_quantity = AVAILABLE_QUANTITY_DEFAULT
     available_quantity = max(available_quantity, AVAILABLE_QUANTITY_DEFAULT)
 
-    # Condición: solo valores nativos ('usado' en español jamás llega a ML)
-    condition = mapear_condition_ml(item_data.get("condition")) or CONDITION_DEFAULT
-
     # Tipo de publicación: se respeta solo si es un valor válido de ML; si no,
     # se usa el configurado (settings) o gold_special.
     listing_type_id = str(item_data.get("listing_type_id") or "").strip().lower()
     if listing_type_id not in LISTING_TYPES_VALIDOS:
         listing_type_id = _listing_type_configurado()
-
-    # Descripción: SIEMPRE objeto {"plain_text": ...}; si viene vacía se usa
-    # el título (ML rechaza cadenas vacías en la descripción).
-    description = limpiar_texto(item_data.get("description")) or title
 
     body: Dict[str, Any] = {
         "title": title,
@@ -445,18 +449,15 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
         "buying_mode": BUYING_MODE_DEFAULT,
         "listing_type_id": listing_type_id,
         "condition": condition,
-        "description": {"plain_text": description},
         # Envío: modo neutro + retiro en persona (default de la spec de ML).
         "shipping": {"mode": "not_specified", "local_pick_up": True},
     }
 
-    # family_name: propiedad DIRECTA de la RAÍZ del body (no solo el atributo
-    # FAMILY_NAME). Mercado Libre la exige como campo del recurso; se publica
-    # con la identidad REAL del objeto (familia → marca → nombre) o, como
-    # fallback, con el título. Saneada y truncada a 60 caracteres.
-    family_name = family_name_publicable(item_data, title)
-    if family_name:
-        body["family_name"] = family_name
+    # NOTA: "description" y "family_name" NO se agregan al body. La API actual
+    # de Mercado Libre los rechaza en POST /items con 400 "body.invalid_fields"
+    # (The fields [title] are invalid for requested call). La descripción se
+    # crea después del 201 con POST /items/{id}/description y la familia, si la
+    # categoría la exige, viaja en "attributes" como FAMILY_NAME.
 
     # Pictures: ÚNICA clave de imágenes, normalizada al formato oficial
     # [{"source": "https://..."}] (absoluta y HTTPS). Sin fotos públicas NO se
