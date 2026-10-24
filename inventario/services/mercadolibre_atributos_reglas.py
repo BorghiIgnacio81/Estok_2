@@ -17,7 +17,8 @@ Usado por:
 from .mercadolibre_atributos_valores import normalizar_id
 
 # IDs de identidad que SIEMPRE se incluyen cuando la categoría los define,
-# aunque ML no los marque como obligatorios.
+# aunque ML no los marque como obligatorios. FAMILY_NAME es la excepción: se
+# emite en la RAÍZ del body (ATRIBUTOS_EN_RAIZ_ML), no en `attributes`.
 TOKENS_IDENTIDAD = ("FAMILY", "BRAND")
 
 

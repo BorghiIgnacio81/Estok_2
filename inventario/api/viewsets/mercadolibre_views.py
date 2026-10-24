@@ -158,9 +158,8 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         devuelve 400 con "Debes asignar una categoría válida de Mercado Libre".
 
         FOTOS: "pictures" se arma como [{"source": "https://url-publica"}] con
-        las fotos reales del objeto (settings.SITE_URL + /media/...), que es lo
-        que Mercado Libre exige para descargar la imagen. Sin fotos públicas NO
-        se envía la clave "pictures" (nunca valores nulos).
+        las fotos reales del objeto (SITE_URL + /media/...), que es lo que ML
+        exige para descargar la imagen. Sin fotos públicas NO se envía la clave.
 
         ATRIBUTOS: `construir_attributes_desde_objeto()` envía los datos REALES
         del objeto (BRAND si tiene marca, MODEL si tiene modelo). Después,
@@ -177,7 +176,8 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         title de 15 a 60 caracteres y shipping con retiro en persona.
 
         DESCRIPCIÓN: ML prohíbe "description" en POST /items; se crea después del
-        201 con POST /items/{item_id}/description. "family_name" tampoco se envía.
+        201 con POST /items/{item_id}/description. "family_name" sí va en la RAÍZ
+        (categorías como MLA49337 lo exigen) y NO dentro de "attributes".
 
         ERRORES DE MERCADO LIBRE: el payload exacto se registra con
         logger.info("Payload ML enviado: ...") y, ante 400/422, el cuerpo

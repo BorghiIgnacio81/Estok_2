@@ -13,6 +13,8 @@ Este módulo centraliza las funciones PURAS de normalización que usa
 
     limpiar_texto                   → texto plano (sin HTML ni entidades)
     descripcion_publicable          → descripción del endpoint secundario
+    normalizar_family_name          → familia raíz del ítem (≤ 60 caracteres)
+    family_name_publicable          → familia raíz publicable (nombre o marca)
     recortar_titulo                 → título con corte limpio en 60 caracteres
     tipo_vehiculo_desde_texto       → "Auto" / "Camioneta" / "Moto" ...
     formatear_titulo                → título publicable de 15 a 60 caracteres
@@ -32,8 +34,15 @@ import unicodedata
 # Límites y valores por defecto de la especificación de POST /items.
 TITULO_MIN_ML = 15          # mínimo que exigen las categorías de MLA
 TITULO_MAX_ML = 60          # límite duro de la API para el título
+FAMILY_NAME_MAX_ML = 60     # límite de ML para family_name (raíz del ítem)
 PRECIO_MIN_ML = 0.01        # ML no acepta precio 0 ni negativo
 SALE_TERMS_PERMITIDOS = ("WARRANTY_TYPE", "WARRANTY_TIME")
+
+# IDs de atributo que Mercado Libre exige como propiedad de la RAÍZ del body y
+# NO dentro de "attributes". En categorías como MLA49337 (GPS) el POST /items
+# responde 400 "body.required_fields" pidiendo [family_name] si falta en la raíz;
+# enviarlo además como atributo es redundante (y ML puede rechazarlo).
+ATRIBUTOS_EN_RAIZ_ML = ("FAMILY_NAME",)
 
 # Condición nativa de ML → palabras que se agregan a un título demasiado corto
 # (se contemplan ambas variantes de género para no duplicar "Usado"/"Usada").
@@ -97,6 +106,39 @@ def descripcion_publicable(item_data, title: str = "") -> str:
     """
     origen = item_data if isinstance(item_data, dict) else {}
     return limpiar_texto(origen.get("description")) or limpiar_texto(title)
+
+
+def normalizar_family_name(valor) -> str:
+    """
+    `family_name` de la RAÍZ del body: texto plano y truncado a 60 caracteres.
+
+    Mercado Libre lo exige como propiedad DIRECTA del recurso en categorías
+    como MLA49337 (GPS): un valor con HTML o de más de 60 caracteres provoca
+    HTTP 400 "body.invalid_fields".
+    """
+    return limpiar_texto(valor, FAMILY_NAME_MAX_ML)
+
+
+def family_name_publicable(item_data, title: str = "") -> str:
+    """
+    Valor de `family_name` para la RAÍZ del body de POST /items.
+
+    Mercado Libre lo pide en la raíz ("The body does not contains some or none
+    of the following properties [family_name]") y NO como atributo FAMILY_NAME
+    dentro de `attributes`. Se usa el dato de identidad REAL del objeto en este
+    orden de preferencia:
+
+        family_name → familia → nombre → marca → título
+
+    Para un objeto llamado "GPS Garmin" la familia publicada es "GPS Garmin".
+    Siempre texto plano y truncado a 60 caracteres.
+    """
+    origen = item_data if isinstance(item_data, dict) else {}
+    for clave in ("family_name", "familia", "nombre", "marca"):
+        valor = normalizar_family_name(origen.get(clave))
+        if valor:
+            return valor
+    return normalizar_family_name(title)
 
 
 # =============================================================================
@@ -283,6 +325,9 @@ def normalizar_attributes(attributes) -> list:
     minúsculas (ej: "family_name" escrita a mano) no es un atributo del catálogo
     y se descarta en vez de "legitimarla" convirtiéndola. Nunca envía
     value_name junto a value_id (ML rechaza combinaciones inválidas).
+
+    Los IDs de ATRIBUTOS_EN_RAIZ_ML (FAMILY_NAME) tampoco se envían acá: ML los
+    exige como propiedad de la RAÍZ del body, no dentro de "attributes".
     """
     normalizados: list = []
     vistos: set = set()
@@ -291,7 +336,13 @@ def normalizar_attributes(attributes) -> list:
             continue
         crudo = str(atributo.get("id") or "").strip()
         aid = crudo.upper()
-        if not crudo or crudo != aid or aid in vistos or not _RE_ID_ATRIBUTO.match(aid):
+        if (
+            not crudo
+            or crudo != aid
+            or aid in vistos
+            or aid in ATRIBUTOS_EN_RAIZ_ML
+            or not _RE_ID_ATRIBUTO.match(aid)
+        ):
             continue
         value_id = str(atributo.get("value_id") or "").strip()
         value_name = str(atributo.get("value_name") or "").strip()

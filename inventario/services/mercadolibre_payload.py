@@ -1,23 +1,22 @@
 """
 Payload y errores de la publicación en Mercado Libre (POST /items).
 
-Centraliza DOS responsabilidades que estaban mezcladas dentro de
-mercadolibre_api.py:
+Centraliza DOS responsabilidades que estaban mezcladas en mercadolibre_api.py:
 
 1. ARMADO DEL BODY con saneamiento integral. Se envía ÚNICAMENTE el conjunto de
    campos de primer nivel que acepta POST /items (whitelist CAMPOS_PERMITIDOS_ML)
    con los tipos exactos de la API: ML responde 400 "body.invalid_fields" por una
-   clave ajena al recurso (bugs reales: "warranty", "family_name", "description")
-   y "body.required_fields" si falta un obligatorio. El body garantiza
-   currency_id='ARS', buying_mode='buy_it_now', listing_type_id válido,
-   condition 'new'/'used', available_quantity ≥ 1, title de 15 a 60 caracteres y
-   shipping {"mode": "not_specified", "local_pick_up": True}. "pictures" solo con
-   URLs HTTPS públicas y "attributes" solo con valores válidos (los obligatorios
-   de la categoría los agrega mercadolibre_atributos.py con el catálogo real).
+   clave ajena al recurso (bugs reales: "warranty", "description") y
+   "body.required_fields" si falta un obligatorio (ej: [family_name] en MLA49337).
+   El body garantiza currency_id='ARS', buying_mode='buy_it_now', listing_type_id
+   válido, condition 'new'/'used', available_quantity ≥ 1, title de 15 a 60
+   caracteres y shipping con retiro en persona. "pictures" solo con URLs HTTPS
+   públicas y "attributes" solo con valores válidos (obligatorios del catálogo).
 
-   La DESCRIPCIÓN no viaja en este body: `mercadolibre_saneamiento
-   .descripcion_publicable()` devuelve el texto plano y `create_item()` lo envía
-   DESPUÉS del 201 con POST /items/{item_id}/description.
+   `family_name` viaja en la RAÍZ (ML lo exige en categorías como MLA49337) y
+   NUNCA como atributo FAMILY_NAME en "attributes". La DESCRIPCIÓN, en cambio,
+   no viaja acá: `descripcion_publicable()` la devuelve y `create_item()` la
+   envía DESPUÉS del 201 con POST /items/{item_id}/description.
 
 2. EXTRACCIÓN DE ERRORES de Mercado Libre (HTTP 400/422): normaliza las causas
    y devuelve el campo exacto que falta o que fue rechazado, para responderle al
@@ -42,6 +41,7 @@ from .mercadolibre_saneamiento import (
     normalizar_category_id,
     normalizar_precio,
     normalizar_sale_terms,
+    family_name_publicable,
     formatear_titulo,
     validar_titulo,
 )
@@ -79,10 +79,8 @@ CAMPOS_REQUERIDOS_ML = (
 
 # Whitelist de campos de primer nivel que acepta POST /items: cualquier otra
 # clave se descarta antes de enviar el body (origen de "body.invalid_fields").
-# "description" y "family_name" NO pertenecen al recurso: ML rechaza el POST
-# completo si aparecen en la raíz (la descripción va a
-# POST /items/{id}/description y la familia, si la categoría lo pide, va en
-# "attributes" como FAMILY_NAME).
+# "family_name" SÍ es una propiedad de la raíz (MLA49337 la exige), pero
+# "description" NO: la descripción va a POST /items/{id}/description.
 CAMPOS_PERMITIDOS_ML = (
     "title",
     "category_id",
@@ -94,6 +92,7 @@ CAMPOS_PERMITIDOS_ML = (
     "condition",
     "pictures",
     "attributes",
+    "family_name",
     "shipping",
     "sale_terms",
 )
@@ -364,21 +363,19 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Arma el body de POST /items con saneamiento integral de tipos y valores.
 
-    Mercado Libre rechaza la publicación con HTTP 400 "body.invalid_fields"
-    cuando el body trae claves o tipos que no pertenecen al recurso, y con
-    "body.required_fields" cuando falta un campo obligatorio. Por eso el body
-    final cumple estrictamente:
+    ML rechaza la publicación con 400 "body.invalid_fields" por claves o tipos
+    ajenos al recurso y "body.required_fields" si falta un obligatorio, por eso
+    el body final cumple estrictamente:
 
-      - title              → texto plano de 15 a 60 caracteres (si es más corto
-                             se completa con datos reales del objeto)
+      - title              → 15 a 60 caracteres (se completa con datos reales
+                             del objeto si es más corto)
       - category_id        → MLA + dígitos; se aborta si no es válido (la vista
                              resuelve la categoría hoja y la predicción)
       - price              → float > 0; se aborta si es <= 0 (no se inventa)
-      - currency_id        → ARS (siempre)
       - available_quantity → int >= 1
-      - buying_mode        → buy_it_now (siempre)
-      - listing_type_id    → gold_special o el configurado en settings
       - condition          → 'new' si el estado es nuevo, si no 'used'
+      - family_name        → raíz del ítem (nombre/marca/título, ≤ 60); ML lo
+                             exige en categorías como MLA49337 (GPS)
       - pictures           → [{"source": "https://..."}] solo si hay URLs
                              públicas; sin fotos NO se envía la clave
       - attributes         → solo atributos válidos (BRAND / MODEL por defecto)
@@ -386,9 +383,8 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
       - sale_terms         → solo si se especifican términos válidos
       - Cualquier otra clave se descarta (whitelist CAMPOS_PERMITIDOS_ML).
 
-    "description" y "family_name" NO se envían: no son propiedades del recurso
-    POST /items. La descripción se publica aparte con
-    `descripcion_publicable()` (POST /items/{id}/description).
+    "description" NO se envía: se publica aparte con `descripcion_publicable()`
+    (POST /items/{item_id}/description) después del 201.
 
     Raises:
         ValueError: título vacío o fuera de rango, categoría inválida, precio
@@ -453,11 +449,16 @@ def construir_payload_item(item_data: Dict[str, Any]) -> Dict[str, Any]:
         "shipping": {"mode": "not_specified", "local_pick_up": True},
     }
 
-    # NOTA: "description" y "family_name" NO se agregan al body. La API actual
-    # de Mercado Libre los rechaza en POST /items con 400 "body.invalid_fields"
-    # (The fields [title] are invalid for requested call). La descripción se
-    # crea después del 201 con POST /items/{id}/description y la familia, si la
-    # categoría la exige, viaja en "attributes" como FAMILY_NAME.
+    # family_name: propiedad de la RAÍZ que ML exige en categorías como
+    # MLA49337 (GPS) con 400 "body.required_fields" si falta. Se usa el nombre
+    # REAL del objeto ("GPS Garmin") o, si no hay, la marca / el título. NO se
+    # envía además como atributo FAMILY_NAME dentro de "attributes".
+    family_name = family_name_publicable(item_data, item_data.get("title"))
+    if family_name:
+        body["family_name"] = family_name
+
+    # NOTA: "description" NO se agrega al body (ML lo rechaza con 400
+    # "body.invalid_fields"): se crea después del 201 en /items/{id}/description.
 
     # Pictures: ÚNICA clave de imágenes, normalizada al formato oficial
     # [{"source": "https://..."}] (absoluta y HTTPS). Sin fotos públicas NO se

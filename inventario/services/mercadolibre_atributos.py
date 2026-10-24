@@ -18,6 +18,8 @@ Este módulo centraliza el blindaje de la lista `attributes`:
    valor válido por tipo (value_id de lista, "No" booleano, número + unidad o
    texto por defecto: "Sin marca", "Genérico", "Sin especificar").
    Nunca duplica ni pisa los valores ya cargados en el objeto.
+   Los IDs de ATRIBUTOS_EN_RAIZ_ML (FAMILY_NAME) se EXCLUYEN: Mercado Libre los
+   exige como propiedad de la RAÍZ del body de POST /items, no en `attributes`.
 3. `atributos_faltantes_por_causas()` y `atributos_invalidos_por_causas()`:
    ayudantes para que `create_item` reintente con evidencia REAL de la respuesta
    de Mercado Libre (por si la consulta de atributos de la categoría no está
@@ -41,6 +43,7 @@ import urllib.request
 from typing import Dict, List, Optional
 
 from .mercadolibre_prediccion import ML_API_BASE
+from .mercadolibre_saneamiento import ATRIBUTOS_EN_RAIZ_ML
 from .mercadolibre_atributos_valores import (
     ATRIBUTOS_OBJETO,
     construir_datos_objeto,
@@ -234,7 +237,10 @@ def completar_attributes_requeridos(
     resultado: List[dict] = [
         dict(atributo)
         for atributo in (attributes or [])
-        if isinstance(atributo, dict) and atributo.get("id")
+        if isinstance(atributo, dict)
+        and atributo.get("id")
+        # FAMILY_NAME viaja en la RAÍZ del body (ATRIBUTOS_EN_RAIZ_ML), no acá.
+        and _normalizar_id(atributo.get("id")) not in ATRIBUTOS_EN_RAIZ_ML
     ]
     presentes = {_normalizar_id(a.get("id")) for a in resultado}
 
@@ -278,7 +284,7 @@ def completar_attributes_requeridos(
         if not isinstance(atributo, dict) or not _debe_incluir(atributo):
             continue
         aid = _normalizar_id(atributo.get("id"))
-        if not aid or aid in presentes:
+        if not aid or aid in presentes or aid in ATRIBUTOS_EN_RAIZ_ML:
             continue
         valor = valor_para_atributo(atributo, datos)
         if not valor:
@@ -316,15 +322,16 @@ def atributos_faltantes_por_causas(
     Devuelve los atributos que Mercado Libre pide y faltan, con valor VÁLIDO.
 
     Se usa en los reintentos de `create_item`: analiza las causas del 400/422 y,
-    si ML nombra un atributo obligatorio (FAMILY_NAME, BRAND, MODEL, COLOR...)
-    que no está en el payload, lo construye respetando el `value_type` del
-    catálogo de la categoría (`definidos`): value_id para listas, número +
-    unidad, booleano o texto con dato real / default.
+    si ML nombra un atributo obligatorio (BRAND, MODEL, COLOR...) que no está en
+    el payload, lo construye respetando el `value_type` del catálogo de la
+    categoría (`definidos`): value_id para listas, número + unidad, booleano o
+    texto con dato real / default.
 
     Sin `definidos` (la consulta del catálogo falló) solo se completan los
     atributos de identidad conocidos en ATRIBUTOS_OBJETO. Tampoco se descarta
-    un ID que ML pida explícitamente aunque no esté en /attributes (caso
-    `family_name`): se agrega con el valor de identidad o "Genérico".
+    un ID que ML pida explícitamente aunque no esté en /attributes.
+    `FAMILY_NAME` NUNCA se agrega acá: viaja en la RAÍZ del body (lo exige ML
+    como propiedad del recurso en categorías como MLA49337).
     Nunca se agrega texto libre a un atributo de lista.
     """
     existentes = {
@@ -362,6 +369,8 @@ def atributos_faltantes_por_causas(
                     aid in conocidos
                     and aid not in existentes
                     and aid not in pedidos
+                    # FAMILY_NAME se envía en la RAÍZ del body, no en attributes.
+                    and aid not in ATRIBUTOS_EN_RAIZ_ML
                 ):
                     pedidos.append(aid)
 
@@ -389,7 +398,7 @@ def atributos_invalidos_por_causas(causes, attributes) -> List[str]:
     IDs de atributos del payload que Mercado Libre rechazó como inválidos.
 
     Red de seguridad: si una categoría no admite uno de los atributos que
-    enviamos (por ejemplo FAMILY_NAME en categorías que no lo definen), se
+    enviamos (por ejemplo MODEL en categorías que no lo definen), se
     identifica para quitarlo y reintentar en vez de abortar la publicación.
     """
     existentes = {

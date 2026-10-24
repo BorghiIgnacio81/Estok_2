@@ -230,7 +230,7 @@ def create_item(user, item_data: Dict[str, Any],
               `completar_attributes_requeridos()` con el catálogo real de la
               categoría.
             - marca / modelo (str, opcional): datos de identidad del objeto,
-              usados para completar BRAND / MODEL cuando ML los exige.
+              usados para BRAND / MODEL y para la familia de la raíz.
             - sale_terms (list, opcional): solo WARRANTY_TYPE / WARRANTY_TIME.
 
         El servicio fuerza los defaults de Mercado Libre: currency_id="ARS",
