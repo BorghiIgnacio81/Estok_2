@@ -28,6 +28,12 @@ ML_TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
 # URL de callback (debe coincidir con lo configurado en el DevCenter de ML)
 CALLBACK_URL = "https://eeestok.duckdns.org/ml-callback/"
 
+# Margen de seguridad del access_token: si le queda menos que esto de vida se
+# refresca ANTES de usarlo. Evita que el token expire en medio de una llamada
+# a la API de Mercado Libre (publicar, subir fotos, pausar, etc.).
+MARGEN_REFRESCO_SEGUNDOS = 300
+
+
 
 def get_client_id() -> Optional[str]:
     return os.environ.get("MERCADOLIBRE_CLIENT_ID")
@@ -142,16 +148,55 @@ def save_token(user, token_data: dict) -> Optional[MercadoLibreToken]:
     return token
 
 
+def token_proximo_a_expirar(
+    token, margen: int = MARGEN_REFRESCO_SEGUNDOS
+) -> bool:
+    """
+    ¿El access_token almacenado ya venció o está por vencer?
+
+    Se calcula con la marca `updated_at` (momento en que se guardó/renovó el
+    token) + `expires_in`. Si al token le queda menos de `margen` segundos de
+    vida, se considera "próximo a expirar" y hay que renovarlo ANTES de usarlo:
+    así ninguna petición a la API de Mercado Libre sale con un token vencido.
+
+    Es defensivo a propósito: sin token, sin `expires_in` o con valores
+    corruptos devuelve True (mejor renovar de más que fallar con 401).
+    """
+    if token is None or not getattr(token, "access_token", ""):
+        return True
+    try:
+        vida_transcurrida = (timezone.now() - token.updated_at).total_seconds()
+        vida_total = int(token.expires_in or 0)
+    except (TypeError, ValueError, AttributeError):
+        return True
+    if vida_total <= 0:
+        return True
+    return vida_transcurrida >= max(vida_total - margen, 0)
+
+
+def token_expirado(token) -> bool:
+    """True si el access_token almacenado YA venció (margen 0)."""
+    return token_proximo_a_expirar(token, margen=0)
+
+
 def refresh_access_token(user) -> Optional[str]:
     """
     Refresca el token de acceso de un usuario usando su refresh_token almacenado.
     Retorna el nuevo access_token o None si falla.
+
+    CONCURRENCIA: Mercado Libre ROTA el refresh_token en cada renovación. Si dos
+    requests renuevan a la vez, el segundo recibe HTTP 400 aunque el token nuevo
+    del primero ya esté guardado en la base. En ese caso NO se borra el token:
+    se devuelve el que otro proceso dejó guardado (evita desconectar la cuenta).
     """
     try:
         token = MercadoLibreToken.objects.get(usuario=user)
     except MercadoLibreToken.DoesNotExist:
         logger.warning("No hay token para el usuario %s", user.username)
         return None
+
+    token_actual_previo = token.access_token
+    token_actualizado_previo = token.updated_at
 
     client_id = get_client_id()
     client_secret = get_client_secret()
@@ -189,6 +234,20 @@ def refresh_access_token(user) -> Optional[str]:
         error_body = e.read().decode("utf-8") if e.fp else "sin cuerpo"
         logger.error("Error HTTP al refrescar token: %d %s - %s", e.code, e.reason, error_body)
         if e.code == 400:
+            # ¿Otro proceso ya renovó el token mientras tanto? (refresh_token
+            # rotado). Si es así, se usa el token nuevo guardado en la base.
+            actual = MercadoLibreToken.objects.filter(usuario=user).first()
+            if (
+                actual is not None
+                and actual.access_token
+                and actual.access_token != token_actual_previo
+                and actual.updated_at != token_actualizado_previo
+            ):
+                logger.warning(
+                    "El token de %s ya fue renovado por otro proceso; se reutiliza.",
+                    user.username,
+                )
+                return actual.access_token
             logger.warning("Refresh token inválido para %s, eliminando token", user.username)
             token.delete()
         return None
@@ -199,17 +258,18 @@ def refresh_access_token(user) -> Optional[str]:
 
 def get_valid_access_token(user) -> Optional[str]:
     """
-    Obtiene un access_token válido para el usuario, refrescándolo si es necesario.
-    Retorna None si no hay token o no se puede refrescar.
+    Obtiene un access_token VÁLIDO para el usuario.
+
+    Si el token almacenado ya venció (o está por vencer, con margen de
+    MARGEN_REFRESCO_SEGUNDOS) se renueva automáticamente con `refresh_token`
+    antes de devolverlo. Retorna None si no hay token o no se puede refrescar.
     """
     try:
         token = MercadoLibreToken.objects.get(usuario=user)
     except MercadoLibreToken.DoesNotExist:
         return None
 
-    # Verificar si el token está por expirar (menos de 5 minutos)
-    tiempo_vida = (timezone.now() - token.updated_at).total_seconds()
-    if tiempo_vida > (token.expires_in - 300):
+    if token_proximo_a_expirar(token):
         logger.info("Token de %s por expirar, refrescando...", user.username)
         return refresh_access_token(user)
 

@@ -15,7 +15,8 @@ from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
-from ...services.mercadolibre_api import create_item
+from ...services.mercadolibre_api import create_item, api_request_autenticado
+from ...services.mercadolibre_publicacion import registrar_publicacion
 from ...services.mercadolibre_atributos import construir_attributes_desde_objeto
 from ...services.mercadolibre_imagenes import construir_pictures
 from ...services.mercadolibre_payload import (
@@ -80,13 +81,11 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         GET /api/mercadolibre/status/
         Llama a /users/me para obtener nombre y email reales del usuario ML.
         """
-        from ...services.mercadolibre_api import _api_request
-
         access_token = get_valid_access_token(request.user)
         if not access_token:
             return Response({"conectado": False})
 
-        ml_user = _api_request("GET", "/users/me", access_token)
+        ml_user = api_request_autenticado(request.user, "GET", "/users/me")
         if not ml_user or "id" not in ml_user:
             return Response({"conectado": False, "error": "No se pudo obtener datos del usuario ML"})
 
@@ -336,12 +335,18 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             )
 
         if result and "id" in result:
-            # Marcar como publicado en plataformas_publicadas
-            plataformas = list(objeto.plataformas_publicadas or [])
-            if "mercadolibre" not in plataformas:
-                plataformas.append("mercadolibre")
-                objeto.plataformas_publicadas = plataformas
-                objeto.save(update_fields=["plataformas_publicadas"])
+            # Persistir el item_id devuelto por ML: es el dato que permite
+            # después pausar (vendido / sin stock) o cerrar (baja del objeto)
+            # la publicación con PUT /items/{item_id}. También marca
+            # 'mercadolibre' en plataformas_publicadas (services/
+            # mercadolibre_publicacion.py es la única fuente de verdad).
+            registrar_publicacion(
+                objeto,
+                result["id"],
+                permalink=result.get("permalink", ""),
+                usuario=request.user,
+                status=result.get("status", "active"),
+            )
 
             return Response({
                 "success": True,

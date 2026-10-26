@@ -10,7 +10,7 @@ import urllib.request
 import urllib.parse
 from typing import Optional, Dict, Any
 
-from .mercadolibre_oauth import get_valid_access_token
+from .mercadolibre_oauth import get_valid_access_token, refresh_access_token
 from .mercadolibre_payload import (
     CAMPOS_REQUERIDOS_ML,
     campos_invalidos_ml,
@@ -51,10 +51,23 @@ logger = logging.getLogger(__name__)
 CATEGORIA_MELI_DEFAULT = "MLA1383"
 
 
-def _api_request(method: str, endpoint: str, access_token: str, body: Optional[dict] = None) -> Optional[dict]:
+def _api_request(
+    method: str,
+    endpoint: str,
+    access_token: str,
+    body: Optional[dict] = None,
+    usuario=None,
+    timeout: int = 30,
+) -> Optional[dict]:
     """
     Realiza una request autenticada a la API de MercadoLibre.
     Retorna la respuesta como dict o None si falla.
+
+    `usuario` (opcional pero recomendado): dueño del token OAuth. Si Mercado
+    Libre responde HTTP 401 (access_token vencido o inválido) se renueva el
+    token con `grant_type=refresh_token`, se guarda en la base y se REINTENTA
+    la misma operación UNA sola vez, de forma transparente para el llamador.
+    Para cualquier llamada autenticada nueva usar `api_request_autenticado()`.
     """
     url = f"{ML_API_BASE}{endpoint}"
     headers = {
@@ -69,10 +82,24 @@ def _api_request(method: str, endpoint: str, access_token: str, body: Optional[d
 
     try:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8") if e.fp else "sin cuerpo"
+
+        # ── Renovación TRANSPARENTE del OAuth (401 = token vencido) ────────
+        # Se reintenta UNA sola vez con el token renovado (usuario=None en el
+        # reintento para que un 401 repetido no genere un bucle de refresh).
+        if e.code == 401 and usuario is not None:
+            logger.warning(
+                "ML devolvió 401 en %s %s: se renueva el token y se reintenta.",
+                method, endpoint,
+            )
+            token_nuevo = refresh_access_token(usuario)
+            if token_nuevo and token_nuevo != access_token:
+                return _api_request(method, endpoint, token_nuevo, body,
+                                    usuario=None, timeout=timeout)
+
         # Diagnóstico COMPLETO del rechazo: código, motivo y cuerpo crudo que
         # devuelve Mercado Libre (fuente de verdad para saber qué campo falló).
         logger.error(
@@ -92,6 +119,29 @@ def _api_request(method: str, endpoint: str, access_token: str, body: Optional[d
         return {"error": str(e)}
 
 
+def api_request_autenticado(usuario, method: str, endpoint: str,
+                            body: Optional[dict] = None,
+                            timeout: int = 30) -> Optional[dict]:
+    """
+    Petición autenticada a Mercado Libre con renovación automática del token.
+
+    Punto ÚNICO recomendado para cualquier llamada que exija OAuth:
+      1. `get_valid_access_token()` refresca el token ANTES de usarlo si ya
+         venció o está por vencer (margen MARGEN_REFRESCO_SEGUNDOS).
+      2. `_api_request()` reintenta una vez tras un 401 renovando el token.
+    """
+    access_token = get_valid_access_token(usuario)
+    if not access_token:
+        logger.warning(
+            "Sin access_token válido de Mercado Libre para %s",
+            getattr(usuario, "username", usuario),
+        )
+        return {"error": "No hay access_token de Mercado Libre para el usuario."}
+    return _api_request(method, endpoint, access_token, body, usuario=usuario,
+                        timeout=timeout)
+
+
+
 def upload_picture(user, image_url: str) -> Optional[str]:
     """
     Sube una foto a MercadoLibre desde una URL pública.
@@ -108,7 +158,7 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     # ML acepta imágenes por URL en el campo "source"
     body = {"source": image_url}
 
-    result = _api_request("POST", "/pictures", access_token, body)
+    result = _api_request("POST", "/pictures", access_token, body, usuario=user)
     if result and "id" in result:
         logger.info("Foto subida a ML: picture_id=%s", result["id"])
         return result["id"]
@@ -117,7 +167,8 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
-def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None:
+def _crear_descripcion_aparte(item: dict, access_token: str, texto: str,
+                              usuario=None) -> None:
     """
     Crea la descripción con POST /items/{item_id}/description.
 
@@ -134,6 +185,7 @@ def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None
     respuesta = _api_request(
         "POST", f"/items/{item_id}/description", access_token,
         {"plain_text": texto},
+        usuario=usuario,
     )
     if respuesta and (respuesta.get("id") or respuesta.get("plain_text")):
         logger.info("Descripción creada para el ítem %s", item_id)
@@ -312,7 +364,7 @@ def create_item(user, item_data: Dict[str, Any],
             )
             diagnostico["intentos"] = retry_count + 1
         logger.info("Payload ML enviado: %s", json.dumps(body, ensure_ascii=False))
-        result = _api_request("POST", "/items", access_token, body)
+        result = _api_request("POST", "/items", access_token, body, usuario=user)
         if diagnostico is not None:
             diagnostico["error_ml"] = result
         retry_count += 1
@@ -484,7 +536,7 @@ def create_item(user, item_data: Dict[str, Any],
         )
         # La descripción se crea SIEMPRE después del 201, con el endpoint
         # oficial (POST /items/{item_id}/description). Nunca viaja en el body.
-        _crear_descripcion_aparte(result, access_token, descripcion)
+        _crear_descripcion_aparte(result, access_token, descripcion, usuario=user)
         return result
 
     error = extraer_error_ml(result)
