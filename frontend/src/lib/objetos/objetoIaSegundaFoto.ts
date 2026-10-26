@@ -16,7 +16,7 @@ import { comprimirImagenBase64 } from '../../services/image';
 import { liberarAnalizandoIA, marcarAnalizandoIA } from '../botonAutocompletarIA';
 import { refOpcional } from '../dom';
 import { showToast } from '../toast';
-import { inputDeEvento, mensajeError } from './objetoComunes';
+import { inputDeEvento, mensajeError, MENSAJE_LIMITE_IA } from './objetoComunes';
 
 /** Inicializa la captura de la segunda foto (ISBN de la parte trasera). */
 export function initObjetoIaSegundaFoto(): void {
@@ -56,9 +56,10 @@ export function initObjetoIaSegundaFoto(): void {
         reader.readAsDataURL(file);
       });
       // Comprimir igual que la primera foto antes de enviar al backend
+      // (1024 px máx. + JPEG 75%, mismo criterio que el análisis principal).
       let base64Image: string;
       try {
-        base64Image = await comprimirImagenBase64(rawBase64);
+        base64Image = await comprimirImagenBase64(rawBase64, 1024, 0.75);
       } catch (err) {
         console.warn('Error al comprimir segunda foto, usando original:', err);
         base64Image = rawBase64;
@@ -89,8 +90,25 @@ export function initObjetoIaSegundaFoto(): void {
       if (iaProgressPercent) iaProgressPercent.textContent = '100%';
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Error al analizar la segunda foto');
+        const errData = await response.json().catch(() => ({} as Record<string, unknown>));
+
+        // HTTP 429: cuota de IA agotada. Aviso DISCRETO (warning) y se corta
+        // acá: la foto principal y el formulario siguen funcionando igual.
+        if (response.status === 429) {
+          if (iaProgressBar) iaProgressBar.style.width = '0%';
+          if (iaProgressPercent) iaProgressPercent.textContent = 'IA no disponible';
+          if (iaProgressText) iaProgressText.textContent = '⏳ IA no disponible por ahora';
+          if (iaProgressSubtext) {
+            iaProgressSubtext.textContent = 'Se alcanzó el límite temporal de uso de la IA.';
+          }
+          showToast(MENSAJE_LIMITE_IA, 'warning');
+          if (e.target) (e.target as HTMLInputElement).value = '';
+          return;
+        }
+
+        throw new Error(
+          String((errData as any).error || 'Error al analizar la segunda foto'),
+        );
       }
 
       const result = await response.json();

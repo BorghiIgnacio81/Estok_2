@@ -30,3 +30,12 @@ export const CLAVE_FORM = 'nuevo_objeto_form';
 
 /** Input oculto que guarda la foto Base64 del objeto en curso. */
 export const ID_INPUT_FOTO = 'imagenBase64';
+
+/**
+ * Aviso DISCRETO (toast `warning`, nunca `error`) cuando la IA responde HTTP
+ * 429: la cuota de Gemini y de toda la cadena de respaldo está agotada por un
+ * rato. El formulario NO se bloquea: el operador completa los campos a mano y
+ * puede guardar el objeto con total normalidad.
+ */
+export const MENSAJE_LIMITE_IA =
+  'Límite temporal de IA alcanzado. Podés continuar completando el formulario manualmente.';

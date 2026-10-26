@@ -27,6 +27,7 @@ import {
   listarCamposCompletados,
   resumenCamposCompletados,
 } from './objetos/objetoIaCampos';
+import { MENSAJE_LIMITE_IA } from './objetos/objetoComunes';
 import { showToast } from './toast';
 
 let objetoId = '';
@@ -61,11 +62,18 @@ async function analizarObjetoConIa(): Promise<void> {
       const detalle = String(
         (errData as any).error || (errData as any).detail || '',
       ).trim();
+
+      // HTTP 429 (cuota agotada en Gemini y en toda la cadena de respaldo):
+      // aviso DISCRETO y el formulario sigue 100% operativo. No se lanza
+      // error para no pintar un toast rojo ni transmitir que algo se rompió.
+      if (response.status === 429) {
+        showToast(MENSAJE_LIMITE_IA, 'warning');
+        return;
+      }
+
       const sugerencia = ' Podés completar los campos a mano y guardar igual.';
       throw new Error(
-        response.status === 429
-          ? (detalle || 'Se alcanzó el límite de uso de la IA.') + sugerencia
-          : (detalle || `Error del servidor (${response.status}).`) + sugerencia,
+        (detalle || `Error del servidor (${response.status}).`) + sugerencia,
       );
     }
 

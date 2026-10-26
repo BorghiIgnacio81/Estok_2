@@ -18,6 +18,7 @@
 // =============================================================================
 
 import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
+import { comprimirImagenBase64 } from '../../services/image';
 import {
   liberarAnalizandoIA,
   marcarAnalizandoIA,
@@ -26,7 +27,7 @@ import {
 } from '../botonAutocompletarIA';
 import { ref, refOpcional } from '../dom';
 import { showToast } from '../toast';
-import { ID_INPUT_FOTO } from './objetoComunes';
+import { ID_INPUT_FOTO, MENSAJE_LIMITE_IA } from './objetoComunes';
 import {
   aplicarCamposIa,
   listarCamposCompletados,
@@ -142,6 +143,23 @@ async function analizarConIa(): Promise<void> {
     }, 90000);
 
     console.log('[IA] Enviando fetch a analizar_imagen con timeout de 250s');
+
+    // COMPRESIÓN PREVIA EN EL CLIENTE (canvas HTML5): la foto puede llegar en su
+    // resolución original (galería restaurada tras un F5, editor de imagen o
+    // HEIC que no se pudo recomprimir al capturar). Se reescala a 1024 px como
+    // máximo y se exporta JPEG al 75%: el POST baja a ~100 KB y la latencia de
+    // la IA pasa de minutos a un par de segundos.
+    let imagenParaEnviar = base64Image;
+    try {
+      imagenParaEnviar = await comprimirImagenBase64(base64Image, 1024, 0.75);
+      const pesoKb = Math.round((imagenParaEnviar.length * 0.73) / 1024);
+      console.log(`[IA] Imagen comprimida para el análisis: ~${pesoKb} KB`);
+    } catch (err) {
+      // Si el navegador no puede recomprimirla (ej. HEIC de iPhone), se envía
+      // la original: nunca se pierde la captura del operador.
+      console.warn('[IA] No se pudo comprimir la imagen, se usa la original:', err);
+    }
+
     const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
       method: 'POST',
       headers: {
@@ -149,7 +167,7 @@ async function analizarConIa(): Promise<void> {
         ...getAuthHeaders(),
       },
       body: JSON.stringify({
-        imagen_base64: base64Image,
+        imagen_base64: imagenParaEnviar,
         solo_analisis: true,
         motor: 'gemini',
       }),
@@ -176,10 +194,7 @@ async function analizarConIa(): Promise<void> {
         // temporalmente y el operador sigue cargando el objeto a mano.
         iaProgressText.textContent = '⏳ IA no disponible por ahora';
         iaProgressSubtext.textContent = 'Se alcanzó el límite de uso de la IA.' + sugerencia;
-        showToast(
-          'La IA no está disponible temporalmente. Completá los campos a mano y guardá el objeto.',
-          'warning',
-        );
+        showToast(MENSAJE_LIMITE_IA, 'warning');
         return;
       }
 
