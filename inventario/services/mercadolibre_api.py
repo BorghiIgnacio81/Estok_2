@@ -20,6 +20,11 @@ from .mercadolibre_payload import (
     solo_campos_permitidos,
 )
 from .mercadolibre_saneamiento import descripcion_publicable
+from .mercadolibre_categoria_politica import (
+    ajustar_por_causas_titulo,
+    condition_publicable,
+    construye_titulo_ml,
+)
 from .mercadolibre_prediccion import ML_API_BASE, predict_category
 from .mercadolibre_atributos import (
     completar_attributes_requeridos,
@@ -112,63 +117,6 @@ def upload_picture(user, image_url: str) -> Optional[str]:
     return None
 
 
-def _agregar_atributo(attributes: list, atributo_id: str, value_name) -> bool:
-    """
-    Agrega un atributo a la lista sin duplicar IDs y sin valores vacíos.
-
-    Devuelve True si lo agregó. Se usa para garantizar los atributos estándar
-    de identidad (BRAND / MODEL) sin pisar ni repetir los valores que ya vengan
-    del objeto.
-    """
-    valor = str(value_name or '').strip()
-    aid = str(atributo_id or '').strip().upper()
-    if not aid or not valor:
-        return False
-    if any(str(a.get("id", "")).strip().upper() == aid for a in attributes):
-        return False
-    attributes.append({"id": aid, "value_name": valor})
-    return True
-
-
-def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
-    """
-    Construye la lista "attributes" ESTÁNDAR que viaja en el payload de ML.
-
-    Mercado Libre responde HTTP 400 "body.invalid_fields" cuando el body trae
-    atributos que no pertenecen al catálogo de la categoría destino. Por eso acá
-    SOLO se envían los atributos estándar de identidad (BRAND / MODEL): los
-    obligatorios de cada categoría los agrega
-    `mercadolibre_atributos.completar_attributes_requeridos()` consultando
-    GET /categories/{id}/attributes (catálogo real, nunca por suposición).
-
-    - BRAND: solo si el objeto tiene marca cargada.
-    - MODEL: solo si el objeto tiene modelo cargado.
-    - Acá NO se inventan valores: los atributos obligatorios de la categoría los
-      completa `completar_attributes_requeridos()` con un valor válido según el
-      `value_type` del catálogo (nunca texto libre en atributos de lista).
-
-    Args:
-        objeto: Instancia de Objeto (puede ser None).
-        category_id: ID final de categoría ML (se mantiene por compatibilidad de
-            firma; la selección de atributos ya no depende de la categoría).
-    """
-    attributes: list = []
-    if objeto is None:
-        return attributes
-
-    marca = (getattr(objeto, 'marca', '') or '').strip()
-    modelo = (getattr(objeto, 'modelo', '') or '').strip()
-
-    # Solo datos REALES del objeto: nada de "Genérico"/"Sin especificar". Si la
-    # categoría no exige atributos, el body va sin la clave `attributes`, que es
-    # lo que evita los rechazos por claves/valores inventados.
-    if marca:
-        _agregar_atributo(attributes, "BRAND", marca)
-    if modelo:
-        _agregar_atributo(attributes, "MODEL", modelo)
-    return attributes
-
-
 def _crear_descripcion_aparte(item: dict, access_token: str, texto: str) -> None:
     """
     Crea la descripción con POST /items/{item_id}/description.
@@ -209,9 +157,9 @@ def create_item(user, item_data: Dict[str, Any],
             `category_id` e `intentos`. La vista lo devuelve en el HTTP 400 para
             que el frontend muestre exactamente qué se envió y qué respondió ML.
         item_data: Dict con:
-            - title (str): Título del producto. Se sanea y se lleva al rango
-              obligatorio de 15 a 60 caracteres (si es más corto se completa
-              con la marca, el modelo, la condición y el tipo de vehículo).
+            - title (str): Título del producto (15 a 60 caracteres). En
+              categorías con dominio de catálogo (ej: MLA49337) NO se envía:
+              Mercado Libre lo construye desde family_name + attributes.
             - category_id (str): ID de categoría de ML (ej: "MLA1648" para Computación)
             - price (float): Precio en ARS (debe ser mayor a 0)
             - available_quantity (int): Stock disponible (default 1)
@@ -243,8 +191,7 @@ def create_item(user, item_data: Dict[str, Any],
         Dict con la respuesta de ML (id, permalink, status, etc.) o None si falla.
 
     Raises:
-        ValueError: si el título está vacío, falta la categoría, el precio no es
-            numérico o es <= 0, o si el payload queda incompleto.
+        ValueError: título/categoría/precio inválidos o payload incompleto.
     """
     access_token = get_valid_access_token(user)
     if not access_token:
@@ -256,24 +203,39 @@ def create_item(user, item_data: Dict[str, Any],
         return None
 
     # =====================================================================
-    # BLINDAJE DEL PAYLOAD (anti 400 "body.invalid_fields" / "required_fields")
+    # BLINDAJE DEL PAYLOAD (anti 400 invalid_fields / required_fields)
     # =====================================================================
-    # Todo el armado del body (título, moneda, condición, stock, fotos, etc.)
-    # vive en construir_payload_item(): sanea tipos, aplica la whitelist de
-    # campos de la API y aborta con un ValueError descriptivo si algo falta.
+    # Todo el armado del body vive en construir_payload_item(): sanea tipos,
+    # aplica la whitelist de la API y aborta con ValueError si falta algo.
     body = construir_payload_item(item_data)
-    # La descripción NO viaja en el body de POST /items (la API actual la
-    # rechaza con 400 "body.invalid_fields"): se guarda para crearla con
-    # POST /items/{item_id}/description apenas ML devuelva el item_id.
+    # La descripción NO viaja en el body: se crea después del 201 con
+    # POST /items/{item_id}/description.
     descripcion = descripcion_publicable(item_data, body.get("title", ""))
+
+    # =====================================================================
+    # POLÍTICA DE LA CATEGORÍA (título de catálogo / condición aceptada)
+    # =====================================================================
+    # MLA49337 y otras categorías con `catalog_domain` CONSTRUYEN el título
+    # desde family_name + attributes y rechazan "title" con 400
+    # body.invalid_fields (verificado contra la API real): se omite del body.
+    titulo_omitido = ""
+    if construye_titulo_ml(body.get("category_id"), access_token):
+        titulo_omitido = body.pop("title", "") or ""
+        logger.info(
+            "Categoría %s de catálogo: ML construye el título desde family_name "
+            "(%s); se omite 'title' del body.",
+            body.get("category_id"), body.get("family_name", "-"),
+        )
+    # Condición aceptada por la categoría (MLA49337 solo publica "new").
+    body["condition"] = condition_publicable(
+        body.get("category_id"), body.get("condition", ""), access_token
+    )
 
     # =====================================================================
     # ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA (100% DINÁMICO)
     # =====================================================================
-    # Datos REALES del objeto (marca, modelo, material, talle, especificaciones)
-    # + atributos base que ya trae el objeto. El catálogo de la categoría se
-    # consulta en cada publicación: GET /categories/{id}/attributes (con caché)
-    # y solo se completan los atributos con `tags.required`.
+    # Datos REALES del objeto + base que ya trae: los obligatorios se completan
+    # desde GET /categories/{id}/attributes (con caché), solo `tags.required`.
     datos_atributos = construir_datos_objeto(item_data, body.get("title", ""))
     atributos_base = list(item_data.get("attributes") or [])
 
@@ -374,6 +336,14 @@ def create_item(user, item_data: Dict[str, Any],
             break
         
         causes = [c for c in extraer_causas_ml(result) if isinstance(c, dict)]
+
+        # Título en categorías de catálogo: ML lo construye desde family_name;
+        # si pide más detalle o exige el campo, se ajusta el body y se reintenta.
+        reintentar, titulo_omitido = ajustar_por_causas_titulo(
+            result, body, item_data, titulo_omitido
+        )
+        if reintentar:
+            continue
         
         # Intento 1: predecir la categoría hoja con el NOMBRE DE LA CATEGORÍA
         # del objeto (nunca con el título: predecir con el título desviaba la

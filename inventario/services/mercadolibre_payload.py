@@ -14,14 +14,14 @@ Centraliza DOS responsabilidades que estaban mezcladas en mercadolibre_api.py:
    públicas y "attributes" solo con valores válidos (obligatorios del catálogo).
 
    `family_name` viaja en la RAÍZ (ML lo exige en categorías como MLA49337) y
-   NUNCA como atributo FAMILY_NAME en "attributes". La DESCRIPCIÓN, en cambio,
-   no viaja acá: `descripcion_publicable()` la devuelve y `create_item()` la
-   envía DESPUÉS del 201 con POST /items/{item_id}/description.
+   NUNCA como atributo FAMILY_NAME en "attributes". El TÍTULO se OMITE en las
+   categorías con dominio de catálogo (ML lo construye desde family_name). La
+   DESCRIPCIÓN tampoco viaja: `descripcion_publicable()` la devuelve y
+   `create_item()` la envía DESPUÉS del 201 en /items/{item_id}/description.
 
-2. EXTRACCIÓN DE ERRORES de Mercado Libre (HTTP 400/422): normaliza las causas
-   y devuelve el campo exacto que falta o que fue rechazado, para responderle al
-   frontend "Mercado Libre requiere especificar: [...]" / "Mercado Libre rechazó
-   los campos: [...]" en lugar de un error genérico.
+2. EXTRACCIÓN DE ERRORES de Mercado Libre (400/422): normaliza las causas y
+   devuelve el campo exacto que falta o fue rechazado, para responderle al
+   frontend "ML requiere especificar: [...]" en vez de un error genérico.
 
 Usado por:
 - inventario/services/mercadolibre_api.py (create_item + logging).

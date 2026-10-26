@@ -426,3 +426,65 @@ def atributos_invalidos_por_causas(causes, attributes) -> List[str]:
                     invalidos.append(aid)
     return invalidos
 
+
+
+# =============================================================================
+# ATRIBUTOS ESTÁNDAR DEL OBJETO (BRAND / MODEL)
+# =============================================================================
+
+def _agregar_atributo(attributes: list, atributo_id: str, value_name) -> bool:
+    """
+    Agrega un atributo a la lista sin duplicar IDs y sin valores vacíos.
+
+    Devuelve True si lo agregó. Se usa para garantizar los atributos estándar
+    de identidad (BRAND / MODEL) sin pisar ni repetir los valores que ya vengan
+    del objeto.
+    """
+    valor = str(value_name or '').strip()
+    aid = str(atributo_id or '').strip().upper()
+    if not aid or not valor:
+        return False
+    if any(str(a.get("id", "")).strip().upper() == aid for a in attributes):
+        return False
+    attributes.append({"id": aid, "value_name": valor})
+    return True
+
+
+def construir_attributes_desde_objeto(objeto, category_id=None) -> list:
+    """
+    Construye la lista "attributes" ESTÁNDAR que viaja en el payload de ML.
+
+    Mercado Libre responde HTTP 400 "body.invalid_fields" cuando el body trae
+    atributos que no pertenecen al catálogo de la categoría destino. Por eso acá
+    SOLO se envían los atributos estándar de identidad (BRAND / MODEL): los
+    obligatorios de cada categoría los agrega `completar_attributes_requeridos()`
+    consultando GET /categories/{id}/attributes (catálogo real, nunca por
+    suposición).
+
+    - BRAND: solo si el objeto tiene marca cargada.
+    - MODEL: solo si el objeto tiene modelo cargado.
+    - Acá NO se inventan valores: los atributos obligatorios de la categoría los
+      completa `completar_attributes_requeridos()` con un valor válido según el
+      `value_type` del catálogo (nunca texto libre en atributos de lista).
+
+    Args:
+        objeto: Instancia de Objeto (puede ser None).
+        category_id: ID final de categoría ML (se mantiene por compatibilidad de
+            firma; la selección de atributos ya no depende de la categoría).
+    """
+    attributes: list = []
+    if objeto is None:
+        return attributes
+
+    marca = (getattr(objeto, 'marca', '') or '').strip()
+    modelo = (getattr(objeto, 'modelo', '') or '').strip()
+
+    # Solo datos REALES del objeto: nada de "Genérico"/"Sin especificar". Si la
+    # categoría no exige atributos, el body va sin la clave `attributes`, que es
+    # lo que evita los rechazos por claves/valores inventados.
+    if marca:
+        _agregar_atributo(attributes, "BRAND", marca)
+    if modelo:
+        _agregar_atributo(attributes, "MODEL", modelo)
+    return attributes
+

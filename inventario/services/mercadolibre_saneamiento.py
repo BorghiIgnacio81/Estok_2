@@ -141,6 +141,32 @@ def family_name_publicable(item_data, title: str = "") -> str:
     return normalizar_family_name(title)
 
 
+def ampliar_family_name(valor, item_data=None) -> str:
+    """
+    Amplía `family_name` cuando ML avisa que el título construido es muy corto.
+
+    En categorías de catálogo el título sale de `family_name`: si ML responde
+    `item.title.minimum_length` ("Incluí características importantes del
+    producto como marca, modelo o categoría") se agregan datos REALES del
+    objeto (nombre, marca, modelo, categoría) sin repetir palabras y sin
+    superar los 60 caracteres.
+    """
+    origen = item_data if isinstance(item_data, dict) else {}
+    familia = normalizar_family_name(valor)
+    if not familia:
+        return ""
+    for clave in ("nombre", "marca", "modelo", "categoria_nombre"):
+        extra = normalizar_family_name(origen.get(clave))
+        if not extra or _mencionado(familia, extra):
+            continue
+        candidato = normalizar_family_name(f"{familia} {extra}")
+        if candidato and candidato != familia:
+            familia = candidato
+        if len(familia) >= TITULO_MIN_ML:
+            break
+    return familia
+
+
 # =============================================================================
 # TÍTULO PUBLICABLE (15 a 60 caracteres)
 # =============================================================================

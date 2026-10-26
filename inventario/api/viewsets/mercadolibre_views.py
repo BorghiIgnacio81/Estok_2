@@ -15,10 +15,8 @@ from ...models import CustomUser
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
-from ...services.mercadolibre_api import (
-    construir_attributes_desde_objeto,
-    create_item,
-)
+from ...services.mercadolibre_api import create_item
+from ...services.mercadolibre_atributos import construir_attributes_desde_objeto
 from ...services.mercadolibre_imagenes import construir_pictures
 from ...services.mercadolibre_payload import (
     cantidad_disponible_ml,
@@ -166,9 +164,8 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         `create_item()` consulta GET /categories/{id}/attributes y agrega TODOS
         los atributos obligatorios de la categoría con un valor VÁLIDO según su
         `value_type` (value_id de catálogo para listas, "No" para booleanos,
-        número + unidad, o el dato real; los genéricos "Sin marca"/"Genérico"
-        son el ÚLTIMO recurso y nunca pisan un dato cargado). Evita el bucle
-        body.required_fields ↔ invalid_fields.
+        número + unidad, o el dato real; los genéricos son el ÚLTIMO recurso y
+        nunca pisan un dato cargado). Evita el bucle required_fields ↔ invalid_fields.
 
         Defaults obligatorios (`construir_payload_item`): currency_id="ARS",
         buying_mode="buy_it_now", listing_type_id="gold_special" (o settings),
@@ -176,8 +173,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         title de 15 a 60 caracteres y shipping con retiro en persona.
 
         DESCRIPCIÓN: ML prohíbe "description" en POST /items; se crea después del
-        201 con POST /items/{item_id}/description. "family_name" sí va en la RAÍZ
-        (categorías como MLA49337 lo exigen) y NO dentro de "attributes".
+        201 en /items/{item_id}/description. "family_name" va en la RAÍZ (no en
+        "attributes") porque MLA49337 lo exige, y en categorías de catálogo ML
+        construye el TÍTULO desde la familia: ahí no se envía "title".
 
         ERRORES DE MERCADO LIBRE: el payload exacto se registra con
         logger.info("Payload ML enviado: ...") y, ante 400/422, el cuerpo
