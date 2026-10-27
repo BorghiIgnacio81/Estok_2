@@ -125,6 +125,15 @@
   overflow: hidden;
   border-radius: 2px;
 }
+/* ETIQUETA DE UN ESPACIO FUSIONADO (habitación en «L»):
+   el contenedor es el BOUNDING BOX de la unión, pero la etiqueta se posiciona
+   sobre la CELDA REAL que contiene el centroide de la silueta, calculada con la
+   MISMA función que el lienzo central de Almacenamiento (lib/fusionCentroide.ts)
+   → nunca queda flotando en la esquina vacía del bbox ni fuera de los límites
+   del ambiente. El left/top/width/height llegan inline, en % del bbox. */
+.minimapa-etiqueta-anclada {
+  position: absolute;
+}
 /* El nombre vive en una sola línea truncada: no parte ni deforma la silueta. */
 .minimapa-etiqueta-nombre {
   display: block;

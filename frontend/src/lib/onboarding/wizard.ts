@@ -13,7 +13,7 @@
 // Acceso a la API delegado 100% en ./api (auth centralizada).
 // =============================================================================
 
-import { logout, setEstokActivoId } from '../../services/auth';
+import { cacheUser, getCachedUser, getEstokActivoId, logout, setEstokActivoId } from '../../services/auth';
 import type { EstokInfo } from '../../types';
 import { fundarEstok } from './api';
 import { ModalCodigoInvitacion } from './codigoInvitacion';
@@ -86,6 +86,10 @@ export class AsistenteBienvenida {
     // El alta del Estok la resuelve el componente canónico Paso1Estok (fuente
     // única, compartida con el panel admin): acá sólo se reacciona a su evento.
     window.addEventListener('estok:paso1-completado', (e) => this.alFundarPaso1(e));
+    // CIERRE DESDE EL PASO 4 («Guardar objeto y finalizar»): objetoFormCore
+    // emite este evento tras el 201 Created y ANTES de cualquier redirección.
+    // Así el Estok queda persistido como activo antes de salir del asistente.
+    window.addEventListener('estok:onboarding-finalizar', () => this.finalizar());
     this.q<HTMLElement>('#onbOmitirTutorial')?.addEventListener('click', () => void this.omitirTutorial());
     this.q<HTMLElement>('#onbCerrarSesion')?.addEventListener('click', () => this.cerrarSesion());
     this.q<HTMLElement>('#onbVolver')?.addEventListener('click', () => this.irAPaso(this.paso - 1));
@@ -268,16 +272,41 @@ export class AsistenteBienvenida {
   // ── CIERRE — ACCESO CONCEDIDO AL DASHBOARD ORDINARIO ─────────────────────
 
   /**
+   * Deja el Estok como ACTIVO en todos los almacenes de contexto del cliente
+   * ANTES de cualquier redirección o petición:
+   *   · `estok_activo_id` en localStorage → header `X-Estok-Id`,
+   *   · `estok_user.ultimo_estok_activo_id` → autorreparación de esa clave si
+   *     el sistema operativo la limpia (PWA/móvil).
+   *
+   * Fix del 403 al finalizar el tutorial: el Estok recién fundado tiene que
+   * quedar persistido ANTES de navegar a /almacenamiento; si no, la pantalla
+   * destino (y el POST del objeto) viajan sin tenant y el backend rechaza.
+   */
+  private fijarContextoActivo(estokId: string): void {
+    setEstokActivoId(estokId);
+    const user = getCachedUser();
+    if (!user) return;
+    user.ultimo_estok_activo_id = estokId;
+    cacheUser(user);
+  }
+
+  /**
    * Cierra el asistente SOLO si el paso 1 se completó (el Estok existe y está
    * activo). Limpia el estado global, deja el ID en localStorage y redirige
    * limpiamente al Dashboard, que ahora responde 200 OK con X-Estok-Id.
    */
   private finalizar(estok: EstokInfo | null = this.estok): void {
-    if (!estok) return;
-    setEstokActivoId(estok.id);
+    // El Estok puede NO estar en memoria (F5 a mitad del asistente o cierre
+    // desde «Guardar y finalizar» del Paso 4): se resuelve desde el contexto ya
+    // persistido en localStorage antes de abortar.
+    const estokId = estok?.id || getEstokActivoId();
+    if (!estokId) return;
+    // CONTEXTO MULTI-TENANT: se persiste ANTES de redirigir (nunca después).
+    this.fijarContextoActivo(estokId);
+    const detalle: EstokInfo = estok ?? ({ id: estokId } as EstokInfo);
     // Cierre limpio: el rastro anti-latencia del Paso 2 se descarta tras el éxito.
     limpiarRastroAmbientes();
-    window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: estok }));
+    window.dispatchEvent(new CustomEvent('estok:onboarding-finalizado', { detail: detalle }));
     document.documentElement.removeAttribute('data-estok-onboarding');
     // Destino canónico post-alta (FUENTE ÚNICA, lib/onboarding/destinos.ts):
     // el asistente NUNCA deja al usuario en el Dashboard seco; lo manda al

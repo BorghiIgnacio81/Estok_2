@@ -14,7 +14,7 @@
 // limpiarCamara); acá solo se adjuntan los blobs al FormData.
 // =============================================================================
 
-import { enviarFormData } from '../../services/auth';
+import { enviarFormData, getCsrfToken, getEstokActivoId } from '../../services/auth';
 import { base64ToBlob } from '../../services/image';
 import { refrescarBotonesIA } from '../botonAutocompletarIA';
 import { ref, refOpcional } from '../dom';
@@ -208,7 +208,19 @@ async function enviarFormulario(e: Event): Promise<void> {
     // Crear el objeto + subir fotos en una única petición multipart con el JWT
     // explícito y refresco automático (services/auth/uploads).
     // NO se fija Content-Type: el navegador agrega el boundary solo.
-    const createResponse = await enviarFormData('/objetos/', formData);
+    //
+    // CONTEXTO MULTI-TENANT EXPLÍCITO (fix del 403 del tutorial): el POST viaja
+    // SIEMPRE con `X-Estok-Id` leído de localStorage en este instante y con el
+    // `X-CSRFToken` de la cookie de Django. `enviarFormData` ya los arma desde
+    // services/auth, pero acá se REFUERZAN para el caso «acabo de fundar mi
+    // Estok» (Paso 1 del asistente) y para la PWA que perdió la clave local:
+    // sin ese header el backend responde 403 aunque el JWT sea válido.
+    const estokId = getEstokActivoId();
+    const csrfToken = getCsrfToken();
+    const createResponse = await enviarFormData('/objetos/', formData, 'POST', {
+      ...(estokId ? { 'X-Estok-Id': estokId } : {}),
+      ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+    });
 
     if (!createResponse.ok) {
       let errorMsg = 'Error al crear el objeto';
@@ -223,9 +235,13 @@ async function enviarFormulario(e: Event): Promise<void> {
       throw new Error(errorMsg);
     }
 
-    // Éxito (201 Created): RESETEO ABSOLUTO del formulario + apertura del modal
-    // de confirmación. El flujo visual se detiene: el operador decide
-    // direccionalmente entre "Cargar otro" o "Volver al inicio".
+    // Éxito (201 Created): se lee el objeto creado ANTES de resetear (su id
+    // alimenta el refresco en caliente de las tarjetas de /objetos).
+    const objetoCreado = await createResponse.json().catch(() => null);
+
+    // RESETEO ABSOLUTO del formulario y apertura del modal de confirmación. El
+    // flujo visual se detiene: el operador decide direccionalmente entre
+    // "Cargar otro" o "Volver al inicio".
     resetFormularioCompleto();
     // LATIDO GLOBAL DE ALMACENAMIENTO (post-tutorial): la barra lateral
     // («🧺 Elementos por ubicar» → objetos/cajas a reubicar), el tablero de
@@ -234,6 +250,24 @@ async function enviarFormulario(e: Event): Promise<void> {
     // reubicar» sin necesidad de refrescar la página. Es el mismo evento único
     // que emiten todas las mutaciones espaciales de la app.
     window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+    // REFRESCO ESPECÍFICO DEL INVENTARIO: /objetos y la barra lateral de
+    // Almacenamiento escuchan `estok:objetos-cambiados` y repintan la tarjeta
+    // del objeto recién guardado sin F5 y sin forzar «Espacio Único».
+    window.dispatchEvent(
+      new CustomEvent('estok:objetos-cambiados', { detail: objetoCreado }),
+    );
+
+    // PASO 4 DEL TUTORIAL («Guardar objeto y finalizar»): el asistente escucha
+    // este evento, persiste el `estok_activo_id` en localStorage y RECIÉN
+    // ENTONCES redirige a /almacenamiento. El modal de éxito vive sólo en
+    // /objetos/nuevo, así que dentro del tutorial se sale por acá.
+    if (document.documentElement.hasAttribute('data-estok-onboarding')) {
+      window.dispatchEvent(
+        new CustomEvent('estok:onboarding-finalizar', { detail: objetoCreado }),
+      );
+      return;
+    }
+
     abrirModalExito();
   } catch (err) {
     showToast(`❌ ${mensajeError(err)}`, 'error');

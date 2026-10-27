@@ -279,7 +279,8 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             qs = qs.filter(deleted_at__isnull=True)
 
         return qs.select_related(
-            'ubicacion', 'contenedor', 'categoria', 'objeto_padre',
+            'ubicacion', 'contenedor', 'contenedor__parent_contenedor',
+            'categoria', 'objeto_padre',
         ).prefetch_related('fotos')
 
     # ------------------------------------------------------------------

@@ -14,6 +14,7 @@ Todos los precios devueltos salen con `moneda = "ARS"`.
 import logging
 import re
 import os
+import unicodedata
 from typing import Optional, Dict, Any
 
 import requests
@@ -26,26 +27,65 @@ __all__ = ["buscar_precio_referencia", "buscar_en_mercadolibre"]
 
 logger = logging.getLogger(__name__)
 
-# Factores de ajuste según estado de conservación
+# Factores de ajuste según estado de conservación.
+#
+# REGLA DE NEGOCIO (consistencia del valor de referencia):
+#   · «nuevo» / «excelente» → 1.0 (valor de mercado pleno de la publicación),
+#   · «bueno»               → 0.8 (desgaste normal),
+#   · «regular»             → 0.6 (fallas visibles / uso intensivo).
+# Los estados más degradados conservan su escala histórica para no inflar
+# piezas que ya no son revendibles como el ítem de la publicación.
 FACTORES_AJUSTE = {
+    "nuevo": 1.0,
     "excelente": 1.0,
-    "bueno": 0.9,
+    "como_nuevo": 1.0,
+    "bueno": 0.8,
     "regular": 0.6,
     "malo": 0.5,
     "muy_malo": 0.4,
 }
 
+# Estado sin datos o desconocido: se asume «bueno» (desgaste normal).
+FACTOR_ESTADO_POR_DEFECTO = 0.8
+
+
+def _sin_acentos(texto: str) -> str:
+    """Quita diacríticos («Muy Malo» ↔ «muy_malo» se comparan igual)."""
+    descompuesto = unicodedata.normalize("NFKD", texto or "")
+    return "".join(c for c in descompuesto if not unicodedata.combining(c))
+
+
+def _normalizar_estado(estado: str) -> str:
+    """
+    Normaliza el estado recibido del formulario: minúsculas, sin acentos y con
+    espacios/guiones convertidos a `_` («Muy Malo» → «muy_malo»).
+    """
+    base = re.sub(r"[\s\-]+", "_", _sin_acentos(estado or "").strip().lower())
+    return base.strip("_")
+
+
+def _factor_estado(estado: str) -> float:
+    """Factor multiplicador del estado de conservación (1.0 / 0.8 / 0.6 …)."""
+    return FACTORES_AJUSTE.get(
+        _normalizar_estado(estado), FACTOR_ESTADO_POR_DEFECTO
+    )
+
+
 def _ajustar_precio(precio: float, estado: str) -> float:
     """Aplica el factor de ajuste según estado de conservación."""
-    factor = FACTORES_AJUSTE.get(estado, 0.9)
-    return round(precio * factor, 2)
+    return round(precio * _factor_estado(estado), 2)
 
 
 def _respuesta_encontrada(
-    titulo: str, precio: float, link: str, estado: str, fuente: str
+    titulo: str,
+    precio: float,
+    link: str,
+    estado: str,
+    fuente: str,
+    muestras: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Respuesta estándar de precio encontrado (siempre en pesos argentinos)."""
-    factor = FACTORES_AJUSTE.get(estado, 0.9)
+    factor = _factor_estado(estado)
     return {
         "encontrado": True,
         "fuente": fuente,
@@ -57,6 +97,9 @@ def _respuesta_encontrada(
         "link": link,
         "estado_aplicado": estado,
         "porcentaje_aplicado": int(factor * 100),
+        # Cantidad de publicaciones usadas en la mediana recortada (None cuando
+        # el precio proviene de una estimación de IA, sin muestra real).
+        "muestras": muestras,
     }
 
 
@@ -78,6 +121,7 @@ def _respuesta_vacia(estado: str, fuente_error: Optional[str]) -> Dict[str, Any]
         "link": None,
         "estado_aplicado": estado,
         "porcentaje_aplicado": None,
+        "muestras": None,
     }
 
 
@@ -104,6 +148,8 @@ def _estimar_con_gemini(nombre: str, estado: str) -> Optional[Dict[str, Any]]:
         client = genai.Client(api_key=api_key)
 
         estado_labels = {
+            "nuevo": "nuevo (sin uso, en caja)",
+            "como_nuevo": "como nuevo (impecable, sin marcas)",
             "excelente": "excelente (como nuevo)",
             "bueno": "bueno (uso normal, sin daños)",
             "regular": "regular (con signos de uso, algunos defectos)",
@@ -167,14 +213,19 @@ def buscar_precio_referencia(
     """
     Busca un precio de referencia para un objeto (SIEMPRE en pesos argentinos).
 
-    Primero consulta MercadoLibre ARGENTINA (site MLA) con validación de
-    coincidencia de título y moneda ARS. Si no hay un match confiable, estima con
-    Gemini. Si nada resulta confiable devuelve un error CONTROLADO en lugar de
-    inyectar el precio de un producto equivocado.
+    Primero consulta MercadoLibre ARGENTINA (site MLA) con la búsqueda
+    SANITIZADA (palabras clave, sin conectores, máx. 4 términos), validación de
+    coincidencia de título y de moneda ARS. El valor devuelto es la MEDIANA de
+    la muestra recortada (se descarta el 20 % más bajo y el 20 % más alto) y
+    después se multiplica por el factor del estado (nuevo 1.0 / bueno 0.8 /
+    regular 0.6). Si no hay un match confiable, estima con Gemini. Si nada
+    resulta confiable devuelve un error CONTROLADO en lugar de inyectar el
+    precio de un producto equivocado.
 
     Args:
         nombre: Nombre del objeto a buscar.
-        estado: Estado de conservación (excelente, bueno, regular, malo, muy_malo).
+        estado: Estado de conservación (nuevo, excelente, bueno, regular, malo,
+            muy_malo). Se normaliza (minúsculas, sin acentos).
         access_token: Token OAuth de ML del usuario (opcional). Si está presente
             se usa la API oficial pineada a MLA (`/sites/MLA/search`); si no, el
             scraping del listado `.com.ar` (ambos con validación de moneda ARS).
@@ -186,6 +237,9 @@ def buscar_precio_referencia(
     fuente_error = (
         resultado_ml.get("fuente_error") if isinstance(resultado_ml, dict) else None
     )
+    # Estado normalizado UNA sola vez: los factores (1.0 / 0.8 / 0.6) y el
+    # `estado_aplicado` de la respuesta quedan coherentes entre sí.
+    estado = _normalizar_estado(estado) or "bueno"
 
     # Red caída/bloqueada: no se estima con IA sobre datos dudosos.
     if fuente_error == "error_red":
@@ -201,6 +255,8 @@ def buscar_precio_referencia(
             link=resultado_ml["link"],
             estado=estado,
             fuente="mercadolibre_mla",
+            # Publicaciones que sobrevivieron al recorte del 20 % por cola.
+            muestras=resultado_ml.get("muestras"),
         )
 
     # Fallback a Gemini (estimación pedida explícitamente en ARS).

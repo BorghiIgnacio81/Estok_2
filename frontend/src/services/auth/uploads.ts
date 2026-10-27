@@ -20,17 +20,21 @@ export type MetodoFormData = 'POST' | 'PUT' | 'PATCH';
 
 /**
  * Envía un FormData a `${API_BASE_URL}${path}` con autenticación explícita.
+ * @param headersExtra headers adicionales para ESTA petición (p. ej. el
+ *   `X-Estok-Id`/`X-CSRFToken` reforzados del tutorial). Nunca reemplazan a los
+ *   centralizados: se fusionan sobre ellos.
  * @returns la Response del backend (el llamador decide cómo interpretarla)
  */
 export async function enviarFormData(
   path: string,
   formData: FormData,
   method: MetodoFormData = 'POST',
+  headersExtra: Record<string, string> = {},
 ): Promise<Response> {
   const enviar = (token: string | null): Promise<Response> =>
     fetch(`${API_BASE_URL}${path}`, {
       method,
-      headers: headersDeSubida(token),
+      headers: headersDeSubida(token, headersExtra),
       body: formData,
       // Mismo origen: deja disponible la cookie de sesión/CSRF de Django.
       credentials: 'same-origin',
@@ -53,8 +57,11 @@ export async function enviarFormData(
 }
 
 /** Headers de una subida: los centralizados + el token del intento vigente. */
-function headersDeSubida(token: string | null): Record<string, string> {
-  const headers: Record<string, string> = { ...getAuthHeaders() };
+function headersDeSubida(
+  token: string | null,
+  headersExtra: Record<string, string> = {},
+): Record<string, string> {
+  const headers: Record<string, string> = { ...getAuthHeaders(), ...headersExtra };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }

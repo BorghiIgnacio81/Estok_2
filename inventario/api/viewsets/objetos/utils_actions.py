@@ -295,7 +295,9 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
             )
 
         estado = request.query_params.get('estado', 'bueno').strip()
-        if estado not in ('excelente', 'bueno', 'regular', 'malo', 'muy_malo'):
+        if estado not in (
+            'nuevo', 'como_nuevo', 'excelente', 'bueno', 'regular', 'malo', 'muy_malo',
+        ):
             estado = 'bueno'
 
         # Clave de caché: incluye estado para que el ajuste no se pierda

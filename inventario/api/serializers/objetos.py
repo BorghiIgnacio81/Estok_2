@@ -24,6 +24,41 @@ from ..exceptions import DecisionDerivadaAVotacion
 logger = logging.getLogger(__name__)
 
 
+def _ruta_ubicacion(obj) -> str | None:
+    """
+    RUTA FÍSICA legible del objeto: «Habitación · Mueble · Caja».
+
+    Por qué existe (fix «contenedor ausente» / ubicación en None):
+      · Al guardar un objeto en un ESPACIO BASE (sin contenedor) el frontend
+        sólo recibía `ubicacion_nombre`; en el árbol de /objetos la tarjeta
+        caía en «Sin ubicación» y parecía un huérfano.
+      · Cuando el objeto SÍ está dentro de un contenedor anidado, el nombre
+        del mueble intermedio no viajaba en ningún campo.
+    Este campo devuelve SIEMPRE la cadena completa (ubicación + jerarquía de
+    contenedores) y es `None` únicamente si el objeto no tiene ninguna de las
+    dos referencias.
+
+    Sin N+1: se sube por `parent_contenedor` sólo si el padre YA está en la
+    caché del ORM (lo cargan los `select_related` de los querysets); si no está
+    precargado se corta la cadena en el contenedor directo.
+    """
+    nombres: list[str] = []
+    ubicacion = getattr(obj, 'ubicacion', None)
+    if ubicacion is not None:
+        nombres.append(ubicacion.nombre or '')
+
+    cadena: list[str] = []
+    actual = getattr(obj, 'contenedor', None)
+    while actual is not None and len(cadena) < 5:
+        cadena.append(actual.nombre or '')
+        # `fields_cache` sólo contiene la relación si fue precargada.
+        actual = actual._state.fields_cache.get('parent_contenedor')
+
+    nombres.extend(reversed(cadena))
+    ruta = ' · '.join([nombre for nombre in nombres if nombre])
+    return ruta or None
+
+
 class ObjetoListSerializer(serializers.ModelSerializer):
     """
     Serializer ligero para listar objetos (sin carga pesada).
@@ -31,6 +66,8 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     foto_principal = serializers.SerializerMethodField()
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
     contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
+    # RUTA COMPLETA de la ubicación (nunca None si el objeto está ubicado).
+    ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     # MARCA DE DUALIDAD (Contenedor ⇄ Objeto): el árbol de la pestaña Objetos la
@@ -43,7 +80,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nombre', 'estado_conservacion',
             'valor_estimado', 'color', 'foto_principal',
-            'ubicacion_nombre', 'contenedor_nombre',
+            'ubicacion_nombre', 'contenedor_nombre', 'ubicacion_display',
             'parent_grid_row', 'parent_grid_col',
             'categoria', 'categoria_nombre',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
@@ -57,6 +94,10 @@ class ObjetoListSerializer(serializers.ModelSerializer):
         """True si el Objeto es el espejo de dualidad de un Contenedor."""
         especificaciones = obj.especificaciones or {}
         return bool(especificaciones.get('es_espejo_contenedor'))
+
+    def get_ubicacion_display(self, obj):
+        """Ruta física completa: «Habitación · Mueble · Caja» (o None)."""
+        return _ruta_ubicacion(obj)
 
     def get_foto_principal(self, obj):
         """
@@ -82,6 +123,9 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     """
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
     contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
+    # RUTA COMPLETA de la ubicación (fix «ubicación en None» al salvar en un
+    # espacio base): el detalle del objeto la expone igual que el listado.
+    ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     dueno_original_nombre = serializers.SerializerMethodField()
@@ -112,6 +156,10 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
             if user.first_name and 'Ignacio' in user.first_name:
                 return 'Yamza'
         return None
+
+    def get_ubicacion_display(self, obj):
+        """Ruta física completa: «Habitación · Mueble · Caja» (o None)."""
+        return _ruta_ubicacion(obj)
 
     def get_dueno_original_nombre(self, obj):
         if obj.dueno_original:
@@ -290,6 +338,25 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
                     'owner_action': None,
                     'error': resultado.motivo,
                 })
+
+        # ------------------------------------------------------------------
+        # COHERENCIA ESPACIAL (fix «ubicación en None» / «contenedor ausente»)
+        # ------------------------------------------------------------------
+        # Si el payload trae un CONTENEDOR (mueble o caja) pero NO la ubicación,
+        # se deriva la habitación del propio contenedor subiendo por
+        # `parent_contenedor`. Así el Objeto queda guardado con AMBAS
+        # referencias y ObjetoSerializer puede devolver la ruta completa
+        # (`ubicacion_display`) en vez de None.
+        if 'contenedor' in attrs and 'ubicacion' not in attrs:
+            contenedor = attrs.get('contenedor')
+            # Tope de profundidad: la jerarquía real nunca supera 4-5 niveles.
+            for _ in range(5):
+                if contenedor is None:
+                    break
+                if contenedor.ubicacion_id:
+                    attrs['ubicacion'] = contenedor.ubicacion
+                    break
+                contenedor = contenedor.parent_contenedor
 
         claves = ('contenedor', 'parent_grid_row', 'parent_grid_col')
         if not any(clave in attrs for clave in claves):

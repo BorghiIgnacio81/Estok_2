@@ -24,11 +24,21 @@ Reglas de este módulo (site MLA forzado + filtro de coincidencia):
    devuelve un error CONTROLADO (`sin_coincidencia`) en vez de datos basura.
 4. Plan B: si la búsqueda original no da coincidencias se reintenta con una
    variante de TEXTO PLANO (sin comillas, paréntesis ni signos).
+5. SANITIZACIÓN DE LA CONSULTA: los conectores ('de', 'para', 'con', 'y'…),
+   signos y adjetivos irrelevantes se eliminan y la cadena se recorta a las
+   MAX_PALABRAS_BUSQUEDA palabras clave principales. Una consulta de 12
+   palabras no devuelve resultados en el full-text de ML.
+6. PRECIO DE REFERENCIA ROBUSTO (no «el primero que aparezca»): se recolectan
+   TODAS las publicaciones coincidentes, se descarta el 20 % de los valores
+   extremos más bajos (cables/repuestos) y el 20 % más alto (publicaciones
+   infladas) y se toma la MEDIANA de lo que queda. Así una publicación basura
+   no define el valor del objeto.
 """
 
 import logging
 import math
 import re
+import statistics
 import unicodedata
 from typing import Any, Dict, List, Optional
 
@@ -50,6 +60,16 @@ MAX_CANDIDATOS = 20
 # Piso de cordura en ARS: descarta centavos sueltos o precios en dólares que
 # se hayan colado sin símbolo (nada del inventario vale menos de AR$ 100).
 MIN_PRECIO_ARS = 100.0
+# Máximo de palabras clave que viajan al buscador de ML: las consultas largas
+# («Cargador original Apple para MacBook Pro 2019 de 96W con cable») devuelven
+# cero resultados por full-text y terminan en una estimación de IA.
+MAX_PALABRAS_BUSQUEDA = 4
+# Recorte de valores extremos en cada cola para la mediana robusta:
+# 20 % inferior = cables/repuestos sueltos, 20 % superior = publicaciones
+# infladas (o variantes premium que no representan el ítem buscado).
+PORCENTAJE_RECORTE = 0.20
+# Muestras coincidentes suficientes para no seguir probando variantes.
+MIN_MUESTRAS_SUFICIENTES = 5
 
 HEADERS_NAVEGADOR = {
     "User-Agent": (
@@ -137,17 +157,36 @@ def titulo_coincide(nombre: str, titulo: str) -> bool:
     return _coincide_por_tokens(tokens_relevantes(nombre), titulo)
 
 
+def sanitizar_busqueda(nombre: str) -> str:
+    """
+    Consulta LIMPIA para MercadoLibre: palabras clave sin conectores ni signos,
+    recortada a las MAX_PALABRAS_BUSQUEDA principales.
+
+    Ej: "Cargador original Apple para MacBook Pro 2019 de 96W con cable"
+        → "cargador apple macbook pro"
+    """
+    palabras = tokens_relevantes(nombre)
+    if not palabras:
+        # Sin tokens utilizables (nombre vacío o sólo conectores) se conserva el
+        # texto original: nunca se dispara una búsqueda con cadena vacía.
+        return re.sub(r"\s+", " ", (nombre or "")).strip()
+    return " ".join(palabras[:MAX_PALABRAS_BUSQUEDA])
+
+
 def variantes_busqueda(nombre: str) -> List[str]:
     """
-    Variantes a probar, en orden: la búsqueda original y luego su TEXTO PLANO
-    (sin comillas, paréntesis ni signos que ensucian el full-text de ML).
+    Variantes a probar, en orden de precisión:
+      1. la consulta SANITIZADA (palabras clave, sin conectores),
+      2. el texto plano completo (sin comillas, paréntesis ni signos),
+      3. la cadena original (por si el nombre ya era una consulta válida).
     """
     original = (nombre or "").strip()
+    limpia = sanitizar_busqueda(nombre)
     plano = re.sub(r"[^\w\s]", " ", _sin_acentos(original), flags=re.UNICODE)
     plano = re.sub(r"\s+", " ", plano).strip()
 
     variantes: List[str] = []
-    for variante in (original, plano):
+    for variante in (limpia, plano, original):
         if variante and variante not in variantes:
             variantes.append(variante)
     return variantes
@@ -206,16 +245,63 @@ def _candidato_valido(titulo: str, precio: Any, moneda: str, link: str) -> Optio
     }
 
 
-def _mejor_candidato(candidatos: List[Dict[str, Any]], tokens: List[str]) -> Optional[Dict[str, Any]]:
-    """Primer candidato cuyo título coincide con las palabras clave buscadas."""
-    for candidato in candidatos:
-        if _coincide_por_tokens(tokens, candidato["titulo"]):
-            return candidato
-        logger.warning(
-            "Match descartado (título no coincide con la búsqueda): '%s'",
-            candidato["titulo"],
-        )
-    return None
+def _recortar_extremos(precios: List[float]) -> List[float]:
+    """
+    Mediana RECORTADA: descarta el 20 % de los valores más bajos (cables,
+    repuestos, publicaciones incompletas) y el 20 % más alto (publicaciones
+    infladas). Con menos de 5 muestras no se recorta nada: el `floor` del 20 %
+    sería 0 y no hay colas que valga la pena tirar.
+    """
+    ordenados = sorted(precios)
+    n = len(ordenados)
+    if n < 5:
+        return ordenados
+    corte = int(n * PORCENTAJE_RECORTE)
+    if corte <= 0:
+        return ordenados
+    return ordenados[corte:n - corte]
+
+
+def precio_referencia_robusto(
+    candidatos: List[Dict[str, Any]], tokens: List[str]
+) -> Optional[Dict[str, Any]]:
+    """
+    Precio de referencia ESTADÍSTICAMENTE robusto de una lista de candidatos.
+
+    1. Se conservan sólo los títulos que coinciden con las palabras clave.
+    2. Se ordenan los precios y se recorta el 20 % inferior y el 20 % superior.
+    3. El precio de referencia es la MEDIANA de la muestra recortada.
+    4. El título/enlace que se devuelve es el de la publicación más cercana a
+       esa mediana (la más representativa), no el primero del listado.
+
+    Returns:
+        Dict con `precio` (mediana) + los datos de la publicación elegida, o
+        None si ninguna publicación coincide con la búsqueda.
+    """
+    coincidentes = [
+        candidato for candidato in candidatos
+        if _coincide_por_tokens(tokens, candidato["titulo"])
+    ]
+    if not coincidentes:
+        return None
+
+    muestra = _recortar_extremos([c["precio"] for c in coincidentes])
+    if not muestra:
+        return None
+
+    mediana = float(statistics.median(muestra))
+    elegido = min(coincidentes, key=lambda c: abs(c["precio"] - mediana))
+    return {
+        "titulo": elegido["titulo"],
+        "precio": round(mediana, 2),
+        "moneda": MONEDA_ARS,
+        "link": elegido["link"],
+        # Trazabilidad del cálculo (la exponen los logs y la ficha del objeto).
+        "precio_publicacion": elegido["precio"],
+        "muestras": len(muestra),
+        "muestras_totales": len(coincidentes),
+        "metodo": "mediana_recortada",
+    }
 
 
 # =============================================================================
@@ -331,14 +417,19 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
     """
     Busca el precio de referencia del producto en MercadoLibre ARGENTINA (MLA).
 
+    La consulta que viaja a ML es la SANITIZADA (palabras clave, sin conectores,
+    máximo MAX_PALABRAS_BUSQUEDA términos). El precio devuelto NO es el de la
+    primera publicación: se recolectan TODAS las coincidencias, se descarta el
+    20 % inferior y el 20 % superior de los valores y se toma la MEDIANA.
+
     Args:
         nombre: Término de búsqueda (ej: "Disco Duro WD Purple 1TB").
         access_token: Token OAuth de ML (opcional). Si está presente se consulta
             la API oficial pineada a MLA (devuelve `currency_id` verificable).
 
     Returns:
-        Dict {titulo, precio, moneda, link} del primer resultado que COINCIDE con
-        las palabras clave, o:
+        Dict {titulo, precio, moneda, link, muestras} del precio de referencia
+        robusto, o:
         - {"fuente_error": "sin_coincidencia"} → la fuente respondió pero ningún
           título corresponde (no se inyecta un match erróneo).
         - {"fuente_error": "error_red"} → timeout/conexión/status bloqueado.
@@ -346,6 +437,9 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
     tokens = tokens_relevantes(nombre)
     hubo_respuesta_api = False
     error_red_scraping = False
+    # Muestra acumulada de TODAS las variantes (sin duplicar publicaciones).
+    acumulados: List[Dict[str, Any]] = []
+    vistos = set()
 
     for variante in variantes_busqueda(nombre):
         candidatos: List[Dict[str, Any]] = []
@@ -367,12 +461,37 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
                 error_red_scraping = True
                 candidatos = []
 
-        elegido = _mejor_candidato(candidatos, tokens)
-        if elegido:
-            logger.info(
-                "MLA match validado: '%s' - ARS %.2f", elegido["titulo"], elegido["precio"]
+        # Acumular sin duplicar publicaciones (la misma aparece en 2 variantes).
+        for candidato in candidatos:
+            clave = (
+                str(candidato["link"] or "").strip()
+                or _compactar(candidato["titulo"]),
+                round(float(candidato["precio"]), 2),
             )
-            return elegido
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            acumulados.append(candidato)
+
+        # Con suficientes muestras coincidentes no se gastan más requests: la
+        # mediana recortada ya es estable.
+        coincidentes = sum(
+            1 for c in acumulados if _coincide_por_tokens(tokens, c["titulo"])
+        )
+        if coincidentes >= MIN_MUESTRAS_SUFICIENTES:
+            break
+
+    # Precio de referencia robusto: mediana de la muestra recortada al 20 %.
+    elegido = precio_referencia_robusto(acumulados, tokens)
+    if elegido:
+        logger.info(
+            "MLA referencia robusta: '%s' - ARS %.2f (mediana de %s muestras de %s)",
+            elegido["titulo"],
+            elegido["precio"],
+            elegido["muestras"],
+            elegido["muestras_totales"],
+        )
+        return elegido
 
     # Sin coincidencias validadas: se distingue red caída de "no hay match".
     if hubo_respuesta_api:

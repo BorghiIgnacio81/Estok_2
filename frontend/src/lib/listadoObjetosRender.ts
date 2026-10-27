@@ -245,7 +245,10 @@ function grupoEstructurasHtml(
 /** Tarjeta de objeto individual suelto (sección inferior). */
 function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
   const tieneAusencia = Boolean(obj.contenedor_ausente);
-  const ubicacion = esc(obj.ubicacion_nombre || 'Sin ubicación');
+  // `ubicacion_display` es la RUTA COMPLETA que devuelve ObjetoSerializer
+  // (Habitación · Mueble · Caja): si por algún motivo falta `ubicacion_nombre`,
+  // la tarjeta igual muestra dónde está el objeto en vez de «Sin ubicación».
+  const ubicacion = esc(obj.ubicacion_display || obj.ubicacion_nombre || 'Sin ubicación');
   const nombre = esc(obj.nombre);
   // SECCIÓN 2 · RUTA GEOGRÁFICA del objeto: texto con flechas (Piso -> Habitación
   // -> Mueble -> Caja) que despliega los minimapas analíticos al hacer clic. Sin

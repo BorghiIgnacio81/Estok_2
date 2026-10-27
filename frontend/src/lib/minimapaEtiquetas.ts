@@ -29,6 +29,10 @@
 // =============================================================================
 
 import type { SectorAcotado } from './sectoresProporcionales';
+// CENTROIDE del bloque fusionado: MISMA fuente que el lienzo de /almacenamiento
+// (lib/mapaPlantaUnica.ts). La etiqueta de una habitación fusionada se ancla al
+// cuerpo real de la «L», nunca al centro de su bounding box (esquina vacía).
+import { celdaDelCentro } from './fusionCentroide';
 // ICONOGRAFÍA FÍSICA ÚNICA: el icono del ambiente sale de la MISMA fuente que el
 // lienzo de edición de Almacenamiento, Objetos y Mudanza (subtipo por nombre).
 import { iconoDeEspacio, ICONO_ESPACIO } from './iconosFisicos';
@@ -171,14 +175,45 @@ export function etiquetasSectoresHtml(
       `left:${porcentaje(x, ancho)};top:${porcentaje(y, alto)};`
       + `width:${porcentaje(w, ancho)};height:${porcentaje(h, alto)}`;
     const activa = sector.activo ? ' minimapa-etiqueta-activa' : '';
+
+    // ESPACIO FUSIONADO: el contenedor abarca el BOUNDING BOX de la unión y su
+    // centro geométrico puede caer en el HUECO vacío de la «L». La etiqueta se
+    // dibuja sobre la CELDA REAL que contiene el centroide, calculada con la
+    // MISMA función que el lienzo grande (/almacenamiento, lib/fusionCentroide):
+    // al ser parte de la silueta, el texto nunca flota fuera de sus límites.
+    const partes = sector.partes ?? [];
+    const esFusion = partes.length > 1;
+    let estiloAncla = '';
+    if (esFusion) {
+      const geos = partes.map((parte) => ({
+        left: sector.left + (parte.left / 100) * sector.width,
+        top: sector.top + (parte.top / 100) * sector.height,
+        width: (parte.width / 100) * sector.width,
+        height: (parte.height / 100) * sector.height,
+      }));
+      const celda = celdaDelCentro(geos, {
+        left: sector.left,
+        top: sector.top,
+        width: sector.width,
+        height: sector.height,
+      });
+      estiloAncla =
+        `left:${celda.left.toFixed(3)}%;top:${celda.top.toFixed(3)}%;`
+        + `width:${celda.width.toFixed(3)}%;height:${celda.height.toFixed(3)}%;`;
+    }
+
     const titulo = nombre ? escapeHtml(nombre) : '';
     const texto = nombre
       ? `<span class="${CLASES_NOMBRE}" title="${titulo}">${titulo}</span>`
       : '';
+    const claseCaja = esFusion
+      ? `${CLASES_CAJA} minimapa-etiqueta-anclada`
+      : CLASES_CAJA;
+    const atributoEstilo = esFusion ? ` style="${estiloAncla}"` : '';
     return (
       `<div class="minimapa-etiqueta${activa}" style="${estilo}"`
       + ` data-etiqueta-id="${escapeHtml(sector.id)}">`
-      + `<span class="${CLASES_CAJA}">`
+      + `<span class="${claseCaja}"${atributoEstilo}>`
       + `<span class="${CLASES_ICONO}" aria-hidden="true">${icono}</span>`
       + texto
       + '</span></div>'

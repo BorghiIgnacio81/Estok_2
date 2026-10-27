@@ -253,7 +253,10 @@ async function eliminarObjeto(id: string): Promise<void> {
     }
     const win = window as any;
     if (win.showSuccess) win.showSuccess('✅ Objeto eliminado correctamente');
-    void cargar();
+    // Aviso global: además de repintar este listado (listener del evento), las
+    // demás pantallas abiertas (Almacenamiento y su barra lateral) se enteran
+    // del borrado sin F5.
+    window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id } }));
   } catch {
     const win = window as any;
     if (win.showError) win.showError('Error de conexión al eliminar el objeto.');
@@ -279,6 +282,12 @@ function enlazarEventos(): void {
 
   if (retryBtn) retryBtn.addEventListener('click', () => void cargar());
   if (btnLimpiarFiltros) btnLimpiarFiltros.addEventListener('click', limpiarFiltros);
+
+  // REFRESCO EN CALIENTE DEL INVENTARIO: cualquier mutación de objetos (alta en
+  // /objetos/nuevo o en el tutorial, edición, movimiento o borrado) emite
+  // `estok:objetos-cambiados`. La tarjeta se re-pinta sola, sin F5 y sin
+  // depender del latido espacial (`estok:espacios-cambiados`).
+  window.addEventListener('estok:objetos-cambiados', () => void cargar());
 
   // Delegación global para botones "Eliminar" dentro de viñetas y tarjetas.
   document.addEventListener('click', (event) => {

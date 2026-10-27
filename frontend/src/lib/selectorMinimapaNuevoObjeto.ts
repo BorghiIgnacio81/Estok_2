@@ -118,17 +118,49 @@ async function cargarDatos(): Promise<void> {
 // SELECCIÓN → INPUTS OCULTOS DEL FORMULARIO
 // =============================================================================
 
+/**
+ * Ubicación (habitación) que aloja a un contenedor, subiendo por
+ * `parent_contenedor` cuando la pieza es una caja anidada dentro de un mueble.
+ *
+ * POR QUÉ EXISTE (fix «contenedor ausente»): el payload del objeto debe viajar
+ * SIEMPRE con `ubicacion` y `contenedor`. Si el usuario entra directo al nivel
+ * de muebles/cajas sin pasar por el cuarto —o la restauración desde los inputs
+ * ocultos deja `habitacionId` en null— el objeto se guardaba con la ubicación
+ * vacía y el árbol de /objetos lo mostraba como huérfano.
+ */
+function ubicacionDeContenedor(contenedorId: string): string {
+  let cursor = estado.contenedores.find((c) => String(c.id) === String(contenedorId)) || null;
+  const visitados = new Set<string>();
+  while (cursor && !visitados.has(String(cursor.id))) {
+    visitados.add(String(cursor.id));
+    if (cursor.ubicacion) return String(cursor.ubicacion);
+    const padreId = cursor.parent_contenedor;
+    cursor = padreId
+      ? estado.contenedores.find((c) => String(c.id) === String(padreId)) || null
+      : null;
+  }
+  return '';
+}
+
 /** Escribe la selección en los inputs `ubicacion` / `contenedor` del form. */
 function escribirSeleccion(): void {
   const inputUbicacion = el(IDS.inputUbicacion) as HTMLInputElement | null;
   const inputContenedor = el(IDS.inputContenedor) as HTMLInputElement | null;
 
+  // La CAJA manda sobre el MUEBLE: es el contenedor más específico elegido.
+  const contenedorId = estado.cajaId || estado.muebleId || '';
+
   // «En tránsito» es una Ubicación REAL (el limbo del inquilinato): el FK del
   // objeto viaja con su UUID, pero la pieza NO ocupa ningún cuarto del plano.
+  // Fuera de ese caso, la ubicación SIEMPRE se completa: si falta el cuarto
+  // activo se deriva del contenedor elegido (nunca se envía sólo el contenedor).
   const ubicacionSeleccionada =
-    estado.enTransito && estado.limbo ? String(estado.limbo.id) : estado.habitacionId || '';
+    estado.enTransito && estado.limbo
+      ? String(estado.limbo.id)
+      : estado.habitacionId || ubicacionDeContenedor(contenedorId);
+
   if (inputUbicacion) inputUbicacion.value = ubicacionSeleccionada;
-  if (inputContenedor) inputContenedor.value = estado.cajaId || estado.muebleId || '';
+  if (inputContenedor) inputContenedor.value = contenedorId;
 
   inputUbicacion?.dispatchEvent(new Event('change', { bubbles: true }));
   inputContenedor?.dispatchEvent(new Event('change', { bubbles: true }));

@@ -240,7 +240,8 @@ def objetos_del_estok(
     from ..api.viewsets.objetos.base import ObjetoViewSetBase  # evita ciclos
 
     qs = Objeto.objects.select_related(
-        'ubicacion', 'contenedor', 'categoria', 'objeto_padre',
+        'ubicacion', 'contenedor', 'contenedor__parent_contenedor',
+        'categoria', 'objeto_padre',
     ).prefetch_related('fotos')
     qs = qs.filter(estok_id=estok_id, deleted_at__isnull=True)
 

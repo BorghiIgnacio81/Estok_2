@@ -5,7 +5,7 @@
 
 import type { AuthError, EstokInfo, Role } from './types';
 import { getToken } from './tokens';
-import { getEstokActivoId, getCachedUser, cacheUser } from './session';
+import { getEstokActivoId, getCachedUser, cacheUser, getCsrfToken } from './session';
 import { API_BASE_URL } from './apiBase';
 
 /**
@@ -55,11 +55,16 @@ export async function crearEstok(nombre: string, opciones: CrearEstokOpciones = 
     throw { error: 'No hay sesión activa' } as AuthError;
   }
 
+  // CSRF explícito (defensa en profundidad: Django lo exige sólo con
+  // SessionAuthentication). NO se envía `X-Estok-Id`: este POST es el que
+  // FUNDA el Estok, así que todavía no existe un tenant activo.
+  const csrfToken = getCsrfToken();
   const response = await fetch(`${API_BASE_URL}/estoks/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
+      ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
     },
     body: JSON.stringify({
       nombre,

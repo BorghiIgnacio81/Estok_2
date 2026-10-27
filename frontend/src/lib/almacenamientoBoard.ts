@@ -1011,6 +1011,7 @@ export class AlmacenamientoBoard {
       if (res.ok) {
         this.toast('✅ Objeto reubicado en el casillero.');
         await this.cargar();
+        window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id } }));
       } else {
         const err = await res.json().catch(() => ({}));
         this.toast('❌ ' + this.extraerError(err));
@@ -1040,6 +1041,7 @@ export class AlmacenamientoBoard {
       if (res.ok) {
         this.toast('✅ Objeto anclado a la ubicación.');
         await this.cargar();
+        window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id } }));
       } else {
         const err = await res.json().catch(() => ({}));
         this.toast('❌ ' + this.extraerError(err));

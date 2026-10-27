@@ -280,6 +280,8 @@ async function extraerObjeto(id: string): Promise<void> {
     if (res.ok) {
       toast('🧺 Objeto extraído a la bandeja de «por ubicar».');
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      // Refresco del inventario en las demás pantallas (/objetos, tarjetas).
+      window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id } }));
     } else {
       const err = await res.json().catch(() => ({}));
       toast('❌ ' + (err?.detail || err?.error || 'No se pudo extraer el objeto.'));
@@ -348,6 +350,11 @@ export function initBandeja(opts: {
   // Una sola vía de refresco: el latido global y el llamado explícito comparten
   // exactamente la misma puerta pública.
   window.addEventListener('estok:espacios-cambiados', refrescarBandeja);
+  // REFRESCO POR MUTACIÓN DE OBJETOS: el alta/edición/borrado de un objeto
+  // emite `estok:objetos-cambiados`. La canasta lateral re-consulta PostgreSQL
+  // para que el chip del objeto aparezca (o desaparezca) al instante, sin F5 ni
+  // tener que forzar el cambio a «Espacio Único».
+  window.addEventListener('estok:objetos-cambiados', refrescarBandeja);
   enlazarExtraccion();
   void cargar();
 }

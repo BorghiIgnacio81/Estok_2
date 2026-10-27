@@ -29,6 +29,10 @@ import type { ItemElastico } from './lienzoElastico';
 // coordenadas físicas válidas) se descarta ACÁ, en el motor reutilizable, para
 // que TODAS las pantallas que lo importan hereden el comportamiento.
 import { esEspacioVirtual, tieneGeometriaPlano } from './ubicacionesVirtuales';
+// CENTROIDE y ANCLA del bloque fusionado: FUENTE ÚNICA compartida con el
+// selector de ubicación del formulario de Objetos (lib/minimapaEtiquetas.ts).
+// Ninguno de los dos cálculos se duplica en otra pantalla.
+import { anclaDeFusion, centroDeFusion } from './fusionCentroide';
 
 // =============================================================================
 // GEOMETRÍA ELÁSTICA (porcentajes sobre el lienzo del departamento)
@@ -190,61 +194,16 @@ function superficieDeGrupo(g: GrupoFusion): string {
 }
 
 /**
- * Margen de RESGUARDO (en % del lienzo) que la etiqueta debe dejar libre hacia
- * el borde perimetral del bloque fusionado. Si el baricentro queda más cerca que
- * esto de una arista EXTERNA, la etiqueta se relocaliza.
- */
-const MARGEN_CENTRO = 5;
-
-/** True si (px,py) cae dentro de alguna celda de la silueta fusionada. */
-function dentroDelBloque(px: number, py: number, geos: GeoLibre[]): boolean {
-  return geos.some(
-    (geo) =>
-      px >= geo.left && px <= geo.left + geo.width && py >= geo.top && py <= geo.top + geo.height,
-  );
-}
-
-/**
- * PUNTO MEDIO GEOMÉTRICO del bloque fusionado: baricentro (área ponderada) de
- * sus tiles, expresado en % relativo a la caja (bbox) de la tarjeta. Garantiza
- * que el nombre + su ícono queden CENTRADOS sobre la superficie real de la «L»
- * y no en la esquina vacía de su bounding box.
+ * PUNTO MEDIO GEOMÉTRICO del bloque fusionado (en % relativo al bbox).
  *
- * RESGUARDO ANTICOLISIÓN: en una «L» de brazos finos el baricentro puede caer
- * pegado a la arista perimetral EXTERNA (justo donde se apoya un ambiente
- * vecino, p.ej. el «Baño»), que taparía el texto. Antes de pintar se sondea el
- * baricentro a MARGEN_CENTRO px hacia los 4 lados; si algún sondeo cae FUERA de
- * la silueta, el centro colisiona con el límite de un nodo vecino y la etiqueta
- * se desplaza al centro de la celda de MAYOR área (interior visible garantizado).
+ * DELEGA en la FUENTE ÚNICA `fusionCentroide.centroDeFusion` (baricentro
+ * ponderado por área + resguardo anticolisión + acotado al 15..85 %): el
+ * lienzo grande de Almacenamiento y el plano del selector de Objetos calculan
+ * con EXACTAMENTE el mismo algoritmo, así el nombre nunca queda flotando en la
+ * esquina vacía de la «L».
  */
 function centroGeometrico(g: GrupoFusion): { x: number; y: number } {
-  const geos = g.miembros.map((m) => geoDe(m));
-  let area = 0;
-  let sx = 0;
-  let sy = 0;
-  geos.forEach((geo) => {
-    const a = Math.max(1e-6, geo.width * geo.height);
-    area += a;
-    sx += a * (geo.left + geo.width / 2);
-    sy += a * (geo.top + geo.height / 2);
-  });
-  if (area <= 0) return { x: 50, y: 50 };
-  let cx = sx / area;
-  let cy = sy / area;
-  const resguardado =
-    dentroDelBloque(cx - MARGEN_CENTRO, cy, geos) &&
-    dentroDelBloque(cx + MARGEN_CENTRO, cy, geos) &&
-    dentroDelBloque(cx, cy - MARGEN_CENTRO, geos) &&
-    dentroDelBloque(cx, cy + MARGEN_CENTRO, geos);
-  if (!resguardado) {
-    const mayor = geos.reduce((a, b) => (b.width * b.height > a.width * a.height ? b : a));
-    cx = mayor.left + mayor.width / 2;
-    cy = mayor.top + mayor.height / 2;
-  }
-  const pct = (v: number, ini: number, tam: number): number => ((v - ini) / tam) * 100;
-  // Acotado al 15..85 % para que la etiqueta nunca se salga de la superficie.
-  const acotarPct = (n: number): number => Math.max(15, Math.min(85, n));
-  return { x: acotarPct(pct(cx, g.caja.left, g.caja.width)), y: acotarPct(pct(cy, g.caja.top, g.caja.height)) };
+  return centroDeFusion(g.miembros.map((m) => geoDe(m)), g.caja);
 }
 
 /** ¿El operador declaró la pieza como Mueble Móvil / Objeto (Lote 25)? */
@@ -276,22 +235,9 @@ const BADGE_MUEBLE_MOVIL =
  * para que la casilla nunca se salga del tile, por chico que sea.
  */
 function anclaCheckbox(g: GrupoFusion): { x: number; y: number } {
-  const geos = g.miembros.map((m) => geoDe(m));
-  const ancla = geos.reduce((a, b) => {
-    if (b.top < a.top - 0.5) return b;
-    if (Math.abs(b.top - a.top) <= 0.5 && b.left < a.left) return b;
-    return a;
-  });
-  const ancho = Math.max(1e-6, g.caja.width);
-  const alto = Math.max(1e-6, g.caja.height);
-  const relLeft = ((ancla.left - g.caja.left) / ancho) * 100;
-  const relTop = ((ancla.top - g.caja.top) / alto) * 100;
-  const relAncho = (ancla.width / ancho) * 100;
-  const relAlto = (ancla.height / alto) * 100;
-  return {
-    x: relLeft + Math.min(2, relAncho / 2),
-    y: relTop + Math.min(3, relAlto / 2),
-  };
+  // FUENTE ÚNICA del ancla (lib/fusionCentroide.ts): la misma que usa el plano
+  // del selector de Objetos para anclar sus etiquetas dentro de la silueta.
+  return anclaDeFusion(g.miembros.map((m) => geoDe(m)), g.caja);
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {
