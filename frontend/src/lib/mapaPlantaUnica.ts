@@ -261,17 +261,52 @@ function esMuebleMovilDeclarado(item: ItemElastico): boolean {
 const BADGE_MUEBLE_MOVIL =
   '<span class="pu-mueble-badge" title="Mueble / Objeto declarado: se lista en la pantalla de Objetos">🗄️</span>';
 
+/**
+ * ANCLA DEL CHECKBOX DEL BLOQUE FUSIONADO (fix del «checkbox flotante»).
+ *
+ * La casilla `.pu-check` se posiciona por defecto en la esquina superior
+ * izquierda de la TARJETA, que es el BOUNDING BOX de la silueta. En un espacio en
+ * «L» —y cada vez que se fusiona o se elimina un elemento contiguo y el bbox se
+ * recalcula— esa esquina puede caer en el HUECO VACÍO de la forma: la casilla
+ * quedaba flotando fuera de los bordes reales, encima del ambiente vecino.
+ *
+ * Solución pura (se recalcula en CADA render, así que un borrado o una fusión
+ * nueva la reubica sola): el ancla es la celda MÁS ALTA del bloque —y entre las
+ * empatadas, la más a la IZQUIERDA—, con un margen acotado a la mitad de la celda
+ * para que la casilla nunca se salga del tile, por chico que sea.
+ */
+function anclaCheckbox(g: GrupoFusion): { x: number; y: number } {
+  const geos = g.miembros.map((m) => geoDe(m));
+  const ancla = geos.reduce((a, b) => {
+    if (b.top < a.top - 0.5) return b;
+    if (Math.abs(b.top - a.top) <= 0.5 && b.left < a.left) return b;
+    return a;
+  });
+  const ancho = Math.max(1e-6, g.caja.width);
+  const alto = Math.max(1e-6, g.caja.height);
+  const relLeft = ((ancla.left - g.caja.left) / ancho) * 100;
+  const relTop = ((ancla.top - g.caja.top) / alto) * 100;
+  const relAncho = (ancla.width / ancho) * 100;
+  const relAlto = (ancla.height / alto) * 100;
+  return {
+    x: relLeft + Math.min(2, relAncho / 2),
+    y: relTop + Math.min(3, relAlto / 2),
+  };
+}
+
 function gruposHtml(grupos: GrupoFusion[]): string {
   return grupos
     .map((g) => {
       const centro = centroGeometrico(g);
+      // La casilla de selección sigue a la silueta: nunca queda en el hueco del bbox.
+      const ancla = anclaCheckbox(g);
       const movible = esMuebleMovilDeclarado(g.base);
       return `
     <div class="pu-grupo${movible ? ' pu-grupo--mueble-movil' : ''}" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
          title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
       <div class="pu-grupo-malla">${superficieDeGrupo(g)}</div>
-      <label class="pu-check" title="Seleccionar este bloque fusionado para ENCADENAR una fusión con otro espacio">
+      <label class="pu-check" style="left:${ancla.x}%;top:${ancla.y}%" title="Seleccionar este bloque fusionado para ENCADENAR una fusión con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
       </label>
       ${movible ? BADGE_MUEBLE_MOVIL : ''}

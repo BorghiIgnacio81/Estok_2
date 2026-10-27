@@ -49,33 +49,29 @@ export type { ContenedorMinimapa, EstadoSelector } from './selectorMinimapaUbica
 // =============================================================================
 
 /**
- * ¿El Estok activo es de UNA sola planta? Lo determina la pregunta obligatoria
- * del alta: `cantidad_pisos === 1` ⇒ Modo Planta Única (perímetro continuo sin
- * techo) y `> 1` ⇒ Modo Casa (tejado a dos aguas). Es el MISMO criterio que usa
- * el lienzo de Almacenamiento (lib/mapaCasitaNavegable.ts → esPlantaUnica).
+ * Cadena de nodos de la ruta actual (la consume el motor global de minimapas).
+ *
+ * ESTOK DE UNA SOLA PLANTA: el minimapa naranja de la casita/planta es
+ * REDUNDANTE (no existe otra planta a la que saltar y el plano de la planta
+ * activa ya es el mapa completo), así que el nodo Estok se omite y la cadena
+ * arranca directamente en el ambiente. Con 2+ plantas se conserva tal cual.
  */
-function esEstokPlantaUnica(): boolean {
-  const cantidad = Number(estado.estok?.cantidad_pisos) || 0;
-  if (cantidad > 0) return cantidad <= 1;
-  return estado.estok?.tipo_layout !== 'CASA_2_PISOS';
-}
-
-/** Cadena de nodos de la ruta actual (la consume el motor global de minimapas). */
 function nodosDeRuta(): NodoRuta[] {
   const plantas = plantasDisponibles();
   // Fila de planta activa: la MISMA clave canónica que usa el plano (1-based).
   const fila = filaActiva();
-  const nodos: NodoRuta[] = [
-    {
+  const nodos: NodoRuta[] = [];
+  if (plantas.length > 1) {
+    nodos.push({
       tipo: 'estok',
       nombre: estado.estok?.nombre || 'Mi Estok',
       id: estado.estok?.id ?? null,
       filaActiva: fila,
       totalPlantas: plantas.length,
-      // Planta única: la silueta del Estok NO dibuja el techo a dos aguas.
-      sinTecho: esEstokPlantaUnica(),
-    },
-  ];
+      // Modo Casa (2+ plantas): el techo a dos aguas delimita la planta más alta.
+      sinTecho: false,
+    });
+  }
 
   const habitacion = habitacionActual();
   if (habitacion) {

@@ -37,6 +37,10 @@
   </div>
   <div>
     <label for="onbCantidadPisos" class="block text-sm font-semibold text-gray-700 mb-1">¿Cuántas plantas tiene?</label>
+    <!-- N PLANTAS DINÁMICAS: el backend siembra UNA división raíz por planta
+         (services/seeding_plantas.py) con el tope del serializer (1..99). El
+         selector ofrece las cantidades habituales y habilita un campo numérico
+         para cualquier N fuera del rango rápido. -->
     <select
       id="onbCantidadPisos"
       name="cantidad_pisos"
@@ -44,7 +48,33 @@
     >
       <option value="1">1 planta (vista de planta única)</option>
       <option value="2">2 plantas (casa con techo)</option>
+      <option value="3">3 plantas</option>
+      <option value="4">4 plantas</option>
+      <option value="5">5 plantas</option>
+      <option value="6">6 plantas</option>
+      <option value="7">7 plantas</option>
+      <option value="8">8 plantas</option>
+      <option value="9">9 plantas</option>
+      <option value="10">10 plantas</option>
+      <option value="otra">Otra cantidad (11 a 99)…</option>
     </select>
+    <div id="onbCantidadPisosManualWrap" class="hidden mt-2">
+      <label for="onbCantidadPisosManual" class="block text-xs font-medium text-gray-500 mb-1">Cantidad exacta de plantas (1 a 99)</label>
+      <input
+        id="onbCantidadPisosManual"
+        type="number"
+        min="1"
+        max="99"
+        step="1"
+        value="3"
+        inputmode="numeric"
+        class="w-full px-4 py-2.5 border border-gray-300 rounded-2xl text-base bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base"
+      />
+    </div>
+    <!-- DELIMITADOR DEL INMUEBLE: la planta MÁS ALTA (fila 1) siempre se dibuja
+         coronada por el techo a dos aguas, sea cual sea la cantidad de plantas.
+         Lo resuelve el motor único de minimapas (lib/minimapa.ts). -->
+    <p class="mt-1 text-xs text-gray-400">La planta más alta se dibuja con el techo a dos aguas como delimitador del inmueble.</p>
   </div>
 
   <p id="onbErrorPaso1" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm"></p>
@@ -80,10 +110,21 @@
 
     const nombre = form.querySelector<HTMLInputElement>('#onbNombreEstok');
     const pisos = form.querySelector<HTMLSelectElement>('#onbCantidadPisos');
+    const pisosManualWrap = form.querySelector<HTMLElement>('#onbCantidadPisosManualWrap');
+    const pisosManual = form.querySelector<HTMLInputElement>('#onbCantidadPisosManual');
     const btn = form.querySelector<HTMLButtonElement>('#onbFundarBtn');
     const error = form.querySelector<HTMLElement>('#onbErrorPaso1');
     const ok = form.querySelector<HTMLElement>('#onbPaso1Ok');
     if (!nombre || !btn) return;
+
+    /** Muestra el campo numérico solo cuando se eligió «Otra cantidad». */
+    const sincronizarCantidadManual = (): void => {
+      const manual = pisos?.value === 'otra';
+      pisosManualWrap?.classList.toggle('hidden', !manual);
+      if (manual) pisosManual?.focus();
+    };
+    pisos?.addEventListener('change', sincronizarCantidadManual);
+    sincronizarCantidadManual();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -93,7 +134,15 @@
         mostrar(error, 'Escribí un nombre para tu Estok (mínimo 2 caracteres).');
         return;
       }
-      const cantidad = Math.max(1, Math.floor(Number(pisos?.value) || 1));
+      // N PLANTAS DINÁMICAS: el valor sale del selector rápido o del campo
+      // numérico de «Otra cantidad». Se acota al rango del backend (1..99).
+      const esManual = pisos?.value === 'otra';
+      const bruto = esManual ? Number(pisosManual?.value) : Number(pisos?.value);
+      if (esManual && (!Number.isFinite(bruto) || bruto < 1)) {
+        mostrar(error, 'Indicá la cantidad de plantas (1 a 99).');
+        return;
+      }
+      const cantidad = Math.min(99, Math.max(1, Math.floor(bruto || 1)));
       const label = btn.dataset.labelInicial ?? '🏠 Fundar Estok';
       btn.disabled = true;
       btn.textContent = 'Fundando Estok…';

@@ -227,6 +227,13 @@ async function enviarFormulario(e: Event): Promise<void> {
     // de confirmación. El flujo visual se detiene: el operador decide
     // direccionalmente entre "Cargar otro" o "Volver al inicio".
     resetFormularioCompleto();
+    // LATIDO GLOBAL DE ALMACENAMIENTO (post-tutorial): la barra lateral
+    // («🧺 Elementos por ubicar» → objetos/cajas a reubicar), el tablero de
+    // Almacenamiento y los visores recargan sus datos al instante, de modo que
+    // el primer objeto guardado aparece YA en su ubicación o en «Objetos a
+    // reubicar» sin necesidad de refrescar la página. Es el mismo evento único
+    // que emiten todas las mutaciones espaciales de la app.
+    window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
     abrirModalExito();
   } catch (err) {
     showToast(`❌ ${mensajeError(err)}`, 'error');

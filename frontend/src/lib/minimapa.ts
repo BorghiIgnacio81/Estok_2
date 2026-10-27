@@ -157,7 +157,12 @@ export function minimapaCasitaSvg(opts: {
    *  Default false (Modo Casa): ninguna pantalla existente cambia su dibujo. */
   sinTecho?: boolean;
 }): string {
-  const { filas, filaActiva, sinTecho = false } = opts;
+  const { filaActiva, sinTecho = false } = opts;
+  // N PLANTAS DINÁMICAS: el techo a dos aguas corona SIEMPRE la fila 1 (la
+  // planta MÁS ALTA) y actúa como DELIMITADOR superior del inmueble, sin
+  // importar si la casa tiene 2, 3 o N plantas. Sólo se omite en Modo Planta
+  // Única (`sinTecho`), donde la silueta es un perímetro continuo.
+  const filas = Math.max(1, Math.floor(Number(opts.filas) || 1));
   // Silueta ANCHA tipo casa real: cuerpo rectangular horizontal (no una
   // flecha vertical estrecha). Cada piso es una barra que ocupa todo el ancho
   // y el techo puntiagudo corona la silueta (proporciones w-18 h-10 / w-20 h-12).

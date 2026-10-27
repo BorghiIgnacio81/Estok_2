@@ -47,6 +47,25 @@ const CLAVES_IGNORADAS = new Set([
 ]);
 
 /**
+ * EQUIVALENCIA TAXONOMÍA LEGADA → NOMBRE OFICIAL de la categoría.
+ *
+ * El prompt del backend pide `categoria` con la taxonomía histórica
+ * (libro|tecnologia|mueble|ropa|arte|computacion|otro) y, además, el
+ * `meli_category_id` oficial. Cuando el motor de respaldo no devuelve el ID
+ * oficial, la sugerencia debe seguir apareciendo en el combobox: se traduce el
+ * token legado al NOMBRE de la categoría sembrada (siempre presente porque el
+ * alta del Estok siembra las categorías base).
+ */
+const CATEGORIA_LEGADA_A_NOMBRE: Record<string, string> = {
+  libro: 'Libros',
+  tecnologia: 'Electrónica',
+  computacion: 'Computación',
+  mueble: 'Muebles',
+  arte: 'Arte',
+  ropa: 'Ropa',
+};
+
+/**
  * Vuelca en el formulario los campos devueltos por Gemini.
  * `datos` proviene de `result.datos_ia || result` (alta) o `result.datos`
  * (edición). Los elementos ausentes se omiten sin lanzar errores.
@@ -98,14 +117,20 @@ export function aplicarCamposIa(datos: any): void {
     typeof datos.categoria === 'string' && datos.categoria.trim()
       ? datos.categoria.trim()
       : null;
-  if (categoriaId || categoriaNombre) {
+  // Si la IA respondió con la taxonomía legada («mueble», «tecnologia»…) se
+  // traduce al NOMBRE oficial para que la sugerencia caiga en una opción real.
+  const categoriaEquivalente = categoriaNombre
+    ? CATEGORIA_LEGADA_A_NOMBRE[categoriaNombre.toLowerCase()] ?? categoriaNombre
+    : null;
+  if (categoriaId || categoriaEquivalente) {
     const categoriaSelect = document.querySelector<HTMLSelectElement>('[name="categoria"]');
     if (categoriaSelect) {
       const targetId = String(categoriaId ?? '');
+      const buscado = categoriaEquivalente?.toLowerCase() ?? '';
       const opt = [...categoriaSelect.options].find(
         (o) =>
           (targetId && (o.value === targetId || o.dataset.meliId === targetId)) ||
-          (categoriaNombre && o.textContent?.trim().includes(categoriaNombre)),
+          (buscado && o.textContent?.trim().toLowerCase().includes(buscado)),
       );
       if (opt) {
         categoriaSelect.value = opt.value;

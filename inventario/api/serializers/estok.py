@@ -9,6 +9,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from ...models import Estok, Membresia, CodigoInvitacion, Role
+from ...services.seeding_categorias import sembrar_categorias_base
 from ...services.seeding_plantas import sembrar_plantas_canonicas
 
 
@@ -86,6 +87,11 @@ class EstokCreateSerializer(serializers.ModelSerializer):
             )
 
             sembrar_plantas_canonicas(estok)
+
+            # CATEGORÍAS BASE: el combobox «Categoría» del alta de objetos NUNCA
+            # nace vacío. Siembra las 11 oficiales de Mercado Libre + «Ropa» y
+            # «Libros» en la misma transacción del alta.
+            sembrar_categorias_base(estok)
 
         return estok
 
