@@ -3,31 +3,24 @@
 // -----------------------------------------------------------------------------
 // La vista de detalle (/objetos/<id>) muestra SIEMPRE los campos base
 // universales (nombre, estado, color, valor estimado, fecha). Los datos que
-// dependen de la naturaleza física del objeto (libro, tecnología, mueble/arte,
-// ropa) viven en `datos_especificos` de la API y se presentan acá.
+// dependen de la naturaleza física del objeto viven en `datos_especificos`.
 //
 // TAXONOMÍA UNIFICADA: las antiguas tablas hijas (libro_revista, tecnologia,
-// mueble_arte, ropa) fueron aplanadas sobre `Objeto`
-// (inventario/models/productos.py) y el backend las vuelve a agrupar con las
-// MISMAS claves en `ObjetoDetailSerializer.get_datos_especificos()`
-// (inventario/api/serializers/objetos.py). Este módulo es el ÚNICO formateador
-// de esa ficha: no duplicar la lista de campos en las páginas.
+// mueble_arte, ropa) fueron aplanadas sobre `Objeto` (models/productos.py) y el
+// backend las vuelve a agrupar con las MISMAS claves en
+// `ObjetoDetailSerializer.get_datos_especificos()`. Este módulo es el ÚNICO
+// formateador de esa ficha: no duplicar la lista de campos en las páginas.
 //
 //   · Libro / Revista → autor, editorial, isbn_issn, anio, edicion
 //                       (+ nombre_serie, titulo_tomo, numero_tomo, idioma)
 //   · Tecnología      → marca, modelo, numero_serie, peso, especificaciones
-//   · Mueble / Arte   → material, dimensiones (largo × ancho × alto),
-//                       artista_fabricante
+//   · Mueble / Arte   → material, dimensiones (largo × ancho × alto), artista
 //   · Ropa            → tamano
 //
-// REGLAS DE PRESENTACIÓN:
-//   · Un dato nulo, vacío o ausente NO genera fila (nunca se muestra «—»).
-//   · Si una familia queda sin filas, su bloque no se dibuja; si NINGUNA
-//     familia tiene datos, la tarjeta completa permanece oculta.
-//   · Números con formato es-AR y unidad cuando corresponde (kg / cm).
-//   · Todo valor se escapa antes de inyectarse como HTML (dato del usuario).
-//
-// Sin dependencias: se puede usar en el cliente y en el frontmatter SSR.
+// REGLAS: un dato nulo/vacío/ausente NO genera fila; un bloque sin filas no se
+// dibuja; sin ningún dato específico la tarjeta completa queda oculta. Números
+// con formato es-AR y unidad (kg / cm). Todo valor se escapa antes de inyectarse
+// como HTML. Sin dependencias: sirve en cliente y en frontmatter SSR.
 // =============================================================================
 
 /** Payload de datos específicos tal como llega desde la API (clave → valor). */
@@ -87,7 +80,6 @@ const CLAVES_INTERNAS_ESPECIFICACIONES = new Set([
   'es_espejo_contenedor',
   'alta_rapida',
 ]);
-
 
 // =============================================================================
 // HELPERS DE FORMATO
@@ -214,10 +206,7 @@ function campoTexto(
   };
 }
 
-/**
- * Familias de campos específicos. El orden define el orden de los bloques en
- * pantalla; los bloques sin filas se omiten automáticamente.
- */
+/** Familias de campos específicos; el orden define los bloques en pantalla. */
 const FAMILIAS: Array<{ titulo: string; icono: string; campos: CampoFicha[] }> = [
   {
     titulo: 'Libro / Revista',
