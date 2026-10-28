@@ -27,7 +27,7 @@ from decimal import Decimal
 from .ai_vision_nucleo import (  # noqa: F401
     CONFIANZA_MINIMA, MAX_IMAGE_SIZE_MB, COMPRESS_QUALITY, MAX_IMAGE_DIMENSION,
     MENSAJE_LIMITE_IA, AIQuotaExceededError, es_error_cuota_excedida,
-    CATEGORIAS_MELI_OFICIALES, VisionResult,
+    CATEGORIAS_MELI_OFICIALES, MAPEO_CATEGORIA_LEGADA_A_MELI, VisionResult,
     PROMPT_SISTEMA_CATALOGACION, TEXTO_USUARIO_ANALISIS, _extraer_json_de_respuesta,
 )
 from .ai_vision_gemini import GeminiClient  # noqa: F401
