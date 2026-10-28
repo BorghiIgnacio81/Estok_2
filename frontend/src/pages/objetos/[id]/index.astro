@@ -94,32 +94,39 @@ export const prerender = false;
               <h1 id="nombreObj" class="text-2xl font-bold text-gray-900"></h1>
             </div>
 
-            <p id="descripcionObj" class="text-gray-600 text-sm leading-relaxed"></p>
+            <p id="descripcionObj" data-campo-base="descripcion" class="text-gray-600 text-sm leading-relaxed"></p>
 
             <div class="grid grid-cols-2 gap-3">
               <div class="bg-gray-50 rounded-lg p-3">
                 <p class="text-xs text-gray-500 mb-0.5">Estado</p>
                 <p id="estadoObj" class="font-semibold text-gray-800 text-sm"></p>
               </div>
-              <div class="bg-gray-50 rounded-lg p-3">
+              <!-- Campos base secundarios: se ocultan cuando están vacíos o no son
+                   relevantes para la categoría (lib/objetos/objetoDetalleVista.ts). -->
+              <div data-campo-base="color" class="bg-gray-50 rounded-lg p-3">
                 <p class="text-xs text-gray-500 mb-0.5">Color</p>
                 <p id="colorObj" class="font-semibold text-gray-800 text-sm"></p>
               </div>
-              <div class="bg-gray-50 rounded-lg p-3">
+              <div data-campo-base="valor_estimado" class="bg-gray-50 rounded-lg p-3">
                 <p class="text-xs text-gray-500 mb-0.5">Valor estimado</p>
                 <p id="valorObj" class="font-semibold text-green-700 text-sm"></p>
-                <button id="buscarPrecioMLBtn" class="mt-1 text-xs text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Buscar precio en ML
-                </button>
               </div>
 
               <div class="bg-gray-50 rounded-lg p-3">
                 <p class="text-xs text-gray-500 mb-0.5">Registrado</p>
                 <p id="fechaObj" class="font-semibold text-gray-800 text-sm"></p>
               </div>
+            </div>
+
+            <!-- Acción de precio: vive FUERA de la tarjeta de valor para seguir
+                 disponible cuando el valor estimado está vacío y la tarjeta se oculta. -->
+            <div class="flex justify-end">
+              <button id="buscarPrecioMLBtn" class="text-xs text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Buscar precio en ML
+              </button>
             </div>
 
             <!-- Ubicación y contenedor -->
@@ -137,7 +144,28 @@ export const prerender = false;
         </div>
       </div>
 
-      <!-- Campos específicos según tipo (herencia multi-tabla) -->
+      <!-- ================================================================ -->
+      <!-- FICHA TÉCNICA (DESTACADA)                                        -->
+      <!-- Atributos del subtipo del objeto: libro/revista, tecnología,      -->
+      <!-- mueble/arte o ropa. Se ubica ARRIBA, junto a la ficha base, y se   -->
+      <!-- completa con lib/objetos/objetoDetalleVista.ts a partir de         -->
+      <!-- `datos_especificos`. Nunca se muestran filas vacías.               -->
+      <!-- ================================================================ -->
+      <div id="fichaTecnicaSection" class="hidden bg-white rounded-xl shadow-sm border border-blue-200 border-l-4 border-l-blue-600 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Ficha Técnica
+        </h2>
+        <p id="fichaTecnicaResumen" class="text-sm text-gray-500 mb-4"></p>
+        <div id="fichaTecnicaContenido" class="space-y-5"></div>
+        <p id="fichaTecnicaVacia" class="hidden text-sm text-gray-500">
+          Todavía no hay datos técnicos cargados.
+          <a id="fichaTecnicaEditar" href="#" class="text-blue-700 font-medium hover:underline">Completalos en Editar →</a>
+        </p>
+      </div>
+
       <!-- MÓDULO UNIFICADO DE MINIMAPAS · SECCIÓN: grilla interna del contenedor
            (celda F·C activa en NARANJA) con el estándar visual único del motor. -->
       <div id="minimapaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -166,21 +194,7 @@ export const prerender = false;
         <MinimapaModuloUnificado id="rutaModuloUnificado" modo="visor" />
       </div>
 
-      <!-- FICHA TÉCNICA / ESPECIFICACIONES: datos que dependen de la naturaleza
-           física del objeto (libro/revista, tecnología, mueble/arte, ropa).
-           Se rellena con lib/objetos/objetoFichaTecnica.ts a partir de
-           `datos_especificos` de la API; si no hay ningún dato específico, la
-           tarjeta completa queda oculta (nunca se muestran filas vacías). -->
-      <div id="fichaTecnicaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Ficha Técnica / Especificaciones
-        </h2>
-        <p id="fichaTecnicaResumen" class="text-sm text-gray-500 mb-4"></p>
-        <div id="fichaTecnicaContenido" class="space-y-5"></div>
-      </div>
+      <!-- (La Ficha Técnica se movió arriba, junto a la ficha base del objeto.) -->
 
       <!-- Legado y trazabilidad -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -269,10 +283,9 @@ export const prerender = false;
   // del contenedor, ambos con el MISMO estándar visual. La página ya NO usa el
   // `minimapaHtml` rígido ni inyecta CSS propia de minimapas.
   import { renderModuloMinimapa, renderSeccionModulo } from '../../../lib/minimapaModuloUnificado';
-  // FICHA TÉCNICA / ESPECIFICACIONES: ÚNICO formateador de los datos específicos
-  // del objeto (libro/revista, tecnología, mueble/arte, ropa). Oculta las filas
-  // vacías y la tarjeta completa cuando el objeto no tiene datos específicos.
-  import { renderFichaTecnica } from '../../../lib/objetos/objetoFichaTecnica';
+  // VISTA PATRIMONIAL DEL DETALLE: ficha técnica destacada (formato a cargo de
+  // lib/objetos/objetoFichaTecnica.ts) y limpieza de campos base secundarios.
+  import { renderVistaDetalle } from '../../../lib/objetos/objetoDetalleVista';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -564,7 +577,8 @@ export const prerender = false;
         alertaBadge.classList.add('hidden');
       }
       document.getElementById('nombreObj')!.textContent = obj.nombre;
-      document.getElementById('descripcionObj')!.textContent = obj.descripcion || 'Sin descripción.';
+      // Texto vacío: el párrafo completo se oculta (ver renderVistaDetalle).
+      document.getElementById('descripcionObj')!.textContent = obj.descripcion || '';
       document.getElementById('estadoObj')!.textContent = estadoInfo.label;
       document.getElementById('colorObj')!.textContent = obj.color || '—';
       document.getElementById('valorObj')!.textContent = obj.valor_estimado
@@ -598,8 +612,8 @@ export const prerender = false;
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
       document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';
 
-      // === Ficha Técnica / Especificaciones (según la naturaleza del objeto) ===
-      renderFichaTecnica(obj);
+      // === FICHA TÉCNICA DESTACADA + limpieza de campos base secundarios ===
+      renderVistaDetalle(obj);
 
 
       // === Renderizar fotos ===
