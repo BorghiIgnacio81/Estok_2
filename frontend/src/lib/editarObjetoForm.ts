@@ -21,6 +21,14 @@ import { showToast } from './toast';
 import { inicializarFotos, cargarFotos } from './editarObjetoFotos';
 import { inicializarIaEdicion } from './editarObjetoIa';
 import { inicializarPrecioReferencia } from './editarObjetoPrecio';
+// Atributos técnicos por familia (Libro/Revista · Tecnología · Mueble/Arte ·
+// Ropa): filtrado por categoría, precarga y serialización de `especificaciones`.
+import {
+  agregarEspecificacionesAlPayload,
+  cargarValoresEspecificos,
+  iniciarCamposEspecificos,
+  sincronizarCamposEspecificos,
+} from './objetos/objetoCamposEspecificosForm';
 
 /** ID del objeto editado: /objetos/<id>/editar → <id>. */
 function idObjetoDesdeRuta(): string {
@@ -78,14 +86,11 @@ async function cargarObjeto(): Promise<void> {
     // === Cargar categorías (11 oficiales) y seleccionar la del objeto ===
     await cargarCategorias(obj.categoria);
 
-    // === Llenar campos específicos ===
-    if (obj.datos_especificos) {
-      Object.entries(obj.datos_especificos).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          setFieldValue(key, value);
-        }
-      });
-    }
+    // === Atributos técnicos SEGÚN LA FAMILIA de la categoría ===
+    // Primero se resuelve qué bloque se muestra (el resto queda oculto y con sus
+    // inputs deshabilitados) y después se precargan los valores guardados.
+    sincronizarCamposEspecificos();
+    cargarValoresEspecificos(obj.datos_especificos);
 
     // === Ubicación inicial del mapa analítico (sector activo en NARANJA) ===
     // El mapa reconstruye la cadena habitación → mueble → caja con el
@@ -217,6 +222,10 @@ async function enviarFormulario(evento: Event): Promise<void> {
     payload['ubicacion'] = seleccionUbicacion.ubicacion;
     payload['contenedor'] = seleccionUbicacion.contenedor;
 
+    // `especificaciones` viaja como OBJETO (el textarea «Clave: Valor» se parsea
+    // acá); si la familia activa no es Tecnología, se conserva el JSON guardado.
+    agregarEspecificacionesAlPayload(payload);
+
     const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -274,6 +283,9 @@ export function iniciarEdicionObjeto(): void {
   }
 
   // Bloques independientes (fotos, IA y precio de referencia) + carga del objeto.
+  // El filtrado por categoría se arranca ANTES: deja todos los bloques técnicos
+  // ocultos hasta que la API devuelva la categoría del objeto.
+  iniciarCamposEspecificos();
   inicializarFotos(objetoId);
   inicializarIaEdicion(objetoId);
   inicializarPrecioReferencia();

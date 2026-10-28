@@ -1,12 +1,12 @@
 // =============================================================================
 // CAMPOS PATRIMONIALES DEL OBJETO — FUENTE ÚNICA (módulo PURO)
 // -----------------------------------------------------------------------------
-// Lista canónica de los datos patrimoniales adicionales de un Objeto y sus DOS
-// presentaciones:
-//   · `patrimonialesPanelHtml()`    → panel del espacio declarado / modal
-//     (clases `.portal-objeto-campo`, atributo `data-objeto-campo`).
-//   · `patrimonialesTailwindHtml()` → página de edición de objeto
-//     (`id`/`name` para el FormData del formulario + clases Tailwind).
+// Lista canónica de los datos patrimoniales adicionales de un Objeto y su
+// presentación en el panel del espacio declarado / modal:
+//   · `patrimonialesPanelHtml()` → markup con clases `.portal-objeto-campo` y
+//     atributo `data-objeto-campo` (lectura/escritura por clave).
+// La EDICIÓN de objetos ya no usa esta lista plana: filtra los atributos por
+// categoría con lib/objetos/objetoCamposEspecificos.ts.
 //
 // Sin imports: puede usarse tanto en el cliente como en el frontmatter SSR de
 // Astro sin arrastrar servicios de navegador.
@@ -46,22 +46,3 @@ export function patrimonialesPanelHtml(): string {
     .join('');
 }
 
-/**
- * Markup para la página de edición de objeto (clases Tailwind).
- * Usa `id`/`name` iguales a la clave del modelo, de modo que `FormData(form)`
- * los envía al PUT y `setFieldValue(clave, valor)` los precarga sin lógica
- * adicional.
- *
- * `excluir` permite omitir campos que la página ya renderiza por su cuenta
- * (p. ej. `color`, que vive en la sección Información Básica).
- */
-export function patrimonialesTailwindHtml(excluir: string[] = []): string {
-  return CAMPOS_PATRIMONIALES
-    .filter((c) => !excluir.includes(c.clave))
-    .map((c) => `<div>
-        <label for="${c.clave}" class="block text-sm font-medium text-gray-700 mb-1">${c.etiqueta}</label>
-        <input id="${c.clave}" name="${c.clave}" type="${c.tipo || 'text'}" placeholder="${c.placeholder}"
-          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
-      </div>`)
-    .join('');
-}

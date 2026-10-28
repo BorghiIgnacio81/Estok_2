@@ -16,9 +16,10 @@ import AuthGuard from '../../../../components/AuthGuard.astro';
 import ImageEditor from '../../../../components/ImageEditor.astro';
 import MinimapaModuloUnificado from '../../../../components/MinimapaModuloUnificado.astro';
 import BotonAutocompletarIA from '../../../../components/objetos/BotonAutocompletarIA.astro';
-// Lista CANÓNICA de campos patrimoniales (misma que el formulario unificado de
-// espacios/muebles): sólo se renderiza el markup, sin duplicar definiciones.
-import { patrimonialesTailwindHtml } from '../../../../lib/objetoCamposPatrimoniales';
+// CAMPOS TÉCNICOS POR FAMILIA: catálogo + filtrado según la categoría del objeto
+// (Libro/Revista, Tecnología, Mueble/Arte, Ropa). El markup de los cuatro bloques
+// se emite acá; cuál se ve lo resuelve lib/objetos/objetoCamposEspecificosForm.ts.
+import { camposEspecificosHtml } from '../../../../lib/objetos/objetoCamposEspecificos';
 // Estilos compartidos de los minimapas anidados (.mini-anidado-*): único punto
 // que ya cubre Almacenamiento y Objetos. No se duplican reglas en esta página.
 import '../../../../styles/almacenamiento-portales.css';
@@ -214,13 +215,19 @@ export const prerender = false;
       <!-- Misma lista canónica que el formulario unificado de espacios:     -->
       <!-- id/name = clave del modelo → FormData y precarga automáticos.     -->
       <!-- ================================================================ -->
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: TRAZABILIDAD PATRIMONIAL + ATRIBUTOS TÉCNICOS            -->
+      <!-- Los campos de dueño son UNIVERSALES (siempre visibles). Los       -->
+      <!-- atributos técnicos se filtran por la categoría del objeto:        -->
+      <!-- Libro/Revista · Tecnología · Mueble/Arte · Ropa.                  -->
+      <!-- ================================================================ -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
           <span aria-hidden="true">🧾</span>
           Datos patrimoniales
         </h2>
         <p class="text-sm text-gray-400 mb-4">
-          Completá material, marca, número de serie, autor y año. Se guardan junto con el objeto.
+          Propietario sin cuenta y atributos técnicos de la categoría del objeto.
         </p>
         <div class="space-y-4">
           <div>
@@ -229,9 +236,7 @@ export const prerender = false;
               placeholder="Nombre del dueño original que no es usuario de la plataforma"
               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base text-base" />
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Fragment set:html={patrimonialesTailwindHtml(['color'])} />
-          </div>
+          <Fragment set:html={camposEspecificosHtml()} />
         </div>
       </div>
 
