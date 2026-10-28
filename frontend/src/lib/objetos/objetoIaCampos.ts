@@ -28,6 +28,10 @@ const ETIQUETAS_CAMPOS: Record<string, string> = {
   price: 'Valor estimado',
   autor: 'Autor',
   marca: 'Marca',
+  modelo: 'Modelo',
+  numero_serie: 'N.º de serie',
+  material: 'Material',
+  artista_fabricante: 'Artista / Fabricante',
   editorial: 'Editorial',
   idioma: 'Idioma',
   isbn_issn: 'ISBN',
@@ -107,8 +111,11 @@ export function aplicarCamposIa(datos: any): void {
 
   // Categoría (combobox dinámico): el backend puede devolver 'categoria_id'
   // (UUID), 'meli_category_id' (MLAxxxxx) o 'categoria' (nombre). Se selecciona
-  // la opción y se dispara 'change' para que el formulario actualice cualquier
-  // dependencia del select.
+  // la opción y se dispara 'change' para que el formulario actualice sus
+  // dependencias: ese ÚNICO evento es el que ejecuta el manejador de categoría
+  // (objetoCamposEspecificosForm.iniciarCamposEspecificos) y despliega el bloque
+  // técnico de la familia (Tecnología → Marca/Modelo/N.º de serie; Mueble-Arte →
+  // Material/Dimensiones/Artista) en el formulario de ALTA.
   const categoriaId =
     datos.categoria_id ||
     datos.meli_category_id ||
@@ -147,10 +154,20 @@ export function aplicarCamposIa(datos: any): void {
     precioInput.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  // Campos específicos (libros, electrónica, música, etc.).
+  // Campos específicos de la familia de la categoría (libro, tecnología,
+  // mueble/arte, ropa). Sólo se escriben si el input existe y está habilitado:
+  // la categoría ya se seleccionó arriba y su bloque técnico está desplegado.
   const camposEspecificos: Array<[string, unknown]> = [
     ['autor', datos.autor],
     ['marca', datos.marca],
+    ['modelo', datos.modelo],
+    ['numero_serie', datos.numero_serie],
+    ['material', datos.material],
+    ['largo', datos.largo],
+    ['ancho', datos.ancho],
+    ['alto', datos.alto],
+    ['artista_fabricante', datos.artista_fabricante],
+    ['tamano', datos.tamano],
     ['nombre_serie', datos.nombre_serie],
     ['titulo_tomo', datos.titulo_tomo],
     ['numero_tomo', datos.numero_tomo],
@@ -160,10 +177,12 @@ export function aplicarCamposIa(datos: any): void {
     ['edicion', datos.edicion],
   ];
   camposEspecificos.forEach(([nombre, valor]) => {
-    if (valor) {
-      const el = document.querySelector<HTMLInputElement>(`[name="${nombre}"]`);
-      if (el) el.value = String(valor);
-    }
+    if (valor === null || valor === undefined || valor === '') return;
+    const el = document.querySelector<HTMLInputElement>(`[name="${nombre}"]`);
+    if (!el || el.disabled) return;
+    el.value = String(valor);
+    // Persistencia en sessionStorage (objetoFormCore escucha 'input' en el form).
+    el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
 

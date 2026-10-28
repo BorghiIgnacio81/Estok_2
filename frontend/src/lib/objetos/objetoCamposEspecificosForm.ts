@@ -80,9 +80,17 @@ export function sincronizarCamposEspecificos(): FamiliaObjeto | null {
 /** Engancha el cambio de categoría (llamar una vez al iniciar la página). */
 export function iniciarCamposEspecificos(): void {
   const select = document.getElementById('categoria') as HTMLSelectElement | null;
-  select?.addEventListener('change', () => {
-    sincronizarCamposEspecificos();
-  });
+  // Idempotente: /objetos/nuevo y el Paso 4 del tutorial pueden inicializarlo,
+  // y el combobox de categoría se re-renderiza (categoría creada / eliminada).
+  if (select && select.dataset.especificosActivo !== 'true') {
+    select.dataset.especificosActivo = 'true';
+    // Este es el ÚNICO manejador de cambio de categoría. El autocompletado con
+    // IA no lo invoca a mano: selecciona la opción y despacha 'change', de modo
+    // que los bloques técnicos se despliegan igual que con un clic del operador.
+    select.addEventListener('change', () => {
+      sincronizarCamposEspecificos();
+    });
+  }
   // Estado inicial: todo oculto hasta que la API devuelva la categoría del objeto.
   sincronizarCamposEspecificos();
 }
@@ -175,4 +183,63 @@ export function agregarEspecificacionesAlPayload(payload: Record<string, unknown
   });
 
   payload['especificaciones'] = resultado;
+}
+
+// =============================================================================
+// ALTA (POST multipart) · atributos técnicos al FormData
+// =============================================================================
+
+/** JSON `especificaciones` ya presente en el FormData (ej. `alta_rapida`). */
+function especificacionesEnFormData(formData: FormData): Record<string, unknown> {
+  const crudo = formData.get('especificaciones');
+  if (crudo === null) return {};
+  try {
+    const parsed = JSON.parse(String(crudo));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Líneas «Clave: Valor» del textarea técnico (vacío si la familia no es Tecnología). */
+function especificacionesEditadas(): Record<string, string> {
+  const textarea = document.getElementById('especifico-especificaciones') as
+    | HTMLTextAreaElement
+    | null;
+  if (!textarea || textarea.disabled) return {};
+  const resultado: Record<string, string> = {};
+  parsearEspecificaciones(textarea.value).forEach(([clave, valor]) => {
+    resultado[clave] = valor;
+  });
+  return resultado;
+}
+
+/**
+ * Vuelca en el FormData del ALTA los atributos técnicos de la familia activa.
+ *
+ * Sólo viajan los campos HABILITADOS (`disabled` = familia inactiva): así el
+ * objeto se crea únicamente con los atributos de su categoría y sin claves
+ * vacías. `especificaciones` se MERGEA con lo que ya venía en el FormData
+ * (p. ej. la bandera `alta_rapida` del alta rápida Caja/Mueble) para no pisarla.
+ */
+export function agregarCamposEspecificosAlFormData(formData: FormData): void {
+  document
+    .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-campo-especifico]')
+    .forEach((campo) => {
+      if (campo.disabled) return;
+      const clave = campo.name;
+      if (!clave || clave === 'especificaciones') return;
+      const valor = campo.value.trim();
+      if (valor !== '') formData.set(clave, valor);
+    });
+
+  const especificaciones = {
+    ...especificacionesEnFormData(formData),
+    ...especificacionesEditadas(),
+  };
+  if (Object.keys(especificaciones).length > 0) {
+    formData.set('especificaciones', JSON.stringify(especificaciones));
+  }
 }

@@ -26,6 +26,7 @@ import { initObjetoIaSegundaFoto } from '../objetos/objetoIaSegundaFoto';
 import { initObjetoMercadoLibre } from '../objetos/objetoMercadoLibre';
 import { initObjetoCatalogos } from '../objetos/objetoCatalogos';
 import { initObjetoClasificacionAlta } from '../objetos/objetoClasificacionAlta';
+import { iniciarCamposEspecificos } from '../objetos/objetoCamposEspecificosForm';
 import { initObjetoFormCore } from '../objetos/objetoFormCore';
 // Re-sincronización del plano elástico contra el Estok activo real (X-Estok-Id).
 import { refrescarSelectorMinimapaUbicacion } from '../selectorMinimapaNuevoObjeto';
@@ -101,6 +102,8 @@ export function iniciarPaso4Tutorial(): void {
     // Lote 31 · punto 4: los disyuntores de clasificación rápida (Caja / Mueble)
     // también se prenden en el Paso 4 del asistente, que reusa el MISMO formulario.
     initObjetoClasificacionAlta();
+    // Campos técnicos por categoría (Marca/Modelo/Serie · Material/Dimensiones).
+    iniciarCamposEspecificos();
     initObjetoFormCore();
     inyectarTooltipsTutorial();
   }

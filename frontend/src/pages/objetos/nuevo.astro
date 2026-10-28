@@ -74,6 +74,7 @@ import '../../styles/almacenamiento-portales.css';
   import { initObjetoMercadoLibre } from '../../lib/objetos/objetoMercadoLibre';
   import { initObjetoCatalogos } from '../../lib/objetos/objetoCatalogos';
   import { initObjetoClasificacionAlta } from '../../lib/objetos/objetoClasificacionAlta';
+  import { iniciarCamposEspecificos } from '../../lib/objetos/objetoCamposEspecificosForm';
   import { initObjetoFormCore } from '../../lib/objetos/objetoFormCore';
 
   initObjetoCamara();
@@ -83,5 +84,9 @@ import '../../styles/almacenamiento-portales.css';
   initObjetoCatalogos();
   // Lote 31 · punto 4: disyuntores de clasificación rápida (Caja / Mueble).
   initObjetoClasificacionAlta();
+  // CAMPOS TÉCNICOS POR CATEGORÍA: engancha el 'change' del combobox y despliega
+  // el bloque de la familia (Tecnología / Mueble-Arte / Libro / Ropa), también
+  // cuando la categoría la completa el autocompletado con IA.
+  iniciarCamposEspecificos();
   initObjetoFormCore();
 </script>

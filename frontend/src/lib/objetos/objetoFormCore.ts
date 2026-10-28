@@ -21,6 +21,12 @@ import { ref, refOpcional } from '../dom';
 import { showToast } from '../toast';
 import { limpiarCamara, obtenerFotosObjeto } from './objetoCamara';
 import { camposClasificacionAlta, sincronizarClasificacionAlta } from './objetoClasificacionAlta';
+// Atributos técnicos por familia (Marca/Modelo/N.º de serie · Material/Dimensiones):
+// el alta los adjunta al multipart y re-sincroniza su visibilidad al resetear.
+import {
+  agregarCamposEspecificosAlFormData,
+  sincronizarCamposEspecificos,
+} from './objetoCamposEspecificosForm';
 import { CLAVE_FORM, CLAVE_FOTO_LEGADA, CLAVE_FOTOS, mensajeError } from './objetoComunes';
 
 // --- Referencias al DOM (se resuelven en initObjetoFormCore) -----------------
@@ -100,6 +106,10 @@ function resetFormularioCompleto(): void {
       el.classList.remove('input-error');
     });
   }
+
+  // 4 bis) CAMPOS TÉCNICOS: la categoría volvió a «Sin categoría», así que los
+  // bloques por familia deben quedar otra vez ocultos y deshabilitados.
+  sincronizarCamposEspecificos();
 
   // 5) Estado de IA y precio de referencia
   // Sin foto tras el reset: el botón IA vuelve a estado inactivo.
@@ -194,6 +204,12 @@ async function enviarFormulario(e: Event): Promise<void> {
     for (const [clave, valor] of Object.entries(camposClasificacionAlta())) {
       formData.append(clave, valor);
     }
+
+    // CAMPOS TÉCNICOS DE LA CATEGORÍA (Tecnología / Mueble-Arte / Libro / Ropa):
+    // se leen del DOM en este instante y sólo viajan los de la familia ACTIVA
+    // (los demás están `disabled`). `especificaciones` se mergea con la bandera
+    // del alta rápida para no pisarla.
+    agregarCamposEspecificosAlFormData(formData);
 
     // Adjuntar TODAS las fotos acumuladas bajo la clave 'fotos' (multi-foto).
     for (const foto of obtenerFotosObjeto()) {
@@ -290,6 +306,10 @@ export function initObjetoFormCore(): void {
 
   // Restaurar los datos guardados antes de enlazar la persistencia.
   restaurarDatosFormulario();
+
+  // VISIBILIDAD INICIAL DE LOS CAMPOS TÉCNICOS: deja sólo el bloque de la
+  // familia de la categoría vigente (incluye el caso «volví con F5»).
+  sincronizarCamposEspecificos();
 
   const objetoForm = refOpcional<HTMLFormElement>('objetoForm');
   if (objetoForm) {

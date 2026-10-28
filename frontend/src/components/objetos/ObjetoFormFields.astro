@@ -22,6 +22,10 @@ import AutocompletarIA from './AutocompletarIA.astro';
 import ClasificacionAltaRapida from './ClasificacionAltaRapida.astro';
 import MinimapaModuloUnificado from '../MinimapaModuloUnificado.astro';
 import LegadoTrazabilidad from './LegadoTrazabilidad.astro';
+// CAMPOS TÉCNICOS POR FAMILIA (Libro/Revista · Tecnología · Mueble/Arte · Ropa):
+// catálogo + markup SSR. Cuál se despliega lo resuelve el cliente según la
+// categoría elegida (a mano o por el autocompletado con IA).
+import { camposEspecificosHtml } from '../../lib/objetos/objetoCamposEspecificos';
 
 interface Props {
   /** Ubicación preseleccionada (input oculto `ubicacion`). */
@@ -108,6 +112,15 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
               </span>
             </button>
             <div id="precioReferencia" class="mt-2 text-xs hidden"></div>
+          </div>
+
+          <!-- CAMPOS TÉCNICOS POR FAMILIA (Marca/Modelo/N.º de serie ·
+               Material/Dimensiones/Artista): el markup de los cuatro bloques se
+               emite acá; cuál se ve lo resuelve
+               lib/objetos/objetoCamposEspecificosForm.ts a partir de la
+               categoría (también cuando la completa la IA). -->
+          <div class="sm:col-span-2">
+            <Fragment set:html={camposEspecificosHtml()} />
           </div>
         </div>
       </div>
