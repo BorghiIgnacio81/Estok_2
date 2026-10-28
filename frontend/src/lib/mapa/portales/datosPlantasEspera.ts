@@ -12,6 +12,8 @@ import { esDivisionUbicacion } from '../../mapaJerarquico';
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import { cargarContenedores, cargarUbicaciones } from './datosNodosPortales';
 import type { ContenedorDto } from './datosNodosPortales';
+// CONTADOR CANÓNICO de espacios por habitación: raíces + fusión colapsada.
+import { indexarEspaciosVisiblesPorUbicacion } from '../espaciosVisibles';
 // FILTRO CENTRAL DEL PLANO: ni el limbo «En Tránsito» ni los espacios sin
 // coordenadas físicas se asignan a una planta (antes se dibujaban con una caja
 // por defecto que tapaba las habitaciones reales del mini-mapa).
@@ -49,12 +51,7 @@ export async function datosDePlantasIndependientes(): Promise<DatosPlantasEspera
     );
   }
   const conts = await cargarContenedores();
-  const espaciosPorRoom = new Map<string, ContenedorDto[]>();
-  for (const c of conts) {
-    if (c.parent_contenedor || !c.ubicacion) continue;
-    const lista = espaciosPorRoom.get(c.ubicacion) ?? [];
-    lista.push(c);
-    espaciosPorRoom.set(c.ubicacion, lista);
-  }
+  // CONTADOR = BLOQUES VISIBLES del lienzo: raíces + fusión colapsada.
+  const espaciosPorRoom = indexarEspaciosVisiblesPorUbicacion(conts);
   return { plantas, habitacionesPorPlanta, espaciosPorRoom };
 }

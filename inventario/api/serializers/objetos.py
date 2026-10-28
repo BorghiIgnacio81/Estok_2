@@ -18,45 +18,38 @@ from rest_framework.exceptions import PermissionDenied
 from ...models import Objeto
 from ...services import decisiones_service
 from ...services.transito_interno import esta_en_transito_interno
+from ...services.ubicacion_objeto import (
+    TEXTO_CONTENEDOR_AUSENTE,
+    etiqueta_ubicacion_objeto,
+    nombre_contenedor_objeto,
+)
 from ..exceptions import DecisionDerivadaAVotacion
 
 
 logger = logging.getLogger(__name__)
 
 
-def _ruta_ubicacion(obj) -> str | None:
+def _ruta_ubicacion(obj) -> str:
     """
     RUTA FÍSICA legible del objeto: «Habitación · Mueble · Caja».
 
-    Por qué existe (fix «contenedor ausente» / ubicación en None):
-      · Al guardar un objeto en un ESPACIO BASE (sin contenedor) el frontend
-        sólo recibía `ubicacion_nombre`; en el árbol de /objetos la tarjeta
-        caía en «Sin ubicación» y parecía un huérfano.
-      · Cuando el objeto SÍ está dentro de un contenedor anidado, el nombre
-        del mueble intermedio no viajaba en ningún campo.
-    Este campo devuelve SIEMPRE la cadena completa (ubicación + jerarquía de
-    contenedores) y es `None` únicamente si el objeto no tiene ninguna de las
-    dos referencias.
-
-    Sin N+1: se sube por `parent_contenedor` sólo si el padre YA está en la
-    caché del ORM (lo cargan los `select_related` de los querysets); si no está
-    precargado se corta la cadena en el contenedor directo.
+    La JERARQUÍA DE FALLBACK (contenedor → espacio lógico → ubicación → aviso
+    final «Contenedor ausente») vive en `services/ubicacion_objeto.py`, fuente
+    única compartida con las propiedades del modelo `Objeto`. Este wrapper sólo
+    conserva el nombre histórico usado por los serializers.
     """
-    nombres: list[str] = []
-    ubicacion = getattr(obj, 'ubicacion', None)
-    if ubicacion is not None:
-        nombres.append(ubicacion.nombre or '')
+    return etiqueta_ubicacion_objeto(obj)
 
-    cadena: list[str] = []
-    actual = getattr(obj, 'contenedor', None)
-    while actual is not None and len(cadena) < 5:
-        cadena.append(actual.nombre or '')
-        # `fields_cache` sólo contiene la relación si fue precargada.
-        actual = actual._state.fields_cache.get('parent_contenedor')
 
-    nombres.extend(reversed(cadena))
-    ruta = ' · '.join([nombre for nombre in nombres if nombre])
-    return ruta or None
+def _nombre_contenedor(obj) -> str:
+    """
+    Nombre del contenedor/espacio resuelto con fallback (nunca None).
+
+    Si el objeto no tiene `contenedor` pero sí una ubicación (o un Objeto
+    contenedor), devuelve ESE nombre; sólo cae en «Contenedor ausente» cuando
+    no hay ninguna referencia espacial.
+    """
+    return nombre_contenedor_objeto(obj) or TEXTO_CONTENEDOR_AUSENTE
 
 
 class ObjetoListSerializer(serializers.ModelSerializer):
@@ -65,7 +58,9 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     """
     foto_principal = serializers.SerializerMethodField()
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
-    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
+    # JERARQUÍA DE FALLBACK: contenedor → espacio lógico → ubicación → aviso.
+    # Nunca devuelve None en el caso «todo nulo» (devuelve «Contenedor ausente»).
+    contenedor_nombre = serializers.SerializerMethodField()
     # RUTA COMPLETA de la ubicación (nunca None si el objeto está ubicado).
     ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
@@ -95,8 +90,12 @@ class ObjetoListSerializer(serializers.ModelSerializer):
         especificaciones = obj.especificaciones or {}
         return bool(especificaciones.get('es_espejo_contenedor'))
 
+    def get_contenedor_nombre(self, obj):
+        """Contenedor/espacio/ubicación con fallback (nunca None)."""
+        return _nombre_contenedor(obj)
+
     def get_ubicacion_display(self, obj):
-        """Ruta física completa: «Habitación · Mueble · Caja» (o None)."""
+        """Ruta física completa: «Habitación · Mueble · Caja» (o el aviso final)."""
         return _ruta_ubicacion(obj)
 
     def get_foto_principal(self, obj):
@@ -122,7 +121,8 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     en `datos_especificos` para mantener la compatibilidad con el frontend.
     """
     ubicacion_nombre = serializers.CharField(source='ubicacion.nombre', read_only=True, default=None)
-    contenedor_nombre = serializers.CharField(source='contenedor.nombre', read_only=True, default=None)
+    # JERARQUÍA DE FALLBACK idéntica al listado (contenedor → espacio → ubicación).
+    contenedor_nombre = serializers.SerializerMethodField()
     # RUTA COMPLETA de la ubicación (fix «ubicación en None» al salvar en un
     # espacio base): el detalle del objeto la expone igual que el listado.
     ubicacion_display = serializers.SerializerMethodField()
@@ -158,8 +158,12 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
         return None
 
     def get_ubicacion_display(self, obj):
-        """Ruta física completa: «Habitación · Mueble · Caja» (o None)."""
+        """Ruta física completa: «Habitación · Mueble · Caja» (o el aviso final)."""
         return _ruta_ubicacion(obj)
+
+    def get_contenedor_nombre(self, obj):
+        """Contenedor/espacio/ubicación con fallback (nunca None)."""
+        return _nombre_contenedor(obj)
 
     def get_dueno_original_nombre(self, obj):
         if obj.dueno_original:

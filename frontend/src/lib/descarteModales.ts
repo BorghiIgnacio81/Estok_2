@@ -29,7 +29,7 @@ import {
   refrescarContadoresDescarte,
   requiereTiempoGracia,
 } from './descarteGracia';
-import { escapar, tarjetaObjetoHtml } from './decisionesTarjeta';
+import { escapar, tarjetaObjetoHtml, ubicacionTexto } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 
 function el<T extends HTMLElement>(id: string): T | null {
@@ -190,9 +190,8 @@ function cancelarModalGracia(): void {
 
 /** Detalle del propietario FÍSICO actual + cuenta regresiva de cada objeto. */
 function pieReclamoHtml(objeto: ObjetoDecision): string {
-  const ubicacion = [objeto.ubicacion_nombre, objeto.contenedor_nombre]
-    .filter(Boolean)
-    .join(' · ');
+  // Fuente ÚNICA del texto de ubicación (deduplicado tras el fallback del backend).
+  const ubicacion = ubicacionTexto(objeto);
   const propietario = objeto.dueno_original_nombre
     || objeto.dueno_externo_nombre
     || objeto.beneficiario_nombre

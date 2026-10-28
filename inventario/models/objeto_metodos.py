@@ -17,6 +17,33 @@ class ObjetoMetodosMixin:
         return self.nombre
 
     # ------------------------------------------------------------------
+    # UBICACIÓN RESUELTA CON FALLBACK (contenedor → espacio → ubicación)
+    # ------------------------------------------------------------------
+    @property
+    def contenedor_nombre(self):
+        """
+        Nombre del contenedor/espacio del objeto con la jerarquía de fallback.
+
+        `contenedor` → Objeto contenedor («espacio») → `ubicacion`. Devuelve
+        `Contenedor ausente` SOLO cuando las tres referencias son nulas. La
+        regla vive en `services/ubicacion_objeto.py` (fuente única, compartida
+        con los serializers).
+        """
+        from ..services.ubicacion_objeto import (
+            TEXTO_CONTENEDOR_AUSENTE,
+            nombre_contenedor_objeto,
+        )
+
+        return nombre_contenedor_objeto(self) or TEXTO_CONTENEDOR_AUSENTE
+
+    @property
+    def ubicacion_display(self):
+        """Ruta física completa («Habitación · Mueble · Caja») o el aviso final."""
+        from ..services.ubicacion_objeto import etiqueta_ubicacion_objeto
+
+        return etiqueta_ubicacion_objeto(self)
+
+    # ------------------------------------------------------------------
     # CONSULTAS DE DESCARTE (derivadas, sin duplicar la lógica del service)
     # ------------------------------------------------------------------
     @property

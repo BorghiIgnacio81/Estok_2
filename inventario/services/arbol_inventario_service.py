@@ -105,6 +105,18 @@ def construir_arbol_estok(
                 subcontenedores_por_padre.get(clave_padre, 0) + 1
             )
 
+    def _tiene_ubicacion_alternativa(od):
+        """
+        True si el objeto conserva una ubicación/espacio propio, aunque el
+        contenedor al que apunta sea fantasma (borrado o de otro Estok).
+
+        JERARQUÍA DE FALLBACK (fix «Contenedor ausente»): la tarjeta del objeto
+        debe mostrar el espacio o la planta que TIENE asignada; el aviso
+        «contenedor ausente» queda reservado para el objeto sin NINGUNA
+        referencia espacial.
+        """
+        return bool(od.get('ubicacion') or od.get('objeto_padre'))
+
     def _raiz_de(contenedor_id):
         """
         Sube por la cadena de contenedores padre hasta el RAÍZ del Estok.
@@ -152,7 +164,9 @@ def construir_arbol_estok(
         clave = str(contenedor_id)
         if clave not in padres_por_id:
             # Contenedor fantasma (borrado/migrado): el inventario jamás se pierde.
-            od['contenedor_ausente'] = True
+            # Sólo se declara «contenedor ausente» si el objeto NO tiene otra
+            # ubicación/espacio propio (fallback contenedor → espacio → ubicación).
+            od['contenedor_ausente'] = not _tiene_ubicacion_alternativa(od)
             objetos_sueltos.append(od)
             continue
 
@@ -177,7 +191,7 @@ def construir_arbol_estok(
             # degrada a «suelto» ni se marca `contenedor_ausente`.
             continue
         else:
-            od['contenedor_ausente'] = True
+            od['contenedor_ausente'] = not _tiene_ubicacion_alternativa(od)
             objetos_sueltos.append(od)
 
     for lista in objetos_por_contenedor.values():

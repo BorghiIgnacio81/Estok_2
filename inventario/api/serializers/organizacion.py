@@ -4,6 +4,7 @@ Serializers de Organización Espacial (Ubicaciones y Contenedores).
 
 from uuid import UUID
 
+from django.db.models import Count, Q
 from rest_framework import serializers
 
 from ...models import Ubicacion, Contenedor
@@ -55,8 +56,25 @@ class UbicacionSerializer(serializers.ModelSerializer):
         return obj.objetos.filter(deleted_at__isnull=True).count()
 
     def get_contenedores_count(self, obj):
-        """Cuenta los contenedores dentro de esta ubicación."""
-        return obj.contenedores.count()
+        """
+        Cantidad de ESPACIOS VISIBLES de esta ubicación (los BLOQUES del mapa).
+
+        Antes contaba TODAS las filas de la base (`obj.contenedores.count()`),
+        así que un cuarto con 3 bloques dibujados devolvía 5 cuando dos de sus
+        espacios habían sido FUSIONADOS en «L» (mismo `fusion_grupo`) o cuando
+        un mueble aportaba sub-divisiones internas.
+
+        Ahora se cuentan los contenedores RAÍZ (los que ningún otro contenedor
+        subsume) colapsando cada `fusion_grupo` a UN representante —exactamente
+        la misma regla que `fusion_espacial.representantes_de_grupo()` y que el
+        lienzo derecho—, en UNA sola query agregada.
+        """
+        raices = obj.contenedores.filter(parent_contenedor__isnull=True)
+        agregado = raices.aggregate(
+            sueltos=Count('id', filter=Q(fusion_grupo__isnull=True)),
+            grupos=Count('fusion_grupo', filter=Q(fusion_grupo__isnull=False), distinct=True),
+        )
+        return (agregado['sueltos'] or 0) + (agregado['grupos'] or 0)
 
     def get_sububicaciones_count(self, obj):
         """Cuenta las habitaciones encastradas dentro de esta división."""

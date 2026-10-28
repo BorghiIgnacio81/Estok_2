@@ -25,7 +25,14 @@ import { lienzoAmpliadoHtml } from './lienzoHijos';
 import type { PiezaLienzo } from './lienzoHijos';
 import type { ContenedorDto } from './datosNodosPortales';
 
-/** Rótulo estampado sobre la silueta: nombre real + espacios internos del padrón. */
+/**
+ * Rótulo estampado sobre la silueta: nombre real + cantidad de BLOQUES
+ * VISIBLES del cuarto.
+ *
+ * El número llega ya consolidado por `lib/mapa/espaciosVisibles.ts` (raíces +
+ * fusión colapsada): es EXACTAMENTE el mismo que dibuja el lienzo derecho, así
+ * el contador del panel izquierdo nunca discrepa del mapa.
+ */
 function etiquetaDeHabitacion(nombre: string, espacios: number): string {
   if (!espacios) return nombre;
   return `${nombre} · ${espacios} espacio${espacios === 1 ? '' : 's'}`;

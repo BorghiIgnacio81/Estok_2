@@ -94,9 +94,19 @@ export function nombreDueno(obj: ObjetoDecision): string {
   );
 }
 
-/** "Habitación · Mueble" con los datos disponibles ('' si no hay ubicación). */
+/**
+ * "Habitación · Mueble" con los datos disponibles ('' si no hay ubicación).
+ *
+ * DEDUPLICADO: el backend resuelve `contenedor_nombre` con JERARQUÍA DE FALLBACK
+ * (contenedor → espacio → ubicación), así que un objeto guardado directo en un
+ * espacio devuelve el MISMO nombre en `ubicacion_nombre` y en
+ * `contenedor_nombre`: se imprime una sola vez («Baño», nunca «Baño · Baño»).
+ */
 export function ubicacionTexto(obj: ObjetoDecision): string {
-  return [obj.ubicacion_nombre, obj.contenedor_nombre].filter(Boolean).join(' · ');
+  const nombres = [obj.ubicacion_nombre, obj.contenedor_nombre]
+    .map((nombre) => (nombre ?? '').trim())
+    .filter(Boolean);
+  return [...new Set(nombres)].join(' · ');
 }
 
 /** Chips de plataformas donde el objeto ya fue publicado (ML / FB). */

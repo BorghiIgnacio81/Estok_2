@@ -19,6 +19,9 @@ import { esDivisionUbicacion, filasInternasDe, columnasDeFilaInterna } from '../
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import type { NodoPortal } from './estadoPortales';
+// CONTADOR CANÓNICO de espacios por habitación (raíces + fusión colapsada):
+// el mismo número que dibuja el lienzo derecho.
+import { indexarEspaciosVisiblesPorUbicacion } from '../espaciosVisibles';
 // Espacios VIRTUALES (limbo «En Tránsito»): nunca son habitaciones navegables.
 import { esEspacioVirtual, filtrarEspaciosDePlano } from '../../ubicacionesVirtuales';
 
@@ -368,13 +371,8 @@ export async function datosDeNivelPlanta(plantaId: string | null): Promise<{
     ),
   );
   const conts = await cargarContenedores();
-  const espaciosPorRoom = new Map<string, ContenedorDto[]>();
-  for (const c of conts) {
-    if (c.parent_contenedor || !c.ubicacion) continue;
-    const lista = espaciosPorRoom.get(c.ubicacion) ?? [];
-    lista.push(c);
-    espaciosPorRoom.set(c.ubicacion, lista);
-  }
+  // CONTADOR = BLOQUES VISIBLES del lienzo: raíces + fusión colapsada.
+  const espaciosPorRoom = indexarEspaciosVisiblesPorUbicacion(conts);
   return { plant, rooms, espaciosPorRoom };
 }
 
