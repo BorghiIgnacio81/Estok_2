@@ -166,14 +166,20 @@ export const prerender = false;
         <MinimapaModuloUnificado id="rutaModuloUnificado" modo="visor" />
       </div>
 
-      <div id="camposEspecificos" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <!-- FICHA TÉCNICA / ESPECIFICACIONES: datos que dependen de la naturaleza
+           física del objeto (libro/revista, tecnología, mueble/arte, ropa).
+           Se rellena con lib/objetos/objetoFichaTecnica.ts a partir de
+           `datos_especificos` de la API; si no hay ningún dato específico, la
+           tarjeta completa queda oculta (nunca se muestran filas vacías). -->
+      <div id="fichaTecnicaSection" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <span id="camposTitulo">Detalles específicos</span>
+          Ficha Técnica / Especificaciones
         </h2>
-        <div id="camposGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        <p id="fichaTecnicaResumen" class="text-sm text-gray-500 mb-4"></p>
+        <div id="fichaTecnicaContenido" class="space-y-5"></div>
       </div>
 
       <!-- Legado y trazabilidad -->
@@ -263,6 +269,10 @@ export const prerender = false;
   // del contenedor, ambos con el MISMO estándar visual. La página ya NO usa el
   // `minimapaHtml` rígido ni inyecta CSS propia de minimapas.
   import { renderModuloMinimapa, renderSeccionModulo } from '../../../lib/minimapaModuloUnificado';
+  // FICHA TÉCNICA / ESPECIFICACIONES: ÚNICO formateador de los datos específicos
+  // del objeto (libro/revista, tecnología, mueble/arte, ropa). Oculta las filas
+  // vacías y la tarjeta completa cuando el objeto no tiene datos específicos.
+  import { renderFichaTecnica } from '../../../lib/objetos/objetoFichaTecnica';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -295,63 +305,7 @@ export const prerender = false;
   };
 
   // ===========================================================================
-  // RENDERIZADO DE CAMPOS ESPECÍFICOS POR TIPO
-  // ===========================================================================
-
-  function renderCamposEspecificos(categoriaNombre: string | null | undefined, datos: any) {
-    const container = document.getElementById('camposEspecificos')!;
-    const grid = document.getElementById('camposGrid')!;
-    const titulo = document.getElementById('camposTitulo')!;
-
-    if (!datos || Object.keys(datos).length === 0) {
-      container.classList.add('hidden');
-      return;
-    }
-
-    container.classList.remove('hidden');
-    titulo.textContent = `Detalles de ${categoriaNombre || 'Objeto'}`;
-
-
-    const fieldLabels: Record<string, string> = {
-      autor: 'Autor',
-      edicion: 'Edición',
-      anio: 'Año',
-      isbn_issn: 'ISBN / ISSN',
-      marca: 'Marca',
-      modelo: 'Modelo',
-      numero_serie: 'Número de serie',
-      peso: 'Peso (kg)',
-      especificaciones: 'Especificaciones',
-      material: 'Material',
-      largo: 'Largo (cm)',
-      ancho: 'Ancho (cm)',
-      alto: 'Alto (cm)',
-      artista_fabricante: 'Artista / Fabricante',
-      tamano: 'Tamaño / Talla',
-    };
-
-    grid.innerHTML = Object.entries(datos)
-      .filter(([_, v]) => v !== null && v !== undefined && v !== '' && !(typeof v === 'object' && Object.keys(v).length === 0))
-      .map(([key, value]) => {
-        const label = fieldLabels[key] || key;
-        let displayValue = String(value);
-        if (key === 'especificaciones' && typeof value === 'object') {
-          displayValue = Object.entries(value as Record<string, any>)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(', ');
-        }
-        return `
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 mb-0.5">${label}</p>
-            <p class="font-medium text-gray-800 text-sm">${displayValue}</p>
-          </div>
-        `;
-      })
-      .join('');
-  }
-
-  // ===========================================================================
-  // RENDERIZADO DE HISTORIAL DE PRECIOS
+  // HISTORIAL DE PRECIOS
   // ===========================================================================
 
   function renderHistorial(historial: any[]) {
@@ -644,8 +598,8 @@ export const prerender = false;
       document.getElementById('duenoObj')!.textContent = obj.dueno_original_nombre || '—';
       document.getElementById('beneficiarioObj')!.textContent = obj.beneficiario_nombre || '—';
 
-      // === Renderizar campos específicos ===
-      renderCamposEspecificos(obj.categoria_nombre || obj.categoria?.nombre, obj.datos_especificos);
+      // === Ficha Técnica / Especificaciones (según la naturaleza del objeto) ===
+      renderFichaTecnica(obj);
 
 
       // === Renderizar fotos ===
