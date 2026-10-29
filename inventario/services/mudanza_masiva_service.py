@@ -37,6 +37,12 @@ PURGA DE ESTRUCTURAS OBSOLETAS
   (`QuerySet.delete()`, que hace SQL DELETE y no el soft delete del modelo) para
   limpiar la basura arquitectónica de la Fase 3 («Espacio 1», «Estantería
   C1-A1», etc.). La purga se acota SIEMPRE al Estok origen (multi-tenant).
+
+RE-VINCULACIÓN DE PROPIETARIOS
+  Los objetos que cambian de inquilinato pueden quedar apuntando a dueños o
+  beneficiarios que NO son miembros del Estok destino: al cerrar la migración se
+  re-anclan a la cuenta homónima del destino (fuente única:
+  `services/mudanza_propietarios.py`, compartida con la mudanza individual).
 """
 
 from django.db import transaction
@@ -45,6 +51,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from ..models import Contenedor, Objeto
+from .mudanza_propietarios import aviso_revinculacion, revincular_propietarios
 from .mudanza_service import asegurar_ubicacion_limbo
 from .stock_mudable import qe_stock_mudable
 
@@ -171,6 +178,7 @@ class MudanzaMasivaService:
         # 3) CONTENEDORES → habitación limbo «En Tránsito» del destino
         # ------------------------------------------------------------------
         contenedores_movidos = 0
+        ids_en_contenedores = set()
         if arbol_cont:
             contenedores_movidos = Contenedor.objects.filter(
                 id__in=arbol_cont,
@@ -190,14 +198,30 @@ class MudanzaMasivaService:
                 )
             # El contenido de cada mueble viaja con él: cambia de tenant y
             # aterriza en la misma habitación limbo, conservando su casillero.
+            ids_en_contenedores = {
+                str(i) for i in Objeto.objects.filter(
+                    contenedor_id__in=arbol_cont, deleted_at__isnull=True,
+                ).values_list('id', flat=True)
+            }
             objetos_movidos += Objeto.objects.filter(
-                contenedor_id__in=arbol_cont, deleted_at__isnull=True,
+                id__in=ids_en_contenedores,
             ).update(
                 estok=estok_destino,
                 ubicacion=ubicacion_limbo,
                 en_transito_interno=False,
                 updated_at=ahora,
             )
+
+        # ------------------------------------------------------------------
+        # 3 bis) RE-VINCULACIÓN de dueños/beneficiarios con el Estok destino
+        # ------------------------------------------------------------------
+        # Los objetos que cambian de inquilinato pueden quedar apuntando a
+        # cuentas que no pertenecen al Estok destino: se re-anclan a la cuenta
+        # homónima del destino (ver services/mudanza_propietarios.py).
+        revinculacion = revincular_propietarios(
+            estok_destino,
+            Objeto.objects.filter(id__in=set(raices_obj) | ids_en_contenedores),
+        )
 
         # ------------------------------------------------------------------
         # 4) PURGA FÍSICA de la basura arquitectónica (acotada al origen)
@@ -232,7 +256,7 @@ class MudanzaMasivaService:
         mensaje = (
             f'🚚 Mudanza general completada: {contenedores_movidos} contenedor(es) y '
             f'{objetos_movidos} objeto(s) viajaron EN TRÁNSITO a «{estok_destino.nombre}».'
-            f'{aviso_arquitectura}{sufijo}'
+            f'{aviso_arquitectura}{sufijo}{aviso_revinculacion(revinculacion)}'
         )
 
         return {
@@ -246,5 +270,6 @@ class MudanzaMasivaService:
             'objetos_purgados': objetos_purgados,
             'contenedores_purgados': contenedores_purgados,
             'total_purgado': total_purgado,
+            'revinculacion': revinculacion,
         }
 

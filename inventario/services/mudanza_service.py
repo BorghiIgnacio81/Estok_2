@@ -35,6 +35,14 @@ MUTACIÓN ATÓMICA (PostgreSQL)
       1. El nodo raíz pasa al Estok destino con su nueva ubicación/contenedor.
       2. Sus objetos contenidos (`objeto_padre`) viajan con él sin perder el
          vínculo de contención.
+      3. PRESERVACIÓN DE LA CAJA DE ORIGEN: si venía dentro de una caja móvil
+         («Caja 01»), esa caja se busca o se recrea en el espacio elegido del
+         Estok destino y el objeto queda dentro de ella; si la caja es
+         arquitectura fija o el objeto viaja en tránsito, su nombre se anota en
+         la descripción (services/mudanza_contenedores.py).
+      4. RE-VINCULACIÓN DE PROPIETARIOS: dueños/beneficiarios que no son
+         miembros del Estok destino se re-anclan a la cuenta homónima del
+         inquilinato receptor (services/mudanza_propietarios.py).
 """
 
 from django.db import transaction
@@ -42,6 +50,8 @@ from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from ..models import Contenedor, Objeto, Ubicacion
+from .mudanza_contenedores import aviso_preservacion, preservar_contenedor_de_origen
+from .mudanza_propietarios import aviso_revinculacion, revincular_propietarios
 from .taxonomia_contenedor import es_movible
 
 # Habitación «limbo» del Estok: receptora estática de los elementos que viajan
@@ -141,13 +151,20 @@ def _rechazar_ciclo(contenedor, nuevo_padre):
         cursor = cursor.parent_contenedor
 
 
-def _mover_contenedor_recursivo(contenedor, estok_destino, ubicacion_destino, nuevo_padre, *, es_raiz=False):
+def _mover_contenedor_recursivo(
+    contenedor, estok_destino, ubicacion_destino, nuevo_padre, *,
+    es_raiz=False, ids_objetos=None,
+):
     """
     Mueve un contenedor y TODA su descendencia al Estok destino.
 
     Solo el nodo RAÍZ re-ancla su `parent_contenedor` y sus coordenadas de
     grilla (apuntaban al espacio físico de origen). Los descendientes conservan
     el vínculo jerárquico y los casilleros que ocupaban dentro del mueble.
+
+    `ids_objetos` (opcional) acumula los ids de los Objetos transferidos: lo usa
+    la mudanza para re-vincular después sus dueños/beneficiarios con cuentas del
+    Estok destino.
 
     Devuelve la cantidad de Objetos transferidos (incluido el espejo).
     """
@@ -167,14 +184,18 @@ def _mover_contenedor_recursivo(contenedor, estok_destino, ubicacion_destino, nu
     # Objetos alojados en este contenedor (incluye el espejo de dualidad
     # Contenedor+Objeto): cambian de tenant y de habitación, pero CONSERVAN su
     # casillero interior, porque la grilla interna viaja con el contenedor.
-    objetos_movidos = contenedor.objetos.filter(deleted_at__isnull=True).update(
+    objetos_alojados = contenedor.objetos.filter(deleted_at__isnull=True)
+    objetos_movidos = objetos_alojados.update(
         estok=estok_destino,
         ubicacion=ubicacion_destino,
     )
+    if ids_objetos is not None:
+        ids_objetos.extend(objetos_alojados.values_list('id', flat=True))
 
     for sub in contenedor.subcontenedores.all():
         objetos_movidos += _mover_contenedor_recursivo(
             sub, estok_destino, ubicacion_destino, None, es_raiz=False,
+            ids_objetos=ids_objetos,
         )
 
     return objetos_movidos
@@ -182,7 +203,7 @@ def _mover_contenedor_recursivo(contenedor, estok_destino, ubicacion_destino, nu
 
 def _mover_objeto_recursivo(
     objeto, estok_destino, ubicacion_destino, contenedor_destino, *,
-    es_raiz=False, en_transito=False,
+    es_raiz=False, en_transito=False, ids_objetos=None,
 ):
     """
     Mueve un Objeto y sus objetos contenidos (`objeto_padre`) al Estok destino.
@@ -194,6 +215,9 @@ def _mover_objeto_recursivo(
     conserva ubicación física: `ubicacion=None` y `contenedor=None`. El objeto
     entra al limbo del inquilinato destino (bandeja «A primera vista · sin
     ubicación» del visor ordinario) hasta que el usuario decida dónde encajarlo.
+
+    `ids_objetos` (opcional) acumula los ids transferidos para la re-vinculación
+    de dueños/beneficiarios que corre al cierre de la mudanza.
 
     Devuelve la cantidad de Objetos transferidos (raíz incluida).
     """
@@ -208,10 +232,12 @@ def _mover_objeto_recursivo(
     objeto.save(update_fields=campos)
 
     total = 1
+    if ids_objetos is not None:
+        ids_objetos.append(objeto.id)
     for hijo in objeto.objetos_contenidos.filter(deleted_at__isnull=True):
         total += _mover_objeto_recursivo(
             hijo, estok_destino, ubicacion_destino, None,
-            es_raiz=False, en_transito=en_transito,
+            es_raiz=False, en_transito=en_transito, ids_objetos=ids_objetos,
         )
     return total
 
@@ -259,9 +285,15 @@ class MudanzaService:
                 raise ValidationError("Un contenedor no puede ser su propio contenedor padre.")
             _rechazar_ciclo(contenedor, contenedor_destino)
 
+        ids_movidos = []
         objetos_movidos = _mover_contenedor_recursivo(
             contenedor, estok_destino, ubicacion_destino,
-            contenedor_destino, es_raiz=True,
+            contenedor_destino, es_raiz=True, ids_objetos=ids_movidos,
+        )
+        # Re-vinculación: los dueños/beneficiarios que no pertenecen al Estok
+        # destino se re-anclan a la cuenta homónima del inquilinato receptor.
+        revinculacion = revincular_propietarios(
+            estok_destino, Objeto.objects.filter(id__in=ids_movidos),
         )
 
         if en_transito:
@@ -271,6 +303,7 @@ class MudanzaService:
             )
         else:
             mensaje = f'«{contenedor.nombre}» y su contenido migraron a «{estok_destino.nombre}».'
+        mensaje += aviso_revinculacion(revinculacion)
 
         return {
             'mensaje': mensaje,
@@ -281,6 +314,7 @@ class MudanzaService:
             'estok_destino_id': str(estok_destino.id),
             'estok_destino_nombre': estok_destino.nombre,
             'objetos_movidos': objetos_movidos,
+            'revinculacion': revinculacion,
             'en_transito': bool(en_transito),
         }
 
@@ -298,13 +332,39 @@ class MudanzaService:
         física (`ubicacion=None`, `contenedor=None`): queda huérfano en el limbo
         del nuevo inquilinato y se gestiona desde la bandeja de elementos por
         ubicar del visor ordinario.
+
+        PRESERVACIÓN DEL CONTENEDOR DE ORIGEN («Caja 01»): si el objeto venía
+        dentro de una caja móvil, esa caja se busca o se recrea en el espacio
+        elegido del Estok destino y el objeto queda dentro de ella. Cuando la
+        caja es arquitectura fija del Estok de origen —o el objeto viaja en
+        tránsito— su nombre se anota en la descripción del objeto para no perder
+        la referencia (ver services/mudanza_contenedores.py).
         """
         if objeto.estok_id and str(objeto.estok_id) == str(estok_destino.id):
             raise ValidationError("El objeto ya pertenece al Estok destino.")
 
+        # Contexto de ORIGEN (lecturas ANTES de cualquier mutación): la caja que
+        # alojaba el objeto y el nombre del Estok del que sale.
+        contenedor_origen = objeto.contenedor if objeto.contenedor_id else None
+        estok_origen = objeto.estok or (
+            objeto.ubicacion.estok if objeto.ubicacion_id else None
+        )
+        estok_origen_nombre = estok_origen.nombre if estok_origen else ''
+
+        ids_movidos = []
         total_movidos = _mover_objeto_recursivo(
             objeto, estok_destino, ubicacion_destino,
             contenedor_destino, es_raiz=True, en_transito=en_transito,
+            ids_objetos=ids_movidos,
+        )
+
+        preservacion = preservar_contenedor_de_origen(
+            objeto, contenedor_origen, estok_destino, ubicacion_destino,
+            contenedor_destino, en_transito=en_transito,
+            estok_origen_nombre=estok_origen_nombre,
+        )
+        revinculacion = revincular_propietarios(
+            estok_destino, Objeto.objects.filter(id__in=ids_movidos),
         )
 
         if en_transito:
@@ -314,6 +374,7 @@ class MudanzaService:
             )
         else:
             mensaje = f'«{objeto.nombre}» migró a «{estok_destino.nombre}».'
+        mensaje += aviso_preservacion(preservacion) + aviso_revinculacion(revinculacion)
 
         return {
             'mensaje': mensaje,
@@ -323,6 +384,8 @@ class MudanzaService:
             'estok_destino_id': str(estok_destino.id),
             'estok_destino_nombre': estok_destino.nombre,
             'objetos_movidos': total_movidos,
+            'contenedor_origen': preservacion,
+            'revinculacion': revinculacion,
             'en_transito': bool(en_transito),
         }
 
