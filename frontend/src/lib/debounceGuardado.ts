@@ -7,8 +7,12 @@
 // con `MS_GUARDADO_FINAL` (1000 ms) y cualquier gesto nuevo REINICIA el reloj.
 // Así una ráfaga de arrastres encadenados termina en UN ÚNICO lote de PUTs.
 //
-// Módulo PURO de temporización: no conoce HTTP, ni el DOM del lienzo, ni Tailwind.
+// Módulo de temporización: no conoce HTTP ni el DOM del lienzo. Su ÚNICO freno
+// externo es la edición de texto en caliente (lib/edicionTextoActiva.ts): el reloj
+// no puede vencer mientras el operador está escribiendo un nombre.
 // =============================================================================
+
+import { hayEdicionTextoActiva } from './edicionTextoActiva';
 
 /** Ventana del notificador diferido de refrescos (ms). */
 export const MS_DEBOUNCE_GUARDADO = 500;
@@ -77,6 +81,15 @@ export function crearAgendadorGuardado(ms: number = MS_GUARDADO_FINAL): Agendado
     limpiar();
     temporizador = window.setTimeout(() => {
       temporizador = null;
+      // FRENO DE EDICIÓN DE TEXTO: si el operador está escribiendo el nombre de un
+      // espacio, el reloj NO dispara el PUT. La respuesta repintaría el lienzo por
+      // `innerHTML`, destruyendo el `<input>` con el texto a medio escribir. El
+      // lote queda intacto y se ejecuta cuando termine (Enter, blur deliberado o
+      // «💾 Guardar»).
+      if (hayEdicionTextoActiva()) {
+        armar();
+        return;
+      }
       void ejecutarPendientes();
     }, ms);
   };

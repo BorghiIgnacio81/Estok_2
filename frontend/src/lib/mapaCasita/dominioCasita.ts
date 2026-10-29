@@ -10,17 +10,48 @@ import type { EstokConfig, UbicacionPlano } from '../mapaJerarquico';
 // Espacios VIRTUALES de sistema (limbo «En Tránsito»): nunca son habitaciones.
 import { esEspacioVirtual } from '../ubicacionesVirtuales';
 
-/** Total de plantas del inmueble (máximo entre grid_filas y los datos reales). */
+/**
+ * Cantidad de PLANTAS REGISTRADAS en el Estok activo: divisiones raíz reales del
+ * macro-plano (una por planta). Es la fuente de verdad de la bifurcación del
+ * modelador y NO depende del campo individual `cantidad_pisos`, que puede quedar
+ * desincronizado cuando el inmueble suma plantas después del alta.
+ */
+export function plantasRegistradas(divisiones: UbicacionPlano[]): number {
+  return divisiones.filter((d) => !esEspacioVirtual(d)).length;
+}
+
+/**
+ * Total de plantas del inmueble: máximo entre la grilla del Estok, la fila más
+ * alta dibujada y la CANTIDAD REAL de divisiones registradas (si la estructura
+ * tiene más plantas que las declaradas, la silueta las muestra igual).
+ */
 export function totalPlantas(estok: EstokConfig | null, divisiones: UbicacionPlano[]): number {
   const desdeDatos = divisiones.reduce(
     (max, d) => Math.max(max, d.parent_grid_row || 1),
     1,
   );
-  return Math.max(estok?.grid_filas || desdeDatos, desdeDatos);
+  return Math.max(
+    estok?.grid_filas || desdeDatos,
+    desdeDatos,
+    plantasRegistradas(divisiones),
+  );
 }
 
-/** ¿El Estok activo es de 1 sola planta? → Modo Planta Única (sin techo). */
-export function esPlantaUnica(estok: EstokConfig | null): boolean {
+/**
+ * ¿El Estok activo es de 1 sola planta? → Modo Planta Única (sin techo).
+ *
+ * REGRESIÓN CORREGIDA (cartel «Planta Única»): la decisión se toma por el TOTAL
+ * DE PLANTAS REGISTRADAS. Con 2 o más divisiones reales (caso «Casa Federación»)
+ * el lienzo entra SIEMPRE en Modo Casa y el panel izquierdo muestra el
+ * selector/minimapa de plantas, aunque el campo individual `cantidad_pisos` /
+ * `tipo_layout` diga 1. Sólo con 0 o 1 planta registrada se cae al dato del
+ * Estok (0 = todavía sin estructura, se respeta el modo declarado).
+ */
+export function esPlantaUnica(
+  estok: EstokConfig | null,
+  divisiones: UbicacionPlano[] = [],
+): boolean {
+  if (plantasRegistradas(divisiones) > 1) return false;
   if (!estok) return false;
   const cantidad = Number(estok.cantidad_pisos) || 0;
   if (cantidad > 0) return cantidad <= 1;

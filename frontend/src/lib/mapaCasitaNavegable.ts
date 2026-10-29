@@ -17,7 +17,8 @@
 // «Espacio Único» + arrastre/fusión). «⬅ Volver» suelta la planta y la derecha
 // regresa al estado de espera.
 //
-// Modo Planta Única (cantidad_pisos == 1): perímetro continuo SIN techo.
+// Modo Planta Única (1 sola planta REGISTRADA): perímetro continuo SIN techo.
+// Modo Casa (2+ plantas registradas): silueta con techo + selector de plantas.
 // =============================================================================
 
 import { fetchEstokConfig } from './mapaJerarquico';
@@ -57,9 +58,11 @@ function render(): void {
   if (!refs.mapa) return;
 
   // PANEL IZQUIERDO — ANCLA RÍGIDA: SIEMPRE el plano general del Estok.
-  // BIFURCACIÓN DEL MODELADOR: 1 planta → Planta Única (rectángulo perimetral
-  // continuo SIN techo); más de 1 → Modo Casa (silueta con techo puntiagudo).
-  if (esPlantaUnica(estok)) {
+  // BIFURCACIÓN DEL MODELADOR (por TOTAL DE PLANTAS REGISTRADAS, no por el dato
+  // individual del Estok): 2+ plantas reales → Modo Casa (silueta con techo
+  // puntiagudo + selector/minimapa de plantas SIEMPRE visible arriba); 0 o 1
+  // planta → Planta Única (rectángulo perimetral continuo SIN techo).
+  if (esPlantaUnica(estok, divisiones)) {
     refs.mapa.innerHTML = `<div class="casita-raiz">${renderPlantaUnica({
       apartamento: apartamentoDePlantaUnica(divisiones),
       rooms: roomsDePlantaUnica(divisiones, habitaciones),
@@ -223,7 +226,9 @@ function enlazar(): void {
   if (!refs.mapa) return;
 
   // Rama Planta Única: inyección libre, arrastre/resizing elástico y fusión en "L".
-  if (esPlantaUnica(estado.estok)) {
+  // Se evalúa con las MISMAS plantas registradas que el render: si el Estok sumó
+  // una segunda planta, el enlace cae en la rama de Modo Casa (selector de plantas).
+  if (esPlantaUnica(estado.estok, estado.divisiones)) {
     conectarPlantaUnica({
       scope: refs.mapa,
       rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),

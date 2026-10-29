@@ -24,6 +24,8 @@ import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import { esCajaMovil } from './taxonomiaContenedor';
+// Freno de edición de texto: no repintar el interior mientras se escribe un nombre.
+import { hayEdicionTextoActiva } from './edicionTextoActiva';
 import type { ItemGeometria } from './sectoresMinimapa';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
@@ -1011,7 +1013,29 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
     render();
   });
   window.addEventListener('estok:espacios-cambiados', () => {
-    if (roomActual) void cargar();
+    if (!roomActual) return;
+    // FRENO DE EDICIÓN DE TEXTO: `cargar()` repinta el interior por `innerHTML`.
+    // Mientras el operador escribe el nombre de un estante/mueble in-place el
+    // refresco queda EN PAUSA y se reprograma hasta Enter/blur (el `<input>` con
+    // el texto a medio escribir no se destruye y la pantalla no salta).
+    if (hayEdicionTextoActiva()) {
+      window.clearTimeout(temporizadorRefrescoVisor);
+      temporizadorRefrescoVisor = window.setTimeout(refrescarContenedorDiferido, 250);
+      return;
+    }
+    void cargar();
   });
+}
+
+/** Temporizador único del refresco diferido del Visor Contenedor Grande. */
+let temporizadorRefrescoVisor = 0;
+
+/** `cargar()` reprogramado hasta que el operador termine de escribir un nombre. */
+function refrescarContenedorDiferido(): void {
+  if (hayEdicionTextoActiva()) {
+    temporizadorRefrescoVisor = window.setTimeout(refrescarContenedorDiferido, 250);
+    return;
+  }
+  if (roomActual) void cargar();
 }
 

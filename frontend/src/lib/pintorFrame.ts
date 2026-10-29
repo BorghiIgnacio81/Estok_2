@@ -15,6 +15,8 @@
 // =============================================================================
 
 import { estaRedimensionando } from './bloqueoScrollGesto';
+// Freno de edición de texto: un campo de nombre abierto bloquea los refrescos.
+import { hayEdicionTextoActiva } from './edicionTextoActiva';
 
 /** Programador de pintado visual: máximo UNA actualización por frame. */
 export interface PintorFrame {
@@ -86,9 +88,17 @@ const SELECTOR_GESTO_ACTIVO =
  * "salta" en iOS Safari. La bandera `isResizing` cubre además la ventana en la
  * que el bloqueo de scroll ya está activo aunque la clase de la tarjeta todavía
  * no se haya pintado.
+ *
+ * EDICIÓN DE TEXTO: escribir el nombre de un espacio es, a efectos del refresco,
+ * un gesto más. Repintar el lienzo por `innerHTML` destruye el `<input>` con el
+ * texto a medio escribir y desorienta la pantalla, así que se frena igual.
  */
 export function hayGestoActivo(): boolean {
-  return estaRedimensionando() || document.querySelector(SELECTOR_GESTO_ACTIVO) !== null;
+  return (
+    estaRedimensionando() ||
+    hayEdicionTextoActiva() ||
+    document.querySelector(SELECTOR_GESTO_ACTIVO) !== null
+  );
 }
 
 // =============================================================================

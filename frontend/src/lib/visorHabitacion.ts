@@ -39,6 +39,8 @@ import type { ItemElastico } from './lienzoElastico';
 import { renderLienzoElastico } from './mapaPlantaUnica';
 // Fix de jitter visual: cada refresco asíncrono del visor conserva el scroll.
 import { preservarScroll } from './scrollPreservado';
+// Freno de edición de texto: no repintar el lienzo mientras se escribe un nombre.
+import { hayEdicionTextoActiva } from './edicionTextoActiva';
 import {
   ETIQUETAS_PARED,
   cuerpoConParedesHtml,
@@ -298,6 +300,43 @@ function renderVisor(): void {
     ${paletaPuertaHtml()}
     <p class="visor-ayuda">Arrastrá espacios libremente dentro del lienzo, o soltá la puerta 🚪 en una de las cuatro paredes de la habitación para marcar la entrada.</p>
   </div>`;
+}
+
+// =============================================================================
+// REFRESCO DIFERIDO DEL VISOR (freno de edición de texto)
+// -----------------------------------------------------------------------------
+// El latido `estok:espacios-cambiados` repinta el visor por `innerHTML`. Si cae
+// mientras el operador escribe el NOMBRE de un espacio in-place, el `<input>` se
+// destruye con el texto a medio escribir y la pantalla se desorienta. Mientras
+// haya edición de texto activa el refresco queda EN PAUSA y se reprograma hasta
+// el gesto deliberado (Enter/blur). El scroll se reafirma siempre.
+// =============================================================================
+
+/** Temporizador único del refresco diferido del visor. */
+let temporizadorRefrescoVisor = 0;
+
+/** Refresco inmediato del visor (comportamiento normal, sin edición de texto). */
+function refrescarVisor(): void {
+  if (!roomActual) return;
+  void cargarContenido().then(() => {
+    preservarScroll(() => {
+      renderVisor();
+      enlazarVisor();
+      aplicarMuebleActivo();
+    });
+  });
+}
+
+/** Refresco EN PAUSA hasta que el operador termine de escribir un nombre. */
+function refrescarVisorDiferido(): void {
+  window.clearTimeout(temporizadorRefrescoVisor);
+  temporizadorRefrescoVisor = window.setTimeout(() => {
+    if (hayEdicionTextoActiva()) {
+      refrescarVisorDiferido();
+      return;
+    }
+    refrescarVisor();
+  }, 250);
 }
 
 // =============================================================================
@@ -814,13 +853,8 @@ export function initVisor(): void {
       renderVisor();
       return;
     }
-    void cargarContenido().then(() => {
-      preservarScroll(() => {
-        renderVisor();
-        enlazarVisor();
-        aplicarMuebleActivo();
-      });
-    });
+    // Mismo refresco que el latido de cambios (una sola implementación).
+    refrescarVisor();
   });
   // Sincroniza el resaltado del panel izquierdo cuando la selección se dispara
   // desde el propio panel derecho (chips / «Abrir ficha» del Visor Contenedor Grande).
@@ -831,18 +865,15 @@ export function initVisor(): void {
   });
   // Refresco en caliente ante cambios externos (movimientos/eliminaciones).
   window.addEventListener('estok:espacios-cambiados', () => {
-    if (roomActual) {
-      void cargarContenido().then(() => {
-        preservarScroll(() => {
-          renderVisor();
-          enlazarVisor();
-          aplicarMuebleActivo();
-        });
-      });
-    } else {
+    if (!roomActual) {
       // Sin habitación seleccionada: re-pintar los minimapas iniciales de plantas.
       void cargarDivisionesIniciales();
+      return;
     }
+    // FRENO DE EDICIÓN DE TEXTO: repintar el lienzo por `innerHTML` destruiría el
+    // `<input>` con el nombre a medio escribir. Se difiere hasta Enter/blur.
+    if (hayEdicionTextoActiva()) refrescarVisorDiferido();
+    else refrescarVisor();
   });
   // Estado inicial: planos proporcionales de "Planta Alta" y "Planta Baja" en
   // paralelo (cada ambiente con su silueta real ui_width/ui_height + icono).

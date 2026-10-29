@@ -25,6 +25,12 @@ export interface DimensionVisual {
 
 // =============================================================================
 // 1. CLIC PARA RENOMBRAR (input en caliente; Enter/blur → PUT; Esc → cancelar)
+// -----------------------------------------------------------------------------
+// SIN AUTOGUARDADO INTERRUPTIVO: mientras el input tiene el foco (o la etiqueta
+// quedó en `data-editando="1"`) el reloj del autoguardado y los refrescos
+// pesados quedan EN PAUSA (lib/edicionTextoActiva.ts + lib/debounceGuardado.ts).
+// El nombre sólo viaja al backend con un gesto deliberado del operador: «Enter»,
+// «blur» real o el botón «💾 Guardar» del modo edición.
 // =============================================================================
 
 export function conectarRenombradoEnVivo(
@@ -57,14 +63,37 @@ export function conectarRenombradoEnVivo(
         delete etiqueta.dataset.editando;
       };
 
+      // Anti-re-entrada: «Enter» y el «blur» inmediato posterior son dos gestos
+      // válidos, pero deben producir UN ÚNICO PUT (nunca dos envíos del mismo
+      // nombre mientras el primero está en vuelo).
+      let confirmando = false;
+
       const confirmar = async (): Promise<void> => {
-        if (etiqueta.dataset.editando !== '1') return;
+        if (confirmando || etiqueta.dataset.editando !== '1') return;
+        confirmando = true;
         const nuevo = input.value.trim();
         if (!nuevo || nuevo === original) {
+          confirmando = false;
           restaurar();
           return;
         }
-        const ok = await onRenombrar(id, nuevo, etiqueta);
+        // VIEWPORT CONGELADO: el PUT emite `estok:espacios-cambiados` y el lienzo
+        // se repinta. Se captura el scroll ANTES de la petición y se reafirma al
+        // resolver, para que el refresco no mueva la pantalla ni un píxel.
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        let ok = false;
+        try {
+          ok = await onRenombrar(id, nuevo, etiqueta);
+        } catch {
+          // Un fallo de red NUNCA puede dejar la etiqueta en «editando»: el freno
+          // de lib/edicionTextoActiva.ts detendría todos los refrescos para
+          // siempre. Se restaura el original y se libera el campo.
+          ok = false;
+        } finally {
+          confirmando = false;
+          reafirmarScroll(scrollX, scrollY);
+        }
         if (!ok) {
           restaurar();
           return;
