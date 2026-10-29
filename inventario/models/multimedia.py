@@ -3,6 +3,8 @@ Multimedia: FotoObjeto.
 
 Parte del paquete inventario/models/ (monolito modularizado).
 """
+from django.db import transaction
+
 from .base import (
     models,
     uuid,
@@ -46,3 +48,29 @@ class FotoObjeto(models.Model):
 
     def __str__(self):
         return f"Foto de: {self.objeto.nombre} ({self.fecha_subida.strftime('%d/%m/%Y')})"
+
+    def save(self, *args, **kwargs):
+        """
+        Garantiza la EXCLUSIVIDAD de la foto principal: un objeto tiene UNA sola
+        foto con `es_principal=True`.
+
+        La regla vive acá (y no en cada vista) porque las fotos se crean/editan
+        desde varios caminos: `PATCH /api/fotos/<id>/`, la acción
+        `POST /api/fotos/<id>/hacer_principal/`, `subir_foto`, la carga con IA,
+        el alta de espacios (`agregar_fotos_objeto`) y el admin de Django.
+
+        El degradado de las hermanas y el guardado de esta foto ocurren en la
+        MISMA transacción atómica: si el guardado falla, ninguna otra foto queda
+        degradada (nunca se pierde la portada anterior).
+        """
+        if not self.es_principal:
+            return super().save(*args, **kwargs)
+
+        with transaction.atomic():
+            hermanas = FotoObjeto.objects.filter(objeto_id=self.objeto_id)
+            if self.pk:
+                # `exclude(pk=None)` no es válido en Django: sólo se excluye
+                # cuando la fila ya existe (edición, no creación).
+                hermanas = hermanas.exclude(pk=self.pk)
+            hermanas.update(es_principal=False)
+            return super().save(*args, **kwargs)

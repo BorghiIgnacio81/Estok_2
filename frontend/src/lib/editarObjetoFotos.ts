@@ -123,7 +123,12 @@ function tarjetaFoto(foto: Foto): HTMLElement {
   return card;
 }
 
-/** Botón «★ Hacer principal» de una foto (PATCH /fotos/<id>/). */
+/** Estado local: SOLO la foto elegida conserva el badge «Principal». */
+function marcarPrincipalLocal(idPrincipal: string): void {
+  renderFotos(fotosActuales.map((f) => ({ ...f, es_principal: f.id === idPrincipal })));
+}
+
+/** Botón «★ Hacer principal» de una foto (POST /fotos/<id>/hacer_principal/). */
 function botonPrincipal(foto: Foto): HTMLButtonElement {
   const etiqueta = '★ Hacer principal';
   const boton = document.createElement('button');
@@ -135,14 +140,20 @@ function botonPrincipal(foto: Foto): HTMLButtonElement {
     boton.disabled = true;
     boton.textContent = '...';
     try {
-      const res = await fetch(`${API_BASE_URL}/fotos/${foto.id}/`, {
-        method: 'PATCH',
+      // Endpoint dedicado: el backend degrada a las demás fotos del objeto y
+      // promueve esta en UNA transacción atómica (una sola portada posible).
+      const res = await fetch(`${API_BASE_URL}/fotos/${foto.id}/hacer_principal/`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ es_principal: true }),
       });
       if (res.ok) {
+        // 1) Estado local inmediato: se le quita el badge a las demás fotos.
+        marcarPrincipalLocal(foto.id);
+        // 2) Galería recalculada por el backend (orden + estado reales). Si no
+        //    viniera, el paso 1 ya dejó una única «★ PRINCIPAL».
+        const fotos = await res.json().catch(() => null);
+        if (Array.isArray(fotos) && fotos.length) renderFotos(fotos as Foto[]);
         showToast('✅ Foto marcada como principal', 'success');
-        await cargarFotos();
         return;
       }
       const err = await res.json().catch(() => ({}));
