@@ -1,9 +1,11 @@
 // =============================================================================
 // Service Worker - Estok PWA
-// Estrategia: Stale-While-Revalidate (Network First con fallback a caché)
-// - Siempre intenta obtener la versión más reciente de la red
-// - Si la red falla, sirve desde la caché
-// - En segundo plano, actualiza la caché con la respuesta de la red
+// Estrategias por tipo de request:
+//   · Navegación (HTML) y /api/  → SIEMPRE red (nunca caché)
+//   · Assets de interfaz (UI_ASSETS, abajo) → CACHE FIRST: están precacheados,
+//     pesan pocos KB y se piden en cada recarga (botones, lienzos, placeholders)
+//   · Resto de assets estáticos → Stale-While-Revalidate (red primero con
+//     fallback a caché y actualización en segundo plano)
 // - El nuevo SW queda en "waiting" hasta que el usuario acepte actualizar
 // - Al hacer clic en "Actualizar ahora", el SW toma control y recarga
 // =============================================================================
