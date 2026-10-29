@@ -33,6 +33,21 @@ Reglas de este módulo (site MLA forzado + filtro de coincidencia):
    extremos más bajos (cables/repuestos) y el 20 % más alto (publicaciones
    infladas) y se toma la MEDIANA de lo que queda. Así una publicación basura
    no define el valor del objeto.
+7. CONSULTA CON CATEGORÍA + FALLBACK AUTOMÁTICO (bug real: «Buscar precio de
+   referencia» en objetos de «Ropa» no devolvía nada):
+   - La categoría del objeto (ID oficial «MLA1430», nombre «👕 Ropa» o subtipo
+     «ropa») se traduce al `category_id` de la API en
+     `mercadolibre_categorias.resolver_category_id` y viaja como parámetro
+     `category` JUNTO a `q` (documentado en `_candidatos_desde_api`).
+   - Si la búsqueda filtrada por categoría falla o no devuelve ítems, se
+     REINTENTA automáticamente sólo con las palabras clave principales (`q`),
+     sin restringir la categoría, y después con el HTML. Nunca se aborta la
+     búsqueda por una categoría: se degrada la precisión, no el resultado.
+8. PERMISO DE BÚSQUEDA: `GET /sites/{site}/search` puede responder 401/403
+   (aplicación/token sin la búsqueda habilitada). Ese caso NO es «sin
+   resultados»: se avisa en el log, se deja de insistir con la API en las
+   variantes restantes (`ErrorSinPermisoML`) y se sigue con el HTML, para que
+   el usuario nunca reciba un error de conexión inventado.
 """
 
 import logging
@@ -40,10 +55,12 @@ import math
 import re
 import statistics
 import unicodedata
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup
+
+from .mercadolibre_categorias import resolver_category_id
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +109,16 @@ STOPWORDS = {
 
 class ErrorRedML(Exception):
     """Error de red / bloqueo al consultar MercadoLibre (no es 'sin resultados')."""
+
+
+class ErrorSinPermisoML(Exception):
+    """
+    La aplicación/token no tiene la búsqueda habilitada (status 401/403).
+
+    NO es un error de red ni «sin resultados»: la API respondió, simplemente
+    rechazó la consulta. El caller deja de insistir con la API y sigue con el
+    scraping HTML (ver `buscar_en_mercadolibre`).
+    """
 
 
 # =============================================================================
@@ -307,27 +334,62 @@ def precio_referencia_robusto(
 # =============================================================================
 # FUENTES DE CANDIDATOS
 # =============================================================================
-def _candidatos_desde_api(q: str, access_token: str) -> Optional[List[Dict[str, Any]]]:
+def _candidatos_desde_api(
+    q: str,
+    access_token: str,
+    category: Optional[str] = None,
+) -> Optional[List[Dict[str, Any]]]:
     """
     Consulta la API oficial PINEADA A MLA y devuelve candidatos en ARS.
 
+    Args:
+        q: Consulta saneada (palabras clave principales, sin conectores).
+        access_token: Token OAuth de ML del usuario.
+        category: `category_id` oficial opcional (ej: «MLA1430» Ropa y
+            Accesorios). Se envía como parámetro `category` JUNTO a `q`; sin
+            él la búsqueda es por texto en todo el sitio.
+
     Returns:
-        Lista de candidatos, o None si la API rechazó la consulta (sin permiso /
-        sin token / aplicación no habilitada) para que el caller use el HTML.
+        Lista de candidatos (posiblemente vacía), o None si la API rechazó la
+        consulta por un motivo que no invalida el resto del flujo (para que el
+        caller use el HTML).
+
     Raises:
+        ErrorSinPermisoML: 401/403 → la aplicación no tiene la búsqueda
+            habilitada. No se reintenta la API.
         ErrorRedML: timeout o falla de conexión.
     """
     url = f"{ML_API_BASE}/sites/{SITE_ID}/search"
     headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-    params = {"q": q, "limit": MAX_CANDIDATOS}
+    params: Dict[str, Any] = {"q": q, "limit": MAX_CANDIDATOS}
+    if category:
+        params["category"] = category
+
+    logger.info(
+        "Buscando en API MLA: q=%r category=%s", q, category or "(sin filtro)"
+    )
 
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=15)
     except requests.RequestException as exc:
         raise ErrorRedML(f"Falla de red en API MLA: {exc}") from exc
 
+    if resp.status_code in (401, 403):
+        raise ErrorSinPermisoML(
+            "API /sites/{site}/search devolvió status {status} para q={q!r} "
+            "(category={category}): la aplicación no tiene la búsqueda habilitada".format(
+                site=SITE_ID,
+                status=resp.status_code,
+                q=q,
+                category=category or "(sin filtro)",
+            )
+        )
+
     if resp.status_code != 200:
-        logger.warning("API /sites/%s/search devolvió status %s", SITE_ID, resp.status_code)
+        logger.warning(
+            "API /sites/%s/search devolvió status %s (q=%r, category=%s)",
+            SITE_ID, resp.status_code, q, category or "(sin filtro)",
+        )
         return None
 
     try:
@@ -353,6 +415,41 @@ def _candidatos_desde_api(q: str, access_token: str) -> Optional[List[Dict[str, 
         if candidato:
             candidatos.append(candidato)
     return candidatos
+
+
+def _api_con_fallback(
+    q: str, access_token: str, category_id: Optional[str]
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """
+    Candidatos de la API oficial con FALLBACK AUTOMÁTICO de categoría.
+
+    Orden: primero la búsqueda filtrada por `category_id`; si la API falla o no
+    devuelve ítems, se REINTENTA sólo con las palabras clave (`q`) sin
+    restringir la categoría. Así un `category_id` vacío de stock (o una
+    categoría contenedor como «Ropa y Accesorios») nunca deja al usuario sin
+    precio de referencia.
+
+    Returns:
+        (candidatos, respondio) — `respondio` es True si la API devolvió una
+        respuesta JSON válida (aunque no tuviera ítems).
+    """
+    respondio = False
+
+    if category_id:
+        desde_api = _candidatos_desde_api(q, access_token, category_id)
+        if desde_api is not None:
+            respondio = True
+        if desde_api:
+            return desde_api, respondio
+        logger.info(
+            "Sin ítems en la categoría %s para q=%r: fallback sin categoría",
+            category_id, q,
+        )
+
+    desde_api = _candidatos_desde_api(q, access_token)
+    if desde_api is not None:
+        respondio = True
+    return (desde_api or []), respondio
 
 
 def _candidatos_desde_html(q: str) -> List[Dict[str, Any]]:
@@ -413,7 +510,11 @@ def _candidatos_desde_html(q: str) -> List[Dict[str, Any]]:
 # =============================================================================
 # API PÚBLICA DEL MÓDULO
 # =============================================================================
-def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def buscar_en_mercadolibre(
+    nombre: str,
+    access_token: Optional[str] = None,
+    categoria: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     Busca el precio de referencia del producto en MercadoLibre ARGENTINA (MLA).
 
@@ -426,6 +527,11 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
         nombre: Término de búsqueda (ej: "Disco Duro WD Purple 1TB").
         access_token: Token OAuth de ML (opcional). Si está presente se consulta
             la API oficial pineada a MLA (devuelve `currency_id` verificable).
+        categoria: Categoría del objeto para restringir la búsqueda (ID oficial
+            «MLA1430», nombre «Ropa»/«Indumentaria»/«👕 Ropa» o subtipo «ropa»).
+            Se resuelve con `resolver_category_id`; si no se puede resolver o si
+            la búsqueda filtrada no devuelve ítems, se reintenta SIN filtro de
+            categoría (fallback automático) — nunca se aborta la búsqueda.
 
     Returns:
         Dict {titulo, precio, moneda, link, muestras} del precio de referencia
@@ -435,6 +541,15 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
         - {"fuente_error": "error_red"} → timeout/conexión/status bloqueado.
     """
     tokens = tokens_relevantes(nombre)
+    category_id = resolver_category_id(categoria)
+    if categoria and not category_id:
+        logger.info(
+            "Categoría %r sin equivalencia en MLA: búsqueda sin filtro de categoría",
+            categoria,
+        )
+    # La API de búsqueda se abandona en cuanto responde 401/403 (sin permiso):
+    # no tiene sentido repetir la llamada en cada variante.
+    api_habilitada = bool(access_token)
     hubo_respuesta_api = False
     error_red_scraping = False
     # Muestra acumulada de TODAS las variantes (sin duplicar publicaciones).
@@ -444,12 +559,15 @@ def buscar_en_mercadolibre(nombre: str, access_token: Optional[str] = None) -> O
     for variante in variantes_busqueda(nombre):
         candidatos: List[Dict[str, Any]] = []
 
-        if access_token:
+        if api_habilitada:
             try:
-                desde_api = _candidatos_desde_api(variante, access_token)
-                if desde_api is not None:
-                    hubo_respuesta_api = True
-                    candidatos = desde_api
+                candidatos, respondio = _api_con_fallback(
+                    variante, access_token, category_id
+                )
+                hubo_respuesta_api = hubo_respuesta_api or respondio
+            except ErrorSinPermisoML as exc:
+                api_habilitada = False
+                logger.warning("%s → se continúa con el scraping HTML", exc)
             except ErrorRedML as exc:
                 logger.warning("API MLA falló: %s", exc)
 

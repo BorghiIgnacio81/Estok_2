@@ -48,6 +48,22 @@ FACTORES_AJUSTE = {
 # Estado sin datos o desconocido: se asume «bueno» (desgaste normal).
 FACTOR_ESTADO_POR_DEFECTO = 0.8
 
+# Mensajes de la respuesta controlada (`encontrado = False`). El frontend los
+# muestra tal cual (lib/precioReferencia.ts): un «sin resultados» NUNCA debe
+# presentarse como «error de conexión».
+MENSAJE_SIN_RESULTADOS = "No se encontraron publicaciones similares en Mercado Libre."
+MENSAJE_ERROR_RED = (
+    "No se pudo consultar Mercado Libre (problema de red o bloqueo temporal). "
+    "Intentá de nuevo en unos minutos."
+)
+
+
+def _mensaje_sin_precio(fuente_error: Optional[str]) -> str:
+    """Texto claro para el usuario según el motivo del `encontrado = False`."""
+    if fuente_error == "error_red":
+        return MENSAJE_ERROR_RED
+    return MENSAJE_SIN_RESULTADOS
+
 
 def _sin_acentos(texto: str) -> str:
     """Quita diacríticos («Muy Malo» ↔ «muy_malo» se comparan igual)."""
@@ -100,6 +116,8 @@ def _respuesta_encontrada(
         # Cantidad de publicaciones usadas en la mediana recortada (None cuando
         # el precio proviene de una estimación de IA, sin muestra real).
         "muestras": muestras,
+        # Sin mensaje: la tarjeta del precio habla por sí sola.
+        "mensaje": None,
     }
 
 
@@ -108,7 +126,8 @@ def _respuesta_vacia(estado: str, fuente_error: Optional[str]) -> Dict[str, Any]
     Respuesta estándar SIN precio (error controlado).
 
     Se usa tanto para 'sin coincidencia confiable' como para 'error_red': nunca
-    se devuelve un precio proveniente de un match no verificado.
+    se devuelve un precio proveniente de un match no verificado. Los precios van
+    en `null` y `mensaje` explica el motivo en lenguaje claro para el usuario.
     """
     return {
         "encontrado": False,
@@ -122,6 +141,7 @@ def _respuesta_vacia(estado: str, fuente_error: Optional[str]) -> Dict[str, Any]
         "estado_aplicado": estado,
         "porcentaje_aplicado": None,
         "muestras": None,
+        "mensaje": _mensaje_sin_precio(fuente_error),
     }
 
 
@@ -209,6 +229,7 @@ def buscar_precio_referencia(
     nombre: str,
     estado: str = "bueno",
     access_token: Optional[str] = None,
+    categoria: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Busca un precio de referencia para un objeto (SIEMPRE en pesos argentinos).
@@ -229,11 +250,17 @@ def buscar_precio_referencia(
         access_token: Token OAuth de ML del usuario (opcional). Si está presente
             se usa la API oficial pineada a MLA (`/sites/MLA/search`); si no, el
             scraping del listado `.com.ar` (ambos con validación de moneda ARS).
+        categoria: Categoría del objeto (ID oficial «MLA1430», nombre «Ropa» o
+            subtipo «ropa»). Restringe la búsqueda por `category` y, si esa
+            búsqueda no devuelve ítems, se reintenta sin filtro (fallback).
 
     Returns:
-        Dict con la estructura de respuesta estándar (incluye `moneda`).
+        Dict con la estructura de respuesta estándar (incluye `moneda` y, cuando
+        no hay precio, `mensaje` con el motivo en lenguaje claro).
     """
-    resultado_ml = buscar_en_mercadolibre(nombre, access_token=access_token)
+    resultado_ml = buscar_en_mercadolibre(
+        nombre, access_token=access_token, categoria=categoria
+    )
     fuente_error = (
         resultado_ml.get("fuente_error") if isinstance(resultado_ml, dict) else None
     )

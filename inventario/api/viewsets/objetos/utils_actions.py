@@ -286,6 +286,14 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         con Gemini. Los resultados se cachean (2h si hay precio, 5min si no).
 
         GET /api/objetos/buscar_precio_referencia/?q=iphone+14&estado=bueno
+            &categoria=MLA1430
+
+        `categoria` es OPCIONAL y acepta el ID oficial de Mercado Libre
+        («MLA1430»), el nombre («Ropa» / «👕 Ropa») o el subtipo («ropa»): el
+        servicio la traduce y, si la búsqueda filtrada no devuelve ítems,
+        reintenta sin filtro (fallback automático). Sin resultados se responde
+        200 con los precios en `null` y un `mensaje` claro: nunca se devuelve un
+        error de conexión inventado.
         """
         q = request.query_params.get('q', '').strip()
         if not q:
@@ -300,11 +308,22 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         ):
             estado = 'bueno'
 
-        # Clave de caché: incluye estado para que el ajuste no se pierda
-        cache_key = f"precio_ref_{q.lower().strip()}_{estado}"
+        # Categoría del objeto (opcional): restringe la búsqueda en MLA y habilita
+        # el fallback sin filtro. Se acepta `categoria` y su alias histórico.
+        categoria = (
+            request.query_params.get('categoria')
+            or request.query_params.get('categoria_id')
+            or ''
+        ).strip()
+
+        # Clave de caché: incluye estado y categoría para que el ajuste y el
+        # conjunto de resultados no se mezclen entre búsquedas distintas.
+        cache_key = (
+            f"precio_ref_{q.lower().strip()}_{estado}_{categoria.lower().strip()}"
+        )
         resultado_cache = cache.get(cache_key)
         if resultado_cache is not None:
-            logger.info("Cache hit para '%s' (%s)", q, estado)
+            logger.info("Cache hit para '%s' (%s, %s)", q, estado, categoria or 'sin categoría')
             return Response(resultado_cache)
 
         # Token OAuth de ML del usuario (si lo tiene): habilita la API oficial
@@ -316,7 +335,12 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
             access_token = None
 
         try:
-            resultado = buscar_precio_referencia(q, estado=estado, access_token=access_token)
+            resultado = buscar_precio_referencia(
+                q,
+                estado=estado,
+                access_token=access_token,
+                categoria=categoria or None,
+            )
 
             # Si se encontró precio, guardar en caché 2 horas
             if resultado.get("encontrado"):
@@ -347,5 +371,12 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
                 "link": None,
                 "estado_aplicado": estado,
                 "porcentaje_aplicado": None,
+                "muestras": None,
+                # Texto para el usuario: el frontend muestra `mensaje` tal cual
+                # (lib/precioReferencia.ts) en vez de inventar un error de red.
+                "mensaje": (
+                    "No se pudo buscar el precio de referencia en Mercado Libre. "
+                    "Intentá de nuevo en unos minutos."
+                ),
                 "error": str(e),
             }, status=status.HTTP_200_OK)

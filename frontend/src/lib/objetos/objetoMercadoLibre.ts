@@ -16,6 +16,7 @@ import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
 import { refOpcional } from '../dom';
 import { esFuenteMercadoLibre, mensajeSinPrecio } from '../precioReferencia';
 import { showToast } from '../toast';
+import { categoriaSeleccionadaParaBusqueda } from './categoriaSeleccionada';
 
 /** Etiqueta legible del estado de conservación aplicado al precio. */
 function etiquetaEstado(estado: string): string {
@@ -60,9 +61,15 @@ export function initObjetoMercadoLibre(): void {
     try {
       const estadoActual = refOpcional<HTMLSelectElement>('estado_conservacion')?.value || 'bueno';
 
+      // Consulta con `q` + `categoria` (ID oficial MLA / subtipo / nombre): el
+      // backend restringe la búsqueda y, si no hay ítems, reintenta sin filtro.
+      const params = new URLSearchParams({ q: nombre, estado: estadoActual });
+      const categoria = categoriaSeleccionadaParaBusqueda();
+      if (categoria) params.set('categoria', categoria);
+
       // Llamar al endpoint de precio referencia (scraping MLA + Gemini fallback)
       const response = await fetch(
-        `${API_BASE_URL}/objetos/buscar_precio_referencia/?q=${encodeURIComponent(nombre)}&estado=${encodeURIComponent(estadoActual)}`,
+        `${API_BASE_URL}/objetos/buscar_precio_referencia/?${params.toString()}`,
         { headers: getAuthHeaders() }
       );
 
@@ -124,7 +131,8 @@ export function initObjetoMercadoLibre(): void {
       } else {
         // Error CONTROLADO del backend (sin_coincidencia / error_red): nunca se
         // inyecta el precio de un producto que no coincide con la búsqueda.
-        const motivo = mensajeSinPrecio(data.fuente_error);
+        // Se muestra el `mensaje` del backend cuando viene (texto único).
+        const motivo = mensajeSinPrecio(data.fuente_error, data.mensaje);
         precioReferencia.className = 'mt-2 text-xs text-amber-600';
         precioReferencia.textContent = motivo;
         precioReferencia.classList.remove('hidden');
@@ -132,8 +140,13 @@ export function initObjetoMercadoLibre(): void {
       }
     } catch (err) {
       console.error('Error al buscar precio de referencia:', err);
+      // Sólo un fallo REAL de red/servidor llega acá: no se etiqueta como
+      // «sin resultados» ni se disfraza un error del servidor como conexión.
+      const detalle = err instanceof Error ? err.message : '';
       precioReferencia.className = 'mt-2 text-xs text-red-600';
-      precioReferencia.textContent = '❌ Error de conexión al buscar precios.';
+      precioReferencia.textContent = detalle.startsWith('Error del servidor')
+        ? `❌ ${detalle}. No se pudo buscar el precio de referencia.`
+        : '❌ Error de conexión al buscar precios.';
       precioReferencia.classList.remove('hidden');
     } finally {
       estimarPrecioBtn.disabled = false;

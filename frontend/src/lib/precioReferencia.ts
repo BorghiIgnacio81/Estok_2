@@ -23,6 +23,11 @@
 //                      el precio de un producto equivocado).
 //   error_red        → timeout / bloqueo / falla de conexión.
 //   error_interno    → excepción inesperada del viewset.
+//
+// El backend manda además `mensaje`: texto claro listo para mostrar. Se usa
+// cuando viene, para que un «sin resultados» diga exactamente eso
+// («No se encontraron publicaciones similares en Mercado Libre») en lugar de un
+// engañoso «error de conexión».
 // =============================================================================
 
 /** true si el precio viene de un resultado REAL de MercadoLibre Argentina. */
@@ -32,15 +37,24 @@ export function esFuenteMercadoLibre(fuente?: string | null): boolean {
 
 /**
  * Mensaje para mostrar cuando el backend devolvió `encontrado = false`.
- * Diferencia el error controlado (red caída / error interno) de la simple
- * ausencia de coincidencia confiable, en lugar de un texto genérico.
+ * Prioriza el `mensaje` del backend (fuente única de verdad del texto) y, si no
+ * viene, diferencia el error controlado (red caída / error interno) de la simple
+ * ausencia de coincidencia confiable.
  */
-export function mensajeSinPrecio(fuenteError?: string | null): string {
+export function mensajeSinPrecio(
+  fuenteError?: string | null,
+  mensajeBackend?: string | null,
+): string {
+  const propio = (mensajeBackend || '').trim();
+  if (propio) {
+    const icono = fuenteError === 'error_red' || fuenteError === 'error_interno' ? '❌' : '💡';
+    return `${icono} ${propio}`;
+  }
   if (fuenteError === 'error_red') {
     return '❌ No se pudo consultar MercadoLibre (problema de red o bloqueo temporal). Intentá de nuevo en unos minutos.';
   }
   if (fuenteError === 'error_interno') {
     return '❌ Error interno al buscar el precio de referencia. Intentá de nuevo.';
   }
-  return '💡 No se encontró un precio de referencia confiable en MercadoLibre Argentina para este objeto.';
+  return '💡 No se encontraron publicaciones similares en Mercado Libre.';
 }
