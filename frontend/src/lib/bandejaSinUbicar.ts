@@ -63,9 +63,11 @@ import { escapeHtml, toast } from './mapaJerarquico';
 import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
 import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
 import { esCajaEnLimbo, esCajaMovil } from './taxonomiaContenedor';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/mueble.png';
+const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
+const IMG_OBJETO = ASSET_MUEBLE;
 
 /** Chip draggable de la bandeja (caja móvil u objeto terminal suelto). */
 interface ChipBandeja {

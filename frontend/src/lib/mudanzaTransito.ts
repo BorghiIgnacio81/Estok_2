@@ -23,8 +23,10 @@ import { cargarTransitoDestino } from './mudanzaApi';
 import type { ItemMudanza, ObjetoDto } from './mudanzaApi';
 import { indicadorTransitoHtml } from './indicadorTransito';
 import { escapeHtml } from './mapaJerarquico';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from './assetsUi';
 
-const IMG_OBJETO = '/mueble.png';
+const IMG_OBJETO = ASSET_MUEBLE;
 const SIN_NOMBRE = 'Elemento sin nombre';
 
 export interface OpcionesZonaTransito {

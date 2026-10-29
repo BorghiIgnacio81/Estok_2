@@ -18,8 +18,9 @@ TIPO_NOTIFICACION_DUENO = 'notificacion_dueno'
 
 ASUNTO = 'Tu decisión es necesaria en ESTOK'
 
-# Foto de reemplazo cuando el objeto no tiene imágenes (asset público).
-FOTO_PLACEHOLDER = 'https://eeestok.duckdns.org/mueble.png'
+# Foto de reemplazo cuando el objeto no tiene imágenes (asset público WebP de
+# 128 px, el MISMO que usa el frontend vía src/lib/assetsUi.ts).
+FOTO_PLACEHOLDER = 'https://eeestok.duckdns.org/mueble.webp'
 
 _SITIO = 'https://eeestok.duckdns.org'
 

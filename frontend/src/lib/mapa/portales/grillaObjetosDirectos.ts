@@ -19,8 +19,10 @@ import { conectarPropiedadesObjetoEspacio } from '../../objetoEspacio';
 import { leerCargaArrastrada, guardarEnContenedor, guardarEnUbicacion } from './transitoInterno';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from '../../assetsUi';
 
-const IMG_OBJETO = '/mueble.png';
+const IMG_OBJETO = ASSET_MUEBLE;
 
 /** Bloque monolítico: sin modelador, con el disyuntor y ZONA DE SUELTA propia. */
 export function bloqueMonoliticoHtml(nodo: NodoPortal, enTransito: number): string {

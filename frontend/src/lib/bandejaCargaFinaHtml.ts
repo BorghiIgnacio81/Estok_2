@@ -13,10 +13,12 @@
 // =============================================================================
 
 import { escapeHtml } from './mapaJerarquico';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
-const IMG_CONTENEDOR_GRANDE = '/mueble.png';
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/mueble.png';
+const IMG_CONTENEDOR_GRANDE = ASSET_MUEBLE;
+const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
+const IMG_OBJETO = ASSET_MUEBLE;
 
 // =============================================================================
 // TIPOS COMPARTIDOS

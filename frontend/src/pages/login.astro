@@ -1,5 +1,7 @@
 ---
 import AuthLayout from '../layouts/AuthLayout.astro';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_LOGIN_COMODA } from '../lib/assetsUi';
 ---
 
 <AuthLayout title="Iniciar Sesión - Estok" bare>
@@ -47,7 +49,9 @@ import AuthLayout from '../layouts/AuthLayout.astro';
       <p class="text-xs text-gray-600 mt-1">Sistema de Inventario Personal</p>
     </div>
 
-    <!-- CÓMODA: cada % está calibrado sobre archivador-login.png (1680x1527).
+    <!-- CÓMODA: cada % está calibrado sobre la silueta de /login-comoda.webp
+         (el mismo encuadre que el PNG original 1680x1527, ahora optimizado a
+         768x698 WebP: la relación de aspecto es IDÉNTICA).
          Medido sobre el asset: frente de cajones x 38.5%-76.5% y divisiones
          horizontales en y 38.8% / 47.3% / 56.8% / 66.3%, o sea centros de
          cajón 43% / 52% / 62% (2º, 3º y 4º de arriba).
@@ -55,12 +59,12 @@ import AuthLayout from '../layouts/AuthLayout.astro';
          no se deforma ni se descalza cuando cambia el ancho (layout elástico). -->
     <div
       class="relative w-full max-w-[420px] aspect-[1680/1527] overflow-visible rounded-3xl"
-      style="
-        background-image: url('/archivador-login.png');
+      style={`
+        background-image: url('${ASSET_LOGIN_COMODA}');
         background-size: 100% 100%;
         background-position: center;
         box-shadow: inset 0 0 40px 30px #cfd5e2;
-      "
+      `}
     >
       <div class="absolute inset-0 z-10">
 

@@ -7,9 +7,9 @@
 //   1. Ficha: nombre, dimensión (Alto × Ancho × Largo) y foto.
 //   2. Su propio lienzo de sub-grilla matricial (Filas Internas × Columnas por
 //      fila, asimétricas) con controles numéricos independientes de la habitación.
-//   3. Celdas Drop Zone que reciben Contenedores Grandes (/archivador-login.png),
-//      Contenedores Pequeños (/Nuevo Contenedor.png) y Objetos
-//      (/mueble.png).
+//   3. Celdas Drop Zone que reciben Contenedores Grandes (/contenedor-grande.webp),
+//      Contenedores Pequeños (/nuevo-contenedor.webp) y Objetos
+//      (/mueble.webp).
 // Persistencia multi-tenant estricta (JWT + X-Estok-Id):
 //   - Filas/Columnas del lienzo → PUT /api/ubicaciones/{roomId}/
 //   - Contenedor en una celda   → PUT /api/contenedores/{id}/

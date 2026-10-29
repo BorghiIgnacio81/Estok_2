@@ -2,7 +2,7 @@
 // PLANTA ÚNICA - ORQUESTADOR DE INTERACCIÓN Y PERSISTENCIA EN CALIENTE
 // -----------------------------------------------------------------------------
 // Une todas las capacidades del Modelador 2D del Modo Planta Única:
-//   - Inyección elástica de espacios libres (botón /nueva ubicacion.png).
+//   - Inyección elástica de espacios libres (botón /nueva-ubicacion.webp).
 //   - Renombrado in-place con SINCRONIZACIÓN del bloque fusionado: un ÚNICO PUT
 //     actualiza el nombre de TODAS las partes de la macro-estructura.
 //   - Arrastre + resizing LIBRES (sin bloqueo ni reacomodo en caliente): la

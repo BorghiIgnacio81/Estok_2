@@ -14,6 +14,8 @@
 // =============================================================================
 
 import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from './assetsUi';
 
 /** Objeto del tablero de Decisiones (payload de /api/objetos/panel_decisiones/). */
 export interface ObjetoDecision {
@@ -58,7 +60,7 @@ export interface ObjetoDecision {
 }
 
 /** Foto de reemplazo cuando el objeto no tiene imágenes (asset público). */
-export const FOTO_PLACEHOLDER = '/mueble.png';
+export const FOTO_PLACEHOLDER = ASSET_MUEBLE;
 
 const ESTADO_COLORS: Record<string, string> = {
   excelente: 'bg-green-100 text-green-700',

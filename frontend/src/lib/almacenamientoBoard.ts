@@ -7,10 +7,11 @@
 //   - Columna derecha   : Paleta de contenedores raíz (draggable="true").
 //
 // Lienzo de Mapeo Espacial Jerárquico:
-//   - Iconografía estricta por imágenes locales:
-//       Contenedor grande (contiene contenedores): /archivador-login.png
-//       Contenedor pequeño (solo objetos)        : /Nuevo Contenedor.png
-//       Objeto individual                        : /mueble.png
+//   - Iconografía estricta por imágenes locales (rutas canónicas en assetsUi.ts,
+//     ya optimizadas a WebP de 128 px):
+//       Contenedor grande (contiene contenedores): /contenedor-grande.webp
+//       Contenedor pequeño (solo objetos)        : /nuevo-contenedor.webp
+//       Objeto individual                        : /mueble.webp
 //   - Grilla asimétrica: cada contenedor define la cantidad de Filas globales
 //     (NumericUp/Down) y CADA fila define su propia cantidad de Columnas.
 //   - Al soltar en un casillero se persisten parent_grid_row / parent_grid_col
@@ -31,17 +32,19 @@ import { preservarScrollAsync } from './scrollPreservado';
 // 🧾 OBJETO DEL ESPACIO: el modal de un mueble declarado integra los campos
 // del Objeto espejo y los envía en el MISMO PUT (prefijados `objeto_*`).
 import { prepararSeccionObjeto, recolectarSeccionObjeto } from './objetoEspacioModal';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_CAJA, ASSET_CONTENEDOR_GRANDE, ASSET_MUEBLE } from './assetsUi';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
 // =============================================================================
 
 /** Contenedor que contiene OTROS contenedores (nivel superior). */
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
+const IMG_CONTENEDOR_GRANDE = ASSET_CONTENEDOR_GRANDE;
 /** Contenedor que solo contiene objetos (casillero simple). */
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
+const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
 /** Ítem individual dentro de un contenedor. */
-const IMG_OBJETO = '/mueble.png';
+const IMG_OBJETO = ASSET_MUEBLE;
 
 // =============================================================================
 // TIPOS
@@ -105,7 +108,7 @@ export interface UbicacionDnD {
   raices: ContenedorDnD[];
 }
 
-/** Ítem individual representado con /mueble.png en el lienzo. */
+/** Ítem individual representado con /mueble.webp en el lienzo. */
 export interface ObjetoDnD {
   id: string;
   nombre: string;
@@ -186,7 +189,7 @@ export class AlmacenamientoBoard {
   private ubicaciones: UbicacionDnD[] = [];
   private contenedores: ContenedorDnD[] = [];
   private contenedoresPorId = new Map<string, ContenedorDnD>();
-  /** Ítems agrupados por contenedor (representados con /mueble.png). */
+  /** Ítems agrupados por contenedor (representados con /mueble.webp). */
   private objetosPorContenedor = new Map<string, ObjetoDnD[]>();
   private dragTipo: 'contenedor' | 'objeto' | null = null;
   private dragId: string | null = null;
@@ -609,7 +612,7 @@ export class AlmacenamientoBoard {
 
   // -- Ítems individuales (Objetos) dentro del contenedor --------------------
 
-  /** Renderiza los ítems del contenedor con /mueble.png (draggable). */
+  /** Renderiza los ítems del contenedor con /mueble.webp (draggable). */
   private objetosHtml(c: ContenedorDnD): string {
     const objetos = this.objetosPorContenedor.get(c.id) || [];
     if (!objetos.length) return '';

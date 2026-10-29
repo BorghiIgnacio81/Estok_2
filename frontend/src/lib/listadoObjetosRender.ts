@@ -36,6 +36,8 @@ import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
 // Limbo de mudanza (Lote 28): única fuente del concepto en el cliente.
 import { esCajaEnLimbo } from './taxonomiaContenedor';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
 // Re-export del contrato del payload y del escapador para los consumidores.
 export type { GrupoEstructura, NodoContenedor, ObjetoArbol, PayloadArbol } from './listadoObjetosPiezas';
@@ -45,8 +47,8 @@ export { esc };
 // Constantes visuales
 // ---------------------------------------------------------------------------
 
-const IMG_ARMARIO = '/mueble.png';
-const IMG_CAJA = '/Nuevo Contenedor.png';
+const IMG_ARMARIO = ASSET_MUEBLE;
+const IMG_CAJA = ASSET_CAJA;
 
 // ---------------------------------------------------------------------------
 // Helpers puros

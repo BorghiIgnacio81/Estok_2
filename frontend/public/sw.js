@@ -13,8 +13,30 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 15;
+const CACHE_VERSION = 16;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
+
+// =============================================================================
+// ASSETS DE INTERFAZ (imágenes de botones e iconos)
+// =============================================================================
+// Espejo EXACTO de frontend/src/lib/assetsUi.ts: si agregás o renombrás un
+// asset de interfaz, actualizá los DOS archivos y subí CACHE_VERSION.
+// Son WebP ya redimensionados al tamaño real de renderizado (lado mayor 128 px,
+// salvo el fondo de la cómoda del login a 768 px de ancho), así que pesan entre
+// 1 y 17 KB en vez de los 175 KB a 3,4 MB de los PNG/JPG originales.
+// =============================================================================
+const UI_ASSETS = [
+  '/nuevo-objeto.webp',
+  '/nueva-categoria.webp',
+  '/mudanza.webp',
+  '/contenedor-grande.webp',
+  '/nuevo-contenedor.webp',
+  '/mueble.webp',
+  '/fluffy-objeto.webp',
+  '/nueva-ubicacion.webp',
+  '/login-comoda.webp',
+];
+
 const STATIC_ASSETS = [
   '/',
   '/favicon.ico',
@@ -25,7 +47,12 @@ const STATIC_ASSETS = [
   '/icons/icon-192x192-maskable.png',
   '/icons/icon-512x512-maskable.png',
   '/icons/apple-touch-icon.png',
-];
+].concat(UI_ASSETS);
+
+// Assets de interfaz servidos CACHE-FIRST: son pequeños, inmutables por nombre
+// y se piden en CADA recarga (botones, lienzos y placeholders). Servirlos desde
+// caché deja la recarga instantánea y sin parpadeo de imágenes.
+const UI_ASSET_SET = new Set(UI_ASSETS);
 
 // =============================================================================
 // INSTALL - Precargar assets críticos
@@ -38,13 +65,18 @@ const STATIC_ASSETS = [
 // vea el banner.
 // =============================================================================
 self.addEventListener('install', (event) => {
-  // Precargar assets críticos en la caché para que estén disponibles offline
+  // Precargar assets críticos en la caché para que estén disponibles offline.
+  // Se cachea UNO POR UNO (cache.add) en vez de cache.addAll: addAll aborta la
+  // precarga COMPLETA si un solo asset falla, dejando sin caché a los demás.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] No se pudieron precargar todos los assets estáticos:', err);
-      });
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(STATIC_ASSETS.map((url) => cache.add(url))).then((resultados) => {
+        const fallidos = resultados.filter((r) => r.status === 'rejected').length;
+        if (fallidos > 0) {
+          console.warn('[SW] No se pudieron precargar', fallidos, 'de', STATIC_ASSETS.length, 'assets estáticos.');
+        }
+      })
+    )
   );
 });
 
@@ -121,6 +153,30 @@ self.addEventListener('fetch', (event) => {
   // =====================================================================
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.startsWith('/ml-callback/')) return;
+
+  // =====================================================================
+  // ASSETS DE INTERFAZ (imágenes de botones e iconos) - CACHE FIRST
+  // =====================================================================
+  // Ya vienen precacheados en install y su nombre es inmutable, así que ir a
+  // la red en cada recarga sólo agrega latencia y parpadeo. Si no están en
+  // caché (primera visita tras el deploy), se bajan y se guardan.
+  if (UI_ASSET_SET.has(url.pathname)) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clonedResponse = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, clonedResponse);
+            });
+          }
+          return response;
+        });
+      })
+    );
+    return;
+  }
 
   // =====================================================================
   // ASSETS ESTÁTICOS - Stale-While-Revalidate

@@ -19,6 +19,8 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { escapeHtml } from './mapaJerarquico';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from './assetsUi';
 
 export interface CajaSeleccionada {
   id: string;
@@ -43,7 +45,7 @@ interface CajaInterna {
   objetos: ItemFino[];
 }
 
-const IMG_OBJETO = '/mueble.png';
+const IMG_OBJETO = ASSET_MUEBLE;
 
 let actual: CajaSeleccionada | null = null;
 let raizIzq: HTMLElement | null = null;

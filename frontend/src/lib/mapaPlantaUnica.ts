@@ -33,6 +33,8 @@ import { esEspacioVirtual, tieneGeometriaPlano } from './ubicacionesVirtuales';
 // selector de ubicación del formulario de Objetos (lib/minimapaEtiquetas.ts).
 // Ninguno de los dos cálculos se duplica en otra pantalla.
 import { anclaDeFusion, centroDeFusion } from './fusionCentroide';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_NUEVA_UBICACION } from './assetsUi';
 
 // =============================================================================
 // GEOMETRÍA ELÁSTICA (porcentajes sobre el lienzo del departamento)
@@ -403,7 +405,7 @@ export function renderPlantaUnica(opts: {
   const botonCrear = etiquetaCrear
     ? `<button type="button" class="lienzo-elastico-nueva" data-lienzo-crear title="Inyectar ${escapeHtml(etiquetaCrear.toLowerCase())} en el plano">➕ ${escapeHtml(etiquetaCrear)}</button>`
     : `<button type="button" class="planta-unica-nueva" data-nueva-ubicacion title="Inyectar una habitación/espacio libre dentro del departamento">
-        <img src="/nueva ubicacion.png" alt="Nueva ubicación" />
+        <img src="${ASSET_NUEVA_UBICACION}" alt="Nueva ubicación" />
       </button>`;
 
   const vacio =

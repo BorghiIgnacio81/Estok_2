@@ -8,6 +8,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import GodModales from '../components/dashboard/GodModales.astro';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
 
 // Detección de plataforma móvil por User Agent
 const userAgent = Astro.request.headers.get('user-agent') || '';
@@ -69,7 +71,7 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
             <span id="mudanzaBtnContainer" class="flex-1 min-w-0 flex items-center justify-center"></span>
             <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
             <a href="/objetos/nuevo" class="flex-1 min-w-0 flex items-center justify-center" aria-label="Nuevo Objeto">
-              <img src="/nuevo objeto.png" alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+              <img src={ASSET_NUEVO_OBJETO} alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
             </a>
           </div>
         </div>

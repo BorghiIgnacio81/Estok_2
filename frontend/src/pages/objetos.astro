@@ -35,6 +35,8 @@ import '../styles/ruta-geografica.css';
 // ni el refuerzo de trazos negros y el mapa se ve descalzado. El modal «Mover»
 // usa EXACTAMENTE el mismo host canónico que el componente (lib/minimapaRutaHost.ts).
 import '../styles/minimapa-ruta.css';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
 ---
 
 <AuthGuard />
@@ -54,7 +56,7 @@ import '../styles/minimapa-ruta.css';
           variante="cabecera"
           class="flex-shrink-0"
           href="/objetos/nuevo"
-          imagen="/nuevo objeto.png"
+          imagen={ASSET_NUEVO_OBJETO}
           etiqueta="Nuevo Objeto"
         />
       </div>

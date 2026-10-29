@@ -2,10 +2,14 @@
 // =============================================================================
 // COMPONENTE CategoriaCreator - Imagen física y modal para crear nuevas categorías
 // Reusable en cualquier página. POST a /api/categorias/ con X-Estok-Id.
-// El trigger ya no es un botón de texto: es la imagen local "/Nueva Categoria.png"
-// (identidad texturizada ESTOK). El id kebab-case se mantiene como contrato para
-// que el script interno escuche el clic y abra el micro-modal asíncrono.
+// El trigger ya no es un botón de texto: es la imagen local de interfaz
+// /nueva-categoria.webp (identidad texturizada ESTOK, 128 px WebP). La ruta
+// canónica vive en lib/assetsUi.ts. El id kebab-case se mantiene como contrato
+// para que el script interno escuche el clic y abra el micro-modal asíncrono.
 // =============================================================================
+
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_NUEVA_CATEGORIA } from '../lib/assetsUi';
 
 export interface Props {
   /** Clases Tailwind COMPLETAS de la imagen. Si no se pasa, usa el tamaño masivo default (h-20). */
@@ -21,7 +25,7 @@ const {
 
 <img
   id="btn-nueva-categoria"
-  src="/Nueva Categoria.png"
+  src={ASSET_NUEVA_CATEGORIA}
   alt="Nueva Categoría"
   class={imgClass}
 />

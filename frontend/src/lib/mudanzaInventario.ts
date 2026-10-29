@@ -26,6 +26,8 @@ import type { ContenedorDto, ObjetoDto, UbicacionDto } from './mudanzaApi';
 // El limbo «En Tránsito» es un espacio VIRTUAL de sistema: no se lista como
 // habitación ni se dibuja en el plano de destino (tiene su zona estática propia).
 import { esEspacioVirtual } from './ubicacionesVirtuales';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 // TAXONOMÍA FÍSICA ÚNICA: caja móvil vs. mueble mudable con los 5 tipos reales.
 import { TIPO_CAJA, TIPO_MUEBLE_MOVIL, tipoFisico } from './taxonomiaContenedor';
 
@@ -53,9 +55,9 @@ export interface GrupoMoviles {
 }
 
 const IMG_FALLBACK: Record<ClaseElemento, string> = {
-  CAJA: '/Nuevo Contenedor.png',
-  MUEBLE: '/mueble.png',
-  OBJETO: '/mueble.png',
+  CAJA: ASSET_CAJA,
+  MUEBLE: ASSET_MUEBLE,
+  OBJETO: ASSET_MUEBLE,
 };
 
 // =============================================================================

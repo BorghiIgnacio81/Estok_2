@@ -7,6 +7,8 @@
 // =============================================================================
 
 import type { NodoCaja } from './rutaCajaMinimapas';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from './assetsUi';
 
 export interface ObjetoArbol {
   [key: string]: any;
@@ -38,7 +40,7 @@ export interface PayloadArbol {
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
 }
 
-const IMG_OBJETO = '/mueble.png';
+const IMG_OBJETO = ASSET_MUEBLE;
 const MAX_OBJETOS_POR_NIVEL = 60;
 
 const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {

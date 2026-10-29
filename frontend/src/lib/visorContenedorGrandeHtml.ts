@@ -19,8 +19,11 @@ import type { ItemElastico } from './lienzoElastico';
 import { esCajaMovil } from './taxonomiaContenedor';
 import { indicadorTransitoHtml } from './indicadorTransito';
 
-const IMG_MUEBLE = '/mueble.png';
-const IMG_OBJETO = '/mueble.png';
+// Iconografía local / de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUEBLE } from './assetsUi';
+
+const IMG_MUEBLE = ASSET_MUEBLE;
+const IMG_OBJETO = ASSET_MUEBLE;
 
 // =============================================================================
 // TIPOS (compartidos con visorContenedorGrande.ts)

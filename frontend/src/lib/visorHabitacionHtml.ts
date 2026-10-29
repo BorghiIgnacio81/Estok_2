@@ -23,14 +23,17 @@ import { filtrarEspaciosDePlano } from './ubicacionesVirtuales';
 // ICONOGRAFÍA FÍSICA ÚNICA: el icono de un contenedor mueble se resuelve con la
 // MISMA fuente que el lienzo de edición de Almacenamiento (subtipo por nombre +
 // taxonomía). Si no hay subtipo reconocido se devuelve '' y el visor cae a la
-// imagen local (/archivador-login.png o /Nuevo Contenedor.png).
+// imagen local (/contenedor-grande.webp o /nuevo-contenedor.webp).
 import { iconoDeMuebleReconocido } from './iconosFisicos';
 import type { PiezaTaxonomica } from './taxonomiaContenedor';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
-const IMG_CONTENEDOR_GRANDE = '/archivador-login.png';
-const IMG_CONTENEDOR_PEQUENO = '/Nuevo Contenedor.png';
-const IMG_OBJETO = '/mueble.png';
+// Rutas canónicas (WebP optimizados) en UN solo módulo: lib/assetsUi.ts.
+import { ASSET_CAJA, ASSET_CONTENEDOR_GRANDE, ASSET_MUEBLE } from './assetsUi';
+
+const IMG_CONTENEDOR_GRANDE = ASSET_CONTENEDOR_GRANDE;
+const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
+const IMG_OBJETO = ASSET_MUEBLE;
 
 export { IMG_OBJETO };
 

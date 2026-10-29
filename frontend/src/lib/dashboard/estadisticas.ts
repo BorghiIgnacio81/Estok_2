@@ -16,6 +16,8 @@ import {
   ESTADO_LABELS,
 } from './graficos';
 import type { EstadisticasDashboard } from './tipos';
+// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
+import { ASSET_MUDANZA } from '../assetsUi';
 
   const loadingState = document.getElementById('loadingState')!;
   const errorState = document.getElementById('errorState')!;
@@ -40,7 +42,7 @@ import type { EstadisticasDashboard } from './tipos';
     mudanzaBtnContainer.innerHTML = `
       <a href="/mudanza" class="flex items-center justify-center w-full" aria-label="Mudanza Inter-Estok"
         title="Transferir contenedores y objetos entre tus Estoks">
-        <img src="/mudanza.png" alt="Mudanza" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
+        <img src="${ASSET_MUDANZA}" alt="Mudanza" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
       </a>`;
   }
 
