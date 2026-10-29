@@ -62,7 +62,7 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { escapeHtml, toast } from './mapaJerarquico';
 import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
 import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
-import { esCajaEnLimbo, esCajaMovil } from './taxonomiaContenedor';
+import { esCajaEnLimbo, esCajaMovil, esObjetoContenedor } from './taxonomiaContenedor';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
@@ -134,6 +134,22 @@ function chipObjeto(o: ObjetoBandeja): ChipBandeja {
 }
 
 /**
+ * Chip de un OBJETO CONTENEDOR (caja declarada por `es_contenedor=true` o por la
+ * categoría «Cajas y Contenedores»). Conserva `tipo='objeto'` a propósito: el
+ * registro físico es un Objeto y el arrastre debe seguir persistiendo por
+ * PUT /objetos/{id}. Solo cambia la iconografía y el grupo donde se lista.
+ */
+function chipObjetoContenedor(o: ObjetoBandeja): ChipBandeja {
+  return {
+    id: o.id,
+    nombre: o.nombre,
+    tipo: 'objeto',
+    img: IMG_CONTENEDOR_PEQUENO,
+    urgente: o.ubicacion != null,
+  };
+}
+
+/**
  * Segmentos de la cascada en ORDEN EXACTO. La HABITACIÓN LIMBO de mudanza
  * (Lote 28) se resuelve con `esCajaEnLimbo`: una caja mudada entre Estoks no
  * tiene cuarto físico, así que se lista como «suelta» (grupo 2) y NO como
@@ -143,11 +159,16 @@ function chipObjeto(o: ObjetoBandeja): ChipBandeja {
  */
 function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] }[] {
   const cajas = contenedores.filter(esCaja);
+  // SEPARACIÓN DE BULTOS CONTENEDOR: los Objetos declarados caja/contenedor o
+  // categorizados como «Cajas y Contenedores» viajan con las CAJAS (grupos 2 y
+  // 4) y JAMÁS se listan como «Objetos sueltos» (grupos 1 y 3).
+  const objetosContenedor = objetos.filter(esObjetoContenedor);
+  const objetosSimples = objetos.filter((o) => !esObjetoContenedor(o));
   return [
     {
       clave: 'objetos-sueltos',
       titulo: '1 · Objetos sueltos',
-      chips: objetos.filter((o) => o.ubicacion == null).map(chipObjeto),
+      chips: objetosSimples.filter((o) => o.ubicacion == null).map(chipObjeto),
     },
     {
       clave: 'cajas-sueltas',
@@ -155,17 +176,22 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
       // 🔓 Lote 28 · RESCATE DEL LIMBO: la caja mudada entre Estoks no tiene
       // habitación física (vive en la zona «En Tránsito»): es un bulto SUELTO
       // recuperable, no una caja «a reubicar» con alerta.
-      chips: cajas.filter(esCajaEnLimbo).map(chipContenedor),
+      // + Los Objetos contenedor sin habitación también son cajas sueltas.
+      chips: cajas.filter(esCajaEnLimbo).map(chipContenedor).concat(
+        objetosContenedor.filter((o) => o.ubicacion == null).map(chipObjetoContenedor),
+      ),
     },
     {
       clave: 'objetos-reubicar',
       titulo: '3 · Objetos a reubicar',
-      chips: objetos.filter((o) => o.ubicacion != null).map(chipObjeto),
+      chips: objetosSimples.filter((o) => o.ubicacion != null).map(chipObjeto),
     },
     {
       clave: 'cajas-reubicar',
       titulo: '4 · Cajas a reubicar',
-      chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor),
+      chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor).concat(
+        objetosContenedor.filter((o) => o.ubicacion != null).map(chipObjetoContenedor),
+      ),
     },
   ];
 }

@@ -53,6 +53,13 @@ logger = logging.getLogger(__name__)
 # real se predice con el nombre del objeto al publicar) y «Libros» el ID real
 # de «Libros Físicos» (hoja publicable). `subtipo` es la familia de atributos
 # técnicos: Ropa despliega Talla/Tamaño en el alta y en la edición.
+#
+# «Cajas y Contenedores» es la categoría organizativa de los bultos que alojan
+# otros objetos: el listado de inventario la usa (junto con la marca
+# `Objeto.es_contenedor`) para agrupar esos registros en la sección
+# «📦 Cajas e Inventario Interno» y NO en «Objetos Sueltos o sin Caja».
+# No tiene subtipo técnico propio: el mapeo ML es el contenedor «Hogar,
+# Muebles y Jardín» (MLA1574) para que publicar nunca quede sin categoría.
 # ---------------------------------------------------------------------------
 CATEGORIAS_BASE_ADICIONALES = [
     {
@@ -66,6 +73,12 @@ CATEGORIAS_BASE_ADICIONALES = [
         "mercadolibre_category_id": "MLA412445",
         "icono": "📚",
         "subtipo": "libro",
+    },
+    {
+        "nombre": "Cajas y Contenedores",
+        "mercadolibre_category_id": "MLA1574",
+        "icono": "📦",
+        "subtipo": "",
     },
 ]
 

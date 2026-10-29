@@ -23,10 +23,9 @@ export function inputDeEvento(e: Event): HTMLInputElement | null {
   return e.target as HTMLInputElement | null;
 }
 
-/** Claves de sessionStorage que sobreviven a un refresco (F5) del formulario. */
+/** Claves de sessionStorage de la captura en curso (fotos). */
 export const CLAVE_FOTOS = 'nuevo_objeto_fotos';
 export const CLAVE_FOTO_LEGADA = 'nuevo_objeto_foto';
-export const CLAVE_FORM = 'nuevo_objeto_form';
 
 /** Input oculto que guarda la foto Base64 del objeto en curso. */
 export const ID_INPUT_FOTO = 'imagenBase64';

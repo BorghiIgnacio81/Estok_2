@@ -256,3 +256,36 @@ export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined
   return Number(pieza?.subcontenedores_count ?? 0) === 0;
 }
 
+// =============================================================================
+// OBJETOS CONTENEDOR («📦 Cajas e Inventario Interno»)
+// =============================================================================
+/**
+ * Categoría base que declara un Objeto como bulto contenedor. Espejo exacto de
+ * `CATEGORIAS_OBJETO_CONTENEDOR` en
+ * `inventario/services/arbol_inventario_objetos_contenedor.py`.
+ */
+const CATEGORIAS_OBJETO_CONTENEDOR = [
+  'cajas y contenedores',
+  'cajas / contenedores',
+  'cajas/contenedores',
+  'cajas y contenedor',
+];
+
+/** Campos mínimos para decidir si un Objeto es una caja/contenedor. */
+export interface ObjetoClasificable {
+  es_contenedor?: boolean | null;
+  categoria_nombre?: string | null;
+}
+
+/**
+ * OBJETO CONTENEDOR: bulto declarado por el operador (`es_contenedor=true`) o
+ * clasificado con la categoría base «Cajas y Contenedores».
+ *
+ * La consumen las vistas que deben agrupar estos registros junto a las cajas
+ * físicas (bandeja de Almacenamiento) y NUNCA entre los «Objetos sueltos».
+ */
+export function esObjetoContenedor(objeto: ObjetoClasificable | null | undefined): boolean {
+  if (objeto?.es_contenedor === true) return true;
+  const nombre = String(objeto?.categoria_nombre ?? '').trim().toLowerCase();
+  return CATEGORIAS_OBJETO_CONTENEDOR.includes(nombre);
+}

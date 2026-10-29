@@ -27,6 +27,7 @@ import { iniciarPortalesAlmacenamiento } from './portalesAlmacenamiento';
 import { iniciarModoLienzo } from './modoLienzo';
 import { initCajaDetalle } from './cajaDetalle';
 import { initOffsetHeaderBandeja } from './layout/offsetHeaderBandeja';
+import { initNuevaCajaModal } from './nuevaCajaModal';
 
 /**
  * ARRANQUE CON GARANTÍA DE DOM LISTO: el render del lienzo «Mapa Estok» se
@@ -68,6 +69,8 @@ export function iniciarAlmacenamiento(): void {
       canvas: document.getElementById('cajaCanvas'),
       lista: document.getElementById('cajaObjetos'),
     });
+    // Alta directa de contenedores: botón «+ Nueva Caja / Contenedor».
+    initNuevaCajaModal();
     // Modo ✏️ Editar ⇄ 💾 Guardar de los planos + navegación por PORTALES.
     iniciarModoLienzo();
     iniciarPortalesAlmacenamiento();

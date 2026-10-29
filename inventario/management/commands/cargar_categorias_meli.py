@@ -17,8 +17,8 @@ Reglas de este comando:
    categoría con el MISMO nombre de una oficial y sin mercadolibre_category_id, el
    comando la adopta asignándole el ID oficial en vez de duplicar o borrar.
 6. Además de las 11 oficiales, siembra las categorías base adicionales
-   («Ropa» y «Libros») para que TODO Estok existente las tenga, incluso los
-   creados antes de que existiera el seed de alta.
+   («Ropa», «Libros» y «Cajas y Contenedores») para que TODO Estok existente
+   las tenga, incluso los creados antes de que existiera el seed de alta.
 
 Para evitar reintroducir el bug de "categorías combinadas", este comando NO
 consulta la API de Mercado Libre: la lista oficial vive hardcodeada aquí.
@@ -129,9 +129,9 @@ class Command(BaseCommand):
         total_actualizadas = 0
         total_base = 0
 
-        # Las categorías base adicionales («Ropa» y «Libros») viven en el
-        # servicio de seeding para que el alta pública, el panel global y este
-        # comando compartan UNA sola definición.
+        # Las categorías base adicionales («Ropa», «Libros» y «Cajas y
+        # Contenedores») viven en el servicio de seeding para que el alta
+        # pública, el panel global y este comando compartan UNA sola definición.
         from inventario.services.seeding_categorias import (
             sembrar_categorias_adicionales,
         )

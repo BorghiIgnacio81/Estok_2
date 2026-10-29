@@ -6,6 +6,9 @@ Reúne en UNA sola respuesta la TAXONOMÍA VÁLIDA del Estok activo:
   - SECCIÓN 1 (`cajas`): Contenedores con `tipo='CAJA'` (cajas móviles de
     objetos), a cualquier nivel (raíz o dentro de un mueble), cada uno con sus
     Objetos físicos DIRECTOS. Filtro ORM ÚNICO Y EXCLUSIVO por `tipo='CAJA'`.
+    Incluye además los OBJETOS declarados contenedor (`Objeto.es_contenedor`)
+    o categorizados como «Cajas y Contenedores», para que nunca se degraden a
+    «Objetos Sueltos o sin Caja» (nodos con `origen='objeto'`).
   - SECCIÓN 3 (`estructuras`): Muebles (`tipo='MUEBLE_MOVIL'`) RAÍZ mudables
     (`es_inmueble=False`), agrupados por Ubicación, cada uno con los Objetos
     físicos que aloja (incluidos los que cuelgan de sus CONJUNTOS internos).
@@ -34,6 +37,13 @@ como objeto contenido en sí mismo.
 
 from ..api.serializers import ObjetoListSerializer
 from .taxonomia_contenedor import TIPO_CAJA, TIPO_MUEBLE_MOVIL
+# Regla ÚNICA de los OBJETOS CONTENEDOR (marca `es_contenedor` o categoría
+# «Cajas y Contenedores»): clasificación y nodo de la SECCIÓN 1.
+from .arbol_inventario_objetos_contenedor import (
+    es_objeto_contenedor,
+    nodo_objeto_contenedor as _nodo_objeto_contenedor,
+)
+
 # Capa de DATOS del árbol de inventario (consultas ORM con la taxonomía estricta
 # y utilidades puras de serialización). Se importa con los nombres PRIVADOS del
 # servicio para preservar los sitios de llamada ya existentes.
@@ -155,10 +165,17 @@ def construir_arbol_estok(
     objetos_por_contenedor = {}          # mueble raíz → objetos (SECCIÓN 3)
     objetos_directos_por_caja = {}       # caja → objetos directos (SECCIÓN 1)
     objetos_sueltos = []
+    # Bultos declarados contenedor (marca `es_contenedor` o categoría
+    # «Cajas y Contenedores») que no cuelgan de ninguna caja física: viajan a la
+    # SECCIÓN 1 como tarjetas propias, NUNCA a «Objetos Sueltos o sin Caja».
+    objetos_contenedor = []
     for od in objetos_serializados:
         contenedor_id = od.get('contenedor')
         if not contenedor_id:
-            objetos_sueltos.append(od)
+            if es_objeto_contenedor(od):
+                objetos_contenedor.append(od)
+            else:
+                objetos_sueltos.append(od)
             continue
 
         clave = str(contenedor_id)
@@ -166,6 +183,9 @@ def construir_arbol_estok(
             # Contenedor fantasma (borrado/migrado): el inventario jamás se pierde.
             # Sólo se declara «contenedor ausente» si el objeto NO tiene otra
             # ubicación/espacio propio (fallback contenedor → espacio → ubicación).
+            if es_objeto_contenedor(od):
+                objetos_contenedor.append(od)
+                continue
             od['contenedor_ausente'] = not _tiene_ubicacion_alternativa(od)
             objetos_sueltos.append(od)
             continue
@@ -191,6 +211,12 @@ def construir_arbol_estok(
             # degrada a «suelto» ni se marca `contenedor_ausente`.
             continue
         else:
+            # Un Objeto contenedor que cuelga de una pieza no listada también
+            # pertenece a «📦 Cajas e Inventario Interno»: nunca se degrada a
+            # «Objetos Sueltos o sin Caja».
+            if es_objeto_contenedor(od):
+                objetos_contenedor.append(od)
+                continue
             od['contenedor_ausente'] = not _tiene_ubicacion_alternativa(od)
             objetos_sueltos.append(od)
 
@@ -363,10 +389,27 @@ def construir_arbol_estok(
     ]
 
     # ------------------------------------------------------------------
+    # 6ter) OBJETOS CONTENEDOR (SECCIÓN 1)
+    # Clasificación y nodo en `arbol_inventario_objetos_contenedor`: los Objetos
+    # marcados como contenedor o categorizados «Cajas y Contenedores» se listan
+    # como tarjetas de caja/contenedor con enlace a /objetos/{id}.
+    # ------------------------------------------------------------------
+    cajas_nodos.extend(
+        _nodo_objeto_contenedor(od, objetos_serializados)
+        for od in objetos_contenedor
+    )
+    ids_objetos_contenedor = {str(od.get('id')) for od in objetos_contenedor}
+
+    # ------------------------------------------------------------------
     # 7) Objetos sueltos (sección inferior, consistencia de inventario)
     # ------------------------------------------------------------------
     sueltos = sorted(
-        objetos_sueltos,
+        (
+            o for o in objetos_sueltos
+            # Los hijos de un Objeto contenedor ya se muestran dentro de su
+            # tarjeta en la SECCIÓN 1: no se duplican en la bandeja de sueltos.
+            if str(o.get('objeto_padre') or '') not in ids_objetos_contenedor
+        ),
         key=lambda o: (o.get('fecha_registro') or ''), reverse=True,
     )
     # Objetos realmente ubicados (containers existentes del Estok), sin contar
@@ -382,7 +425,11 @@ def construir_arbol_estok(
         'sueltos': sueltos,
         'filtros_activos': filtros_activos,
         'resumen': {
-            'contenedores': len(contenedores_incluidos) + len(cajas_incluidas),
+            'contenedores': (
+                len(contenedores_incluidos)
+                + len(cajas_incluidas)
+                + len(objetos_contenedor)
+            ),
             'objetos_ubicados': total_objetos_ubicados,
             'objetos_sueltos': len(sueltos),
         },

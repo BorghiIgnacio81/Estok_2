@@ -43,6 +43,10 @@ export interface ObjetoBandeja {
   contenedor: string | null;
   ubicacion: string | null;
   deleted_at: string | null;
+  /** Marca explícita: el Objeto es una caja/contenedor declarado. */
+  es_contenedor: boolean;
+  /** Categoría visible (permite reconocer «Cajas y Contenedores»). */
+  categoria_nombre: string | null;
 }
 
 /** Bultos ya normalizados y purgados de la canasta (salida de la capa de datos). */
@@ -101,6 +105,10 @@ function normalizarObjeto(o: Record<string, unknown>): ObjetoBandeja {
     contenedor: o.contenedor != null ? String(o.contenedor) : null,
     ubicacion: o.ubicacion != null ? String(o.ubicacion) : null,
     deleted_at: o.deleted_at != null ? String(o.deleted_at) : null,
+    // Clasificación de bulto contenedor: la canasta agrupa estos registros
+    // junto a las cajas físicas y nunca entre los «Objetos sueltos».
+    es_contenedor: o.es_contenedor === true,
+    categoria_nombre: o.categoria_nombre != null ? String(o.categoria_nombre) : null,
   };
 }
 

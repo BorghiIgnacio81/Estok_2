@@ -3,8 +3,10 @@
 // -----------------------------------------------------------------------------
 // Desmantelado del <script> de pages/objetos/nuevo.astro (regla de
 // modularización <400 líneas por archivo). Responsabilidades:
-//   · Persistencia/restauración del formulario en sessionStorage (sobrevive F5).
-//   · Reseteo absoluto tras guardar y ante una restauración de BFCache.
+//   · RESETEO ABSOLUTO cada vez que se abre la pantalla/modal de «Nuevo Objeto»
+//     (y tras guardar): formulario, foto/galería, campos de IA, clasificación
+//     rápida y variables locales. El alta NUNCA hereda datos de una carga previa.
+//   · Reseteo absoluto ante una restauración de BFCACHE (botón Atrás).
 //   · Validación final + ENVÍO multipart a POST /api/objetos/ mediante
 //     enviarFormData() (services/auth/uploads): Authorization: Bearer + X-Estok-Id
 //     multi-tenant + X-CSRFToken, con refresco de JWT ante 401. El
@@ -27,7 +29,7 @@ import {
   agregarCamposEspecificosAlFormData,
   sincronizarCamposEspecificos,
 } from './objetoCamposEspecificosForm';
-import { CLAVE_FORM, CLAVE_FOTO_LEGADA, CLAVE_FOTOS, mensajeError } from './objetoComunes';
+import { CLAVE_FOTO_LEGADA, CLAVE_FOTOS, mensajeError } from './objetoComunes';
 
 // --- Referencias al DOM (se resuelven en initObjetoFormCore) -----------------
 let submitBtn: HTMLButtonElement;
@@ -36,63 +38,28 @@ let submitSpinner: HTMLElement;
 let exitoModal: HTMLElement | null = null;
 
 // =============================================================================
-// PERSISTENCIA DEL FORMULARIO EN SESSIONSTORAGE (input/change)
-// =============================================================================
-
-/** Guarda el estado actual del formulario en sessionStorage (sobrevive a F5). */
-function persistirDatosFormulario(): void {
-  const form = refOpcional<HTMLFormElement>('objetoForm');
-  if (!form) return;
-  const fd = new FormData(form);
-  const datos: Record<string, string> = {};
-  fd.forEach((value, key) => {
-    datos[key] = value as string;
-  });
-  try {
-    sessionStorage.setItem(CLAVE_FORM, JSON.stringify(datos));
-  } catch (e) {
-    // Puede fallar si el objeto es muy grande; no es crítico
-  }
-}
-
-/** Restaura en el formulario los datos guardados en sessionStorage. */
-function restaurarDatosFormulario(): void {
-  const datosGuardados = sessionStorage.getItem(CLAVE_FORM);
-  if (!datosGuardados) return;
-  try {
-    const campos = JSON.parse(datosGuardados);
-    Object.entries(campos).forEach(([name, value]) => {
-      const el = document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
-      if (el && value !== null && value !== undefined) {
-        el.value = String(value);
-        // La taxonomía es unificada: el único selector de clasificación es
-        // "Categoría". Ya no hay campos por sub-tipo que sincronizar.
-      }
-    });
-  } catch (e) { /* ignorar JSON corrupto */ }
-  try { sessionStorage.removeItem(CLAVE_FORM); } catch (e) {}
-}
-
-// =============================================================================
 // RESETEO ABSOLUTO DEL FORMULARIO
-// Vacía todos los inputs, desmarca selectores, apaga el feed de la cámara,
-// limpia el visor y vacía la galería en memoria + sessionStorage.
+// Se ejecuta CADA VEZ que se abre la pantalla/modal de «Nuevo Objeto» (y también
+// tras guardar o al volver por BFCache): form.reset(), inputs vacíos, selectores
+// y checkboxes en su valor inicial, cámara/galería apagadas, visor limpio,
+// campos de IA ocultos y clasificación rápida re-sincronizada.
 // =============================================================================
 
-function resetFormularioCompleto(): void {
+export function resetFormularioCompleto(
+  opciones: { desplazar?: boolean } = {},
+): void {
   // 1-3) Galería multi-foto, visor principal, feed de cámara e inputs file.
   //      Todo eso vive en objetoCamara.ts (limpiarCamara).
   limpiarCamara();
 
-  // 4) Vaciar inputs de texto y desmarcar selectores/checkboxes del formulario
+  // 4) form.reset() devuelve TODOS los controles a su valor por defecto del
+  //    markup (incluido el estado «Bueno» y los placeholders de los selects).
+  //    Después se vacían a mano los campos de texto para no heredar nada.
   const formulario = refOpcional<HTMLFormElement>('objetoForm');
   if (formulario) {
-    formulario.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input[type="date"], textarea').forEach((el) => {
+    formulario.reset();
+    formulario.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input[type="date"], input[type="email"], textarea').forEach((el) => {
       (el as HTMLInputElement | HTMLTextAreaElement).value = '';
-    });
-    formulario.querySelectorAll('select').forEach((sel) => {
-      const select = sel as HTMLSelectElement;
-      if (select.options.length > 0) select.selectedIndex = 0;
     });
     formulario.querySelectorAll('input[type="checkbox"], input[type="radio"]').forEach((el) => {
       (el as HTMLInputElement).checked = false;
@@ -128,13 +95,15 @@ function resetFormularioCompleto(): void {
   submitText.classList.remove('hidden');
   submitSpinner.classList.add('hidden');
 
-  // 7) Limpiar persistencia (foto única + galería + datos del formulario)
+  // 7) Limpiar persistencia de la captura anterior (foto única + galería)
   try { sessionStorage.removeItem(CLAVE_FOTO_LEGADA); } catch (e) {}
-  try { sessionStorage.removeItem(CLAVE_FORM); } catch (e) {}
   try { sessionStorage.removeItem(CLAVE_FOTOS); } catch (e) {}
 
-  // 8) Subir al tope para empezar la captura siguiente
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // 8) Subir al tope para empezar la captura siguiente (al abrir la pantalla el
+  //    llamador lo desactiva para no mover el viewport del operador).
+  if (opciones.desplazar !== false) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 
 // =============================================================================
@@ -297,24 +266,24 @@ async function enviarFormulario(e: Event): Promise<void> {
 // INICIALIZACIÓN
 // =============================================================================
 
-/** Inicializa persistencia, BFCache, modal de éxito y envío del formulario. */
+/** Inicializa el reset de apertura, BFCache, modal de éxito y envío del formulario. */
 export function initObjetoFormCore(): void {
   submitBtn = ref<HTMLButtonElement>('submitBtn');
   submitText = ref<HTMLElement>('submitText');
   submitSpinner = ref<HTMLElement>('submitSpinner');
   exitoModal = refOpcional<HTMLElement>('exitoModal');
 
-  // Restaurar los datos guardados antes de enlazar la persistencia.
-  restaurarDatosFormulario();
+  // APERTURA DE «NUEVO OBJETO»: reset absoluto SIEMPRE. El formulario aparece
+  // limpio en cada visita (campos, foto/galería, IA, categoría y clasificación
+  // rápida) sin heredar nada de una carga anterior. No se restaura sessionStorage.
+  resetFormularioCompleto({ desplazar: false });
 
   // VISIBILIDAD INICIAL DE LOS CAMPOS TÉCNICOS: deja sólo el bloque de la
-  // familia de la categoría vigente (incluye el caso «volví con F5»).
+  // familia de la categoría vigente (tras el reset, ninguno).
   sincronizarCamposEspecificos();
 
   const objetoForm = refOpcional<HTMLFormElement>('objetoForm');
   if (objetoForm) {
-    objetoForm.addEventListener('input', () => persistirDatosFormulario());
-    objetoForm.addEventListener('change', () => persistirDatosFormulario());
     objetoForm.addEventListener('submit', (e) => void enviarFormulario(e));
   }
 

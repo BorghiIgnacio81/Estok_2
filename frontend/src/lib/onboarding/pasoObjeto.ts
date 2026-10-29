@@ -9,7 +9,7 @@
 //   · objetoIaSegundaFoto     → segunda foto (ISBN de libros).
 //   · objetoMercadoLibre      → cotización de referencia en pesos (Mercado Libre AR).
 //   · objetoCatalogos         → catálogos + alta rápida de espacios.
-//   · objetoFormCore          → persistencia, validación y envío (multipart).
+//   · objetoFormCore          → reset absoluto, validación y envío (multipart).
 //
 // TOOLTIPS EDUCATIVOS: al ser una sección tutorial, se inyectan burbujas .tooltip
 // (CSS en components/onboarding/ObjetoFormTutorial.astro, acotadas a
@@ -27,7 +27,7 @@ import { initObjetoMercadoLibre } from '../objetos/objetoMercadoLibre';
 import { initObjetoCatalogos } from '../objetos/objetoCatalogos';
 import { initObjetoClasificacionAlta } from '../objetos/objetoClasificacionAlta';
 import { iniciarCamposEspecificos } from '../objetos/objetoCamposEspecificosForm';
-import { initObjetoFormCore } from '../objetos/objetoFormCore';
+import { initObjetoFormCore, resetFormularioCompleto } from '../objetos/objetoFormCore';
 // Re-sincronización del plano elástico contra el Estok activo real (X-Estok-Id).
 import { refrescarSelectorMinimapaUbicacion } from '../selectorMinimapaNuevoObjeto';
 
@@ -107,6 +107,11 @@ export function iniciarPaso4Tutorial(): void {
     initObjetoFormCore();
     inyectarTooltipsTutorial();
   }
+  // CADA ENTRADA AL PASO 4 («Nuevo Objeto») ARRANCA LIMPIA: los módulos se
+  // inicializan una sola vez, pero el formulario se re-setea en cada apertura
+  // (campos, foto/galería, IA y clasificación rápida). Es el mismo reset
+  // absoluto que usa la pantalla /objetos/nuevo al cargar.
+  resetFormularioCompleto({ desplazar: false });
   // El selector de minimapas se auto-inicializó al cargar la página —antes de que
   // el usuario fundara su Estok (Paso 1) y dibujara sus ambientes (Paso 2)—, así
   // que quedó apuntando a un Estok inexistente y mostraba el mapa genérico. Acá

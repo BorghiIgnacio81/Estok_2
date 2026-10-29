@@ -23,6 +23,10 @@ import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
 // Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2:
 // host + hoja de estilos dedicada de la canasta del fin de cadena.
 import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro';
+// Alta simplificada de contenedores físicos («+ Nueva Caja / Contenedor»):
+// markup del modal dedicado (Nombre · Foto · Dimensiones · Descripción ·
+// Ubicación). Su lógica vive en lib/nuevaCajaModal.ts.
+import NuevaCajaModal from '../components/NuevaCajaModal.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
@@ -61,9 +65,19 @@ import {
        para la canasta lateral flotante. En celulares la canasta baja al pie. -->
   <div class="max-w-7xl mx-auto py-8 pl-0 pr-4 md:pr-80" data-estok-panel>
     <!-- Encabezado -->
-    <div class="mb-6">
-      <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
-      <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok → Habitaciones → Espacios</p>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Almacenamiento</h1>
+        <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok → Habitaciones → Espacios</p>
+      </div>
+      <!-- ALTA DIRECTA DE CONTENEDOR: abre el formulario simplificado (sin
+           «Valor Estimado»), con Nombre, Foto, Dimensiones y Ubicación. -->
+      <button type="button" id="nuevaCajaContenedorBtn"
+        class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-blue-800 active:scale-95 transition-base cursor-pointer"
+        title="Crear una caja o contenedor físico con nombre, foto, dimensiones y ubicación">
+        <span class="text-lg leading-none" aria-hidden="true">📦</span>
+        + Nueva Caja / Contenedor
+      </button>
     </div>
 
     <!-- Leyenda de iconografía local del Lienzo de Mapeo Espacial -->
@@ -353,6 +367,10 @@ import {
         <p id="editarFormError" data-form-error class="hidden mt-3 text-sm text-red-600"></p>
       </div>
     </div>
+
+  <!-- Modal simplificado: «+ Nueva Caja / Contenedor» (Nombre · Foto ·
+       Dimensiones · Descripción · Ubicación). Sin «Valor Estimado». -->
+  <NuevaCajaModal />
 
   <!-- Acción rápida móvil: "+ Nuevo Objeto", por ENCIMA de la bandeja inferior fija. -->
   <BotonAccionRapida

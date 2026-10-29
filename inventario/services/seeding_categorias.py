@@ -10,12 +10,17 @@ lista sin opciones y no podía clasificar su primer objeto.
 Alcance:
   1) Las 11 categorías OFICIALES de Mercado Libre (reutiliza el servicio
      existente `aplicar_categorias_oficiales_a_estok`, idempotente).
-  2) Dos categorías BASE adicionales de uso cotidiano que NO están entre las 11
-     oficiales («Ropa» y «Libros»), sembradas con `es_sistema=False` para que la
-     limpieza destructiva del comando oficial NUNCA las elimine.
+  2) Categorías BASE adicionales de uso cotidiano que NO están entre las 11
+     oficiales («Ropa», «Libros» y «Cajas y Contenedores»), sembradas con
+     `es_sistema=False` para que la limpieza destructiva del comando oficial
+     NUNCA las elimine.
 
 «Ropa» lleva el subtipo `ropa`, que es lo que hace que el formulario de alta y
 el de EDICIÓN desplieguen el campo Talla / Tamaño sin depender del nombre.
+
+«Cajas y Contenedores» es la categoría organizativa de los bultos que alojan
+otros objetos: el listado de inventario agrupa los objetos así clasificados en
+«📦 Cajas e Inventario Interno» (ver `arbol_inventario_objetos_contenedor`).
 
 Módulo FUENTE ÚNICA de la siembra: lo consumen EstokCreateSerializer (alta
 pública), SuperAdminEstokViewSet (alta desde el panel global) y el comando
@@ -47,7 +52,8 @@ def sembrar_categorias_base(estok):
 
 def sembrar_categorias_adicionales(estok):
     """
-    Asegura «Ropa» y «Libros» en un Estok (idempotente, no destructivo).
+    Asegura «Ropa», «Libros» y «Cajas y Contenedores» en un Estok (idempotente,
+    no destructivo).
 
     Reglas:
       · Si la categoría ya existe se PRESERVA y sólo se completa lo que falte

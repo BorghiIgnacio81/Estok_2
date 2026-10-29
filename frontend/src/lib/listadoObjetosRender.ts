@@ -145,6 +145,11 @@ interface TarjetaOpts {
   acciones?: boolean;
   /** Oculta el botón «Mover» en la fila de acciones (muebles de la Sección 3). */
   mostrarMover?: boolean;
+  /**
+   * Destino del enlace «Abrir ↗». Por defecto es el visor del Contenedor; los
+   * nodos de la Sección 1 con `origen='objeto'` apuntan a /objetos/{id}.
+   */
+  href?: string;
 }
 
 /** Tarjeta de contenedor (caja / mueble) colapsada por defecto. */
@@ -177,7 +182,8 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
     + '</span></span>';
 
   // Bloque lateral: SOLO la acción "Abrir" (el minimapa se movió bajo el título).
-  const accion = '<a href="/contenedores/' + esc(nodo.id) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>';
+  const destino = opts.href || ('/contenedores/' + nodo.id);
+  const accion = '<a href="' + esc(destino) + '" class="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">Abrir ↗</a>';
   const lateral = '<span class="flex shrink-0 flex-col items-end gap-2">'
     + '<span class="flex items-center gap-1.5">' + accion
     + (tieneContenido ? chevronSvg('h-4 w-4') : '')
@@ -290,21 +296,39 @@ function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
  * Filtro de descarte ABSOLUTO en el cliente: SOLO cajas móviles
  * (`tipo_contenedor='CAJA'` y `es_inmueble=false`). El Armario Empotrado y el
  * Setup PC (inmuebles fijos) quedan removidos de este bloque superior.
+ *
+ * OBJETOS CONTENEDOR (`origen='objeto'`): los Objetos declarados como caja o
+ * categorizados como «Cajas y Contenedores» llegan en el MISMO listado `cajas`
+ * del backend y se pintan acá con enlace al Objeto (/objetos/{id}), nunca en
+ * «🧸 Objetos Sueltos o sin Caja».
  */
 export function seccionCajasHtml(cajas: NodoCaja[]): string {
-  const moviles = (cajas || []).filter((caja) => esCajaMovilEnBloqueCajas(caja));
-  if (moviles.length === 0) return '';
+  const moviles = (cajas || []).filter(
+    (caja) => caja.origen !== 'objeto' && esCajaMovilEnBloqueCajas(caja),
+  );
+  const objetosContenedor = (cajas || []).filter((caja) => caja.origen === 'objeto');
+  if (moviles.length === 0 && objetosContenedor.length === 0) return '';
+  const tarjetas = moviles.map((caja) => contenedorTarjetaHtml(caja, {
+    tipoLabel: '📦 Caja / Contenedor pequeño',
+    // RUTA DE TEXTO con flechas (Piso -> Habitación -> Mueble -> Caja): al
+    // hacer clic despliega la fila de minimapas analíticos, en vez de
+    // saturar la tarjeta con la cadena de minimapas siempre visible.
+    ruta: rutaGeograficaCardHtml({ id: caja.id, ubicacion: caja.ubicacion, contenedor: caja.id }),
+    alinear: 'start',
+    sumario: true,
+    acciones: true,
+  })).concat(objetosContenedor.map((caja) => contenedorTarjetaHtml(caja, {
+    tipoLabel: '📦 Caja / Contenedor',
+    // El Objeto contenedor no vive en el árbol de Contenedores: la ruta se
+    // resuelve por su habitación y el botón «Abrir» va a su ficha de objeto.
+    ruta: rutaGeograficaCardHtml({ id: caja.id, ubicacion: caja.ubicacion, contenedor: null }),
+    alinear: 'start',
+    sumario: true,
+    acciones: false,
+    href: '/objetos/' + caja.id,
+  })));
   return '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">'
-    + moviles.map((caja) => contenedorTarjetaHtml(caja, {
-        tipoLabel: '📦 Caja / Contenedor pequeño',
-        // RUTA DE TEXTO con flechas (Piso -> Habitación -> Mueble -> Caja): al
-        // hacer clic despliega la fila de minimapas analíticos, en vez de
-        // saturar la tarjeta con la cadena de minimapas siempre visible.
-        ruta: rutaGeograficaCardHtml({ id: caja.id, ubicacion: caja.ubicacion, contenedor: caja.id }),
-        alinear: 'start',
-        sumario: true,
-        acciones: true,
-      })).join('')
+    + tarjetas.join('')
     + '</div>';
 }
 
