@@ -75,7 +75,13 @@ import {
       <button type="button" id="nuevaCajaContenedorBtn"
         class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-blue-800 active:scale-95 transition-base cursor-pointer"
         title="Crear una caja o contenedor físico con nombre, foto, dimensiones y ubicación">
-        <span class="text-lg leading-none" aria-hidden="true">📦</span>
+        <img
+          src={ASSET_CAJA}
+          alt=""
+          aria-hidden="true"
+          draggable="false"
+          class="h-6 w-6 shrink-0 object-contain select-none"
+        />
         + Nueva Caja / Contenedor
       </button>
     </div>
