@@ -13,10 +13,9 @@ from ...models import Categoria, Membresia
 from ..serializers import CategoriaSerializer
 from ..serializers.categorias import uuid_valido
 from .base import HasRolePermission
-from ...services.categorias_meli import (
-    normalizar_id_ml,
-    predecir_id_ml,
-)
+from ...services.categorias_meli import normalizar_id_ml
+from ...services.categorias_resolucion import resolver_mapeo_categoria_ml
+from ...services.categorias_subtipo import normalizar_subtipo, subtipo_de_nombre
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +61,16 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         categoría creada por el usuario queda con su `mercadolibre_category_id`
         (ej: MLA412445 para "Libros y Revistas"), sin límite de cantidad.
 
+        RESOLUCIÓN AUTOMÁTICA (`resolver_mapeo_categoria_ml`):
+          1. nombre conocido (11 oficiales + «Ropa»/«Libros») → ID verificado;
+          2. búsqueda/predicción en la API pública de Mercado Libre;
+          3. verificación de categoría HOJA publicable;
+          4. fallback genérico válido (MLA1383 «Otros»).
+        Nunca queda una categoría sin mapeo ni se aborta el alta por ML.
+
+        También se persiste el `subtipo` (familia de atributos técnicos) para
+        que la categoría nueva despliegue sus campos correctos en el formulario.
+
         DEFENSA EN PROFUNDIDAD: si por una carrera entre dos altas simultáneas
         PostgreSQL igual rechaza el nombre duplicado, el IntegrityError se
         traduce a un 400 estructurado (jamás a un 500).
@@ -77,12 +86,20 @@ class CategoriaViewSet(viewsets.ModelViewSet):
         datos = self.request.data if hasattr(self.request.data, 'get') else {}
         id_ml = normalizar_id_ml(datos.get("mercadolibre_category_id"))
         if not id_ml:
-            id_ml = predecir_id_ml(nombre)
+            id_ml = resolver_mapeo_categoria_ml(nombre)
             logger.info("Categoría '%s' → mapeo ML %s", nombre, id_ml)
+        subtipo = (
+            normalizar_subtipo(datos.get("subtipo"))
+            or subtipo_de_nombre(nombre)
+        )
 
         try:
             with transaction.atomic():
-                serializer.save(mercadolibre_category_id=id_ml, es_sistema=False)
+                serializer.save(
+                    mercadolibre_category_id=id_ml,
+                    subtipo=subtipo,
+                    es_sistema=False,
+                )
         except IntegrityError:
             logger.warning(
                 "Alta de categoría duplicada: '%s' en Estok %s", nombre, estok.pk,
@@ -95,10 +112,19 @@ class CategoriaViewSet(viewsets.ModelViewSet):
             raise
 
     def perform_update(self, serializer):
-        """Edición: la carrera de nombres también responde 400, nunca 500."""
+        """Edición: la carrera de nombres también responde 400, nunca 500.
+
+        Si la categoría no tenía subtipo y el usuario no envía uno, se INFIERE
+        del nombre (nunca se pisa un subtipo ya definido).
+        """
+        instancia = serializer.instance
+        subtipo = serializer.validated_data.get('subtipo')
+        nombre = serializer.validated_data.get('nombre') or instancia.nombre
+        if not subtipo and not instancia.subtipo:
+            subtipo = subtipo_de_nombre(nombre)
         try:
             with transaction.atomic():
-                serializer.save()
+                serializer.save(subtipo=subtipo or instancia.subtipo)
         except IntegrityError:
             raise ValidationError(
                 {'nombre': ['Ya existe una categoría con ese nombre en este Estok.']}

@@ -36,10 +36,20 @@ function vacio(valor: unknown): boolean {
   return valor === null || valor === undefined || String(valor).trim() === '';
 }
 
+/** Opción seleccionada en el combo de categoría (texto + subtipo explícito). */
+function opcionCategoriaSeleccionada(): HTMLOptionElement | null {
+  const select = document.getElementById('categoria') as HTMLSelectElement | null;
+  return select?.selectedOptions?.[0] ?? null;
+}
+
 /** Nombre de la categoría seleccionada en el combo (texto visible). */
 function nombreCategoriaSeleccionada(): string {
-  const select = document.getElementById('categoria') as HTMLSelectElement | null;
-  return select?.selectedOptions?.[0]?.textContent ?? '';
+  return opcionCategoriaSeleccionada()?.textContent ?? '';
+}
+
+/** Subtipo explícito de la categoría seleccionada ('' si la opción no lo trae). */
+function subtipoCategoriaSeleccionada(): string {
+  return opcionCategoriaSeleccionada()?.dataset.subtipo ?? '';
 }
 
 /**
@@ -72,7 +82,10 @@ export function aplicarFamiliaEspecifica(familia: FamiliaObjeto | null): void {
  * @returns la familia activa (null si la categoría no tiene atributos técnicos).
  */
 export function sincronizarCamposEspecificos(): FamiliaObjeto | null {
-  const familia = familiaDeCategoria(nombreCategoriaSeleccionada());
+  const familia = familiaDeCategoria(
+    nombreCategoriaSeleccionada(),
+    subtipoCategoriaSeleccionada(),
+  );
   aplicarFamiliaEspecifica(familia);
   return familia;
 }

@@ -90,29 +90,50 @@ def es_error_cuota_excedida(error: Exception) -> bool:
 # (deben coincidir con inventario/management/commands/cargar_categorias_meli.py)
 # =============================================================================
 CATEGORIAS_MELI_OFICIALES = {
-    "MLA1574": "Muebles",
-    "MLA1798": "Arte",
+    "MLA436380": "Muebles",
+    "MLA34263": "Arte",
     "MLA1367": "Coleccionables",
-    "MLA1368": "Antigüedades",
-    "MLA1592": "Jardín",
+    "MLA436789": "Antigüedades",
+    "MLA1621": "Jardín",
     "MLA1648": "Computación",
-    "MLA1051": "Electrónica",
-    "MLA1403": "Cocina",
-    "MLA1577": "Hogar",
-    "MLA1500": "Herramientas",
-    "MLA1506": "Materiales",
+    "MLA1000": "Electrónica",
+    "MLA1592": "Cocina",
+    "MLA1574": "Hogar",
+    "MLA407134": "Herramientas",
+    "MLA403697": "Materiales",
+}
+
+# Categorías BASE adicionales (no oficiales) que el formulario también ofrece.
+# Se incluyen en el prompt para que la IA las elija cuando corresponda: el
+# frontend preselecciona la opción comparando `meliId`.
+CATEGORIAS_MELI_BASE_ADICIONALES = {
+    "MLA1430": "Ropa",
+    "MLA412445": "Libros",
 }
 
 # Fallback para respuestas de la IA que aún usen la taxonomía legada
 # (libro/tecnologia/mueble/ropa/otro). Solo se usa si la IA no devolvió
-# un meli_category_id oficial. None = sin categoría oficial asignable.
+# un meli_category_id. Todos los IDs fueron VERIFICADOS contra GET
+# /categories/{id} de la API real (existen y son publicables o contenedores).
 MAPEO_CATEGORIA_LEGADA_A_MELI: Dict[str, Optional[str]] = {
-    "libro": "MLA1367",        # Coleccionables (cómics, libros de colección)
-    "tecnologia": "MLA1051",   # Electrónica
-    "computacion": "MLA1648",  # Computación
-    "mueble": "MLA1574",       # Muebles
-    "arte": "MLA1798",         # Arte
-    "ropa": None,              # sin categoría oficial
+    "libro": "MLA412445",       # Libros Físicos (hoja publicable)
+    "libros": "MLA412445",
+    "tecnologia": "MLA1000",    # Electrónica, Audio y Video
+    "electronica": "MLA1000",
+    "computacion": "MLA1648",   # Computación
+    "mueble": "MLA436380",      # Muebles para el Hogar
+    "muebles": "MLA436380",
+    "mueble_arte": "MLA436380",
+    "arte": "MLA34263",         # Arte y Manualidades
+    "coleccionables": "MLA1367",  # Antigüedades y Colecciones
+    "antiguedad": "MLA436789",  # Antigüedades
+    "antiguedades": "MLA436789",
+    "jardin": "MLA1621",        # Jardín y Aire Libre
+    "cocina": "MLA1592",        # Bazar y Cocina
+    "hogar": "MLA1574",         # Hogar, Muebles y Jardín
+    "herramientas": "MLA407134",  # Herramientas
+    "materiales": "MLA403697",  # Materiales de Obra
+    "ropa": "MLA1430",          # Ropa y Accesorios
     "otro": None,
 }
 
@@ -180,19 +201,21 @@ PROMPT_SISTEMA_CATALOGACION = (
     '  "editorial": "Editorial",\n'
     '  "idioma": "Idioma"\n'
     "}\n\n"
-    "CATEGORÍAS OFICIALES (elegí UNA sola de esta lista para 'meli_category_id'):\n"
-    "MLA1574 Muebles\n"
-    "MLA1798 Arte\n"
+    "CATEGORÍAS (elegí UNA sola de esta lista para 'meli_category_id'):\n"
+    "MLA436380 Muebles\n"
+    "MLA34263 Arte\n"
     "MLA1367 Coleccionables\n"
-    "MLA1368 Antigüedades\n"
-    "MLA1592 Jardín\n"
+    "MLA436789 Antigüedades\n"
+    "MLA1621 Jardín\n"
     "MLA1648 Computación\n"
-    "MLA1051 Electrónica\n"
-    "MLA1403 Cocina\n"
-    "MLA1577 Hogar\n"
-    "MLA1500 Herramientas\n"
-    "MLA1506 Materiales\n"
-    "- Si el objeto no encaja en ninguna de las 11 oficiales, usa 'meli_category_id': null.\n"
+    "MLA1000 Electrónica\n"
+    "MLA1592 Cocina\n"
+    "MLA1574 Hogar\n"
+    "MLA407134 Herramientas\n"
+    "MLA403697 Materiales\n"
+    "MLA1430 Ropa\n"
+    "MLA412445 Libros\n"
+    "- Si el objeto no encaja en ninguna de las categorías de la lista, usa 'meli_category_id': null.\n"
     "- El campo 'categoria' (libro|tecnologia|mueble|ropa|arte|computacion|otro) describe "
     "el tipo físico del objeto y es OBLIGATORIO (si no podés determinarlo usá 'otro'); "
     "'meli_category_id' es la clasificación oficial. 'nombre' y 'categoria' son OBLIGATORIOS: si la foto muestra un objeto real, SIEMPRE devolvé un nombre concreto y corto y una categoría de la lista, porque sin ellos el formulario no puede precargar el alta.\n\n"

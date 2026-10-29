@@ -14,25 +14,21 @@ Alcance:
      oficiales («Ropa» y «Libros»), sembradas con `es_sistema=False` para que la
      limpieza destructiva del comando oficial NUNCA las elimine.
 
-Módulo FUENTE ÚNICA: lo consume EstokCreateSerializer (alta de usuario/admin).
+«Ropa» lleva el subtipo `ropa`, que es lo que hace que el formulario de alta y
+el de EDICIÓN desplieguen el campo Talla / Tamaño sin depender del nombre.
+
+Módulo FUENTE ÚNICA de la siembra: lo consumen EstokCreateSerializer (alta
+pública), SuperAdminEstokViewSet (alta desde el panel global) y el comando
+`cargar_categorias_meli` (Estoks ya existentes en cada arranque).
 """
 
 from django.db import transaction
 
 from ..models import Categoria
-from .categorias_meli import aplicar_categorias_oficiales_a_estok
-
-# ---------------------------------------------------------------------------
-# CATEGORÍAS BASE ADICIONALES (no oficiales de Mercado Libre)
-# Se marcan es_sistema=False para quedar BLINDADAS contra la limpieza del
-# seeding oficial. «Libros» lleva el ID real que ya usa el predictor del proyecto
-# (MLA412445 «Libros Físicos»); «Ropa» se deja sin mapeo para que la publicación
-# lo prediga con el NOMBRE DEL OBJETO (misma regla que una categoría de usuario).
-# ---------------------------------------------------------------------------
-CATEGORIAS_BASE_ADICIONALES = [
-    {"nombre": "Ropa", "mercadolibre_category_id": None, "icono": "👕"},
-    {"nombre": "Libros", "mercadolibre_category_id": "MLA412445", "icono": "📚"},
-]
+from .categorias_meli import (
+    CATEGORIAS_BASE_ADICIONALES,
+    aplicar_categorias_oficiales_a_estok,
+)
 
 
 @transaction.atomic
@@ -45,24 +41,55 @@ def sembrar_categorias_base(estok):
     revierte y nunca queda a medio construir.
     """
     creadas, actualizadas = aplicar_categorias_oficiales_a_estok(estok)
+    creadas_extra, actualizadas_extra = sembrar_categorias_adicionales(estok)
+    return creadas + creadas_extra, actualizadas + actualizadas_extra
+
+
+def sembrar_categorias_adicionales(estok):
+    """
+    Asegura «Ropa» y «Libros» en un Estok (idempotente, no destructivo).
+
+    Reglas:
+      · Si la categoría ya existe se PRESERVA y sólo se completa lo que falte
+        (mapeo de Mercado Libre o subtipo): nunca se pisa un mapeo propio del
+        usuario ni su ícono.
+      · Si no existe se crea con `es_sistema=False`, blindada contra la limpieza
+        destructiva del seeding oficial.
+
+    Devuelve la tupla (creadas, actualizadas).
+    """
+    creadas = 0
+    actualizadas = 0
 
     for cat in CATEGORIAS_BASE_ADICIONALES:
-        # Se busca por NOMBRE porque `unique_together` es (nombre, estok): así una
-        # categoría ya adoptada por el usuario no se duplica ni se pisa.
+        # Se busca por NOMBRE porque `unique_together` es (nombre, estok): así
+        # una categoría ya adoptada por el usuario no se duplica.
         fila = Categoria.objects.filter(
             estok=estok, nombre__iexact=cat["nombre"],
         ).first()
-        if fila is not None:
-            actualizadas += 1
+
+        if fila is None:
+            Categoria.objects.create(
+                estok=estok,
+                nombre=cat["nombre"],
+                icono=cat["icono"],
+                mercadolibre_category_id=cat["mercadolibre_category_id"],
+                subtipo=cat["subtipo"],
+                es_contenedor=True,
+                es_sistema=False,
+            )
+            creadas += 1
             continue
-        Categoria.objects.create(
-            estok=estok,
-            nombre=cat["nombre"],
-            icono=cat["icono"],
-            mercadolibre_category_id=cat["mercadolibre_category_id"],
-            es_contenedor=True,
-            es_sistema=False,
-        )
-        creadas += 1
+
+        cambios = []
+        if not fila.mercadolibre_category_id:
+            fila.mercadolibre_category_id = cat["mercadolibre_category_id"]
+            cambios.append("mercadolibre_category_id")
+        if not fila.subtipo:
+            fila.subtipo = cat["subtipo"]
+            cambios.append("subtipo")
+        if cambios:
+            fila.save(update_fields=cambios)
+            actualizadas += 1
 
     return creadas, actualizadas

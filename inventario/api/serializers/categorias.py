@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from ...models import Categoria, Estok
+from ...services.categorias_subtipo import normalizar_subtipo
 
 
 def uuid_valido(valor):
@@ -86,6 +87,21 @@ class CategoriaSerializer(serializers.ModelSerializer):
         """El ícono es opcional: sin valor se usa el emoji por defecto del modelo."""
         icono = str(value or '').strip()
         return icono[:10] or '🏷️'
+
+    def validate_subtipo(self, value):
+        """
+        El subtipo debe ser una familia técnica válida.
+
+        El ViewSet lo infiere del nombre cuando no viaja; acá se rechaza
+        explícitamente cualquier valor inventado (choices del modelo).
+        """
+        subtipo = normalizar_subtipo(value)
+        if not subtipo and str(value or '').strip():
+            raise serializers.ValidationError(
+                'Subtipo inválido. Valores permitidos: libro, tecnologia, '
+                'mueble_arte, ropa.'
+            )
+        return subtipo
 
     def validate(self, attrs):
         """

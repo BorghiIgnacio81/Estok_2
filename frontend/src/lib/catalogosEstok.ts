@@ -30,6 +30,8 @@ export interface CategoriaEstok {
   icono: string;
   /** ID oficial de Mercado Libre (MLAxxxxx) cuando existe. */
   meliId: string | null;
+  /** Familia de atributos técnicos (libro | tecnologia | mueble_arte | ropa). */
+  subtipo: string | null;
   /** true en las 11 categorías oficiales del sistema (NO eliminables). */
   esSistema: boolean;
   /** Objetos vivos vinculados (para el aviso de baja → «Sin categoría»). */
@@ -83,6 +85,8 @@ export async function cargarCategoriasEstok(forzar = false): Promise<CategoriaEs
       meliId: c.mercadolibre_category_id
         ? String(c.mercadolibre_category_id)
         : null,
+      // «ropa» es lo que hace que el formulario muestre Talla / Tamaño.
+      subtipo: c.subtipo ? String(c.subtipo) : null,
       esSistema: Boolean(c.es_sistema),
       objetosCount: Number(c.objetos_count ?? 0) || 0,
     }))

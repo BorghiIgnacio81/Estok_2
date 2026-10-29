@@ -23,7 +23,7 @@ from rest_framework.response import Response
 logger = logging.getLogger(__name__)
 
 from ...models import CustomUser, Estok
-from ...services.categorias_meli import aplicar_categorias_oficiales_a_estok
+from ...services.seeding_categorias import sembrar_categorias_base
 from ...services.email_service import (
     TIPO_BIENVENIDA,
     TIPOS_SOPORTADOS,
@@ -210,18 +210,18 @@ class SuperAdminEstokViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Crea el Estok y dispara el seeding automático de las 11 categorías
-        oficiales de Mercado Libre Argentina, en el MISMO bloque transaccional.
+        Crea el Estok y dispara el seeding automático de categorías en el MISMO
+        bloque transaccional.
 
-        Justificación: el comando `cargar_categorias_meli` solo inyecta las
-        categorías al arrancar el contenedor. Un Estok creado en caliente desde
-        el panel Admin Global nacía sin categorías (combobox vacío). Este
-        trigger garantiza que el nuevo Estok quede con sus 11 categorías
-        atómicas asociadas a su UUID antes de responder HTTP 201 Created.
+        Siembra las 11 categorías oficiales de Mercado Libre Argentina MÁS las
+        categorías base adicionales («Ropa» y «Libros») usando el servicio
+        único `sembrar_categorias_base` (el mismo del alta pública). Así un
+        Estok creado desde el panel Admin Global también nace con «Ropa» y su
+        campo Talla/Tamaño disponible en el alta y la edición de objetos.
         """
         with transaction.atomic():
             estok = serializer.save()
-            creadas, actualizadas = aplicar_categorias_oficiales_a_estok(estok)
+            creadas, actualizadas = sembrar_categorias_base(estok)
 
         logger.info(
             'Estok "%s" (%s) creado con seeding de categorías ML: '

@@ -146,6 +146,9 @@ async function cargarCategorias(selectedId?: string): Promise<void> {
         const opt = document.createElement('option');
         opt.value = cat.id;
         opt.textContent = cat.nombre;
+        // Subtipo explícito: define qué bloque técnico se muestra al elegir la
+        // categoría (Ropa → Talla / Tamaño) sin depender del nombre.
+        opt.dataset.subtipo = cat.subtipo ? String(cat.subtipo) : '';
         if (selectedId && cat.id === selectedId) opt.selected = true;
         categoriaSelect.appendChild(opt);
       });

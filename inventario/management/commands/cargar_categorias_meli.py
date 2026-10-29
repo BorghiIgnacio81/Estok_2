@@ -16,29 +16,84 @@ Reglas de este comando:
 5. Autocuración anti unique_together(nombre, estok): si un usuario creó una
    categoría con el MISMO nombre de una oficial y sin mercadolibre_category_id, el
    comando la adopta asignándole el ID oficial en vez de duplicar o borrar.
+6. Además de las 11 oficiales, siembra las categorías base adicionales
+   («Ropa» y «Libros») para que TODO Estok existente las tenga, incluso los
+   creados antes de que existiera el seed de alta.
 
 Para evitar reintroducir el bug de "categorías combinadas", este comando NO
 consulta la API de Mercado Libre: la lista oficial vive hardcodeada aquí.
+
+AUDITORÍA DE IDS (verificada contra GET /categories/{id} de la API real):
+  Nombre propio  → ID        → Nombre REAL en Mercado Libre
+  Muebles        → MLA436380 → Muebles para el Hogar
+  Arte           → MLA34263  → Arte y Manualidades
+  Coleccionables → MLA1367   → Antigüedades y Colecciones
+  Antigüedades   → MLA436789 → Antigüedades
+  Jardín         → MLA1621   → Jardín y Aire Libre
+  Computación    → MLA1648   → Computación
+  Electrónica    → MLA1000   → Electrónica, Audio y Video
+  Cocina         → MLA1592   → Bazar y Cocina
+  Hogar          → MLA1574   → Hogar, Muebles y Jardín
+  Herramientas   → MLA407134 → Herramientas
+  Materiales     → MLA403697 → Materiales de Obra
+Los IDs anteriores (MLA1798 y MLA1506) devolvían HTTP 404 y fueron reemplazados;
+el resto apuntaba a categorías de OTRA rama (ej. MLA1577 = "Microondas" para
+Hogar). Todos los IDs actuales existen y son categorías contenedor o raíz, por
+lo que el servicio de publicación resuelve la hoja real por objeto sin bloquear.
 """
 from django.core.management.base import BaseCommand
 from inventario.models.clasificacion import Categoria
 from inventario.models.nucleo import Estok
 
 # ---------------------------------------------------------------------------
-# LISTA OFICIAL DE LAS 11 CATEGORÍAS ATÓMICAS (no tocar sin aprobación)
+# LISTA OFICIAL DE LAS 11 CATEGORÍAS ATÓMICAS
+# `subtipo` = familia de atributos técnicos que despliega el formulario.
 # ---------------------------------------------------------------------------
 CATEGORIAS_OFICIALES = [
-    {"nombre": "Muebles", "mercadolibre_category_id": "MLA1574", "icono": "🪑"},
-    {"nombre": "Arte", "mercadolibre_category_id": "MLA1798", "icono": "🎨"},
-    {"nombre": "Coleccionables", "mercadolibre_category_id": "MLA1367", "icono": "🏆"},
-    {"nombre": "Antigüedades", "mercadolibre_category_id": "MLA1368", "icono": "⏳"},
-    {"nombre": "Jardín", "mercadolibre_category_id": "MLA1592", "icono": "🌿"},
-    {"nombre": "Computación", "mercadolibre_category_id": "MLA1648", "icono": "💻"},
-    {"nombre": "Electrónica", "mercadolibre_category_id": "MLA1051", "icono": "🔌"},
-    {"nombre": "Cocina", "mercadolibre_category_id": "MLA1403", "icono": "🍳"},
-    {"nombre": "Hogar", "mercadolibre_category_id": "MLA1577", "icono": "🏠"},
-    {"nombre": "Herramientas", "mercadolibre_category_id": "MLA1500", "icono": "🔧"},
-    {"nombre": "Materiales", "mercadolibre_category_id": "MLA1506", "icono": "🧱"},
+    {
+        "nombre": "Muebles", "mercadolibre_category_id": "MLA436380",
+        "icono": "🪑", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Arte", "mercadolibre_category_id": "MLA34263",
+        "icono": "🎨", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Coleccionables", "mercadolibre_category_id": "MLA1367",
+        "icono": "🏆", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Antigüedades", "mercadolibre_category_id": "MLA436789",
+        "icono": "⏳", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Jardín", "mercadolibre_category_id": "MLA1621",
+        "icono": "🌿", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Computación", "mercadolibre_category_id": "MLA1648",
+        "icono": "💻", "subtipo": "tecnologia",
+    },
+    {
+        "nombre": "Electrónica", "mercadolibre_category_id": "MLA1000",
+        "icono": "🔌", "subtipo": "tecnologia",
+    },
+    {
+        "nombre": "Cocina", "mercadolibre_category_id": "MLA1592",
+        "icono": "🍳", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Hogar", "mercadolibre_category_id": "MLA1574",
+        "icono": "🏠", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Herramientas", "mercadolibre_category_id": "MLA407134",
+        "icono": "🔧", "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Materiales", "mercadolibre_category_id": "MLA403697",
+        "icono": "🧱", "subtipo": "mueble_arte",
+    },
 ]
 
 IDS_OFICIALES = {c["mercadolibre_category_id"] for c in CATEGORIAS_OFICIALES}
@@ -72,23 +127,34 @@ class Command(BaseCommand):
         total_creadas = 0
         total_eliminadas = 0
         total_actualizadas = 0
+        total_base = 0
+
+        # Las categorías base adicionales («Ropa» y «Libros») viven en el
+        # servicio de seeding para que el alta pública, el panel global y este
+        # comando compartan UNA sola definición.
+        from inventario.services.seeding_categorias import (
+            sembrar_categorias_adicionales,
+        )
 
         for estok in estoks:
             creadas, actualizadas = self._aplicar_categorias_oficiales(estok)
             eliminadas = self._eliminar_categorias_residuales(estok)
+            base_creadas, base_actualizadas = sembrar_categorias_adicionales(estok)
             total_creadas += creadas
             total_actualizadas += actualizadas
             total_eliminadas += eliminadas
+            total_base += base_creadas + base_actualizadas
 
             self.stdout.write(
                 f'   Estok "{estok.nombre}" ({estok.id}): '
-                f'creadas={creadas} actualizadas={actualizadas} eliminadas={eliminadas}'
+                f'creadas={creadas} actualizadas={actualizadas} eliminadas={eliminadas} '
+                f'base(Ropa/Libros)={base_creadas + base_actualizadas}'
             )
 
         self.stdout.write(self.style.SUCCESS(
             f'✅ Listo. Categorías creadas={total_creadas} '
             f'actualizadas={total_actualizadas} eliminadas={total_eliminadas} '
-            f'en {len(estoks)} Estok(s).'
+            f'base={total_base} en {len(estoks)} Estok(s).'
         ))
 
         # Verificación final de integridad SOLO sobre categorías de SISTEMA.
@@ -130,6 +196,7 @@ class Command(BaseCommand):
                 defaults={
                     "nombre": cat["nombre"],
                     "icono": cat["icono"],
+                    "subtipo": cat.get("subtipo", ""),
                     "es_contenedor": True,
                     "es_sistema": True,
                 },
@@ -144,38 +211,20 @@ class Command(BaseCommand):
         """
         Autocuración anti unique_together(nombre, estok).
 
-        Si existe una categoría con el MISMO nombre de una oficial y un
-        mercadolibre_category_id distinto del oficial, se le restaura el ID
-        oficial. Cubre dos casos:
-          - categoría de usuario sin ID oficial → se adopta como oficial;
-          - categoría de SISTEMA con el ID corrupto (bug real: "Electrónica"
-            quedó en MLA1728 "Software Comercial" y el seeding abortaba con
-            UniqueViolation al intentar crear la oficial).
-        Así el seeding no duplica ni borra categorías.
+        Delega en `inventario.services.categorias_meli.adoptar_categoria_oficial`
+        (fuente única, usada también por el alta de Estok en caliente). La
+        importación es LOCAL para no crear un ciclo de imports:
+        categorias_meli importa CATEGORIAS_OFICIALES de este módulo.
         """
-        fila = (
-            Categoria.objects.filter(
-                estok=estok,
-                nombre__iexact=cat["nombre"],
-            )
-            .exclude(mercadolibre_category_id=cat["mercadolibre_category_id"])
-            .first()
-        )
-        if fila is None:
-            return False
-        fila.mercadolibre_category_id = cat["mercadolibre_category_id"]
-        fila.nombre = cat["nombre"]
-        fila.icono = cat["icono"]
-        fila.es_contenedor = True
-        fila.es_sistema = True
-        fila.save(update_fields=[
-            "mercadolibre_category_id", "nombre", "icono", "es_contenedor", "es_sistema",
-        ])
-        self.stdout.write(self.style.WARNING(
-            f'🔄 Categoría "{cat["nombre"]}" adoptada/restaurada como oficial '
-            f'({cat["mercadolibre_category_id"]}) en Estok {estok.id}.'
-        ))
-        return True
+        from inventario.services.categorias_meli import adoptar_categoria_oficial
+
+        adoptada = adoptar_categoria_oficial(estok, cat)
+        if adoptada:
+            self.stdout.write(self.style.WARNING(
+                f'🔄 Categoría "{cat["nombre"]}" adoptada/restaurada como oficial '
+                f'({cat["mercadolibre_category_id"]}) en Estok {estok.id}.'
+            ))
+        return adoptada
 
     def _eliminar_categorias_residuales(self, estok):
         """

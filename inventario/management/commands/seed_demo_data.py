@@ -95,24 +95,14 @@ class Command(BaseCommand):
         )
 
         # =========================================================================
-        # 3.1 Asegurar las 11 categorías oficiales de Mercado Libre
+        # 3.1 Asegurar las 11 categorías oficiales + base («Ropa» y «Libros»)
         # =========================================================================
-        self.stdout.write(self.style.NOTICE('\n🏷️  Asegurando las 11 categorías oficiales...'))
-        from inventario.management.commands.cargar_categorias_meli import (
-            CATEGORIAS_OFICIALES,
-        )
-        for cat in CATEGORIAS_OFICIALES:
-            Categoria.objects.update_or_create(
-                mercadolibre_category_id=cat["mercadolibre_category_id"],
-                estok=estok_demo,
-                defaults={
-                    "nombre": cat["nombre"],
-                    "icono": cat["icono"],
-                    "es_contenedor": True,
-                    "es_sistema": True,
-                },
-            )
-        self.stdout.write(self.style.SUCCESS('  ✓ Categorías oficiales listas.'))
+        self.stdout.write(self.style.NOTICE('\n🏷️  Asegurando categorías base...'))
+        from inventario.services.seeding_categorias import sembrar_categorias_base
+        creadas, actualizadas = sembrar_categorias_base(estok_demo)
+        self.stdout.write(self.style.SUCCESS(
+            f'  ✓ Categorías listas (creadas={creadas}, actualizadas={actualizadas}).'
+        ))
 
         # =========================================================================
         # 4. Crear Ubicaciones

@@ -45,6 +45,12 @@ export const FAMILIAS_OBJETO: Record<FamiliaObjeto, { titulo: string; icono: str
   ropa: { titulo: 'Ropa', icono: '👗' },
 };
 
+/** True si el valor es una familia técnica válida (viene de `Categoria.subtipo`). */
+export function esFamiliaObjeto(valor: string | null | undefined): valor is FamiliaObjeto {
+  const clave = String(valor ?? '').trim().toLowerCase();
+  return clave in FAMILIAS_OBJETO;
+}
+
 /** Catálogo canónico de campos técnicos por familia. */
 export const CAMPOS_ESPECIFICOS: Record<FamiliaObjeto, CampoEspecifico[]> = {
   libro: [
@@ -195,9 +201,21 @@ function normalizar(texto: string | null | undefined): string {
 
 /**
  * Familia de atributos técnicos de una categoría.
+ *
+ * Prioridad:
+ *   1. `subtipo` EXPLÍCITO de la categoría (Categoria.subtipo en la API). Es la
+ *      vía que garantiza que «Ropa» muestre Talla/Tamaño aunque el nombre sea
+ *      libre (ej. «Indumentaria y Calzado»).
+ *   2. Fallback por NOMBRE normalizado, para categorías históricas o creadas
+ *      antes de que existiera el subtipo.
  * Sin coincidencia (o sin categoría) devuelve `null`: no se muestran campos.
  */
-export function familiaDeCategoria(nombre: string | null | undefined): FamiliaObjeto | null {
+export function familiaDeCategoria(
+  nombre: string | null | undefined,
+  subtipo?: string | null,
+): FamiliaObjeto | null {
+  if (esFamiliaObjeto(subtipo)) return subtipo;
+
   const clave = normalizar(nombre);
   if (!clave) return null;
 

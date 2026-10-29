@@ -8,6 +8,25 @@ from .base import (
     uuid,
 )
 
+# ---------------------------------------------------------------------------
+# SUBTIPOS DE OBJETO (familia de atributos técnicos del formulario)
+# ---------------------------------------------------------------------------
+# Fuente ÚNICA del backend. Los valores coinciden 1:1 con `FamiliaObjeto` de
+# frontend/src/lib/objetos/objetoCamposEspecificos.ts:
+#   libro       → autor, editorial, ISBN, año, edición
+#   tecnologia  → marca, modelo, número de serie, peso, especificaciones
+#   mueble_arte → material, dimensiones, artista/fabricante
+#   ropa        → Talla / Tamaño
+# Sin subtipo ('') la categoría no despliega atributos técnicos. El frontend
+# mantiene un fallback por nombre para las categorías históricas sin subtipo.
+SUBTIPOS_CATEGORIA = (
+    ('libro', 'Libro / Revista'),
+    ('tecnologia', 'Tecnología'),
+    ('mueble_arte', 'Mueble / Arte'),
+    ('ropa', 'Ropa'),
+)
+
+
 class Categoria(models.Model):
     """
     Categoría definida por el usuario para organizar objetos.
@@ -49,6 +68,20 @@ class Categoria(models.Model):
     # creadas dinámicamente por usuarios (es_sistema=False). La limpieza
     # destructiva del seeding SOLO aplica sobre es_sistema=True; las de usuario
     # están BLINDADAS contra delete() (bug crítico de pérdida de datos).
+    # Subtipo físico del objeto (familia de atributos técnicos). Es la vía
+    # EXPLÍCITA para que «Ropa» despliegue Talla/Tamaño en el alta y en la
+    # edición, sin depender de coincidencias por nombre.
+    subtipo = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        choices=SUBTIPOS_CATEGORIA,
+        verbose_name="Subtipo de objeto",
+        help_text=(
+            "Familia de atributos técnicos que despliega el formulario "
+            "(libro, tecnologia, mueble_arte, ropa). Vacío = sin atributos."
+        ),
+    )
     es_sistema = models.BooleanField(
         default=False,
         verbose_name="Categoría del sistema",

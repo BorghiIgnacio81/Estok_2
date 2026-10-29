@@ -64,6 +64,12 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     # RUTA COMPLETA de la ubicación (nunca None si el objeto está ubicado).
     ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
+    # Familia de atributos técnicos de la categoría (libro | tecnologia |
+    # mueble_arte | ropa): el frontend la usa para la ficha técnica y para
+    # mostrar Talla/Tamaño sin depender del nombre de la categoría.
+    categoria_subtipo = serializers.CharField(
+        source='categoria.subtipo', read_only=True, default=None,
+    )
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     # MARCA DE DUALIDAD (Contenedor ⇄ Objeto): el árbol de la pestaña Objetos la
     # usa para excluir el espejo del contenido del propio espacio, incluso si el
@@ -77,7 +83,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre', 'ubicacion_display',
             'parent_grid_row', 'parent_grid_col',
-            'categoria', 'categoria_nombre',
+            'categoria', 'categoria_nombre', 'categoria_subtipo',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action', 'en_transito_interno', 'es_espejo_contenedor',
@@ -127,6 +133,9 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     # espacio base): el detalle del objeto la expone igual que el listado.
     ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
+    categoria_subtipo = serializers.CharField(
+        source='categoria.subtipo', read_only=True, default=None,
+    )
     objeto_padre_nombre = serializers.CharField(source='objeto_padre.nombre', read_only=True, default=None)
     dueno_original_nombre = serializers.SerializerMethodField()
     beneficiario_nombre = serializers.SerializerMethodField()

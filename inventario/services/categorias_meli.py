@@ -17,9 +17,12 @@ título desviaba publicaciones a categorías absurdas (un cómic de Garfield
 terminó publicado en "Tartas y Tortas Dulces").
 
 Usado por:
+- inventario/services/seeding_categorias.py: siembra base del alta de Estok.
 - inventario/api/viewsets/super_admin.py: seeding al crear un Estok en caliente.
-- inventario/api/viewsets/categorias.py: mapeo al crear una categoría.
 - inventario/api/viewsets/mercadolibre_views.py: al publicar un objeto.
+
+La resolución del mapeo de categorías NUEVAS (alta desde la interfaz) vive en
+inventario/services/categorias_resolucion.py para no mezclar responsabilidades.
 """
 
 import json
@@ -42,6 +45,31 @@ from inventario.services.mercadolibre_api import (
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# CATEGORÍAS BASE ADICIONALES (no oficiales de Mercado Libre)
+# Se marcan es_sistema=False para quedar BLINDADAS contra la limpieza del
+# seeding oficial. «Ropa» usa MLA1430 «Ropa y Accesorios» (contenedor: la hoja
+# real se predice con el nombre del objeto al publicar) y «Libros» el ID real
+# de «Libros Físicos» (hoja publicable). `subtipo` es la familia de atributos
+# técnicos: Ropa despliega Talla/Tamaño en el alta y en la edición.
+# ---------------------------------------------------------------------------
+CATEGORIAS_BASE_ADICIONALES = [
+    {
+        "nombre": "Ropa",
+        "mercadolibre_category_id": "MLA1430",
+        "icono": "👕",
+        "subtipo": "ropa",
+    },
+    {
+        "nombre": "Libros",
+        "mercadolibre_category_id": "MLA412445",
+        "icono": "📚",
+        "subtipo": "libro",
+    },
+]
+
+# Formatos/IDs válidos para la resolución de categorías.
 
 # Formato oficial de la API de Mercado Libre para el ID de categoría (MLAxxxxx).
 PATRON_ID_ML = re.compile(r'^MLA\d+$')
@@ -102,6 +130,47 @@ def _id_oficial_por_nombre(nombre: str) -> str:
         if str(cat["nombre"]).strip().casefold() == buscado:
             return cat["mercadolibre_category_id"]
     return ""
+
+
+def adoptar_categoria_oficial(estok, cat) -> bool:
+    """
+    Autocuración anti unique_together(nombre, estok) para una categoría oficial.
+
+    Si existe una fila con el MISMO nombre y un `mercadolibre_category_id`
+    distinto, se le restaura el ID oficial (y su ícono/subtipo) en vez de
+    duplicar o borrar. Cubre:
+      - categoría de usuario sin ID oficial → se adopta como oficial;
+      - mapeo legado/corrupto (bug real: «Electrónica» apuntaba a MLA1728,
+        «Software Comercial», y el seeding abortaba con UniqueViolation);
+      - cambio de ID por auditoría (ej: MLA1798 inexistente → MLA34263).
+
+    Devuelve True si adoptó una fila existente.
+    """
+    fila = (
+        Categoria.objects.filter(
+            estok=estok,
+            nombre__iexact=cat["nombre"],
+        )
+        .exclude(mercadolibre_category_id=cat["mercadolibre_category_id"])
+        .first()
+    )
+    if fila is None:
+        return False
+    fila.mercadolibre_category_id = cat["mercadolibre_category_id"]
+    fila.nombre = cat["nombre"]
+    fila.icono = cat["icono"]
+    fila.subtipo = cat.get("subtipo", "")
+    fila.es_contenedor = True
+    fila.es_sistema = True
+    fila.save(update_fields=[
+        "mercadolibre_category_id", "nombre", "icono", "subtipo",
+        "es_contenedor", "es_sistema",
+    ])
+    logger.info(
+        "Categoría '%s' adoptada/restaurada como oficial (%s) en Estok %s.",
+        cat["nombre"], cat["mercadolibre_category_id"], estok.pk,
+    )
+    return True
 
 
 def _mapeo_vigente(categoria, category_id) -> str:
@@ -326,17 +395,26 @@ def aplicar_categorias_oficiales_a_estok(estok):
     por lo que puede ejecutarse múltiples veces (arranque del contenedor +
     triggers en caliente) sin duplicar ni pisar nada.
 
+    AUTOCURACIÓN: antes de crear, adopta por NOMBRE la fila existente que tenga
+    el mismo nombre con otro ID (categoría de usuario o mapeo legado). Sin esto,
+    cambiar un ID oficial (auditoría de categorías) chocaría con
+    unique_together(nombre, estok) y abortaría el alta del Estok.
+
     Devuelve la tupla (creadas, actualizadas).
     """
     creadas = 0
     actualizadas = 0
     for cat in CATEGORIAS_OFICIALES:
+        if adoptar_categoria_oficial(estok, cat):
+            actualizadas += 1
+            continue
         _, created = Categoria.objects.update_or_create(
             mercadolibre_category_id=cat["mercadolibre_category_id"],
             estok=estok,
             defaults={
                 "nombre": cat["nombre"],
                 "icono": cat["icono"],
+                "subtipo": cat.get("subtipo", ""),
                 "es_contenedor": True,
                 "es_sistema": True,
             },

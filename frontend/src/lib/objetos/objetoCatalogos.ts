@@ -62,6 +62,8 @@ async function cargarCategorias(): Promise<void> {
       // Guarda el ID de Mercado Libre de la categoría para que el autocompletado
       // de IA pueda seleccionarla por su ID oficial (MLAxxxxx).
       opt.dataset.meliId = c.meliId ?? '';
+      // Subtipo EXPLÍCITO (lo define el backend): Ropa → Talla / Tamaño.
+      opt.dataset.subtipo = c.subtipo ?? '';
       opt.textContent = `${c.icono} ${c.nombre}`;
       select.appendChild(opt);
     });

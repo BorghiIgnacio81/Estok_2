@@ -45,6 +45,11 @@ function nombreCategoria(objeto: Record<string, any> | null | undefined): string
   return String(categoria).trim();
 }
 
+/** Subtipo explícito de la categoría del objeto ('' si la API no lo expone). */
+function subtipoCategoria(objeto: Record<string, any> | null | undefined): string {
+  return String(objeto?.categoria_subtipo ?? '').trim();
+}
+
 /** Valor del objeto asociado a una clave base (`descripcion`, `color`, …). */
 function valorBase(objeto: Record<string, any> | null | undefined, clave: string): unknown {
   if (!objeto || !clave) return undefined;
@@ -60,7 +65,10 @@ function valorBase(objeto: Record<string, any> | null | undefined, clave: string
 export function depurarCamposBase(
   objeto: Record<string, any> | null | undefined,
 ): string[] {
-  const familia = familiaDeCategoria(nombreCategoria(objeto));
+  const familia = familiaDeCategoria(
+    nombreCategoria(objeto),
+    subtipoCategoria(objeto),
+  );
   const irrelevantes = familia ? CAMPOS_BASE_IRRELEVANTES[familia] ?? [] : [];
   const ocultos: string[] = [];
 
@@ -82,7 +90,10 @@ export function depurarCamposBase(
 export function renderVistaDetalle(
   objeto: Record<string, any> | null | undefined,
 ): { familia: FamiliaObjeto | null; filas: number; camposOcultos: string[] } {
-  const familia = familiaDeCategoria(nombreCategoria(objeto));
+  const familia = familiaDeCategoria(
+    nombreCategoria(objeto),
+    subtipoCategoria(objeto),
+  );
   const filas = renderFichaTecnica(objeto);
 
   const seccion = document.getElementById('fichaTecnicaSection');
