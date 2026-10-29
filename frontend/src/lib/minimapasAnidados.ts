@@ -76,6 +76,15 @@ export interface NodoRuta {
    * cadena cuando el inmueble tiene una sola planta (Modo Planta Única).
    */
   sinTecho?: boolean;
+  /**
+   * ÍCONO DE LA PLANTA ACTIVA (opt-in): reemplaza el emoji genérico del nodo por
+   * la silueta de la casa con techo a dos aguas y el PISO ACTIVO en naranja
+   * (`minimapaCasitaSvg`), de modo que en la barra superior de minimapas se lea
+   * en qué planta está parado el usuario incluso cuando el lienzo del nodo es el
+   * plano proporcional de sus habitaciones (donde el piso NO se distingue).
+   * Sin el flag ninguna pantalla cambia su dibujo (Objetos, Mudanza, etc.).
+   */
+  iconoPlanta?: boolean;
 }
 
 const ICONO: Record<TipoNodoRuta, string> = {
@@ -157,6 +166,39 @@ function lienzoHtml(nodo: NodoRuta, activoId?: string | null): string {
   })}</span>`;
 }
 
+/**
+ * ICONO DE LA PLANTA ACTIVA: silueta de la CASA (techo a dos aguas) con el PISO
+ * ACTIVO en NARANJA. Es el MISMO dibujo del minimapa de la casita
+ * (`minimapaCasitaSvg`) a escala de icono, para que la barra superior de
+ * minimapas indique siempre en qué planta está parado el usuario — incluso
+ * cuando el lienzo del nodo es el plano proporcional de sus habitaciones, que
+ * por sí solo no distingue un piso de otro.
+ *
+ * Se omite cuando el propio lienzo del nodo YA es la casita (fallback sin
+ * geometría persistida): repetir la misma silueta dos veces sería ruido visual.
+ */
+function iconoPlantaHtml(nodo: NodoRuta): string {
+  const total = Math.max(1, Math.floor(Number(nodo.totalPlantas) || 1));
+  const fila = Math.max(1, Math.min(total, Math.floor(Number(nodo.filaActiva) || 1)));
+  const etiqueta = total > 1 ? `Planta ${fila} de ${total}` : 'Planta única';
+  const svg = minimapaCasitaSvg({ filas: total, filaActiva: fila, sinTecho: nodo.sinTecho === true });
+  return `<span class="mini-anidado-ico mini-anidado-ico-planta" role="img" aria-label="${etiqueta}" title="${etiqueta}: ${escapeHtml(nodo.nombre)}">${svg}</span>`;
+}
+
+/**
+ * ICONO DEL NODO: emoji genérico por tipo, salvo que la pantalla pida el ÍCONO
+ * DE PLANTA (`iconoPlanta`) y el lienzo del nodo NO sea ya la casita. En ese
+ * caso el emoji 🏠/🏢 se reemplaza por la silueta real (techo a dos aguas con
+ * el piso activo en naranja), que es la que comunica en qué planta está el
+ * usuario dentro de la barra superior de minimapas.
+ */
+function iconoNodoHtml(nodo: NodoRuta): string {
+  const lienzoEsCasita =
+    !(nodo.sectores && nodo.sectores.length) && (nodo.tipo === 'estok' || nodo.tipo === 'planta');
+  if (nodo.iconoPlanta === true && !lienzoEsCasita) return iconoPlantaHtml(nodo);
+  return `<span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>`;
+}
+
 /** Opciones del render de la red de minimapas. */
 export interface MinimapaRutaOpts {
   /**
@@ -205,7 +247,7 @@ export function renderMinimapasAnidados(
       ? ` data-minimapa-nivel="${nivel}" role="button" tabindex="0" aria-label="Ir al nivel «${escapeHtml(nodo.nombre)}»" title="Ir a «${escapeHtml(nodo.nombre)}»"`
       : ` title="${escapeHtml(nodo.nombre)}"`;
     const bloque = `<div class="mini-anidado${activo ? ' mini-anidado-activo' : ''}"${atributos}>
-      <span class="mini-anidado-ico" aria-hidden="true">${ICONO[nodo.tipo]}</span>
+      ${iconoNodoHtml(nodo)}
       ${lienzoHtml(nodo, opts.activoId)}
       <span class="mini-anidado-nombre">${escapeHtml(nodo.nombre)}</span>
     </div>`;

@@ -270,7 +270,13 @@ export async function cambiarEstokActivo(estokId: string, token?: string): Promi
     throw { error: errorMsg, status: response.status } as AuthError;
   }
 
-  const estokInfo: EstokInfo = await response.json();
+  const estokInfoRespuesta: EstokInfo = await response.json();
+
+  // El tenant que se persiste es SIEMPRE el elegido: si la respuesta llegara
+  // incompleta (sin `id`), se usa el UUID solicitado para que la clave
+  // 'estok_activo_id' —y por lo tanto el header X-Estok-Id de TODA la app— no
+  // quede apuntando al Estok anterior después del cambio.
+  const estokInfo: EstokInfo = { ...estokInfoRespuesta, id: estokInfoRespuesta?.id || estokId };
 
   // Actualizar copia local (clave 'estok_activo_id' → se inyecta como X-Estok-Id)
   setEstokActivoId(estokInfo.id);

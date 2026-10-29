@@ -111,6 +111,43 @@
   font-size: 10px;
   line-height: 1;
 }
+/* ---------------------------------------------------------------------------
+   2.0-bis ICONO DE LA PLANTA ACTIVA (silueta con techo a dos aguas)
+   ---------------------------------------------------------------------------
+   El nodo de la PLANTA FIJADA reemplaza su emoji por la silueta de la casa que
+   emite lib/minimapa.ts → minimapaCasitaSvg: techo a dos aguas + una barra por
+   planta, con el PISO ACTIVO en naranja (#f97316). Lo activa el flag
+   `iconoPlanta` de NodoRuta (lib/minimapasAnidados.ts), que hoy sólo inyecta
+   portalesAlmacenamiento.ts: así el usuario sabe en qué piso está parado aunque
+   el lienzo del nodo sea el plano proporcional de sus habitaciones (donde el
+   piso NO se distingue).
+   El SVG nativo mide ~42×41 unidades: a 26px los trazos de 0.5-0.6 quedan en
+   ~0.3px reales, así que se refuerzan a 1.2 unidades (≈0.75px) — mismo criterio
+   de legibilidad que §2.1 para el resto de las miniaturas de la barra.
+   --------------------------------------------------------------------------- */
+.mini-anidado-ico-planta {
+  display: block;
+  line-height: 0;
+  width: 26px;
+}
+.mini-anidado-ico-planta svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.mini-anidado-ico-planta svg rect,
+.mini-anidado-ico-planta svg path {
+  stroke-width: 1.2;
+}
+/* El icono es una imagen de orientación, no un selector de pisos: hereda el
+   cursor del nodo navegable y no se ilumina al pasar el mouse por cada piso
+   (reglas `.casita-minimapa-svg rect` de styles/mapa-casita.css). */
+.mini-anidado-ico-planta .casita-minimapa-svg rect {
+  cursor: inherit;
+}
+.mini-anidado-ico-planta .casita-minimapa-svg rect:hover {
+  filter: none;
+}
 .mini-anidado-lienzo {
   display: block;
   line-height: 0;

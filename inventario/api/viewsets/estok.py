@@ -60,9 +60,23 @@ class EstokViewSet(viewsets.ModelViewSet):
             return Estok.objects.all()
         return Estok.objects.filter(miembros__usuario=user)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='mis-estoks')
     def mis_estoks(self, request):
-        """Lista los Estoks del usuario autenticado."""
+        """
+        Lista los Estoks del usuario autenticado.
+
+        GET /api/estoks/mis-estoks/ (solo exige estar autenticado, no X-Estok-Id):
+        es la API del SELECTOR DE ESTOKS/TENANTS que consume el frontend
+        (lib/onboarding/api.ts → consultarEstoksDelUsuario) en cada arranque del
+        Dashboard/Almacenamiento.
+
+        `url_path='mis-estoks'` es OBLIGATORIO: sin él DRF publica la ruta con
+        GUION BAJO (`estoks/mis_estoks/`), entonces la URL del contrato
+        (`estoks/mis-estoks/`) caía en el detalle del ViewSet
+        (`estoks/(?P<pk>[^/.]+)/` con pk='mis-estoks'), que no resuelve ninguna
+        Membresía → HTTP 404 en CADA cambio de Estok. El nombre del método
+        Python se conserva con guion bajo (convención PEP 8).
+        """
         estoks = self.get_queryset()
         serializer = EstokSerializer(estoks, many=True, context={'request': request})
         return Response(serializer.data)

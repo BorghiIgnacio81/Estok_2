@@ -135,6 +135,11 @@ function renderMinimapa(): void {
         excluirSinGeometria: true,
       }),
       aspecto,
+      // ÍCONO DE LA PLANTA ACTIVA: la barra superior de minimapas dibuja la
+      // silueta de la casa (techo a dos aguas) con el PISO ACTIVO en naranja.
+      // Su lienzo es el plano proporcional de las habitaciones de esa planta y
+      // por sí solo NO dice en qué piso está el usuario: el icono lo resuelve.
+      iconoPlanta: true,
       // Nivel 0 = plano general de las plantas: tocar la casa vuelve a la raíz.
       nivel: 0,
     });
