@@ -42,6 +42,13 @@ export interface ContenedorMinimapa extends ItemGeometria {
   parent_contenedor?: string | null;
   tipo?: string | null;
   grid_filas?: number | null;
+  /**
+   * Naturaleza física declarada (`es_inmueble`). La consume la taxonomía
+   * compartida (`esCajaMovil`) para reconocer cajas móviles: el selector directo
+   * de caja/contenedor de destino del formulario de objetos lista EXACTAMENTE
+   * esas piezas (nunca arquitectura fija).
+   */
+  es_inmueble?: boolean | null;
 }
 
 export interface EstadoSelector {

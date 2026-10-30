@@ -42,6 +42,8 @@ import {
   habitacionActual,
 } from './selectorMinimapaUbicacionEstado';
 import { render } from './selectorMinimapaNuevoObjetoRender';
+// Caja/contenedor de destino elegido en el desplegable (política en su módulo).
+import { seleccionarCajaDestino } from './selectorMinimapaContenedorDestino';
 import type { ContenedorMinimapa } from './selectorMinimapaUbicacionEstado';
 
 export type { ContenedorMinimapa, EstadoSelector } from './selectorMinimapaUbicacionEstado';
@@ -262,9 +264,24 @@ function manejarClick(evento: Event): void {
  * elástico se repinta al instante con los ambientes de la planta elegida.
  */
 function manejarCambio(evento: Event): void {
-  const select = (evento.target as HTMLElement | null)?.closest<HTMLSelectElement>(
-    'select[data-accion="planta"]',
+  const objetivo = evento.target as HTMLElement | null;
+  // SELECTOR DESPLEGABLE DE CAJA / CONTENEDOR DE DESTINO: elige directamente
+  // una caja del Estok activo (aunque no esté en un espacio físico fijo) sin
+  // recorrer el plano. Escribe los MISMOS inputs ocultos que la navegación.
+  const directo = objetivo?.closest<HTMLSelectElement>(
+    'select[data-accion="contenedor-directo"]',
   );
+  if (directo) {
+    seleccionarCajaDestino(directo.value, {
+      seleccionarContenedor: (cajaId) => seleccionarEspacioMinimapa('contenedor', cajaId),
+      sincronizar: () => {
+        escribirSeleccion();
+        render();
+      },
+    });
+    return;
+  }
+  const select = objetivo?.closest<HTMLSelectElement>('select[data-accion="planta"]');
   if (!select) return;
   const fila = Math.floor(Number(select.value));
   estado.planta = String(Number.isFinite(fila) && fila > 0 ? fila : 1);

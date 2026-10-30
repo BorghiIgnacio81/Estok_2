@@ -48,6 +48,11 @@ Reglas de este módulo (site MLA forzado + filtro de coincidencia):
    resultados»: se avisa en el log, se deja de insistir con la API en las
    variantes restantes (`ErrorSinPermisoML`) y se sigue con el HTML, para que
    el usuario nunca reciba un error de conexión inventado.
+9. ISBN (libros): `extraer_isbn` reconoce un código de 10 o 13 dígitos dentro
+   del nombre y `quitar_isbn` deja la consulta «Título + Autor» sin el número.
+   La decisión de qué búsqueda define el precio (edición exacta por ISBN vs.
+   mercado local por título/autor) vive en `precio_referencia_service`, que es
+   el dueño de la regla de negocio del precio de referencia.
 """
 
 import logging
@@ -217,6 +222,58 @@ def variantes_busqueda(nombre: str) -> List[str]:
         if variante and variante not in variantes:
             variantes.append(variante)
     return variantes
+
+
+# =============================================================================
+# ISBN: DETECCIÓN, LIMPIEZA Y CONSULTA «TÍTULO + AUTOR»
+# =============================================================================
+# Un ISBN (10 o 13 dígitos, con o sin guiones) identifica UNA edición exacta.
+# Buscarlo aislado es muy preciso pero puede devolver una muestra MUY escasa o
+# desproporcionada (la edición de colección de $120.000 frente a la común de
+# $30.000): el precio de referencia se calcula entonces con la búsqueda
+# COMPLEMENTARIA por «Título + Autor» (ver precio_referencia_service).
+ISBN_DIGITOS_MIN = 10
+ISBN_DIGITOS_MAX = 13
+# Secuencia numérica CANDIDATA a ISBN: 10-20 caracteres de dígitos separados por
+# guiones o espacios (formato impreso «978-950-07-1234-5») y terminada en dígito
+# o en la «X» del ISBN-10. Después se normaliza y se recorta al largo canónico:
+# los `\b` del patrón anterior cortaban el código en el último guion y dejaban un
+# ISBN incompleto de 12 dígitos.
+_RE_ISBN = re.compile(r"\d[\d\-\s]{8,18}[\dXx]")
+
+
+def _isbn_normalizado(secuencia: str) -> str:
+    """Sólo dígitos (y la X del ISBN-10), recortado al largo canónico 10 / 13."""
+    digitos = re.sub(r"[^0-9xX]", "", secuencia or "").upper()
+    if len(digitos) >= ISBN_DIGITOS_MAX:
+        return digitos[:ISBN_DIGITOS_MAX]
+    if len(digitos) >= ISBN_DIGITOS_MIN:
+        return digitos[:ISBN_DIGITOS_MIN]
+    return ""
+
+
+def extraer_isbn(texto: str) -> str:
+    """
+    Primer ISBN presente en el texto (sólo dígitos, sin guiones ni espacios).
+
+    Devuelve '' cuando el texto no contiene un código de 10 a 13 dígitos.
+    """
+    for coincidencia in _RE_ISBN.finditer(texto or ""):
+        candidato = _isbn_normalizado(coincidencia.group(0))
+        if candidato:
+            return candidato
+    return ""
+
+
+def quitar_isbn(texto: str) -> str:
+    """
+    Texto de búsqueda SIN el código ISBN: queda el título (y lo que acompañe).
+
+    Se usa para armar la consulta complementaria «Título + Autor» sin el número,
+    que en el full-text de MercadoLibre no aporta coincidencias útiles.
+    """
+    sin_numero = _RE_ISBN.sub(" ", texto or "")
+    return re.sub(r"\s+", " ", sin_numero).strip()
 
 
 # =============================================================================

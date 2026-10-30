@@ -16,6 +16,7 @@ import { esFuenteMercadoLibre, mensajeSinPrecio } from './precioReferencia';
 import { ref } from './dom';
 import { showToast } from './toast';
 import { categoriaSeleccionadaParaBusqueda } from './objetos/categoriaSeleccionada';
+import { isbnYAutorParaBusqueda } from './objetos/datosBusquedaPrecio';
 
 /** Etiquetas legibles del estado de conservación aplicado al ajuste de precio. */
 const ETIQUETAS_ESTADO: Record<string, string> = {
@@ -104,6 +105,11 @@ async function buscarPrecio(): Promise<void> {
     const params = new URLSearchParams({ q: nombre, estado: estadoActual });
     const categoria = categoriaSeleccionadaParaBusqueda();
     if (categoria) params.set('categoria', categoria);
+    // LIBROS: ISBN de la edición + autor habilitan la búsqueda flexible del
+    // backend (ISBN estricto + «Título + Autor» para la mediana del mercado).
+    const { isbn, autor } = isbnYAutorParaBusqueda();
+    if (isbn) params.set('isbn', isbn);
+    if (autor) params.set('autor', autor);
 
     // Endpoint de precio de referencia (scraping + Gemini fallback)
     const response = await fetch(

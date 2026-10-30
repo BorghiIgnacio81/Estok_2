@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 
 from ....models import Objeto, FotoObjeto
+from ....services.mudanza_service import NOMBRES_LIMBO
 from ...paginacion import EstokPaginacion
 from ...serializers import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
@@ -206,19 +207,36 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             qs = qs.filter(categoria_id=categoria)
 
         # ------------------------------------------------------------------
-        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`),
-        # espejo exacto del filtro homónimo de Contenedores: la canasta lista los
-        # OBJETOS que todavía necesitan reubicación.
-        #   1. Objetos SUELTOS: sin hogar espacial (ni contenedor ni habitación).
-        #   2. MÁS los que arrastran `en_transito_interno=True` (guardados dentro
+        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`):
+        # la canasta lista los OBJETOS que todavía necesitan reubicación.
+        #   1. Objetos SUELTOS: sin hogar espacial. La UBICACIÓN es la que manda
+        #      (un objeto con contenedor pero sin habitación sigue estando «por
+        #      ubicar»); antes se exigía además `contenedor` nulo y esos registros
+        #      quedaban invisibles en la barra inferior.
+        #   2. MÁS los que quedaron en la zona VIRTUAL «En Tránsito» (limbo de
+        #      mudanza): el objeto recién registrado en tránsito guarda la FK
+        #      `ubicacion` apuntando a esa habitación de SISTEMA —no a un cuarto
+        #      físico— y sin este canal desaparecía de la canasta, imposible de
+        #      arrastrar a un espacio o a una caja (punto 3 de las pruebas móviles).
+        #      El limbo se reconoce por nombre con la fuente ÚNICA del concepto
+        #      (`NOMBRES_LIMBO`) y se acota al Estok activo para no filtrar el
+        #      limbo de otro inquilinato.
+        #   3. MÁS los que arrastran `en_transito_interno=True` (guardados dentro
         #      de un mueble sin estante fino: reubicación urgente).
-        #   3. MÁS los que viven dentro de un CONTENEDOR o de una HABITACIÓN
+        #   4. MÁS los que viven dentro de un CONTENEDOR o de una HABITACIÓN
         #      declarada «Espacio Único» (bloque monolítico sin casillero fino).
         # ------------------------------------------------------------------
         bandeja = self.request.query_params.get('bandeja')
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
+            limbo = Q(ubicacion__nombre__in=NOMBRES_LIMBO)
+            if estok_id:
+                limbo = Q(
+                    Q(ubicacion__estok_id=estok_id) | Q(ubicacion__estok__isnull=True),
+                    ubicacion__nombre__in=NOMBRES_LIMBO,
+                )
             qs = qs.filter(
-                Q(contenedor__isnull=True, ubicacion__isnull=True)
+                Q(ubicacion__isnull=True)
+                | limbo
                 | Q(en_transito_interno=True)
                 | Q(contenedor__espacio_unico=True)
                 | Q(ubicacion__espacio_unico=True)

@@ -42,6 +42,9 @@ import { guardarDeclaradoMovible, guardarEspacioUnico } from './disyuntoresPersi
 import type { InteriorNodo } from './datosNodosPortales';
 // «Duplicar» (⧉) del espacio/sub-división: copia exacta contigua en el backend.
 import { duplicarDivisionEnNodo } from './duplicarDivisionPortales';
+// «📋 Ver contenido interno»: inventario de objetos guardados en la caja/nodo
+// activo (punto 2 de las pruebas móviles) + acceso a la ficha del contenedor.
+import { contenidoInternoHtml } from './contenidoInternoNodo';
 
 /** Ayuda contextual del editor del cuarto (micro-texto en español). */
 const TIP_DIVISIONES =
@@ -224,7 +227,7 @@ export function pintarEditorDivisiones(
     }),
     nodo,
   );
-  host.innerHTML = cabeceraHtml(nodo) + plano;
+  host.innerHTML = cabeceraHtml(nodo) + plano + contenidoInternoHtml(nodo, interior.objetos);
   host.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {
     void alternarEspacioUnico(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });

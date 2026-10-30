@@ -26,6 +26,9 @@ import { iconoDeHabitacion } from './planoHabitaciones';
 import { esHabitacionDibujable } from './ubicacionesVirtuales';
 // Tarjeta externa «En tránsito»: el limbo se ofrece FUERA del recuadro del mapa.
 import { transitoCardHtml } from './selectorMinimapaTransito';
+// Selector DESPLEGABLE de caja/contenedor de destino: lista TODAS las cajas del
+// Estok activo, incluidas las que no están en un espacio físico fijo.
+import { contenedorDestinoHtml } from './selectorMinimapaContenedorDestino';
 // Fuente ÚNICA de estado, IDs del DOM y derivaciones de los espacios reales.
 import {
   estado,
@@ -358,6 +361,7 @@ function renderLienzo(): void {
   if (texto) {
     texto.innerHTML =
       cabeceraNivelHtml() +
+      contenedorDestinoHtml() +
       (estado.limbo ? transitoCardHtml(estado.enTransito) : '') +
       (cuerpo.aviso ? `<p class="text-sm text-gray-500 py-3 text-center">${cuerpo.aviso}</p>` : '');
   }

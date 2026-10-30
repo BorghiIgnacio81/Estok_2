@@ -42,6 +42,12 @@ export interface ObjetoBandeja {
   nombre: string;
   contenedor: string | null;
   ubicacion: string | null;
+  /**
+   * Nombre de la habitación que lo aloja (limbo «En Tránsito» incluido).
+   * Permite marcar el chip como EN TRÁNSITO: el objeto está registrado pero no
+   * tiene un espacio físico fijo, así que debe poder arrastrarse a uno.
+   */
+  ubicacion_nombre: string | null;
   deleted_at: string | null;
   /** Marca explícita: el Objeto es una caja/contenedor declarado. */
   es_contenedor: boolean;
@@ -104,6 +110,9 @@ function normalizarObjeto(o: Record<string, unknown>): ObjetoBandeja {
     nombre: String(o.nombre || 'Objeto'),
     contenedor: o.contenedor != null ? String(o.contenedor) : null,
     ubicacion: o.ubicacion != null ? String(o.ubicacion) : null,
+    // Lote 28 · LIMBO: el nombre de la habitación viaja normalizado para poder
+    // marcar el chip «En tránsito» (objeto registrado sin espacio físico fijo).
+    ubicacion_nombre: o.ubicacion_nombre != null ? String(o.ubicacion_nombre) : null,
     deleted_at: o.deleted_at != null ? String(o.deleted_at) : null,
     // Clasificación de bulto contenedor: la canasta agrupa estos registros
     // junto a las cajas físicas y nunca entre los «Objetos sueltos».

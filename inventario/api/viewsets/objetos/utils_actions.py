@@ -286,7 +286,7 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         con Gemini. Los resultados se cachean (2h si hay precio, 5min si no).
 
         GET /api/objetos/buscar_precio_referencia/?q=iphone+14&estado=bueno
-            &categoria=MLA1430
+            &categoria=MLA1430&isbn=9789500712345&autor=cortazar
 
         `categoria` es OPCIONAL y acepta el ID oficial de Mercado Libre
         («MLA1430»), el nombre («Ropa» / «👕 Ropa») o el subtipo («ropa»): el
@@ -294,6 +294,11 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         reintenta sin filtro (fallback automático). Sin resultados se responde
         200 con los precios en `null` y un `mensaje` claro: nunca se devuelve un
         error de conexión inventado.
+
+        `isbn` + `autor` son OPCIONALES (libros): habilitan la búsqueda FLEXIBLE
+        del servicio — estricta por ISBN (edición exacta) + complementaria por
+        «Título + Autor» (mercado local) cuando la edición es rara o la muestra
+        es escasa. El ISBN también se detecta dentro de `q` cuando no se envía.
         """
         q = request.query_params.get('q', '').strip()
         if not q:
@@ -316,10 +321,16 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
             or ''
         ).strip()
 
-        # Clave de caché: incluye estado y categoría para que el ajuste y el
-        # conjunto de resultados no se mezclen entre búsquedas distintas.
+        # Atributos técnicos del LIBRO (opcionales): ISBN de la edición y autor.
+        isbn = request.query_params.get('isbn', '').strip()
+        autor = request.query_params.get('autor', '').strip()
+
+        # Clave de caché: incluye estado, categoría, ISBN y autor para que el
+        # ajuste y el conjunto de resultados no se mezclen entre búsquedas
+        # distintas (dos ediciones del mismo título dan precios distintos).
         cache_key = (
-            f"precio_ref_{q.lower().strip()}_{estado}_{categoria.lower().strip()}"
+            f"precio_ref_{q.lower().strip()}_{estado}_"
+            f"{categoria.lower().strip()}_{isbn.lower().strip()}_{autor.lower().strip()}"
         )
         resultado_cache = cache.get(cache_key)
         if resultado_cache is not None:
@@ -340,6 +351,8 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
                 estado=estado,
                 access_token=access_token,
                 categoria=categoria or None,
+                isbn=isbn or None,
+                autor=autor or None,
             )
 
             # Si se encontró precio, guardar en caché 2 horas

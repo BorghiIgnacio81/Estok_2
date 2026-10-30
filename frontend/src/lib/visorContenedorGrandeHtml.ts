@@ -152,7 +152,14 @@ function muebleCajasHtml(m: MuebleVisor, conts: SubContVisor[]): string {
     <span class="mueble-objetos-titulo">Cajas guardadas</span>
     ${guardadas
       .map(
-        (c) => `<span class="mueble-item mueble-item-caja${c.en_transito_interno ? ' mueble-item-transito-fila' : ''}" title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil guardada en este mueble: es CONTENIDO, no una división de su cuadrícula.">
+        // 📋 CONTENIDO INTERNO DE LA CAJA: el chip es un PORTAL. Al tocarlo se
+        // abre el interior de la caja (Nivel N+1) con la lista de objetos que
+        // guarda («Ver contenido interno»), sin salir de Almacenamiento.
+        (c) => `<span class="mueble-item mueble-item-caja${c.en_transito_interno ? ' mueble-item-transito-fila' : ''}"
+        role="button" tabindex="0"
+        data-portal-abrir="${escapeHtml(c.id)}" data-portal-tipo="contenedor"
+        style="cursor:pointer"
+        title="📦 «${escapeHtml(c.nombre)}» es una CAJA móvil guardada en este mueble: tocá para ver su contenido interno (objetos almacenados adentro).">
         <span class="mueble-item-nombre">📦 ${escapeHtml(c.nombre)}</span>
         ${c.en_transito_interno ? etiquetaTransitoHtml() : ''}
       </span>`,

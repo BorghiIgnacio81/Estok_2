@@ -30,6 +30,10 @@
 // REGLA DE RECUPERABILIDAD (una sola autoridad: PostgreSQL). La canasta lista los
 // bultos RECUPERABLES del Estok activo, que son:
 //   · los SUELTOS sin ubicación general (comportamiento base),
+//   · MÁS los que quedaron en la zona VIRTUAL «En Tránsito» (limbo de mudanza),
+//     incluidos los OBJETOS recién registrados en tránsito: sin espacio físico
+//     fijo no pueden quedar fuera de la barra inferior, porque son justamente
+//     los que el operador tiene que arrastrar a un espacio o a una caja,
 //   · MÁS los que, estando ubicados, arrastran `en_transito_interno = True`
 //     (guardados sin estante fino: reubicación urgente),
 //   · MÁS los que viven dentro de una ubicación o de un contenedor «Espacio
@@ -59,25 +63,19 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { escapeHtml, toast } from './mapaJerarquico';
+import { toast } from './mapaJerarquico';
 import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
 import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
-import { esCajaEnLimbo, esCajaMovil, esObjetoContenedor } from './taxonomiaContenedor';
+// Render PURO de los chips y de cada grupo de la cascada (módulo propio para
+// sostener el límite de 400 líneas: incluye el rótulo «· En tránsito»).
+import { grupoHtml } from './bandejaChipHtml';
+import type { ChipBandeja, GrupoChips } from './bandejaChipHtml';
+import { esCajaEnLimbo, esCajaMovil, esHabitacionLimbo, esObjetoContenedor } from './taxonomiaContenedor';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
 const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
 const IMG_OBJETO = ASSET_MUEBLE;
-
-/** Chip draggable de la bandeja (caja móvil u objeto terminal suelto). */
-interface ChipBandeja {
-  id: string;
-  nombre: string;
-  tipo: 'contenedor' | 'objeto';
-  img: string;
-  /** 🔴 Ubicado y pendiente: entró por «reubicación urgente» (tránsito interno o bloque monolítico). */
-  urgente: boolean;
-}
 
 let contenedores: ContenedorBandeja[] = [];
 let objetos: ObjetoBandeja[] = [];
@@ -110,6 +108,15 @@ function esCaja(c: ContenedorBandeja): boolean {
   return esCajaMovil(c);
 }
 
+/**
+ * OBJETO / CAJA-OBJETO en el limbo «En Tránsito»: no tiene espacio físico fijo
+ * (misma lectura que `esCajaEnLimbo` para los contenedores). Se lista con los
+ * SUELTOS porque es justamente un bulto que hay que asignar a un espacio o caja.
+ */
+function esObjetoEnLimbo(o: ObjetoBandeja): boolean {
+  return o.ubicacion != null && esHabitacionLimbo(o.ubicacion_nombre);
+}
+
 function chipContenedor(c: ContenedorBandeja): ChipBandeja {
   // La canasta sólo expone cajas móviles reales: no hay rama de mueble.
   return {
@@ -124,12 +131,17 @@ function chipContenedor(c: ContenedorBandeja): ChipBandeja {
 }
 
 function chipObjeto(o: ObjetoBandeja): ChipBandeja {
+  // OBJETO EN TRÁNSITO: registrado en el limbo «En Tránsito» (sin espacio físico
+  // fijo). Se lista con los SUELTOS: no lleva el 🔴 de «reubicación urgente»
+  // porque el backend ya lo devuelve en `?bandeja=true` y el chip lo rotula.
+  const enTransito = esObjetoEnLimbo(o);
   return {
     id: o.id,
     nombre: o.nombre,
     tipo: 'objeto',
     img: IMG_OBJETO,
-    urgente: o.ubicacion != null,
+    urgente: o.ubicacion != null && !enTransito,
+    enTransito,
   };
 }
 
@@ -140,12 +152,15 @@ function chipObjeto(o: ObjetoBandeja): ChipBandeja {
  * PUT /objetos/{id}. Solo cambia la iconografía y el grupo donde se lista.
  */
 function chipObjetoContenedor(o: ObjetoBandeja): ChipBandeja {
+  const enTransito = esObjetoEnLimbo(o);
   return {
     id: o.id,
     nombre: o.nombre,
     tipo: 'objeto',
     img: IMG_CONTENEDOR_PEQUENO,
-    urgente: o.ubicacion != null,
+    urgente: o.ubicacion != null && !enTransito,
+    // Caja declarada como Objeto que quedó en el limbo «En Tránsito».
+    enTransito,
   };
 }
 
@@ -157,7 +172,7 @@ function chipObjetoContenedor(o: ObjetoBandeja): ChipBandeja {
  * El grupo de MUEBLES MÓVILES fue ELIMINADO por la purga estricta de nodos
  * jerárquicos: la canasta sólo muestra bultos movibles y objetos terminales.
  */
-function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] }[] {
+function gruposCascada(): GrupoChips[] {
   const cajas = contenedores.filter(esCaja);
   // SEPARACIÓN DE BULTOS CONTENEDOR: los Objetos declarados caja/contenedor o
   // categorizados como «Cajas y Contenedores» viajan con las CAJAS (grupos 2 y
@@ -168,7 +183,13 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
     {
       clave: 'objetos-sueltos',
       titulo: '1 · Objetos sueltos',
-      chips: objetosSimples.filter((o) => o.ubicacion == null).map(chipObjeto),
+      // SUELTOS + EN TRÁNSITO: un objeto sin espacio físico fijo (huérfano) o
+      // registrado en el limbo «En Tránsito» se lista acá, para que el libro
+      // recién cargado SIEMPRE aparezca en la barra inferior y pueda arrastrarse
+      // a un espacio o a una caja.
+      chips: objetosSimples
+        .filter((o) => o.ubicacion == null || esObjetoEnLimbo(o))
+        .map(chipObjeto),
     },
     {
       clave: 'cajas-sueltas',
@@ -176,53 +197,31 @@ function gruposCascada(): { clave: string; titulo: string; chips: ChipBandeja[] 
       // 🔓 Lote 28 · RESCATE DEL LIMBO: la caja mudada entre Estoks no tiene
       // habitación física (vive en la zona «En Tránsito»): es un bulto SUELTO
       // recuperable, no una caja «a reubicar» con alerta.
-      // + Los Objetos contenedor sin habitación también son cajas sueltas.
+      // + Los Objetos contenedor sin habitación (o en tránsito) también son cajas
+      //   sueltas.
       chips: cajas.filter(esCajaEnLimbo).map(chipContenedor).concat(
-        objetosContenedor.filter((o) => o.ubicacion == null).map(chipObjetoContenedor),
+        objetosContenedor
+          .filter((o) => o.ubicacion == null || esObjetoEnLimbo(o))
+          .map(chipObjetoContenedor),
       ),
     },
     {
       clave: 'objetos-reubicar',
       titulo: '3 · Objetos a reubicar',
-      chips: objetosSimples.filter((o) => o.ubicacion != null).map(chipObjeto),
+      chips: objetosSimples
+        .filter((o) => o.ubicacion != null && !esObjetoEnLimbo(o))
+        .map(chipObjeto),
     },
     {
       clave: 'cajas-reubicar',
       titulo: '4 · Cajas a reubicar',
       chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor).concat(
-        objetosContenedor.filter((o) => o.ubicacion != null).map(chipObjetoContenedor),
+        objetosContenedor
+          .filter((o) => o.ubicacion != null && !esObjetoEnLimbo(o))
+          .map(chipObjetoContenedor),
       ),
     },
   ];
-}
-
-function chipHtml(chip: ChipBandeja): string {
-  const claseImg =
-    chip.tipo === 'objeto' ? 'bandeja-chip-img bandeja-chip-img-objeto' : 'bandeja-chip-img';
-  const eco = chip.tipo === 'contenedor' ? '📦' : '🧸';
-  // Los elementos ubicados entran a la canasta por REUBICACIÓN URGENTE: el
-  // tooltip lo explica para que el operador sepa POR QUÉ está listado.
-  const pendiente = chip.urgente ? ' 🔴' : '';
-  const ayuda = chip.urgente
-    ? `«${chip.nombre}» está ubicado pero necesita reubicación urgente (en tránsito interno o dentro de un bloque monolítico): arrastralo a un contenedor, a un casillero o al bloque de la izquierda.`
-    : `Arrastrá «${chip.nombre}» hacia un contenedor, un casillero o el bloque de la izquierda para ubicarlo.`;
-  return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" title="${escapeHtml(ayuda)}">
-    <img src="${chip.img}" alt="" class="${claseImg}" draggable="false" />
-    <span class="bandeja-chip-nombre">${eco} ${escapeHtml(chip.nombre)}${pendiente}</span>
-  </span>`;
-}
-
-function grupoHtml(grupo: { clave: string; titulo: string; chips: ChipBandeja[] }): string {
-  const chips = grupo.chips.length
-    ? `<div class="bandeja-grupo-chips">${grupo.chips.map(chipHtml).join('')}</div>`
-    : '<span class="bandeja-grupo-vacio">Sin elementos en este grupo.</span>';
-  return `<section class="bandeja-grupo" data-bandeja-grupo="${grupo.clave}">
-    <div class="bandeja-grupo-cab">
-      <span class="bandeja-grupo-titulo">${grupo.titulo}</span>
-      <span class="bandeja-grupo-num">${grupo.chips.length}</span>
-    </div>
-    ${chips}
-  </section>`;
 }
 
 function render(): void {
