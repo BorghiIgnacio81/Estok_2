@@ -328,7 +328,11 @@
 .pu-grupo .pu-check,
 .pu-grupo .pu-grupo-nombre,
 .pu-grupo .pu-grupo-eliminar,
-.pu-grupo .pu-grupo-resize {
+.pu-grupo .pu-grupo-resize,
+/* ASA DE ARRASTRE del macro-espacio: `.pu-grupo` es `pointer-events: none`, así
+   que el asa ⠿ debe re-habilitar el puntero para poder arrastrar el bloque
+   fusionado como un bulto (lib/arrastreTarjetasLienzo.ts). */
+.pu-grupo .pu-asa-arrastre {
   pointer-events: auto;
 }
 
@@ -578,6 +582,14 @@
   padding: 10px 16px;
   border: none;
   border-radius: 12px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.35);
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
 
 /* --- ASA DE ARRASTRE ENTRE ESPACIOS (modelo híbrido unificado) --------------
    Inyectada por lib/arrastreTarjetasLienzo.ts en cada tarjeta de CONTENEDOR:
@@ -626,15 +638,6 @@
   .pu-asa-arrastre {
     display: none;
   }
-}
-
-  background: #16a34a;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.35);
-  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .lienzo-elastico-nueva:hover {

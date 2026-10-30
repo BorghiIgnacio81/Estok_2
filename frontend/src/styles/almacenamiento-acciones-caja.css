@@ -62,6 +62,17 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 2px dashed #fbbf24;
+  border-radius: 12px;
+  background: #fffbeb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
 
 /* ---------------------------------------------------------------------------
    FICHA DEL CONTENEDOR ACTIVO (Panel Izquierdo · nivel interno de la caja)
@@ -271,18 +282,6 @@
 .pu-conteo-sube {
   transform: scale(1.25);
   background: #fed7aa;
-}
-
-  gap: 6px;
-  margin: 0 0 12px;
-  padding: 12px 14px;
-  border: 2px dashed #fbbf24;
-  border-radius: 12px;
-  background: #fffbeb;
-  font-size: 12px;
-  font-weight: 600;
-  color: #92400e;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .portal-caja-drop-activo {
