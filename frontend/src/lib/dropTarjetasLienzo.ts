@@ -95,6 +95,9 @@ export function conectarDropTarjetasLienzo(opts: OpcionesDropTarjetas): void {
       // ni el drop a ciegas del Panel Izquierdo deben procesar la misma suelta.
       de.preventDefault();
       de.stopPropagation();
+      // UN ESPACIO NUNCA SE CONTIENE A SÍ MISMO: el asa de arrastre de la propia
+      // tarjeta no puede soltarse encima (el backend lo rechazaría con 400).
+      if (carga.id === id) return;
       const nombre = card.dataset.inplaceNombre || 'la caja';
       const conDivisiones = card.dataset.inplaceDivisiones === '1';
       const guardado = esContenedor

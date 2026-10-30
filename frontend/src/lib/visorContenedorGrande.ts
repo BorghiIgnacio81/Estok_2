@@ -24,8 +24,10 @@ import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
 import { esCajaMovil } from './taxonomiaContenedor';
-// Freno de edición de texto: no repintar el interior mientras se escribe un nombre.
-import { hayEdicionTextoActiva } from './edicionTextoActiva';
+// Freno ÚNICO de edición de espacio y viewport congelado (scroll + foco + caret):
+// no repintar el interior mientras se edita un nombre, se arrastra/estira una
+// pieza o hay un PUT diferido en vuelo.
+import { conservarViewport, hayEdicionEspacioActiva } from './edicionEspacioActiva';
 import type { ItemGeometria } from './sectoresMinimapa';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
@@ -182,7 +184,9 @@ async function cargar(): Promise<void> {
   if (muebleActivoId && !piezas.some((m) => m.id === muebleActivoId)) {
     muebleActivoId = null;
   }
-  render();
+  // VIEWPORT CONGELADO: el refresco asíncrono repinta por `innerHTML`; se
+  // conservan scroll, foco y caret para que el editor no "salte" al terminar.
+  conservarViewport(render);
 }
 
 // =============================================================================
@@ -1014,11 +1018,11 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
   });
   window.addEventListener('estok:espacios-cambiados', () => {
     if (!roomActual) return;
-    // FRENO DE EDICIÓN DE TEXTO: `cargar()` repinta el interior por `innerHTML`.
-    // Mientras el operador escribe el nombre de un estante/mueble in-place el
-    // refresco queda EN PAUSA y se reprograma hasta Enter/blur (el `<input>` con
-    // el texto a medio escribir no se destruye y la pantalla no salta).
-    if (hayEdicionTextoActiva()) {
+    // FRENO DE EDICIÓN DE ESPACIO: `cargar()` repinta el interior por `innerHTML`.
+    // Mientras el operador escribe el nombre de un estante/mueble in-place o hay
+    // un gesto/PUT diferido en curso el refresco queda EN PAUSA y se reprograma
+    // hasta que termine (el `<input>` no se destruye y la pantalla no salta).
+    if (hayEdicionEspacioActiva()) {
       window.clearTimeout(temporizadorRefrescoVisor);
       temporizadorRefrescoVisor = window.setTimeout(refrescarContenedorDiferido, 250);
       return;
@@ -1030,9 +1034,9 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
 /** Temporizador único del refresco diferido del Visor Contenedor Grande. */
 let temporizadorRefrescoVisor = 0;
 
-/** `cargar()` reprogramado hasta que el operador termine de escribir un nombre. */
+/** `cargar()` reprogramado hasta que el operador termine de editar el espacio. */
 function refrescarContenedorDiferido(): void {
-  if (hayEdicionTextoActiva()) {
+  if (hayEdicionEspacioActiva()) {
     temporizadorRefrescoVisor = window.setTimeout(refrescarContenedorDiferido, 250);
     return;
   }

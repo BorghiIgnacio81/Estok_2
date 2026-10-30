@@ -27,8 +27,9 @@ import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './m
 // FILTRO CENTRAL DEL PLANO: el limbo «En Tránsito» es un espacio VIRTUAL de
 // sistema: nunca se lista como habitación ni se dibuja en los minimapas.
 import { esEspacioVirtual } from './ubicacionesVirtuales';
-import { hayGestoActivo, hayInteraccionReciente } from './pintorFrame';
-import { preservarScrollAsync } from './scrollPreservado';
+// FRENO ÚNICO DE EDICIÓN DE ESPACIO (gesto + texto + redimensión + PUT diferido)
+// y viewport congelado (scroll + foco + caret) para el re-render del tablero.
+import { conservarViewportAsync, hayEdicionEspacioActiva } from './edicionEspacioActiva';
 // 🧾 OBJETO DEL ESPACIO: el modal de un mueble declarado integra los campos
 // del Objeto espejo y los envía en el MISMO PUT (prefijados `objeto_*`).
 import { prepararSeccionObjeto, recolectarSeccionObjeto } from './objetoEspacioModal';
@@ -249,21 +250,22 @@ export class AlmacenamientoBoard {
   private recargaTimer: number | null = null;
 
   /**
-   * Agenda la recarga completa del tablero sin interrumpir un gesto en curso.
-   * Mientras el dedo está en pantalla (o en la ventana de calma posterior) el
-   * aviso se reprograma; el re-render final se envuelve en `preservarScrollAsync`
-   * para que el viewport quede exactamente donde estaba.
+   * Agenda la recarga completa del tablero sin interrumpir una edición en curso.
+   * Mientras haya un gesto, un nombre a medio escribir o un PUT diferido
+   * pendiente, el aviso se reprograma; el re-render final se envuelve en
+   * `conservarViewportAsync` para que scroll, foco y caret queden exactamente
+   * donde estaban.
    */
   private programarRecarga(): void {
     if (this.recargaTimer !== null) window.clearTimeout(this.recargaTimer);
-    const espera = hayGestoActivo() || hayInteraccionReciente() ? 1000 : 250;
+    const espera = hayEdicionEspacioActiva() ? 1000 : 250;
     this.recargaTimer = window.setTimeout(() => {
       this.recargaTimer = null;
-      if (hayGestoActivo() || hayInteraccionReciente()) {
+      if (hayEdicionEspacioActiva()) {
         this.programarRecarga();
         return;
       }
-      void preservarScrollAsync(() => this.cargar());
+      void conservarViewportAsync(() => this.cargar());
     }, espera);
   }
 

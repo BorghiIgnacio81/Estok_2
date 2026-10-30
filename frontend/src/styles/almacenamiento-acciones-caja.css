@@ -2,10 +2,10 @@
    ACCIONES DEL CONTENEDOR ACTIVO (Panel Derecho de Almacenamiento)
    -----------------------------------------------------------------------------
    Barra que acompaña la inspección interna de una CAJA / CONTENEDOR:
-     · «🚚 Poner Caja En Tránsito» → saca la pieza de su espacio actual y la deja
-       en el limbo «En Tránsito» para reubicarla (lib/mapa/portales/
-       accionesCajaPortales.ts + POST /api/contenedores/{id}/en_transito/).
      · «🔎 Abrir ficha completa» → /contenedores/{id}.
+   Mover la caja ya no tiene botón propio: se arrastra como cualquier bulto
+   hacia otro espacio o hacia «🧺 Elementos por ubicar / A reubicar / En tránsito»
+   (lib/arrastreTarjetasLienzo.ts).
    Se aísla en su propia hoja para no engordar almacenamiento-portales.css
    (disciplina de modularidad: ningún archivo de UI por encima de 400 líneas).
    ============================================================================= */
@@ -39,23 +39,6 @@
 
 .portal-caja-btn:active {
   transform: translateY(1px);
-}
-
-/* Botón DESTACADO: la acción principal del nivel (mover la caja al limbo). */
-.portal-caja-btn-transito {
-  background: #ea580c;
-  border-color: #c2410c;
-  color: #ffffff;
-  box-shadow: 0 1px 2px rgba(154, 52, 18, 0.25);
-}
-
-.portal-caja-btn-transito:hover:not(:disabled) {
-  background: #c2410c;
-}
-
-.portal-caja-btn-transito:disabled {
-  opacity: 0.6;
-  cursor: progress;
 }
 
 /* Acción secundaria: ficha completa del contenedor. */

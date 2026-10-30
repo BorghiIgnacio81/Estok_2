@@ -301,26 +301,38 @@ function enlazar(): void {
 // =============================================================================
 // DRAG & DROP - DROP ZONE DE EXTRACCIÓN VIVA (en TODOS los hosts)
 // Soltar sobre la canasta un elemento que vive en un casillero lo devuelve al
-// estado «sin casillero» (PUT con coordenadas nulas) para volver a ubicarlo.
+// estado «sin casillero» para volver a ubicarlo. Las CAJAS viajan al limbo
+// «En Tránsito» (misma regla que el ex-botón del panel, delegada al backend),
+// de modo que entran SIEMPRE al grupo «Cajas sueltas» y se pueden reubicar
+// arrastrándolas: el modelo híbrido unificado no necesita ninguna acción extra.
 // =============================================================================
 
+/**
+ * Soltar una CAJA sobre la canasta la deja en «En Tránsito» (limbo de mudanza
+ * del Estok activo): POST /contenedores/{id}/en_transito/.
+ *
+ * Se usa el endpoint canónico —no un PUT suelto— porque además de desanclar el
+ * contenedor (`parent_contenedor` y casillero nulos) lo muda a la habitación
+ * virtual «En Tránsito», que es la que la canasta lista como bulto recuperable
+ * incluso cuando la pieza arrastra geometría residual del plano de origen.
+ */
 async function extraerContenedor(id: string): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/`, {
-      method: 'PUT',
+    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/en_transito/`, {
+      method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent_contenedor: null, parent_grid_row: null, parent_grid_col: null }),
+      body: '{}',
     });
     if (res.status === 401) {
       window.location.href = '/login';
       return;
     }
+    const datos = await res.json().catch(() => ({}));
     if (res.ok) {
-      toast('🧺 Elemento extraído a la bandeja de «por ubicar».');
+      toast(datos?.mensaje || '🧺 Caja enviada a «En Tránsito»: reubicala arrastrándola.');
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
     } else {
-      const err = await res.json().catch(() => ({}));
-      toast('❌ ' + (err?.detail || err?.error || 'No se pudo extraer el elemento.'));
+      toast('❌ ' + (datos?.detail || datos?.error || 'No se pudo extraer el elemento.'));
     }
   } catch {
     toast('❌ Error de conexión al extraer el elemento.');

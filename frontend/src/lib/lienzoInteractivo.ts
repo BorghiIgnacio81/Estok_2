@@ -16,6 +16,9 @@
 
 import { blindarTiradorTactil, contenerGestoTactil, crearPintorFrame } from './pintorFrame';
 import { iniciarBloqueoResize } from './bloqueoScrollGesto';
+// Bloqueo EXPLÍCITO de edición de espacio: mientras el nombre/tamaño viaja por
+// la red, ningún panel puede repintarse y destruir el campo enfocado.
+import { iniciarEdicionEspacio } from './edicionEspacioActiva';
 import { reafirmarScroll } from './scrollPreservado';
 
 export interface DimensionVisual {
@@ -43,6 +46,10 @@ export function conectarRenombradoEnVivo(
       ev.stopPropagation();
       const id = etiqueta.dataset.id ?? '';
       if (!id || etiqueta.dataset.editando === '1') return;
+      // EDICIÓN DE ESPACIO ABIERTA: desde el clic hasta Enter/blur/cancelación,
+      // los paneles reprograman sus refrescos (el `<input>` no se destruye y el
+      // scroll queda congelado).
+      const liberarEdicion = iniciarEdicionEspacio();
       etiqueta.dataset.editando = '1';
       const original = etiqueta.textContent?.trim() ?? '';
       const input = document.createElement('input');
@@ -61,6 +68,9 @@ export function conectarRenombradoEnVivo(
       const restaurar = (): void => {
         etiqueta.textContent = original;
         delete etiqueta.dataset.editando;
+        // Libera el bloqueo SIEMPRE (cancelación, Esc o fallo de red): un bloqueo
+        // filtrado dejaría los paneles sin refrescarse nunca.
+        liberarEdicion();
       };
 
       // Anti-re-entrada: «Enter» y el «blur» inmediato posterior son dos gestos
@@ -100,6 +110,8 @@ export function conectarRenombradoEnVivo(
         }
         etiqueta.textContent = nuevo;
         delete etiqueta.dataset.editando;
+        // PUT confirmado: se reabre la puerta de los refrescos pesados.
+        liberarEdicion();
       };
 
       input.addEventListener('keydown', (e) => {
@@ -156,6 +168,8 @@ export function conectarResizeElastico(
       contenerGestoTactil(de);
       // isResizing: el documento queda 100% fijo hasta soltar el tirador.
       const liberarBloqueo = iniciarBloqueoResize();
+      // Edición de espacio ABIERTA hasta que la nueva medida quede persistida.
+      const liberarEdicion = iniciarEdicionEspacio();
       const marco = carta.parentElement ?? carta;
       const marcoRect = marco.getBoundingClientRect();
       const baseAncho = carta.getBoundingClientRect().width || 96;
@@ -200,7 +214,10 @@ export function conectarResizeElastico(
         carta.classList.remove('inplace-redimensionando');
         // isResizing OFF: el documento vuelve a permitir scroll (sin salto).
         liberarBloqueo();
-        if (!arrastrado) return;
+        if (!arrastrado) {
+          liberarEdicion();
+          return;
+        }
         // Flush FINAL: la dimensión definitiva se aplica antes del ÚNICO PUT.
         ultimaDim = calcular(ev);
         const dimFinal = ultimaDim;
@@ -217,6 +234,8 @@ export function conectarResizeElastico(
             });
           } finally {
             reafirmarScroll(scrollX, scrollY);
+            // PUT resuelto (éxito o fallo): se reabre la puerta de los refrescos.
+            liberarEdicion();
           }
         })();
       };

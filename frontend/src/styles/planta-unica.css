@@ -578,6 +578,56 @@
   padding: 10px 16px;
   border: none;
   border-radius: 12px;
+
+/* --- ASA DE ARRASTRE ENTRE ESPACIOS (modelo híbrido unificado) --------------
+   Inyectada por lib/arrastreTarjetasLienzo.ts en cada tarjeta de CONTENEDOR:
+   arrastra la caja como cualquier bulto hacia otro espacio o hacia la bandeja
+   «🧺 Elementos por ubicar / A reubicar / En tránsito». Se ubica arriba del
+   tirador de estiramiento para no taparlo ni competir con el 🗑️/⧉. */
+.pu-asa-arrastre {
+  position: absolute;
+  right: 2px;
+  bottom: 20px;
+  z-index: 6;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 6px;
+  color: #b45309;
+  background: rgba(255, 251, 235, 0.9);
+  cursor: grab;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  opacity: 0.5;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+
+.pu-asa-arrastre:hover {
+  opacity: 1;
+  background: #fef3c7;
+}
+
+.pu-asa-arrastre:active {
+  cursor: grabbing;
+}
+
+/* Tarjeta EN VUELO: viaja como origen del arrastre nativo (HTML5 DnD). */
+.pu-celda.pu-celda-arrastrando,
+.pu-grupo.pu-celda-arrastrando {
+  opacity: 0.45;
+  outline: 2px dashed #f97316;
+  outline-offset: -2px;
+}
+
+/* Pantallas SIN ratón (táctil puro): el Drag & Drop nativo no existe en iOS /
+   Android, así que el asa no se ofrece y el gesto sigue siendo el geométrico. */
+@media (hover: none) and (pointer: coarse) {
+  .pu-asa-arrastre {
+    display: none;
+  }
+}
+
   background: #16a34a;
   color: #ffffff;
   font-size: 13px;

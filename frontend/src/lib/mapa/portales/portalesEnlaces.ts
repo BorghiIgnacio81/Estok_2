@@ -16,7 +16,9 @@
 import type { UbicacionPlano } from '../../mapaJerarquico';
 import type { ItemGeometria } from '../../sectoresMinimapa';
 import { modoLienzoActual } from '../../modoLienzo';
-import { hayGestoActivo } from '../../pintorFrame';
+// FRENO ÚNICO DE EDICIÓN: gesto, texto, redimensión, PUT diferido y calma
+// post-gesto. Mientras devuelva `true`, ningún panel se repinta.
+import { hayEdicionEspacioActiva } from '../../edicionEspacioActiva';
 import { invalidarCachePortales } from './datosNodosPortales';
 import { el, slotDer, slotIzq } from './domPortales';
 import {
@@ -334,11 +336,12 @@ let temporizadorRefresco = 0;
 function alCambiarEspacios(): void {
   if (estaRefrescando()) return;
   invalidarCachePortales();
-  // ANTI-SALTO DE PANTALLA: un latido que llega con el dedo/ratón apretado (o
-  // justo al soltar) NO debe repintar los dos paneles por innerHTML a mitad del
-  // gesto. Se reprograma en 200 ms hasta que el editor quede quieto; recién ahí
-  // se hace el refresco pesado (que además conserva el scroll).
-  if (hayGestoActivo()) {
+  // ANTI-SALTO DE PANTALLA: un latido que llega con el dedo/ratón apretado, con
+  // un nombre a medio escribir, con el tirador en la mano o con el PUT de la
+  // geometría todavía en vuelo NO debe repintar los dos paneles por innerHTML.
+  // Se reprograma en 200 ms hasta que el editor quede quieto; recién ahí se hace
+  // el refresco pesado (que además conserva scroll, foco y caret).
+  if (hayEdicionEspacioActiva()) {
     window.clearTimeout(temporizadorRefresco);
     temporizadorRefresco = window.setTimeout(alCambiarEspacios, 200);
     return;

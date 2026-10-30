@@ -14,7 +14,8 @@
 // =============================================================================
 
 import { aplicarModo } from '../../modoLienzo';
-import { preservarScrollAsync } from '../../scrollPreservado';
+// VIEWPORT CONGELADO: el re-render del nivel conserva scroll, foco y caret.
+import { conservarViewportAsync } from '../../edicionEspacioActiva';
 import { renderMinimapasAnidados } from '../../minimapasAnidados';
 import type { NodoRuta } from '../../minimapasAnidados';
 import { sectoresDeItems } from '../../sectoresMinimapa';
@@ -49,8 +50,9 @@ import {
   grillaObjetosDirectosHtml,
   initGrillaObjetosDirectos,
 } from './grillaObjetosDirectos';
-// Barra DESTACADA del contenedor activo: «🚚 Poner Caja En Tránsito» (limbo de
-// mudanza) + «🔎 Abrir ficha completa» del inventario interno.
+// Barra DESTACADA del contenedor activo: «🔎 Abrir ficha completa» del
+// inventario interno, con la zona de suelta que recibe los objetos arrastrados
+// desde la bandeja del mismo panel. Mover la caja ya no tiene botón propio.
 import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
 // FICHA DEL CONTENEDOR ACTIVO en el Panel Izquierdo (nivel interno de la caja):
 // datos reales + objetos almacenados, arriba del ancla del nivel superior.
@@ -404,7 +406,7 @@ function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
   const disyuntor = nodo.espacioUnico ? bloqueMonoliticoHtml(nodo, enTransito) : '';
   host.innerHTML =
     disyuntor + barraAccionesCajaHtml(nodo) + grillaObjetosDirectosHtml(nodo, interior.objetos);
-  // Barra del contenedor activo («🚚 Poner Caja En Tránsito» / ficha completa).
+  // Barra del contenedor activo («🔎 Abrir ficha completa») + zona de suelta.
   conectarAccionesCaja(host, nodo);
   initGrillaObjetosDirectos({
     contenedor: host,
@@ -424,9 +426,10 @@ export async function refrescarNivel(): Promise<void> {
   if (refrescando) return;
   // VIEWPORT CONGELADO: `refrescarNivel` se dispara con la respuesta de la API
   // (latido `estok:espacios-cambiados`) y repinta ambos paneles por innerHTML.
-  // Se captura el scroll al entrar y se reafirma al terminar, para que el toast
-  // de éxito y el re-render no muevan la página ni un píxel.
-  await preservarScrollAsync(refrescarNivelInterno);
+  // Se capturan scroll, foco y caret al entrar y se reponen al terminar, para
+  // que el toast de éxito y el re-render no muevan la página ni un píxel (ni
+  // expulsen al operador del campo que está editando).
+  await conservarViewportAsync(refrescarNivelInterno);
 }
 
 async function refrescarNivelInterno(): Promise<void> {

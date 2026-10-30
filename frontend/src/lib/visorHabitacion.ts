@@ -37,10 +37,11 @@ import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
 import type { ItemElastico } from './lienzoElastico';
 import { renderLienzoElastico } from './mapaPlantaUnica';
-// Fix de jitter visual: cada refresco asíncrono del visor conserva el scroll.
-import { preservarScroll } from './scrollPreservado';
-// Freno de edición de texto: no repintar el lienzo mientras se escribe un nombre.
-import { hayEdicionTextoActiva } from './edicionTextoActiva';
+// Viewport CONGELADO: cada refresco del visor conserva scroll, foco y caret.
+import { conservarViewport } from './edicionEspacioActiva';
+// Freno ÚNICO de edición de espacio: no repintar el lienzo mientras se escribe
+// un nombre, se arrastra/estira una pieza o hay un PUT diferido en vuelo.
+import { hayEdicionEspacioActiva } from './edicionEspacioActiva';
 import {
   ETIQUETAS_PARED,
   cuerpoConParedesHtml,
@@ -325,11 +326,12 @@ function renderVisor(): void {
 /** Temporizador único del refresco diferido del visor. */
 let temporizadorRefrescoVisor = 0;
 
-/** Refresco inmediato del visor (comportamiento normal, sin edición de texto). */
+/** Refresco inmediato del visor (comportamiento normal, sin edición en curso). */
 function refrescarVisor(): void {
   if (!roomActual) return;
   void cargarContenido().then(() => {
-    preservarScroll(() => {
+    // `conservarViewport` repone scroll, foco y caret tras el `innerHTML`.
+    conservarViewport(() => {
       renderVisor();
       enlazarVisor();
       aplicarMuebleActivo();
@@ -337,11 +339,11 @@ function refrescarVisor(): void {
   });
 }
 
-/** Refresco EN PAUSA hasta que el operador termine de escribir un nombre. */
+/** Refresco EN PAUSA hasta que el operador termine de editar el espacio. */
 function refrescarVisorDiferido(): void {
   window.clearTimeout(temporizadorRefrescoVisor);
   temporizadorRefrescoVisor = window.setTimeout(() => {
-    if (hayEdicionTextoActiva()) {
+    if (hayEdicionEspacioActiva()) {
       refrescarVisorDiferido();
       return;
     }
@@ -880,9 +882,10 @@ export function initVisor(): void {
       void cargarDivisionesIniciales();
       return;
     }
-    // FRENO DE EDICIÓN DE TEXTO: repintar el lienzo por `innerHTML` destruiría el
-    // `<input>` con el nombre a medio escribir. Se difiere hasta Enter/blur.
-    if (hayEdicionTextoActiva()) refrescarVisorDiferido();
+    // FRENO DE EDICIÓN DE ESPACIO: repintar el lienzo por `innerHTML` destruiría
+    // el `<input>` con el nombre a medio escribir y descartaría el gesto en curso.
+    // Se difiere hasta que el operador termine (Enter/blur o puntero suelto).
+    if (hayEdicionEspacioActiva()) refrescarVisorDiferido();
     else refrescarVisor();
   });
   // Estado inicial: planos proporcionales de "Planta Alta" y "Planta Baja" en

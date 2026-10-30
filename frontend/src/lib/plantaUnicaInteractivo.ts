@@ -28,6 +28,10 @@ import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 // La TARJETA del lienzo como DESTINO del arrastre: soltar un objeto sobre una
 // caja lo guarda adentro (contenedor_id) y sube su contador en el acto.
 import { conectarDropTarjetasLienzo } from './dropTarjetasLienzo';
+// La TARJETA del lienzo como ORIGEN del arrastre (modelo híbrido unificado): un
+// contenedor se arrastra a otro espacio o a la bandeja de reubicación igual que
+// un objeto, sin botón «Poner en tránsito».
+import { conectarArrastreTarjetasLienzo } from './arrastreTarjetasLienzo';
 
 export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -64,6 +68,10 @@ export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   // el adaptador del lienzo ('/contenedores' en interiores y habitaciones,
   // '/ubicaciones' en el plano de planta).
   conectarDropTarjetasLienzo({ scope: opts.scope, recurso: adaptadorDe(opts).recurso });
+  // ORIGEN DEL ARRASTRE (modelo híbrido unificado): en los lienzos de
+  // CONTENEDORES cada tarjeta recibe su asa ⠿ y se puede soltar en otro espacio
+  // o en la bandeja de reubicación, exactamente como un objeto.
+  conectarArrastreTarjetasLienzo({ scope: opts.scope, recurso: adaptadorDe(opts).recurso });
 }
 
 // =============================================================================

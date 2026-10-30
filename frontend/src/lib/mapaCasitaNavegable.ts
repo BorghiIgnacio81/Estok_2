@@ -28,8 +28,9 @@ import { adaptadorUbicaciones } from './lienzoElastico';
 import { modoLienzoActual } from './modoLienzo';
 // Fix de jitter visual: los refrescos asíncronos conservan la posición de scroll.
 import { preservarScroll } from './scrollPreservado';
-// Anti-salto: un refresco pesado NUNCA cae con un gesto del editor en curso.
-import { hayGestoActivo } from './pintorFrame';
+// Anti-salto: un refresco pesado NUNCA cae con una edición de espacio en curso
+// (gesto, nombre a medio escribir o PUT diferido todavía en vuelo).
+import { hayEdicionEspacioActiva } from './edicionEspacioActiva';
 import { estado } from './mapaCasita/estadoCasita';
 // Host DOM EXCLUSIVO del Panel Derecho (fuente única de los ids de panel).
 import { HOSTS } from './mapa/portales/panelesPortales';
@@ -303,11 +304,12 @@ export function initMapaCasita(opts: {
 
   // Refresco en vivo ante mutaciones externas (edición in-place del lienzo,
   // movimientos/eliminaciones): se recarga SIN re-enlazar controles fijos.
-  // ANTI-SALTO: si el latido llega con un arrastre/estirado en curso se reprograma
-  // 250 ms hasta que el operador suelte; reemplazar el DOM del lienzo debajo del
-  // puntero es justamente el salto visual que se quiere eliminar.
+  // ANTI-SALTO: si el latido llega con un arrastre/estirado en curso (o con un
+  // nombre a medio escribir o un PUT diferido pendiente) se reprograma 250 ms
+  // hasta que el operador suelte; reemplazar el DOM del lienzo debajo del puntero
+  // es justamente el salto visual que se quiere eliminar.
   window.addEventListener('estok:espacios-cambiados', () => {
-    if (hayGestoActivo()) {
+    if (hayEdicionEspacioActiva()) {
       window.clearTimeout(temporizadorRefrescoCasita);
       temporizadorRefrescoCasita = window.setTimeout(() => void cargarYRefrescar(), 250);
       return;

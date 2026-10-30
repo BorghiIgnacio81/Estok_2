@@ -45,9 +45,9 @@ import { duplicarDivisionEnNodo } from './duplicarDivisionPortales';
 // «📋 Ver contenido interno»: inventario de objetos guardados en la caja/nodo
 // activo (punto 2 de las pruebas móviles) + acceso a la ficha del contenedor.
 import { contenidoInternoHtml } from './contenidoInternoNodo';
-// Barra DESTACADA del contenedor activo: «🚚 Poner Caja En Tránsito» (limbo de
-// mudanza) + «🔎 Abrir ficha completa» del inventario interno, con la zona de
-// suelta que recibe los objetos arrastrados desde la bandeja del mismo panel.
+// Barra DESTACADA del contenedor activo: «🔎 Abrir ficha completa» del
+// inventario interno + la zona de suelta que recibe los objetos arrastrados
+// desde la bandeja del mismo panel.
 import {
   barraAccionesCajaHtml,
   conectarAccionesCaja,
@@ -262,7 +262,7 @@ export function pintarEditorDivisiones(
   // Propiedades del Objeto espejo: se muestran al tildar el disyuntor y se
   // precargan si la pieza ya estaba declarada (PUT/GET parciales al Contenedor).
   conectarPropiedadesObjetoEspacio(host, nodo);
-  // «🚚 Poner Caja En Tránsito» / «🔎 Abrir ficha completa» del contenedor activo.
+  // «🔎 Abrir ficha completa» del contenedor activo + zona de suelta.
   conectarAccionesCaja(host, nodo);
   conectarLienzoElastico({
     scope: host,

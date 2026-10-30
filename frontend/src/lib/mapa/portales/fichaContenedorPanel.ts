@@ -8,8 +8,8 @@
 //     material, descripción y contadores reales de PostgreSQL),
 //   · la LISTA DE OBJETOS almacenados dentro (con su casillero F·C y el aviso
 //     «🔴 pendiente de estante» cuando están en tránsito interno),
-//   · la barra de acciones del contenedor («🚚 Poner Caja En Tránsito» y
-//     «🔎 Abrir ficha completa»), reutilizada del módulo de acciones.
+//   · la barra de acciones del contenedor («🔎 Abrir ficha completa»),
+//     reutilizada del módulo de acciones.
 //
 // El mapa del nivel superior (LEY 1) sigue debajo: la ficha se inserta ARRIBA del
 // ancla, así el operador gana el interior de la caja sin perder la navegación.
