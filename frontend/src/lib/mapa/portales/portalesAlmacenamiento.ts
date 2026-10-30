@@ -49,6 +49,9 @@ import {
   grillaObjetosDirectosHtml,
   initGrillaObjetosDirectos,
 } from './grillaObjetosDirectos';
+// Barra del contenedor activo: «🚚 Poner Caja En Tránsito» (limbo de mudanza)
+// + «🔎 Abrir ficha completa» con todo el inventario interno.
+import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
 import {
   aspectoDelLienzo,
   el,
@@ -235,6 +238,25 @@ export function transicionar(): void {
   // bloque monolítico y de su grilla directa de objetos.
   const hostCanastaCuadrante = el('canastaCuadranteDerecho');
   if (hostCanastaCuadrante) slotDer()?.appendChild(hostCanastaCuadrante);
+  // CANASTA DEL PANEL DERECHO PARA LA CAJA / CONTENEDOR ACTIVO (inspección
+  // interna): al abrir «Caja 01» el operador ve, debajo de su ficha y de la
+  // lista de objetos guardados, la bandeja de objetos DISPONIBLES para
+  // arrastrar adentro. Es el MISMO módulo de canasta montado sobre un host
+  // estático (`#bandejaCajaContenido`): no hay estado ni lógica duplicada.
+  // En «Espacio Único» la canasta ya vive en el cuadrante derecho, así que este
+  // host se apaga para que nunca haya dos canastas en pantalla.
+  const nodoDelNivel = nodoActual();
+  const mostrarCanastaCaja = Boolean(
+    nodoDelNivel && nodoDelNivel.tipo === 'contenedor' && !nodoDelNivel.espacioUnico,
+  );
+  const hostBandejaCaja = el('bandejaCajaHost');
+  if (hostBandejaCaja) {
+    hostBandejaCaja.classList.toggle('hidden', !mostrarCanastaCaja);
+    // ORDEN DEL CUADRANTE: `moverPanel` reinserta el host activo con
+    // `appendChild`, así que la canasta de la caja se re-ancla al FINAL para
+    // quedar SIEMPRE debajo de su ficha y del editor (nunca arriba).
+    if (mostrarCanastaCaja) slotDer()?.appendChild(hostBandejaCaja);
+  }
 }
 
 /** Habilita/oculta los botones de navegación según la profundidad activa. */
@@ -371,7 +393,10 @@ function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
   if (!host) return;
   const enTransito = interior.objetos.filter((o) => o.en_transito_interno).length;
   const disyuntor = nodo.espacioUnico ? bloqueMonoliticoHtml(nodo, enTransito) : '';
-  host.innerHTML = disyuntor + grillaObjetosDirectosHtml(nodo, interior.objetos);
+  host.innerHTML =
+    disyuntor + barraAccionesCajaHtml(nodo) + grillaObjetosDirectosHtml(nodo, interior.objetos);
+  // Barra del contenedor activo («🚚 Poner Caja En Tránsito» / ficha completa).
+  conectarAccionesCaja(host, nodo);
   initGrillaObjetosDirectos({
     contenedor: host,
     nodo,

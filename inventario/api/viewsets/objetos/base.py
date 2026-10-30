@@ -11,6 +11,12 @@ from django.db.models import Q
 
 from ....models import Objeto, FotoObjeto
 from ....services.mudanza_service import NOMBRES_LIMBO
+# Objetos que quedaron apuntando a una CAJA de OTRO Estok tras la mudanza: la
+# canasta los trata como huérfanos recuperables (services/referencias_huerfanas).
+from ....services.referencias_huerfanas import (
+    q_contenedor_ajeno_al_estok,
+    q_objetos_en_contenedor_limbo,
+)
 from ...paginacion import EstokPaginacion
 from ...serializers import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
@@ -240,6 +246,17 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
                 | Q(en_transito_interno=True)
                 | Q(contenedor__espacio_unico=True)
                 | Q(ubicacion__espacio_unico=True)
+                # 5. MÁS los HUÉRFANOS POR MUDANZA: el objeto apunta a una caja que
+                #    pertenece al Estok de ORIGEN (o a un inquilinato ajeno), así que
+                #    la pieza es inalcanzable desde el árbol activo y el bulto quedaba
+                #    invisible. Sin este canal los libros mudados no podían volver a
+                #    asignarse a la «Caja 01» nueva (services/referencias_huerfanas.py).
+                | q_contenedor_ajeno_al_estok(estok_id)
+                # 6. MÁS los que viven dentro de una CAJA EN EL LIMBO: la caja es
+                #    válida pero el limbo es un espacio VIRTUAL que el plano nunca
+                #    dibuja, así que su contenido quedaba inalcanzable hasta
+                #    reubicarla (misma recuperabilidad que el RESCATE de cajas).
+                | q_objetos_en_contenedor_limbo(estok_id)
             )
 
         decision = self.request.query_params.get('decision')

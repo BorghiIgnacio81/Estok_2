@@ -197,6 +197,45 @@ async function cargarUsuarios(duenoId?: string, beneficiarioId?: string): Promis
 // GUARDADO (PUT)
 // =============================================================================
 
+/** ID normalizado: `null` / `''` / `undefined` → `null`. */
+function idONull(valor: unknown): string | null {
+  return valor == null || valor === '' ? null : String(valor);
+}
+
+/**
+ * COHERENCIA DEL `contenedor_id` (punto 3 de las pruebas).
+ *
+ * El PUT del formulario viaja con `ubicacion` y `contenedor` tomados del selector
+ * de minimapas. El backend acepta el PUT parcial, así que una clave descartada
+ * por validación no rompe la request: responde 200 con la caja SIN asignar y la
+ * ficha del contenedor sigue mostrando «0 objetos».
+ *
+ * Acá se verifica la respuesta y, si el `contenedor` no quedó como se envió, se
+ * REAFIRMA con un PUT mínimo. Devuelve `true` cuando la base quedó con la caja
+ * elegida (o con la desasignación pedida).
+ */
+async function asegurarContenedorPersistido(
+  guardado: Record<string, any>,
+  enviado: { ubicacion: string | null; contenedor: string | null },
+): Promise<boolean> {
+  if (idONull(guardado?.contenedor) === enviado.contenedor) return true;
+  try {
+    const res = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({
+        ubicacion: enviado.ubicacion,
+        contenedor: enviado.contenedor,
+      }),
+    });
+    if (!res.ok) return false;
+    const reintento = await res.json().catch(() => ({}));
+    return idONull(reintento?.contenedor) === enviado.contenedor;
+  } catch {
+    return false;
+  }
+}
+
 /** Submit del formulario: PUT a la API con la ubicación vigente del mapa. */
 async function enviarFormulario(evento: Event): Promise<void> {
   evento.preventDefault();
@@ -236,7 +275,26 @@ async function enviarFormulario(evento: Event): Promise<void> {
     });
 
     if (response.ok) {
-      showToast('✅ Objeto actualizado correctamente', 'success');
+      const guardado = (await response.json().catch(() => ({}))) as Record<string, any>;
+      // El `contenedor_id` REAL de la base manda: si la respuesta no lo trae como
+      // se envió, se reafirma antes de salir (ver asegurarContenedorPersistido).
+      const contenedorOk = await asegurarContenedorPersistido(guardado, {
+        ubicacion: seleccionUbicacion.ubicacion,
+        contenedor: seleccionUbicacion.contenedor,
+      });
+      // LATIDO GLOBAL: la canasta, las tarjetas de caja y los visores de
+      // Almacenamiento re-consultan PostgreSQL al instante, así el contador de la
+      // caja deja de mostrar «0 objetos» sin esperar un F5.
+      window.dispatchEvent(
+        new CustomEvent('estok:objetos-cambiados', { detail: guardado }),
+      );
+      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      showToast(
+        contenedorOk
+          ? '✅ Objeto actualizado correctamente'
+          : '⚠️ El objeto se guardó, pero la caja no quedó asignada. Volvé a elegirla desde «Contenedor / Caja».',
+        contenedorOk ? 'success' : 'error',
+      );
       setTimeout(() => { window.location.href = `/objetos/${objetoId}`; }, 1000);
       return;
     }

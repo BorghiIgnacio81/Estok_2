@@ -322,6 +322,8 @@ export function nodoDesdeContenedor(
     nombre: c.nombre,
     espacioUnico: c.espacio_unico,
     declaradoMovible: c.declarado_movible,
+    // Naturaleza física: un mueble inmueble fijo NO puede irse al limbo.
+    esInmueble: c.es_inmueble,
     conDivisiones: c.subcontenedores_count > 0,
     filas: c.grid_filas,
     columnasPorFila: columnasPorFilaDeContenedor(c),

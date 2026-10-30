@@ -36,6 +36,9 @@ import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
+// Acciones del contenedor activo («🚚 Poner Caja En Tránsito» + ficha) y canasta
+// del Panel Derecho cuando se inspecciona una caja.
+import '../styles/almacenamiento-acciones-caja.css';
 // Motor de portales recursivos: física dual, bloques monolíticos, grilla directa
 // de objetos y responsive híbrido dual de la canasta (Web flotante ⇄ Móvil abajo).
 import '../styles/portales-recursivos.css';
@@ -203,6 +206,21 @@ import {
             <div id="listaPlantasPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaContenedoresPanel" class="hidden mt-1 min-w-0"></div>
+            <!-- CANASTA DEL CONTENEDOR ACTIVO (inspección interna de una caja):
+                 al abrir «Caja 01» el Panel Derecho muestra su ficha, la lista de
+                 objetos guardados y, acá abajo, la bandeja de objetos disponibles
+                 para arrastrar adentro. Es el MISMO módulo «Elementos por ubicar»
+                 (lib/bandejaSinUbicar.ts) montado en un host estático más: el
+                 motor de portales lo enciende sólo cuando el nodo activo es un
+                 contenedor NO monolítico y lo apaga en «Espacio Único» (donde la
+                 canasta ya vive en el cuadrante derecho). -->
+            <div id="bandejaCajaHost" class="hidden mt-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2"
+                 title="Objetos y cajas que todavía no tienen lugar: arrastralos sobre el interior de la caja para guardarlos adentro">
+                🧺 Objetos disponibles para arrastrar dentro de esta caja
+              </p>
+              <div id="bandejaCajaContenido" class="bandeja-contenido"></div>
+            </div>
             <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>
 
             <!-- Canasta del cuadrante derecho («Espacio Único») · Lote 31. -->

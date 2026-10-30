@@ -9,14 +9,16 @@ compone con `ContenedorViewSet` en `contenedores.py`.
 
 import logging
 
+from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from ....models import Contenedor, Objeto
+from ....models import Contenedor, Estok, Objeto
 from ...serializers import ObjetoListSerializer, PropiedadesObjetoEspacioSerializer
 from ....services.qr_service import QRService
+from ....services.mudanza_service import asegurar_ubicacion_limbo
 from ....services.arbol_inventario_service import construir_arbol_estok
 from ....services.objeto_espacio import (
     datos_propiedades_objeto,
@@ -28,6 +30,27 @@ from ..fusion_espacial import editar_grupo, fusionar_espacios, separar_espacios
 from .objeto_espacio_put import aplicar_propiedades_objeto
 
 logger = logging.getLogger(__name__)
+
+
+def _propagar_ubicacion_limbo(contenedor, limbo, vistos=None):
+    """
+    Propaga la habitación limbo a TODO el subárbol interno de la pieza.
+
+    Un contenedor que viaja al limbo arrastra su contenido: las sub-cajas
+    heredan la ubicación del padre (misma regla que `reparar_caja_descalzada` y
+    la mudanza inter-Estok). Las que todavía declaran el cuarto de origen se
+    re-anclan al limbo para que el árbol quede coherente y ninguna quede
+    inalcanzable desde el plano. `vistos` corta cualquier ciclo jerárquico.
+    """
+    vistos = vistos if vistos is not None else set()
+    if contenedor.id in vistos:
+        return
+    vistos.add(contenedor.id)
+    for sub in Contenedor.objects.filter(parent_contenedor=contenedor):
+        if sub.ubicacion_id != limbo.id:
+            sub.ubicacion = limbo
+            sub.save(update_fields=['ubicacion', 'updated_at'])
+        _propagar_ubicacion_limbo(sub, limbo, vistos)
 
 
 class AccionesContenedorMixin:
@@ -156,6 +179,81 @@ class AccionesContenedorMixin:
         `objeto_espacio_put.aplicar_propiedades_objeto`.
         """
         return aplicar_propiedades_objeto(contenedor, self.request)
+
+    # =====================================================================
+    # «🚚 PONER CAJA EN TRÁNSITO» (limbo de mudanza del Estok activo)
+    # ---------------------------------------------------------------------
+    # Saca la pieza (caja / mueble móvil) de su espacio actual y la deja como
+    # RAÍZ SUELTA dentro de la habitación limbo «En Tránsito» del inquilinato:
+    #   · `parent_contenedor = None` y casillero liberado (deja de colgar de un
+    #     mueble o de un estante del plano),
+    #   · `ubicacion` = limbo (Contenedor.ubicacion es NOT NULL, por eso el
+    #     operador NUNCA puede quedar con una caja sin espacio: el limbo es el
+    #     espacio virtual de recuperación que la canasta lista como «suelta»),
+    #   · todo su contenido interno viaja intacto (se propaga la ubicación al
+    #     subárbol, igual que la mudanza).
+    # Desde ahí el operador la reubica arrastrándola desde «🧺 Elementos por
+    # ubicar» al plano nuevo. Idempotente: si ya está en el limbo y suelta,
+    # devuelve `ya_en_transito = True` sin escribir nada.
+    # =====================================================================
+
+    @action(detail=True, methods=['post'], url_path='en_transito')
+    def en_transito(self, request, pk=None):
+        """POST /api/contenedores/{id}/en_transito/ → caja al limbo de mudanza."""
+        contenedor = self.get_object()
+
+        if contenedor.es_inmueble:
+            return Response(
+                {'detail': 'Este mueble es inmueble fijo del espacio: no puede '
+                           'ponerse en tránsito.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        estok = contenedor.ubicacion.estok if contenedor.ubicacion_id else None
+        if estok is None:
+            estok_id = (
+                request.headers.get('X-Estok-Id')
+                or request.query_params.get('estok_id')
+            )
+            estok = Estok.objects.filter(pk=estok_id).first() if estok_id else None
+        if estok is None:
+            return Response(
+                {'detail': 'No se pudo resolver el Estok activo de la pieza.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        limbo = asegurar_ubicacion_limbo(estok)
+        ya_en_limbo = (
+            contenedor.ubicacion_id == limbo.id
+            and contenedor.parent_contenedor_id is None
+            and contenedor.parent_grid_row is None
+            and contenedor.parent_grid_col is None
+        )
+        if not ya_en_limbo:
+            with transaction.atomic():
+                contenedor.ubicacion = limbo
+                contenedor.parent_contenedor = None
+                contenedor.parent_grid_row = None
+                contenedor.parent_grid_col = None
+                contenedor.save(update_fields=[
+                    'ubicacion', 'parent_contenedor', 'parent_grid_row',
+                    'parent_grid_col', 'updated_at',
+                ])
+                _propagar_ubicacion_limbo(contenedor, limbo)
+
+        return Response({
+            'mensaje': (
+                f'«{contenedor.nombre}» ya estaba en «{limbo.nombre}».'
+                if ya_en_limbo else
+                f'🚚 «{contenedor.nombre}» quedó en «{limbo.nombre}»: '
+                'reubicala desde «Elementos por ubicar».'
+            ),
+            'contenedor_id': str(contenedor.id),
+            'contenedor_nombre': contenedor.nombre,
+            'ubicacion_limbo_id': str(limbo.id),
+            'ubicacion_limbo_nombre': limbo.nombre,
+            'ya_en_transito': bool(ya_en_limbo),
+        })
 
     @action(detail=True, methods=['get'])
     def qr_code(self, request, pk=None):

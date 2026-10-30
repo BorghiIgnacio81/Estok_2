@@ -34,6 +34,13 @@ export interface GrupoChips {
   chips: ChipBandeja[];
 }
 
+/** Ficha de detalle del bulto (objeto → /objetos/:id · caja → /contenedores/:id). */
+function fichaDe(chip: ChipBandeja): string {
+  return chip.tipo === 'contenedor'
+    ? `/contenedores/${encodeURIComponent(chip.id)}`
+    : `/objetos/${encodeURIComponent(chip.id)}`;
+}
+
 export function chipHtml(chip: ChipBandeja): string {
   const claseImg =
     chip.tipo === 'objeto' ? 'bandeja-chip-img bandeja-chip-img-objeto' : 'bandeja-chip-img';
@@ -45,12 +52,16 @@ export function chipHtml(chip: ChipBandeja): string {
   // «En Tránsito» no tiene espacio físico; el chip lo dice para que se entienda
   // que está acá para ser asignado a un espacio o a una caja.
   const transito = chip.enTransito ? ' · En tránsito' : '';
-  const ayuda = chip.enTransito
+  const ayudaBase = chip.enTransito
     ? `«${chip.nombre}» está EN TRÁNSITO (no tiene espacio físico fijo): arrastralo a una caja, a un espacio o al bloque de la izquierda para asignarlo.`
     : chip.urgente
       ? `«${chip.nombre}» está ubicado pero necesita reubicación urgente (en tránsito interno o dentro de un bloque monolítico): arrastralo a un contenedor, a un casillero o al bloque de la izquierda.`
       : `Arrastrá «${chip.nombre}» hacia un contenedor, un casillero o el bloque de la izquierda para ubicarlo.`;
-  return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" title="${escapeHtml(ayuda)}">
+  // CLIC EN EL CHIP: abre la ficha de detalle del bulto (la de la caja lleva a
+  // su inventario interno completo). El arrastre sigue intacto: el handler de
+  // clic ignora el gesto cuando hubo dragstart (ver bandejaSinUbicar.ts).
+  const ayuda = `${ayudaBase} Clic para abrir su ficha de detalle.`;
+  return `<span class="bandeja-chip" draggable="true" data-bandeja-dnd="${chip.id}" data-bandeja-tipo="${chip.tipo}" data-bandeja-abrir="${escapeHtml(fichaDe(chip))}" role="link" tabindex="0" title="${escapeHtml(ayuda)}">
     <img src="${chip.img}" alt="" class="${claseImg}" draggable="false" />
     <span class="bandeja-chip-nombre">${eco} ${escapeHtml(chip.nombre)}${pendiente}${escapeHtml(transito)}</span>
   </span>`;

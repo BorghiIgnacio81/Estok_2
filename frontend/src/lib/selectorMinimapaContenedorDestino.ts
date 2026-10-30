@@ -120,36 +120,84 @@ export function cajasDestinoDelEstok(): CajaDestino[] {
 }
 
 /**
+ * FILTRADO CASCÁDICO · cajas REALMENTE ubicadas en el espacio elegido.
+ *
+ * Al seleccionar una habitación en el mapa/árbol, el desplegable de
+ * «Contenedor / Caja» sólo ofrece las cajas de ESE espacio: las que declaran la
+ * habitación y las sub-cajas que la heredan de su mueble anfitrión
+ * (`ubicacionEfectivaDe` sube por `parent_contenedor`). Si el operador eligió el
+ * espacio virtual «En tránsito», se ofrecen las cajas del limbo.
+ *
+ * `null` = todavía no hay espacio elegido (se listan todas, comportamiento
+ * histórico: permite rescatar cajas huérfanas o en tránsito).
+ */
+export function cajasDestinoDeHabitacion(habitacionId: string | null): CajaDestino[] {
+  if (!habitacionId) return cajasDestinoDelEstok();
+  return cajasDestinoDelEstok().filter((caja) => {
+    const real = estado.contenedores.find((c) => String(c.id) === caja.id);
+    if (!real) return false;
+    return String(ubicacionEfectivaDe(real) || '') === String(habitacionId);
+  });
+}
+
+/** Espacio activo del recorrido (habitación física o limbo «En tránsito»). */
+function espacioActivoId(): string | null {
+  if (estado.enTransito && estado.limbo) return String(estado.limbo.id);
+  return estado.habitacionId ? String(estado.habitacionId) : null;
+}
+
+/**
  * Bloque HTML del selector desplegable (vacío si el Estok todavía no tiene
  * cajas o mientras los espacios se están cargando).
  *
  * El valor de cada opción es el ID REAL del Contenedor: la capa de navegación
  * lo escribe en el input oculto `contenedor` (y resuelve la habitación).
+ *
+ * CASCADA: con un espacio elegido la lista se limita a las cajas de ESE espacio
+ * y la opción vacía dice «Sin caja / Directo en el espacio» (el objeto se
+ * guarda suelto en la habitación). Sin espacio elegido se listan todas para no
+ * perder el acceso a cajas huérfanas o en tránsito.
  */
 export function contenedorDestinoHtml(): string {
   if (estado.cargando) return '';
-  const cajas = cajasDestinoDelEstok();
-  if (!cajas.length) return '';
+  const todas = cajasDestinoDelEstok();
+  if (!todas.length) return '';
+  const espacio = espacioActivoId();
+  const cajas = espacio ? cajasDestinoDeHabitacion(espacio) : todas;
   // Selección vigente: la caja elegida (o el mueble activo del recorrido).
   const actual = String(estado.cajaId || estado.muebleId || '');
-  const opciones = cajas
+  // La caja vigente SIEMPRE queda visible, aunque el filtro del espacio la deje
+  // fuera: el desplegable nunca debe mentir sobre lo que está seleccionado.
+  const vigenteFuera = Boolean(actual) && !cajas.some((caja) => caja.id === actual);
+  const vigente = vigenteFuera ? todas.find((caja) => caja.id === actual) : undefined;
+  const lista = vigente ? [...cajas, vigente] : cajas;
+  const opciones = lista
     .map((caja) => {
-      const sufijo = caja.sinEspacioFijo ? 'En tránsito' : caja.ruta;
+      const sufijo = caja.sinEspacioFijo
+        ? 'En tránsito'
+        : caja.id === vigente?.id && vigenteFuera
+          ? `fuera de este espacio · ${caja.ruta}`
+          : caja.ruta;
       const texto = sufijo ? `${caja.nombre} · ${sufijo}` : caja.nombre;
       const seleccionada = caja.id === actual ? ' selected' : '';
       return `<option value="${escapeHtml(caja.id)}"${seleccionada}>📦 ${escapeHtml(texto)}</option>`;
     })
     .join('');
+  const ayuda = espacio && !cajas.length
+    ? 'Este espacio todavía no tiene cajas: el objeto se guardará directo en el espacio. Creá una caja desde Almacenamiento para archivar adentro.'
+    : espacio
+      ? 'Cajas de este espacio (incluidas las guardadas dentro de sus muebles). «Sin caja» guarda el objeto directo en el espacio.'
+      : 'Elegí primero un espacio en el plano para filtrar las cajas, o asigná una caja de cualquier punto del Estok.';
   return `
     <label class="block w-full mb-3">
-      <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">📦 Caja / contenedor de destino</span>
+      <span class="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1">📦 Contenedor / Caja</span>
       <select data-accion="contenedor-directo"
         class="w-full px-2 py-1.5 text-xs text-gray-800 bg-white border border-gray-300 rounded-lg"
-        title="Elegí directamente una caja o contenedor del Estok activo, aunque no esté en un espacio físico fijo">
-        <option value="">— Elegir una caja del Estok —</option>
+        title="Cajas ubicadas en el espacio seleccionado. «Sin caja» guarda el objeto directo en el espacio.">
+        <option value="">— Sin caja / Directo en el espacio —</option>
         ${opciones}
       </select>
-      <span class="block mt-1 text-[11px] text-gray-500">Lista TODAS las cajas registradas (incluidas las que están en tránsito o sin espacio fijo).</span>
+      <span class="block mt-1 text-[11px] text-gray-500">${escapeHtml(ayuda)}</span>
     </label>`;
 }
 

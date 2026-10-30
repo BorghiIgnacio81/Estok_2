@@ -1,0 +1,120 @@
+/* =============================================================================
+   ACCIONES DEL CONTENEDOR ACTIVO (Panel Derecho de Almacenamiento)
+   -----------------------------------------------------------------------------
+   Barra que acompaña la inspección interna de una CAJA / CONTENEDOR:
+     · «🚚 Poner Caja En Tránsito» → saca la pieza de su espacio actual y la deja
+       en el limbo «En Tránsito» para reubicarla (lib/mapa/portales/
+       accionesCajaPortales.ts + POST /api/contenedores/{id}/en_transito/).
+     · «🔎 Abrir ficha completa» → /contenedores/{id}.
+   Se aísla en su propia hoja para no engordar almacenamiento-portales.css
+   (disciplina de modularidad: ningún archivo de UI por encima de 400 líneas).
+   ============================================================================= */
+
+.portal-caja-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.portal-caja-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.portal-caja-btn:active {
+  transform: translateY(1px);
+}
+
+/* Botón DESTACADO: la acción principal del nivel (mover la caja al limbo). */
+.portal-caja-btn-transito {
+  background: #ea580c;
+  border-color: #c2410c;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(154, 52, 18, 0.25);
+}
+
+.portal-caja-btn-transito:hover:not(:disabled) {
+  background: #c2410c;
+}
+
+.portal-caja-btn-transito:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Acción secundaria: ficha completa del contenedor. */
+.portal-caja-btn-ficha {
+  background: #ffffff;
+  border-color: #fbbf24;
+  color: #92400e;
+}
+
+.portal-caja-btn-ficha:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+/* ---------------------------------------------------------------------------
+   ZONA DE SUELTA de la caja abierta: recibe los objetos/cajas arrastrados desde
+   la bandeja del Panel Derecho (guardarEnContenedor → PUT con casillero nulo).
+   --------------------------------------------------------------------------- */
+.portal-caja-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 2px dashed #fbbf24;
+  border-radius: 12px;
+  background: #fffbeb;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.portal-caja-drop-activo {
+  border-color: #ea580c;
+  background: #fef3c7;
+  color: #9a3412;
+}
+
+/* Canasta del contenedor activo: misma anatomía que la canasta lateral. */
+#bandejaCajaHost .bandeja-contenido {
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+#bandejaCajaHost .bandeja-chip {
+  cursor: pointer;
+}
+
+#bandejaCajaHost .bandeja-chip:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+/* Los chips de la canasta son también enlaces a la ficha: foco visible siempre. */
+.bandeja-chip:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}

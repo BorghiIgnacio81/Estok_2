@@ -240,6 +240,13 @@ function render(): void {
 // DRAG & DROP - ORIGEN (chips de la canasta hacia contenedores y casilleros)
 // =============================================================================
 
+/**
+ * Guardia de arrastre: `dragstart` en un chip también dispara `click` al soltar.
+ * Sin este flag, mover una caja hacia un casillero abriría su ficha y se perdería
+ * el gesto.
+ */
+let arrastrandoChip = false;
+
 function enlazar(): void {
   for (const host of hosts) {
     host.querySelectorAll<HTMLElement>('[data-bandeja-dnd]').forEach((chip) => {
@@ -251,6 +258,7 @@ function enlazar(): void {
           de.preventDefault();
           return;
         }
+        arrastrandoChip = true;
         const mime =
           tipo === 'contenedor' ? 'application/x-estok-contenedor' : 'application/x-estok-objeto';
         de.dataTransfer?.setData(mime, id);
@@ -259,7 +267,33 @@ function enlazar(): void {
         if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
         chip.classList.add('bandeja-chip-arrastrando');
       });
-      chip.addEventListener('dragend', () => chip.classList.remove('bandeja-chip-arrastrando'));
+      chip.addEventListener('dragend', () => {
+        chip.classList.remove('bandeja-chip-arrastrando');
+        // El `click` sintético del final del arrastre llega antes que este
+        // temporizador: así el gesto de arrastre nunca abre la ficha.
+        window.setTimeout(() => {
+          arrastrandoChip = false;
+        }, 0);
+      });
+      // CLIC / ENTER: abre la ficha de detalle del bulto. Los chips son
+      // `role="link" tabindex="0"` (ver bandejaChipHtml.ts), así que también
+      // responden al teclado como cualquier enlace de la app.
+      const abrirFicha = (): void => {
+        const destino = chip.dataset.bandejaAbrir || '';
+        if (destino) window.location.href = destino;
+      };
+      chip.addEventListener('click', (ev) => {
+        if (arrastrandoChip) {
+          ev.preventDefault();
+          return;
+        }
+        abrirFicha();
+      });
+      chip.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        abrirFicha();
+      });
     });
   }
 }
@@ -369,10 +403,19 @@ export function initBandeja(opts: {
    * teniendo UNA sola autoridad (PostgreSQL + `?bandeja=true`).
    */
   contenedorCuadrante?: HTMLElement | null;
+  /**
+   * Host del PANEL DERECHO cuando el nodo activo es una CAJA / CONTENEDOR:
+   * la bandeja de objetos disponibles para arrastrar DENTRO de la caja abierta.
+   * El motor de portales lo enciende/apaga; la lógica es exactamente la misma.
+   */
+  contenedorCaja?: HTMLElement | null;
 }): void {
-  hosts = [opts.contenedor, opts.contenedorMovil, opts.contenedorCuadrante].filter(
-    (h): h is HTMLElement => Boolean(h),
-  );
+  hosts = [
+    opts.contenedor,
+    opts.contenedorMovil,
+    opts.contenedorCuadrante,
+    opts.contenedorCaja,
+  ].filter((h): h is HTMLElement => Boolean(h));
   if (!hosts.length) return;
   // Una sola vía de refresco: el latido global y el llamado explícito comparten
   // exactamente la misma puerta pública.

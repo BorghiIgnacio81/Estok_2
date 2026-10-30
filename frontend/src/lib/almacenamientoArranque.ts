@@ -57,6 +57,9 @@ export function iniciarAlmacenamiento(): void {
       // Y también el cuadrante derecho del visor cuando el nodo activo es un
       // «Espacio Único» (ambiente sin muebles internos).
       contenedorCuadrante: document.getElementById('canastaCuadranteContenido'),
+      // Y el Panel Derecho cuando el nodo activo es una CAJA / CONTENEDOR: los
+      // objetos disponibles para arrastrar dentro de la caja abierta.
+      contenedorCaja: document.getElementById('bandejaCajaContenido'),
     });
     initVisorContenedorGrande({ contenedor: document.getElementById('visorContenedorGrande') });
     initMapaCasita({

@@ -43,6 +43,13 @@ export interface NodoPortal {
   declaradoMovible: boolean;
   /** Tiene al menos un hijo propio (estante/cajón/caja adentro). */
   conDivisiones: boolean;
+  /**
+   * 🧱 NATURALEZA FÍSICA de la pieza: `true` = mueble inmueble fijo del espacio
+   * (arquitectura clavada al cuarto, NO puede ponerse en tránsito). Las
+   * Ubicaciones viajan siempre `false`. Lo consume la barra de acciones del
+   * contenedor activo (lib/mapa/portales/accionesCajaPortales.ts).
+   */
+  esInmueble?: boolean;
   /** Grilla elástica propia del nodo (filas internas asimétricas). */
   filas: number;
   /** Columnas por fila (grilla asimétrica) del nodo. */
