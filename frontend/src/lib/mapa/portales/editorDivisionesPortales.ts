@@ -60,16 +60,26 @@ const TIP_DIVISIONES =
 
 /** Traduce la geometría real de los hijos a los rectángulos elásticos del editor. */
 function itemsEditor(interior: InteriorNodo): ItemElastico[] {
-  return interior.geometriaHijos.map((g) => ({
-    id: String(g.id),
-    nombre: String(g.nombre ?? 'Espacio'),
-    icono: iconoDeEspacio(g.nombre),
-    ui_left: g.ui_left ?? null,
-    ui_top: g.ui_top ?? null,
-    ui_width: g.ui_width ?? null,
-    ui_height: g.ui_height ?? null,
-    fusion_grupo: g.fusion_grupo ?? null,
-  }));
+  // Contadores y división interna por pieza: alimentan el badge «📦 N» de cada
+  // tarjeta y el aviso exacto al soltar un objeto encima (Drop Target).
+  const piezaPorId = new Map(interior.piezas.map((p) => [String(p.id), p]));
+  return interior.geometriaHijos.map((g) => {
+    const pieza = piezaPorId.get(String(g.id));
+    return {
+      id: String(g.id),
+      nombre: String(g.nombre ?? 'Espacio'),
+      icono: iconoDeEspacio(g.nombre),
+      ui_left: g.ui_left ?? null,
+      ui_top: g.ui_top ?? null,
+      ui_width: g.ui_width ?? null,
+      ui_height: g.ui_height ?? null,
+      fusion_grupo: g.fusion_grupo ?? null,
+      // «📦 N» en la tarjeta + «En Tránsito Interno» cuando tiene sub-divisiones.
+      objetos_count: pieza?.objetosCount ?? 0,
+      contenedores_count: pieza?.subcontenedoresCount ?? 0,
+      conDivisiones: Boolean(pieza?.conDivisiones),
+    };
+  });
 }
 
 /**

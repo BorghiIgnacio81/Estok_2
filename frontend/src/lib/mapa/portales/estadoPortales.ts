@@ -44,6 +44,13 @@ export interface NodoPortal {
   /** Tiene al menos un hijo propio (estante/cajón/caja adentro). */
   conDivisiones: boolean;
   /**
+   * CONTADORES REALES del padrón (PostgreSQL) del nodo activo. Los consume la
+   * ficha del Panel Izquierdo y el badge de cada tarjeta del lienzo, que se
+   * incrementa en el acto al soltar un objeto encima.
+   */
+  objetosCount?: number;
+  subcontenedoresCount?: number;
+  /**
    * 🧱 NATURALEZA FÍSICA de la pieza: `true` = mueble inmueble fijo del espacio
    * (arquitectura clavada al cuarto, NO puede ponerse en tránsito). Las
    * Ubicaciones viajan siempre `false`. Lo consume la barra de acciones del

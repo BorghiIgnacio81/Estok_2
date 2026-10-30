@@ -113,6 +113,9 @@ export async function guardarEnContenedor(
     toast(`✅ Guardado en «${destino.nombre}».`);
   }
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  // LATIDO DE INVENTARIO: la ficha de la caja, su badge de conteo, la canasta y
+  // las tarjetas de /objetos se refrescan sin F5 tras soltar el bulto.
+  window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id: carga.id } }));
   return true;
 }
 
@@ -134,6 +137,7 @@ export async function guardarEnUbicacion(
   if (!ok) return false;
   toast(`✅ Guardado en «${nombre}» sin celda fina (pendiente de ubicación detallada).`);
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id: carga.id } }));
   return true;
 }
 

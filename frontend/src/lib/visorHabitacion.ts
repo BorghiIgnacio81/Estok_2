@@ -58,6 +58,12 @@ interface ContenedorVisor {
   tipo?: string | null;
   parent_contenedor?: string | null;
   subcontenedores_count?: number;
+  /**
+   * Objetos guardados directamente dentro de la pieza (contador real del
+   * serializer). Lo muestra el badge «📦 N» de cada tarjeta del lienzo y lo
+   * incrementa en el acto el Drop Target (`lib/dropTarjetasLienzo.ts`).
+   */
+  objetos_count?: number;
   parent_grid_row?: number | null;
   parent_grid_col?: number | null;
   /** Mueble inmueble fijo: no se arrastra ni elimina. */
@@ -269,6 +275,10 @@ function renderVisor(): void {
     declarado_movible: c.declarado_movible === true,
     // Mueble inmueble fijo: el backend rechaza su DELETE → no se expone el 🗑️.
     protegido: c.es_inmueble === true,
+    // DROP TARGET: contadores reales (badge «📦 N») y división interna para que
+    // soltar un objeto encima guarde su `contenedor_id` y suba el contador.
+    objetos_count: Number(c.objetos_count) || 0,
+    conDivisiones: (c.subcontenedores_count || 0) > 0,
     meta:
       (c.subcontenedores_count || 0) > 0 ? `${c.subcontenedores_count} sub` : null,
   }));

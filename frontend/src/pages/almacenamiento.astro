@@ -134,6 +134,13 @@ import {
           </div>
           <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Edición en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrá las tarjetas para reacomodarlas entre cuadrantes y tirá de su esquina para estirarlas. Tocá una planta para desplegar el plano de sus habitaciones.</p>
           <div id="contenidoPanelIzquierdo" class="mt-1">
+            <!-- FICHA DEL CONTENEDOR ACTIVO (nivel interno de la caja): al tocar una
+                 caja/espacio del lienzo se pinta acá arriba su ficha (datos reales
+                 de PostgreSQL), la lista de objetos almacenados y sus acciones
+                 («🚚 Poner Caja En Tránsito» / «🔎 Abrir ficha completa»). El mapa
+                 del nivel superior sigue debajo, así la navegación no se pierde.
+                 La gobierna lib/mapa/portales/fichaContenedorPanel.ts. -->
+            <div id="fichaContenedorPanel" class="hidden mb-3"></div>
             <div id="mapaEstokPanel">
               <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
             </div>

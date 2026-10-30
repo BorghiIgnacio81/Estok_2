@@ -325,6 +325,9 @@ export function nodoDesdeContenedor(
     // Naturaleza física: un mueble inmueble fijo NO puede irse al limbo.
     esInmueble: c.es_inmueble,
     conDivisiones: c.subcontenedores_count > 0,
+    // Contadores del padrón: badge de la tarjeta + ficha del Panel Izquierdo.
+    objetosCount: c.objetos_count,
+    subcontenedoresCount: c.subcontenedores_count,
     filas: c.grid_filas,
     columnasPorFila: columnasPorFilaDeContenedor(c),
     hijos: [],

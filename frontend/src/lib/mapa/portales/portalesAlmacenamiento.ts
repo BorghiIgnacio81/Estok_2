@@ -49,9 +49,12 @@ import {
   grillaObjetosDirectosHtml,
   initGrillaObjetosDirectos,
 } from './grillaObjetosDirectos';
-// Barra del contenedor activo: «🚚 Poner Caja En Tránsito» (limbo de mudanza)
-// + «🔎 Abrir ficha completa» con todo el inventario interno.
+// Barra DESTACADA del contenedor activo: «🚚 Poner Caja En Tránsito» (limbo de
+// mudanza) + «🔎 Abrir ficha completa» del inventario interno.
 import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
+// FICHA DEL CONTENEDOR ACTIVO en el Panel Izquierdo (nivel interno de la caja):
+// datos reales + objetos almacenados, arriba del ancla del nivel superior.
+import { ocultarFichaContenedor, pintarFichaContenedor } from './fichaContenedorPanel';
 import {
   aspectoDelLienzo,
   el,
@@ -249,6 +252,12 @@ export function transicionar(): void {
   const mostrarCanastaCaja = Boolean(
     nodoDelNivel && nodoDelNivel.tipo === 'contenedor' && !nodoDelNivel.espacioUnico,
   );
+  // FICHA DEL CONTENEDOR EN EL PANEL IZQUIERDO: sólo existe mientras el nodo
+  // activo sea una caja/contenedor (la pinta refrescarNivelInterno). Al subir a
+  // una habitación o a la raíz se apaga, para que el ancla quede limpia.
+  if (!nodoDelNivel || nodoDelNivel.tipo !== 'contenedor') {
+    ocultarFichaContenedor(el('fichaContenedorPanel'));
+  }
   const hostBandejaCaja = el('bandejaCajaHost');
   if (hostBandejaCaja) {
     hostBandejaCaja.classList.toggle('hidden', !mostrarCanastaCaja);
@@ -462,6 +471,11 @@ async function refrescarNivelInterno(): Promise<void> {
     await pintarNivel(actual, interiorActual);
     transicionar();
     resaltarSeleccionIzquierda(actual.id);
+    // 4-bis) NIVEL INTERNO EN EL PANEL IZQUIERDO: si el nodo activo es una caja /
+    //     contenedor, arriba del ancla se pinta su FICHA (datos reales) con la
+    //     lista de objetos almacenados y sus acciones. Se re-ejecuta en cada
+    //     refresco, así el contador sube en el acto tras soltar un objeto encima.
+    await pintarFichaContenedor(el('fichaContenedorPanel'), actual, interiorActual);
     // El Visor de Habitación (cuando oficia de ancla) destaca la silueta elegida.
     if (paneles.izquierdo === 'visorHabitacion') {
       window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: actual.id } }));

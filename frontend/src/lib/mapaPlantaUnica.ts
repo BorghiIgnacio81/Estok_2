@@ -242,6 +242,19 @@ function anclaCheckbox(g: GrupoFusion): { x: number; y: number } {
   return anclaDeFusion(g.miembros.map((m) => geoDe(m)), g.caja);
 }
 
+/** Badge del contador de Objetos guardados dentro de la tarjeta (tiempo real). */
+function conteoBadgeHtml(item: ItemElastico): string {
+  const total = typeof item.objetos_count === 'number' ? item.objetos_count : null;
+  if (total === null) return '';
+  return `<span class="pu-conteo" data-conteo-item="${total}"
+        title="${total} objeto(s) guardados dentro: arrastrá otro desde la bandeja y soltalo sobre esta tarjeta">📦 ${total}</span>`;
+}
+
+/** Atributos data-* que hacen de la tarjeta un DESTINO del Drag & Drop. */
+function atributosDrop(item: ItemElastico): string {
+  return `data-inplace-nombre="${escapeHtml(item.nombre)}" data-inplace-divisiones="${item.conDivisiones ? '1' : '0'}"`;
+}
+
 function gruposHtml(grupos: GrupoFusion[]): string {
   return grupos
     .map((g) => {
@@ -250,7 +263,7 @@ function gruposHtml(grupos: GrupoFusion[]): string {
       const ancla = anclaCheckbox(g);
       const movible = esMuebleMovilDeclarado(g.base);
       return `
-    <div class="pu-grupo${movible ? ' pu-grupo--mueble-movil' : ''}" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}"
+    <div class="pu-grupo${movible ? ' pu-grupo--mueble-movil' : ''}" data-fusion-grupo="${escapeHtml(g.grupo)}" data-inplace-card data-id="${g.base.id}" ${atributosDrop(g.base)}
          data-libre-drag style="left:${g.caja.left}%;top:${g.caja.top}%;width:${g.caja.width}%;height:${g.caja.height}%"
          title="Espacio fusionado CONTINUO: arrastrá para moverlo · clic en el nombre para renombrarlo · tirá de la esquina para estirar el bloque completo.">
       <div class="pu-grupo-malla">${superficieDeGrupo(g)}</div>
@@ -258,6 +271,7 @@ function gruposHtml(grupos: GrupoFusion[]): string {
         <input type="checkbox" data-fusion-check data-id="${g.base.id}" />
       </label>
       ${movible ? BADGE_MUEBLE_MOVIL : ''}
+      ${conteoBadgeHtml(g.base)}
       <button type="button" data-eliminar-grupo data-id="${g.base.id}" data-nombre="${escapeHtml(g.base.nombre)}"
         class="pu-grupo-eliminar"
         title="Eliminar el macro-espacio fusionado COMPLETO: todas sus partes se borran juntas en PostgreSQL y su contenido viaja a la bandeja de «por ubicar».">🗑️</button>
@@ -285,13 +299,14 @@ function sueltasHtml(sueltas: ItemElastico[], permiteDuplicar = false): string {
           .filter(Boolean)
           .join(' · ');
       return `
-    <div class="pu-celda${movible ? ' pu-celda--mueble-movil' : ''}" data-inplace-card data-id="${item.id}" data-libre-drag
+    <div class="pu-celda${movible ? ' pu-celda--mueble-movil' : ''}" data-inplace-card data-id="${item.id}" ${atributosDrop(item)} data-libre-drag
          style="left:${geo.left}%;top:${geo.top}%;width:${geo.width}%;height:${geo.height}%"
-         title="Arrastrá para acomodar · Clic en el nombre para renombrar · Tirá de la esquina para estirar">
+         title="Arrastrá para acomodar · Clic en el nombre para renombrar · Tirá de la esquina para estirar · Soltá un objeto de la bandeja encima para guardarlo adentro">
       <label class="pu-check" title="Seleccionar para fusionar con otro espacio">
         <input type="checkbox" data-fusion-check data-id="${item.id}" />
       </label>
       ${movible ? BADGE_MUEBLE_MOVIL : ''}
+      ${conteoBadgeHtml(item)}
       ${item.protegido ? '' : `<button type="button" data-eliminar-item data-id="${item.id}" data-nombre="${escapeHtml(item.nombre)}"
         class="pu-celda-eliminar"
         title="Eliminar «${escapeHtml(item.nombre)}» de forma definitiva: su contenido se desancla hacia la bandeja inferior de «por ubicar».">🗑️</button>`}

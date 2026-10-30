@@ -79,6 +79,217 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+
+/* ---------------------------------------------------------------------------
+   FICHA DEL CONTENEDOR ACTIVO (Panel Izquierdo · nivel interno de la caja)
+   La pinta lib/mapa/portales/fichaContenedorPanel.ts arriba del ancla.
+   --------------------------------------------------------------------------- */
+.ficha-caja {
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f97316;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.ficha-caja-cab {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ficha-caja-ico {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.ficha-caja-id {
+  min-width: 0;
+}
+
+.ficha-caja-nombre {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.ficha-caja-ruta {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
+.ficha-caja-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ficha-caja-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.ficha-caja-contadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ficha-caja-contador {
+  font-size: 12px;
+  color: #374151;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.ficha-caja-contador b {
+  color: #b45309;
+  font-size: 13px;
+}
+
+.ficha-caja-datos {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ficha-caja-datos > div {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: #4b5563;
+}
+
+.ficha-caja-datos dt {
+  font-weight: 700;
+  color: #6b7280;
+  min-width: 70px;
+}
+
+.ficha-caja-datos dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ficha-caja-objetos {
+  margin-top: 10px;
+}
+
+.ficha-caja-objetos-tit {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.ficha-caja-objetos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  display: grid;
+  gap: 4px;
+}
+
+.ficha-caja-objeto a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ficha-caja-objeto a:hover {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.ficha-caja-objeto-nombre {
+  font-size: 12px;
+  color: #1f2937;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ficha-caja-objeto-meta {
+  font-size: 10px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.ficha-caja-vacio {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------------
+   TARJETAS DEL LIENZO ELÁSTICO COMO DESTINO DEL ARRASTRE
+   (lib/dropTarjetasLienzo.ts: soltar un objeto sobre la caja lo guarda adentro)
+   --------------------------------------------------------------------------- */
+.pu-celda.pu-celda-drop-activa {
+  outline: 3px dashed #ea580c;
+  outline-offset: -3px;
+  background-color: #fef3c7 !important;
+}
+
+/* Bloque fusionado: sólo contorno (su superficie es una silueta SVG en «L»; un
+   fondo rectangular taparía el hueco vacío del macro-espacio). */
+.pu-grupo.pu-celda-drop-activa {
+  outline: 3px dashed #ea580c;
+  outline-offset: -3px;
+}
+
+/* Contador «📦 N» de la tarjeta (sube al instante cuando cae un objeto).
+   Esquina INFERIOR IZQUIERDA: la superior izquierda la ocupa el checkbox de
+   fusión, la superior derecha el 🗑️/⧉ y la inferior derecha el tirador de
+   estiramiento. */
+.pu-conteo {
+  position: absolute;
+  bottom: 2px;
+  left: 3px;
+  z-index: 3;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+  pointer-events: none;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.pu-conteo-sube {
+  transform: scale(1.25);
+  background: #fed7aa;
+}
+
   gap: 6px;
   margin: 0 0 12px;
   padding: 12px 14px;

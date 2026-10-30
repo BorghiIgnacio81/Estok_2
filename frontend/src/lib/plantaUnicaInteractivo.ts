@@ -25,6 +25,9 @@ import {
   conectarResizeLibre,
 } from './plantaUnicaArrastre';
 import type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
+// La TARJETA del lienzo como DESTINO del arrastre: soltar un objeto sobre una
+// caja lo guarda adentro (contenedor_id) y sube su contador en el acto.
+import { conectarDropTarjetasLienzo } from './dropTarjetasLienzo';
 
 export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -56,6 +59,11 @@ export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarSeleccionYFusion(opts);
   conectarEliminacionItems(opts);
   conectarPerimetro(opts);
+  // DESTINO DEL ARRASTRE (omnipresente en TODOS los niveles): cada tarjeta acepta
+  // el bulto que se suelta encima y lo guarda DENTRO de ella. El recurso lo dicta
+  // el adaptador del lienzo ('/contenedores' en interiores y habitaciones,
+  // '/ubicaciones' en el plano de planta).
+  conectarDropTarjetasLienzo({ scope: opts.scope, recurso: adaptadorDe(opts).recurso });
 }
 
 // =============================================================================

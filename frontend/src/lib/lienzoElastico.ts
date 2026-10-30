@@ -50,6 +50,15 @@ export interface ItemElastico {
   objetos_count?: number;
   contenedores_count?: number;
   /**
+   * Tiene sub-divisiones propias (estantes/cajones/cajas adentro).
+   *
+   * Lo consumen DOS cosas: el badge de cuenta y, sobre todo, el Drag & Drop —
+   * el backend marca «En Tránsito Interno» cuando un objeto cae dentro de un
+   * anfitrión con divisiones sin celda fina. La tarjeta lo publica como
+   * `data-inplace-divisiones` para que el aviso al operador sea exacto.
+   */
+  conDivisiones?: boolean;
+  /**
    * ESPACIO VIRTUAL / DE SISTEMA (limbo «En Tránsito» / «Zona de Mudanza»).
    * El motor 2D lo excluye SIEMPRE del lienzo: es una ubicación del tablero de
    * mudanzas, no un ambiente físico con geometría propia.
