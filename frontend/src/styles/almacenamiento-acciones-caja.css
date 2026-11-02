@@ -311,3 +311,105 @@
   outline: 2px solid #f97316;
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   SELECTOR LIMPIO DE CAJAS / PIEZAS DEL NIVEL (Panel Derecho)
+   ---------------------------------------------------------------------------
+   Lista plana de las piezas internas directas del nodo activo
+   (lib/mapa/portales/contenidoInternoNodo.ts → selectorPiezasHtml). Existe
+   porque las cajas guardadas en el MISMO casillero se dibujan una encima de
+   otra en el lienzo elástico y sólo la de arriba recibe el clic: acá cada caja
+   se selecciona con un toque, sin depender de su geometría.
+   Cada fila es PORTAL (abre la ficha interna de esa caja) y ZONA DE SUELTA
+   (recibe los objetos arrastrados desde la bandeja → guardarEnContenedor).
+   --------------------------------------------------------------------------- */
+.portal-piezas {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.portal-piezas-tit {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.portal-piezas-lista {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.portal-pieza-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2937;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.portal-pieza-item:hover {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.portal-pieza-item:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
+}
+
+.portal-pieza-ico {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.portal-pieza-txt {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.portal-pieza-nombre {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-pieza-detalle {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.portal-pieza-flecha {
+  font-size: 14px;
+  color: #f59e0b;
+}
+
+/* Realce de la fila mientras un objeto de la bandeja está encima. */
+.portal-pieza-item.portal-caja-drop-activo {
+  border-color: #ea580c;
+  background: #fef3c7;
+  color: #9a3412;
+}
+

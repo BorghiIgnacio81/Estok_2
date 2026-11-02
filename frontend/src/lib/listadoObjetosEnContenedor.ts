@@ -54,7 +54,7 @@ export function badgeContenedorHtml(obj: ObjetoEnContenedor): string {
   if (!nombre) return '';
   const icono = ICONO_CONTENEDOR[String(obj.contenedor_tipo || '')] || '📦';
   return '<span class="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-900 '
-    + 'border border-amber-200 px-2 py-0.5 text-[11px] font-semibold max-w-full">'
+    + 'border border-amber-200 px-2 py-0.5 text-xs font-semibold max-w-full">'
     + '<span class="shrink-0">' + icono + '</span>'
     + '<span class="truncate" title="' + esc(nombre) + '">En ' + esc(nombre) + '</span>'
     + '</span>';
@@ -89,13 +89,19 @@ function tarjetaHtml(obj: ObjetoEnContenedor): string {
 /**
  * Grilla completa de la sección. Devuelve cadena vacía si no hay ítems: el
  * controlador esconde la sección en vez de dejar un bloque huérfano.
+ *
+ * DEVUELVE SÓLO LAS TARJETAS (sin `<div>` contenedor): la grilla la aporta el
+ * host `#objetosEnContenedorGrid` de /objetos.astro con
+ * `grid-template-columns: repeat(auto-fill, minmax(240px, 1fr))`, el MISMO
+ * tamaño de tarjeta que el inventario general. Antes esta función emitía una
+ * grilla propia DENTRO de la grilla del host: el bloque interno ocupaba una
+ * sola columna de la externa y cada tarjeta quedaba comprimida a ~1/4 de su
+ * ancho, con los títulos y las insignias («📦 En Caja 02») ilegibles.
  */
 export function seccionObjetosEnContenedorHtml(items: ObjetoEnContenedor[]): string {
   const lista = (items || []).filter((obj) => obj && obj.id);
   if (lista.length === 0) return '';
-  return '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">'
-    + lista.map(tarjetaHtml).join('')
-    + '</div>';
+  return lista.map(tarjetaHtml).join('');
 }
 
 /** Contador legible para el encabezado («12 objetos almacenados»). */

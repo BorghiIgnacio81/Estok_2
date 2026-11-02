@@ -171,7 +171,12 @@ import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
           <span id="objetosEnContenedorResumen"
             class="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full"></span>
         </div>
-        <div id="objetosEnContenedorGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+        <!-- GRILLA DEL MISMO TAMAÑO QUE EL INVENTARIO GENERAL: la sección es la
+             ÚNICA dueña de la grilla (auto-fill de 240 px). El helper devuelve
+             SÓLO las tarjetas: anidar otra grilla adentro comprimía cada tarjeta
+             a una columna de la externa y dejaba los títulos e insignias
+             («📦 En Caja 02») ilegibles. -->
+        <div id="objetosEnContenedorGrid" class="grilla-objetos-contenedor"></div>
       </section>
 
       <!-- SECCIÓN 3 (ABAJO) · Muebles y Estructuras Móviles -->
@@ -225,6 +230,19 @@ import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
       border-radius: 1rem;
       padding: 1.25rem 1rem;
       box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(120, 53, 15, 0.06);
+    }
+
+    /* GRILLA DE «📦 OBJETOS EN CONTENEDOR» (SECCIÓN 2bis).
+       Mismo tamaño de tarjeta que el inventario general: auto-fill de 240 px.
+       La grilla vive ACÁ y no en el helper de render (listadoObjetosEnContenedor
+       .ts), porque una grilla anidada dentro de otra se reduce a UNA columna de
+       la externa y las tarjetas quedaban del ancho de una franja (títulos e
+       insignias «📦 En Caja 02» ilegibles). */
+    .grilla-objetos-contenedor {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1rem;
+      align-items: stretch;
     }
 
     /* MINI-GUÍA ANALÍTICA de las tarjetas de caja (SECCIÓN 1).

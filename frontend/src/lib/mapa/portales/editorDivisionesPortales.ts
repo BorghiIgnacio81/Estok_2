@@ -44,7 +44,7 @@ import type { InteriorNodo } from './datosNodosPortales';
 import { duplicarDivisionEnNodo } from './duplicarDivisionPortales';
 // «📋 Ver contenido interno»: inventario de objetos guardados en la caja/nodo
 // activo (punto 2 de las pruebas móviles) + acceso a la ficha del contenedor.
-import { contenidoInternoHtml } from './contenidoInternoNodo';
+import { contenidoInternoHtml, selectorPiezasHtml } from './contenidoInternoNodo';
 // Barra DESTACADA del contenedor activo: «🔎 Abrir ficha completa» del
 // inventario interno + la zona de suelta que recibe los objetos arrastrados
 // desde la bandeja del mismo panel.
@@ -249,6 +249,11 @@ export function pintarEditorDivisiones(
     cabeceraHtml(nodo) +
     barraAccionesCajaHtml(nodo) +
     zonaDropCajaHtml(nodo) +
+    // SELECTOR LIMPIO DE CAJAS CONTENIDAS: lista plana de las piezas internas
+    // directas. Resuelve el caso de cajas guardadas en el MISMO casillero (se
+    // dibujan una encima de otra en el lienzo y sólo la de arriba recibe el
+    // clic) y habilita la suelta de objetos sobre la caja elegida.
+    selectorPiezasHtml(interior.piezas) +
     plano +
     contenidoInternoHtml(nodo, interior.objetos);
   host.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {

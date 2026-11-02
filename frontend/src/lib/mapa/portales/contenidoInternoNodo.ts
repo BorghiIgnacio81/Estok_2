@@ -71,3 +71,67 @@ export function contenidoInternoHtml(nodo: NodoPortal, objetos: ObjetoDto[]): st
       ${ficha}
     </details>`;
 }
+
+/**
+ * SELECTOR LIMPIO DE CAJAS Y PIEZAS CONTENIDAS en el nodo activo.
+ *
+ * POR QUÉ EXISTE
+ *   Las siluetas del lienzo elástico se posicionan con la geometría persistida
+ *   (`ui_left`/`ui_top`/`ui_width`/`ui_height`). Cuando varias cajas comparten
+ *   la MISMA geometría (caso real: «Caja 01», «Caja 02», «Caja 04» y «Caja 05»
+ *   guardadas en el mismo casillero de un estante) caen UNA ENCIMA DE LA OTRA:
+ *   sólo la de arriba recibe el clic y las demás quedan inaccesibles desde el
+ *   plano.
+ *
+ * QUÉ HACE
+ *   Lista PLANA de las piezas internas directas del nivel: cualquier caja se
+ *   puede seleccionar con un clic, sin depender de su posición geométrica. Cada
+ *   fila es, a la vez:
+ *     · PORTAL (`data-portal-abrir`) → la delegación del Panel Derecho
+ *       (portalesEnlaces.ts) desciende a la pieza: ficha interna, contenido y
+ *       «⬇ Soltá acá…» de la caja abierta.
+ *     · DROP ZONE (`data-caja-drop-pieza`) → soltar un objeto de la bandeja
+ *       sobre la fila lo guarda DENTRO de esa caja
+ *       (accionesCajaPortales.conectarDropPiezasCaja, misma persistencia).
+ *
+ * Módulo PURO (devuelve string HTML): no toca el DOM ni hace fetch.
+ */
+export function selectorPiezasHtml(piezas: NodoPortal[]): string {
+  const lista = (piezas || []).filter((pieza) => pieza && pieza.id);
+  if (!lista.length) return '';
+  const filas = lista
+    .map((pieza) => {
+      const objetos = pieza.objetosCount ?? 0;
+      const subEspacios = pieza.subcontenedoresCount ?? 0;
+      const detalle = [
+        objetos > 0 ? `📦 ${objetos} objeto(s)` : '📦 vacía',
+        subEspacios > 0 ? `🗂️ ${subEspacios} sub-espacio(s)` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      const nombre = escapeHtml(pieza.nombre);
+      return `<li>
+      <button type="button" class="portal-pieza-item"
+        data-portal-abrir="${escapeHtml(pieza.id)}"
+        data-portal-tipo="contenedor"
+        data-caja-drop-pieza="${escapeHtml(pieza.id)}"
+        data-caja-drop-nombre="${nombre}"
+        data-caja-drop-divisiones="${pieza.conDivisiones ? '1' : '0'}"
+        title="Tocá para abrir «${nombre}» (ficha interna y contenido) · arrastrá un objeto de la bandeja y soltalo acá para guardarlo adentro">
+        <span class="portal-pieza-ico" aria-hidden="true">📦</span>
+        <span class="portal-pieza-txt">
+          <span class="portal-pieza-nombre">${nombre}</span>
+          <span class="portal-pieza-detalle">${detalle}</span>
+        </span>
+        <span class="portal-pieza-flecha" aria-hidden="true">▸</span>
+      </button>
+    </li>`;
+    })
+    .join('');
+  return `
+    <section class="portal-piezas" aria-label="Cajas y piezas contenidas">
+      <p class="portal-piezas-tit">📦 Cajas y piezas de este nivel · tocá una para ver su contenido y soltarle objetos</p>
+      <ul class="portal-piezas-lista">${filas}</ul>
+    </section>`;
+}
+

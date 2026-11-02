@@ -57,10 +57,24 @@ export function zonaDropCajaHtml(nodo: NodoPortal): string {
   </div>`;
 }
 
-/** Conecta la zona de suelta del contenedor activo con el motor de portales. */
-export function conectarDropCaja(host: HTMLElement, nodo: NodoPortal): void {
-  const zona = host.querySelector<HTMLElement>('[data-caja-drop]');
-  if (!zona) return;
+/**
+ * Destino de una zona de suelta: la caja ACTIVA o una de las piezas del
+ * selector de cajas del nivel (`contenidoInternoNodo.selectorPiezasHtml`).
+ */
+interface DestinoCaja {
+  contenedorId: string;
+  nombre: string;
+  tieneDivisiones: boolean;
+}
+
+/**
+ * Conecta UNA zona de suelta con el motor de portales.
+ *
+ * FUENTE ÚNICA del handler de Drop: la usan la zona destacada de la caja
+ * abierta y cada fila del selector de piezas, sin duplicar la persistencia
+ * (`guardarEnContenedor` decide «guardado directo» o «En Tránsito Interno»).
+ */
+function conectarZonaDrop(zona: HTMLElement, destino: DestinoCaja): void {
   const limpiar = (): void => zona.classList.remove('portal-caja-drop-activo');
   zona.addEventListener('dragover', (ev) => {
     const de = ev as DragEvent;
@@ -79,20 +93,52 @@ export function conectarDropCaja(host: HTMLElement, nodo: NodoPortal): void {
     de.preventDefault();
     de.stopPropagation();
     void guardarEnContenedor(carga, {
-      contenedorId: nodo.id,
-      nombre: nodo.nombre,
-      tieneDivisiones: nodo.conDivisiones,
+      contenedorId: destino.contenedorId,
+      nombre: destino.nombre,
+      tieneDivisiones: destino.tieneDivisiones,
       fila: null,
       col: null,
     });
   });
 }
 
+/** Conecta la zona de suelta del contenedor activo con el motor de portales. */
+export function conectarDropCaja(host: HTMLElement, nodo: NodoPortal): void {
+  const zona = host.querySelector<HTMLElement>('[data-caja-drop]');
+  if (!zona) return;
+  conectarZonaDrop(zona, {
+    contenedorId: nodo.id,
+    nombre: nodo.nombre,
+    tieneDivisiones: nodo.conDivisiones,
+  });
+}
+
 /**
- * Conecta la barra de acciones del contenedor activo (hoy sólo la zona de
- * suelta). Idempotente por render: el host se reescribe por innerHTML en cada
- * nivel, así que los listeners viejos desaparecen con sus nodos.
+ * Conecta CADA fila del selector de cajas como zona de suelta de su PROPIA
+ * caja: arrastrar un objeto (o una caja) de la bandeja y soltarlo sobre «Caja
+ * 03» lo guarda DENTRO de «Caja 03» sin tener que abrirla primero. La
+ * persistencia es la misma del motor de portales: acá sólo se declara el
+ * destino de cada fila.
+ */
+export function conectarDropPiezasCaja(host: HTMLElement): void {
+  host.querySelectorAll<HTMLElement>('[data-caja-drop-pieza]').forEach((zona) => {
+    const id = zona.dataset.cajaDropPieza ?? '';
+    if (!id) return;
+    conectarZonaDrop(zona, {
+      contenedorId: id,
+      nombre: zona.dataset.cajaDropNombre || 'la caja',
+      tieneDivisiones: zona.dataset.cajaDropDivisiones === '1',
+    });
+  });
+}
+
+/**
+ * Conecta la barra de acciones del contenedor activo: la zona de suelta
+ * destacada y las filas del selector de cajas del nivel. Idempotente por
+ * render: el host se reescribe por innerHTML en cada nivel, así que los
+ * listeners viejos desaparecen con sus nodos.
  */
 export function conectarAccionesCaja(host: HTMLElement, nodo: NodoPortal): void {
   conectarDropCaja(host, nodo);
+  conectarDropPiezasCaja(host);
 }

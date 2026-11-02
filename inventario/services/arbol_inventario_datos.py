@@ -160,9 +160,11 @@ def cajas_del_estok(estok_id):
     """
     CAJAS DEL ESTOK (SECCIÓN 1 · filtro ORM ÚNICO Y EXCLUSIVO).
 
-    Bultos chicos arrastrables: `tipo='CAJA'`, `es_inmueble=False`,
-    `declarado_movible=True` y SIN sub-divisiones propias. A cualquier nivel:
-    raíz o guardada dentro de un ropero/archivador.
+    TODAS las cajas físicas del Estok activo: `tipo='CAJA'`, `es_inmueble=False`
+    y SIN sub-divisiones propias, a CUALQUIER nivel (raíz, dentro de un mueble,
+    de un estante o de otra caja) y SIN IMPORTAR el flag `declarado_movible` de
+    la pieza anidada: una caja guardada dentro de un espacio sigue siendo una
+    caja del inventario aunque su dueño no la haya declarado movible.
 
     🔒 LOTE 28 · VISIBILIDAD DEL LIMBO. Una caja MUDADA entre Estoks aterriza en
     la habitación limbo «En Tránsito» del inquilinato destino (o queda con
@@ -170,41 +172,99 @@ def cajas_del_estok(estok_id):
     un espacio VIRTUAL del tablero de mudanzas: NO es una habitación física del
     plano. Al resolver la tenencia SOLO por `ubicacion__estok_id`, la pieza
     quedaba fuera del listado —limbo invisible— y era imposible abrir su modal
-    de edición para recuperarla. El listado resuelve ahora DOS canales ORM:
+    de edición para recuperarla.
 
-      CANAL 1 · caja móvil TERMINAL con tenencia resuelta: habitación física del
-      Estok activo o limbo (la definición del limbo vive en
-      `mudanza_service.q_limbo_de_mudanza`). Desde el Lote 30 viaja DECLARADA o
-      NO —es la liberación del stock interno que quedaba escondido dentro de los
-      espacios fijados—; se mantiene la exigencia de bulto TERMINAL (una caja con
-      sub-divisiones propias es ESTRUCTURA, no bulto) y se frena la ARQUITECTURA
-      DEL ESPACIO (raíz no declarada movible), espejo de `qe_stock_mudable`.
+    CANALES ORM (una sola consulta):
 
-      CANAL 2 · 🔓 RESCATE DE EMERGENCIA: caja RAÍZ suelta y TERMINAL en el
-      limbo (`parent_contenedor` nulo, sin sub-divisiones). Entra SIN exigir la
-      declaración de movilidad, porque es la ÚNICA vía para que el operador
-      vuelva a VERLA y le devuelva el flag `declarado_movible=True` de forma
-      voluntaria. Rompe el limbo de invisibilidad que dejó la mudanza (masiva o
-      individual): la mudanza valida la whitelist física `es_movible`, no el
-      disyuntor de arquitectura, así que una pieza NO declarada también puede
-      viajar. Las piezas CON sub-divisiones se rescatan en la SECCIÓN 3
-      (`muebles_raiz_del_estok`) para que ninguna sección se superponga.
+      · BULTO DE STOCK TERMINAL con tenencia resuelta: habitación física del
+        Estok activo o limbo a CUALQUIER nivel (`exigir_raiz=False`, así entra
+        también la caja que viajó dentro de un mueble). Se frena únicamente la
+        ARQUITECTURA DEL ESPACIO (raíz no declarada movible), espejo de
+        `qe_stock_mudable`, y las estructuras (una caja con sub-divisiones
+        propias es mobiliario, no bulto → SECCIÓN 3).
+
+      · 🔓 RESCATE DE EMERGENCIA: caja RAÍZ suelta y TERMINAL en el limbo
+        (`parent_contenedor` nulo, sin sub-divisiones) que entró SIN exigir la
+        declaración de movilidad. Rompe el limbo de invisibilidad que dejó la
+        mudanza (masiva o individual): es la única vía para que el operador
+        vuelva a VERLA y le devuelva el flag de forma voluntaria. Las piezas CON
+        sub-divisiones se rescatan en la SECCIÓN 3 (`muebles_raiz_del_estok`),
+        así que las dos secciones nunca muestran la misma pieza dos veces.
     """
-    # TENENCIA: habitación física del Estok activo o limbo de mudanza (raíz).
-    tenencia = Q(ubicacion__estok_id=estok_id) | q_limbo_de_mudanza(estok_id)
-    # CANAL 1 · bulto de STOCK TERMINAL con tenencia resuelta (Lote 30): viaja
-    # DECLARADO o NO —el operador quiere LIBERAR el stock interno que quedaba
-    # escondido dentro de los espacios fijados—, siempre que no sea la
-    # ARQUITECTURA DEL ESPACIO (raíz no declarada movible) ni una estructura
-    # (una pieza con sub-divisiones propias es mobiliario, no bulto).
-    declarada = ~Q(_tiene_subdivisiones()) & tenencia & ~qe_estructura_del_espacio()
-    # CANAL 2 · 🔓 RESCATE: caja RAÍZ TERMINAL en el limbo (aunque no se declaró).
-    rescate = q_limbo_de_mudanza(estok_id) & ~Q(_tiene_subdivisiones())
+    # TENENCIA ÚNICA: habitación física del Estok activo O limbo de mudanza a
+    # CUALQUIER NIVEL (`exigir_raiz=False`). Una caja guardada dentro de un
+    # mueble que viajó «En Tránsito» sigue siendo una caja del Estok: antes el
+    # limbo sólo se reconocía en la RAÍZ y esas piezas quedaban invisibles.
+    tenencia = Q(ubicacion__estok_id=estok_id) | q_limbo_de_mudanza(
+        estok_id, exigir_raiz=False,
+    )
+    # BULTO DE STOCK TERMINAL (Lote 30): viaja DECLARADO o NO —es la liberación
+    # del stock que quedaba escondido dentro de los espacios fijados—, siempre
+    # que no sea la ARQUITECTURA DEL ESPACIO (raíz no declarada movible) ni una
+    # estructura (una pieza con sub-divisiones propias es mobiliario, no bulto).
+    bulto = (
+        Q(tipo=TIPO_CAJA, es_inmueble=False)
+        & ~Q(_tiene_subdivisiones())
+        & ~qe_estructura_del_espacio()
+    )
+    # 🔓 RESCATE DE EMERGENCIA: caja RAÍZ TERMINAL en el limbo (aunque el flag
+    # `declarado_movible` haya quedado en False tras una mudanza vieja). Rompe el
+    # limbo de invisibilidad: es la única vía para volver a verla y editarla.
+    rescate_limbo = (
+        Q(tipo=TIPO_CAJA, es_inmueble=False)
+        & q_limbo_de_mudanza(estok_id)
+        & ~Q(_tiene_subdivisiones())
+    )
+    # UNA SOLA CONSULTA: TODAS las cajas del Estok (en un espacio, en un mueble
+    # o en tránsito), sin importar el flag de movilidad de la pieza anidada.
+    # El listado de /objetos (`SECCIÓN 1 · Cajas e Inventario Interno`) y la
+    # canasta de mudanza consumen esta MISMA fuente: no pueden divergir.
     return (
         Contenedor.objects.select_related('ubicacion')
-        .filter(tipo=TIPO_CAJA, es_inmueble=False)
-        .filter(declarada | rescate)
+        .filter((bulto & tenencia) | rescate_limbo)
         .order_by('ubicacion__nombre', 'nombre')
+    )
+
+
+# Categoría base que declara un Objeto como bulto contenedor (misma semilla que
+# `arbol_inventario_objetos_contenedor.CATEGORIAS_OBJETO_CONTENEDOR`).
+CATEGORIA_OBJETO_CONTENEDOR = 'Cajas y Contenedores'
+
+
+def objetos_contenedor_del_estok(estok_id):
+    """
+    OBJETOS declarados CAJA / CONTENEDOR del Estok (SECCIÓN 1 del listado).
+
+    Regla ÚNICA del pedido, resuelta en el ORM:
+
+        Q(categoria__nombre='Cajas y Contenedores') | Q(es_contenedor=True)
+
+    sin importar DÓNDE esté la pieza: dentro de un espacio (`contenedor`),
+    colgada de un Objeto contenedor (`objeto_padre`), suelta en la habitación o
+    EN TRÁNSITO (`ubicacion`/`contenedor` nulos después de una mudanza). Por eso
+    la tenencia no se resuelve sólo por `estok_id`: un registro histórico sin
+    tenant se recupera por la habitación o por el contenedor que lo aloja.
+
+    Devuelve un queryset liviano (`select_related` + prefetch de fotos) para que
+    el servicio lo serialice con `ObjetoListSerializer` sin consultas N+1.
+    """
+    tenencia = (
+        Q(estok_id=estok_id)
+        | Q(estok__isnull=True, ubicacion__estok_id=estok_id)
+        | Q(estok__isnull=True, contenedor__ubicacion__estok_id=estok_id)
+    )
+    return (
+        Objeto.objects.select_related(
+            'ubicacion', 'contenedor', 'categoria', 'objeto_padre',
+        )
+        .prefetch_related('fotos')
+        .filter(deleted_at__isnull=True)
+        .filter(tenencia)
+        .filter(
+            Q(categoria__nombre__iexact=CATEGORIA_OBJETO_CONTENEDOR)
+            | Q(es_contenedor=True)
+        )
+        .order_by('nombre')
     )
 
 

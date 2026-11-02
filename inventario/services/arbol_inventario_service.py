@@ -3,12 +3,14 @@ Servicio de construcción del ÁRBOL JERÁRQUICO DE INVENTARIO (Objetos).
 
 Reúne en UNA sola respuesta la TAXONOMÍA VÁLIDA del Estok activo:
 
-  - SECCIÓN 1 (`cajas`): Contenedores con `tipo='CAJA'` (cajas móviles de
-    objetos), a cualquier nivel (raíz o dentro de un mueble), cada uno con sus
-    Objetos físicos DIRECTOS. Filtro ORM ÚNICO Y EXCLUSIVO por `tipo='CAJA'`.
-    Incluye además los OBJETOS declarados contenedor (`Objeto.es_contenedor`)
-    o categorizados como «Cajas y Contenedores», para que nunca se degraden a
-    «Objetos Sueltos o sin Caja» (nodos con `origen='objeto'`).
+  - SECCIÓN 1 (`cajas`): TODAS las cajas físicas del Estok —`tipo='CAJA'`,
+    `es_inmueble=False`, terminales— a cualquier nivel (raíz, dentro de un mueble
+    o EN TRÁNSITO en el limbo), cada una con sus Objetos físicos DIRECTOS. Filtro
+    ORM ÚNICO Y EXCLUSIVO por `tipo='CAJA'` (`arbol_inventario_datos
+    .cajas_del_estok`). Incluye además los OBJETOS declarados contenedor
+    (`Objeto.es_contenedor=True`) o categorizados como «Cajas y Contenedores»,
+    garantizados por ORM (`objetos_contenedor_del_estok`) para que nunca se
+    degraden a «Objetos Sueltos o sin Caja» (nodos con `origen='objeto'`).
   - SECCIÓN 3 (`estructuras`): Muebles (`tipo='MUEBLE_MOVIL'`) RAÍZ mudables
     (`es_inmueble=False`), agrupados por Ubicación, cada uno con los Objetos
     físicos que aloja (incluidos los que cuelgan de sus CONJUNTOS internos).
@@ -67,6 +69,10 @@ from .arbol_inventario_datos import (
     muebles_raiz_del_estok,
     objetos_del_estok as _objetos_del_estok,
 )
+# Completa la SECCIÓN 1 con las cajas declaradas por Objeto que el listado base
+# no trajo (registros históricos o en tránsito). Módulo propio para no engordar
+# este orquestador (disciplina de modularidad del proyecto).
+from .arbol_inventario_cajas_declaradas import cajas_declaradas_faltantes
 
 # ---------------------------------------------------------------------------
 # Construcción del payload jerárquico
@@ -165,9 +171,24 @@ def construir_arbol_estok(
         categoria=categoria, decision=decision,
         publicado_ml=publicado_ml, search=search,
     )
-    objetos_serializados = ObjetoListSerializer(
+    objetos_serializados = list(ObjetoListSerializer(
         objetos_qs, many=True, context={'request': request},
-    ).data
+    ).data)
+
+    # ------------------------------------------------------------------
+    # 2bis) GARANTÍA ORM DE «📦 CAJAS E INVENTARIO INTERNO»
+    # ------------------------------------------------------------------
+    # Las cajas declaradas por el operador (`es_contenedor=True` o categoría
+    # «Cajas y Contenedores») pertenecen SIEMPRE a la SECCIÓN 1, sin importar
+    # dónde estén: adentro de un espacio, colgadas de otro contenedor, sueltas en
+    # la habitación o EN TRÁNSITO (sin ubicación ni contenedor). El listado base
+    # las trae casi siempre; esto cubre los registros históricos sin tenant, que
+    # el ORM recupera por su habitación o por el contenedor que los aloja.
+    # Con FILTROS activos no se inyecta nada: la selección del operador manda.
+    if not (categoria or decision or publicado_ml or search):
+        objetos_serializados.extend(
+            cajas_declaradas_faltantes(estok_id, objetos_serializados, request)
+        )
 
     # ------------------------------------------------------------------
     # 3) Agrupación en memoria (cero N+1)

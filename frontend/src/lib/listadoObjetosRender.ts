@@ -84,9 +84,18 @@ export function declaradoNoMovible(nodo: NodoContenedor): boolean {
 /**
  * SECCIÓN 1 · Caja móvil menor admisible en la cima del inventario.
  * Regla de descarte ABSOLUTA: SOLO `tipo_contenedor === 'CAJA'` con
- * `es_inmueble = false`, DECLARADA movible (`declarado_movible === true`) y
- * SIN sub-divisiones propias (`subcontenedores_count === 0`): una caja con
- * hijos es una ESTRUCTURA y vive en la SECCIÓN 3, no acá.
+ * `es_inmueble = false` y SIN sub-divisiones propias (una caja con hijos es una
+ * ESTRUCTURA y vive en la SECCIÓN 3, no acá).
+ *
+ * MOVILIDAD: la sección lista TODAS las cajas del Estok
+ * (`arbol_inventario_datos.cajas_del_estok`), que ya descarta en el ORM la
+ * ARQUITECTURA del espacio (raíz no declarada movible). Por eso una caja
+ * ANIDADA (dentro de un espacio, un mueble o un estante) se muestra SIEMPRE,
+ * esté o no declarada movible: es el stock interno del Estok (ej. «Caja 01» …
+ * «Caja 05» guardadas dentro de un estante) y antes desaparecía de la sección
+ * porque el flag de la pieza viajaba en `false`. La re-verificación en el
+ * cliente queda reservada para las cajas RAÍZ, donde el flag sí decide si la
+ * pieza es mobiliario del cuarto o un bulto del inventario.
  */
 export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
   const cajaMovil = nodo.tipo_contenedor === 'CAJA' && !esInmueble(nodo);
@@ -101,6 +110,9 @@ export function esCajaMovilEnBloqueCajas(nodo: NodoContenedor): boolean {
   if (!nodo.parent_contenedor && esCajaEnLimbo(nodo)) {
     return numerico(nodo.subcontenedores_count) === 0;
   }
+  // CAJA ANIDADA (espacio/mueble/estante): stock interno, siempre listada.
+  if (nodo.parent_contenedor) return numerico(nodo.subcontenedores_count) === 0;
+  // CAJA RAÍZ: sólo si el operador la declaró movible (el ORM ya la filtró).
   return !declaradoNoMovible(nodo) && numerico(nodo.subcontenedores_count) === 0;
 }
 
