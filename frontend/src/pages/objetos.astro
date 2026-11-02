@@ -1,12 +1,13 @@
 ---
 // Listado jerárquico de objetos (inventario en cascada).
-// La pantalla se divide en TRES secciones descendentes que heredan de forma
-// continua la misma textura y paleta corporativa. ORDEN VISUAL (Lote 24),
-// de arriba a abajo:
-//   SECCIÓN 1 (ARRIBA) · 🧸 Objetos Sueltos o sin Caja
-//   SECCIÓN 2 (CENTRO) · 📦 Cajas e Inventario Interno (mini-guía analítica
-//                        asimétrica: casita a dos aguas + ambientes + mueble naranja)
-//   SECCIÓN 3 (ABAJO)  · 🗄 Muebles y Estructuras Móviles
+// La pantalla se divide en secciones descendentes que heredan de forma continua
+// la misma textura y paleta corporativa. ORDEN VISUAL (Lote 32), de arriba a
+// abajo:
+//   SECCIÓN 1    · 🧸 Objetos Sueltos o sin Caja
+//   SECCIÓN 2    · 📦 Cajas e Inventario Interno (mini-guía analítica asimétrica)
+//   SECCIÓN 2bis · 📦 Objetos en Contenedor (lista plana con insignia de
+//                  ubicación: ningún ítem queda oculto detrás de un acordeón)
+//   SECCIÓN 3    · 🗄 Muebles y Estructuras Móviles
 // La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
 // Payload: GET /api/contenedores/arbol/ (backend optimizado, cero N+1).
 
@@ -158,6 +159,19 @@ import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
           </div>
         </div>
         <div id="cajasContainer" class="space-y-6"></div>
+      </section>
+
+      <!-- SECCIÓN 1bis · Objetos en Contenedor (ningún ítem queda oculto) -->
+      <section id="seccionObjetosEnContenedor" class="hidden mb-10">
+        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-900">📦 Objetos en Contenedor</h2>
+            <p class="text-sm text-gray-500">Todo ítem guardado DENTRO de una caja, mueble o espacio lógico · la insignia indica su ubicación (ej. 📦 En Caja 02)</p>
+          </div>
+          <span id="objetosEnContenedorResumen"
+            class="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full"></span>
+        </div>
+        <div id="objetosEnContenedorGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
       </section>
 
       <!-- SECCIÓN 3 (ABAJO) · Muebles y Estructuras Móviles -->

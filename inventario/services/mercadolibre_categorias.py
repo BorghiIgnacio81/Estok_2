@@ -23,7 +23,8 @@ import unicodedata
 # Nombre de categoría de la plataforma → ID oficial de Mercado Libre Argentina.
 # Espejo de inventario/management/commands/cargar_categorias_meli.py
 # (CATEGORIAS_OFICIALES) + inventario/services/categorias_meli.py
-# (CATEGORIAS_BASE_ADICIONALES: Ropa, Libros y Cajas y Contenedores).
+# (CATEGORIAS_BASE_ADICIONALES: Ropa, Libros, Cajas y Contenedores, Coleccionables
+# y Artesanías).
 CATEGORIAS_MLA_POR_NOMBRE = {
     "ropa": "MLA1430",           # Ropa y Accesorios (contenedor de indumentaria)
     "indumentaria": "MLA1430",
@@ -34,6 +35,12 @@ CATEGORIAS_MLA_POR_NOMBRE = {
     # «Hogar, Muebles y Jardín» para que la búsqueda de precio no quede sin filtro.
     "cajas y contenedores": "MLA1574",
     "contenedores": "MLA1574",
+    # Artesanías comparte «Arte y Manualidades» SOLO para la búsqueda de precio
+    # de referencia (mapeo puro, sin filas de BD: en el catálogo la categoría se
+    # siembra sin ML id para no chocar con «Arte»).
+    "artesanias": "MLA34263",
+    "artesania": "MLA34263",
+    "manualidades": "MLA34263",
     "muebles": "MLA436380",
     "mueble": "MLA436380",
     "arte": "MLA34263",

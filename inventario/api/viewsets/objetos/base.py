@@ -21,6 +21,9 @@ from ...paginacion import EstokPaginacion
 from ...serializers import (
     ObjetoListSerializer, ObjetoDetailSerializer, ObjetoCreateSerializer,
 )
+from ....services.clasificacion_contenedor_objeto import (
+    asegurar_clasificacion_contenedor,
+)
 from ..base import HasRolePermission
 
 
@@ -56,12 +59,19 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         Mapeo Espacial envíe únicamente { contenedor, parent_grid_row,
         parent_grid_col } cuando un objeto individual se suelta en un
         casillero de la grilla de un contenedor.
+
+        COHERENCIA DE CAJA: tras guardar se re-verifica que un objeto
+        declarado caja/contenedor conserve su flag y su categoría «Cajas y
+        Contenedores» (services/clasificacion_contenedor_objeto). El arrastre
+        desde la bandeja flotante sólo envía la jerarquía espacial, así que la
+        clasificación se garantiza ACÁ y no en el cliente.
         """
         partial = True
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        asegurar_clasificacion_contenedor(instance)
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
         return Response(serializer.data)
@@ -85,6 +95,11 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         objeto = create_serializer.save()
 
         self._guardar_fotos_multiple(objeto, request)
+
+        # COHERENCIA DE CAJA en el alta: un objeto creado como caja/contenedor
+        # (marca, categoría «Cajas y Contenedores» o rótulo «Caja 0N») queda con
+        # su flag y su categoría persistidos desde el primer guardado.
+        asegurar_clasificacion_contenedor(objeto)
 
         objeto.refresh_from_db()
 

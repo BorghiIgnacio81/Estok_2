@@ -11,7 +11,9 @@ Alcance:
   1) Las 11 categorías OFICIALES de Mercado Libre (reutiliza el servicio
      existente `aplicar_categorias_oficiales_a_estok`, idempotente).
   2) Categorías BASE adicionales de uso cotidiano que NO están entre las 11
-     oficiales («Ropa», «Libros» y «Cajas y Contenedores»), sembradas con
+     oficiales («Ropa», «Libros», «Cajas y Contenedores», «Artesanías») más
+     «Coleccionables» (que SÍ es oficial y se declara acá de forma idempotente
+     para los Estok creados antes del catálogo), sembradas con
      `es_sistema=False` para que la limpieza destructiva del comando oficial
      NUNCA las elimine.
 
@@ -52,8 +54,9 @@ def sembrar_categorias_base(estok):
 
 def sembrar_categorias_adicionales(estok):
     """
-    Asegura «Ropa», «Libros» y «Cajas y Contenedores» en un Estok (idempotente,
-    no destructivo).
+    Asegura las categorías base adicionales del Estok (idempotente, no
+    destructivo): «Ropa», «Libros», «Cajas y Contenedores», «Coleccionables» y
+    «Artesanías».
 
     Reglas:
       · Si la categoría ya existe se PRESERVA y sólo se completa lo que falte
@@ -61,6 +64,9 @@ def sembrar_categorias_adicionales(estok):
         usuario ni su ícono.
       · Si no existe se crea con `es_sistema=False`, blindada contra la limpieza
         destructiva del seeding oficial.
+      · Un `mercadolibre_category_id` VACÍO en la definición no se persiste ni
+        se completa: la resolución de la hoja publicable se hace por nombre al
+        publicar.
 
     Devuelve la tupla (creadas, actualizadas).
     """
@@ -68,6 +74,7 @@ def sembrar_categorias_adicionales(estok):
     actualizadas = 0
 
     for cat in CATEGORIAS_BASE_ADICIONALES:
+        ml_id = (cat.get("mercadolibre_category_id") or "").strip()
         # Se busca por NOMBRE porque `unique_together` es (nombre, estok): así
         # una categoría ya adoptada por el usuario no se duplica.
         fila = Categoria.objects.filter(
@@ -79,7 +86,7 @@ def sembrar_categorias_adicionales(estok):
                 estok=estok,
                 nombre=cat["nombre"],
                 icono=cat["icono"],
-                mercadolibre_category_id=cat["mercadolibre_category_id"],
+                mercadolibre_category_id=ml_id or None,
                 subtipo=cat["subtipo"],
                 es_contenedor=True,
                 es_sistema=False,
@@ -88,10 +95,10 @@ def sembrar_categorias_adicionales(estok):
             continue
 
         cambios = []
-        if not fila.mercadolibre_category_id:
-            fila.mercadolibre_category_id = cat["mercadolibre_category_id"]
+        if ml_id and not fila.mercadolibre_category_id:
+            fila.mercadolibre_category_id = ml_id
             cambios.append("mercadolibre_category_id")
-        if not fila.subtipo:
+        if not fila.subtipo and cat["subtipo"]:
             fila.subtipo = cat["subtipo"]
             cambios.append("subtipo")
         if cambios:

@@ -100,7 +100,10 @@ class AccionesContenedorMixin:
         Retorna SOLO la taxonomía válida del inventario con filtros ORM
         estrictos por tipo: `cajas` (tipo='CAJA', SECCIÓN 1), `estructuras`
         (muebles tipo='MUEBLE_MOVIL' mudables, SECCIÓN 3) y los objetos
-        sueltos/sin ubicación en `sueltos` (SECCIÓN 2). Los `tipo='CONJUNTO'`
+        sueltos/sin ubicación en `sueltos` (SECCIÓN 2). `objetos_en_contenedor`
+        es la LISTA PLANA de los ítems que viven dentro de un contenedor (con
+        su `contenedor_etiqueta`), para que ninguna tarjeta quede oculta al
+        quitar los filtros o al filtrar por categoría. Los `tipo='CONJUNTO'`
         (estructura interna del mueble) y los `tipo='MUEBLE_INMUEBLE'` (fijos)
         quedan estrictamente EXCLUIDOS de toda consulta y renderizado.
 
@@ -117,6 +120,7 @@ class AccionesContenedorMixin:
                 'estructuras': [],
                 'cajas': [],
                 'sueltos': [],
+                'objetos_en_contenedor': [],
                 'filtros_activos': False,
                 'resumen': {
                     'contenedores': 0,

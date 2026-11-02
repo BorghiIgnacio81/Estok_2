@@ -36,6 +36,12 @@ export interface PayloadArbol {
   estructuras: GrupoEstructura[];
   cajas: NodoCaja[];
   sueltos: ObjetoArbol[];
+  /**
+   * SECCIÓN «📦 Objetos en Contenedor»: lista PLANA de los objetos que viven
+   * dentro de una caja/mueble/espacio, ya con `contenedor_tipo` y
+   * `contenedor_etiqueta` resueltos por el backend (cero N+1).
+   */
+  objetos_en_contenedor?: ObjetoArbol[];
   filtros_activos: boolean;
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
 }

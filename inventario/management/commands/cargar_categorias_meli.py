@@ -17,8 +17,9 @@ Reglas de este comando:
    categoría con el MISMO nombre de una oficial y sin mercadolibre_category_id, el
    comando la adopta asignándole el ID oficial en vez de duplicar o borrar.
 6. Además de las 11 oficiales, siembra las categorías base adicionales
-   («Ropa», «Libros» y «Cajas y Contenedores») para que TODO Estok existente
-   las tenga, incluso los creados antes de que existiera el seed de alta.
+   («Ropa», «Libros», «Cajas y Contenedores», «Artesanías» y «Coleccionables»)
+   para que TODO Estok existente las tenga, incluso los creados antes de que
+   existiera el seed de alta.
 
 Para evitar reintroducir el bug de "categorías combinadas", este comando NO
 consulta la API de Mercado Libre: la lista oficial vive hardcodeada aquí.
@@ -129,9 +130,10 @@ class Command(BaseCommand):
         total_actualizadas = 0
         total_base = 0
 
-        # Las categorías base adicionales («Ropa», «Libros» y «Cajas y
-        # Contenedores») viven en el servicio de seeding para que el alta
-        # pública, el panel global y este comando compartan UNA sola definición.
+        # Las categorías base adicionales («Ropa», «Libros», «Cajas y
+        # Contenedores», «Artesanías» y «Coleccionables») viven en el servicio
+        # de seeding para que el alta pública, el panel global y este comando
+        # compartan UNA sola definición.
         from inventario.services.seeding_categorias import (
             sembrar_categorias_adicionales,
         )
@@ -148,7 +150,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 f'   Estok "{estok.nombre}" ({estok.id}): '
                 f'creadas={creadas} actualizadas={actualizadas} eliminadas={eliminadas} '
-                f'base(Ropa/Libros)={base_creadas + base_actualizadas}'
+                f'base(Ropa/Libros/Cajas/Artesanías/Coleccionables)={base_creadas + base_actualizadas}'
             )
 
         self.stdout.write(self.style.SUCCESS(
@@ -183,6 +185,11 @@ class Command(BaseCommand):
 
     def _aplicar_categorias_oficiales(self, estok):
         """Crea o actualiza las 11 categorías oficiales para un Estok."""
+        # Red de seguridad de ML id compartido (varias categorías del mismo Estok
+        # pueden apuntar al mismo ID, ej. «Hogar» y «Cajas y Contenedores» en
+        # MLA1574): la resolución vive en el servicio, fuente única.
+        from inventario.services.categorias_meli import upsert_categoria_oficial
+
         creadas = 0
         actualizadas = 0
         for cat in CATEGORIAS_OFICIALES:
@@ -190,17 +197,7 @@ class Command(BaseCommand):
                 # Autocuración: la categoría del usuario pasó a ser la oficial.
                 actualizadas += 1
                 continue
-            _, created = Categoria.objects.update_or_create(
-                mercadolibre_category_id=cat["mercadolibre_category_id"],
-                estok=estok,
-                defaults={
-                    "nombre": cat["nombre"],
-                    "icono": cat["icono"],
-                    "subtipo": cat.get("subtipo", ""),
-                    "es_contenedor": True,
-                    "es_sistema": True,
-                },
-            )
+            _, created = upsert_categoria_oficial(estok, cat)
             if created:
                 creadas += 1
             else:

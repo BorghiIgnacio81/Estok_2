@@ -2,15 +2,20 @@
 // LISTADO JERÁRQUICO DE OBJETOS (controlador)
 // -----------------------------------------------------------------------------
 // Consume GET /api/contenedores/arbol/ (payload optimizado sin N+1) y pinta la
-// pantalla en TRES secciones jerárquicas descendentes:
+// pantalla en CUATRO secciones jerárquicas descendentes:
 //   1. SECCIÓN 1 · 📦 Cajas e Inventario Interno → SOLO cajas móviles
 //      (`tipo='CAJA'` y `es_inmueble=false`). El Armario Empotrado y el Setup PC
 //      (estructuras fijas) quedan FUERA de este bloque superior.
-//   2. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
-//   3. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye `es_inmueble`).
+//   2. SECCIÓN 1bis · 📦 Objetos en Contenedor → lista PLANA de los ítems
+//      guardados dentro de cajas/muebles/espacios, con la insignia de su
+//      ubicación («📦 En Caja 02»). Garantiza que ningún objeto quede oculto.
+//   3. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
+//   4. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye `es_inmueble`).
 //   Los `tipo='ESTANTE'` quedan EXCLUIDOS de toda consulta y renderizado.
-// La construcción de HTML vive en listadoObjetosRender.ts (capa pura) y las
-// acciones operativas de las tarjetas (Mover/Editar/Eliminar) en cajaOperativa.ts.
+// La construcción de HTML vive en listadoObjetosRender.ts +
+// listadoObjetosEnContenedor.ts (capas puras), el volcado en el DOM en
+// listadoJerarquicoVista.ts y las acciones operativas de las tarjetas
+// (Mover/Editar/Eliminar) en cajaOperativa.ts.
 // Auth centralizada: getAuthHeaders() desde src/services/auth (no se duplica).
 // =============================================================================
 
@@ -18,14 +23,17 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { initCajaOperativa } from './cajaOperativa';
-import {
-  esc,
-  resumenInventarioHtml,
-  seccionCajasHtml,
-  seccionMueblesHtml,
-  seccionSueltosHtml,
-} from './listadoObjetosRender';
+import { esc } from './listadoObjetosRender';
 import type { PayloadArbol } from './listadoObjetosRender';
+// CAPA DE VISTA (DOM) del inventario en cascada: refs, secciones y volcado del
+// payload. Se extrajo para sostener el límite de 400 líneas por archivo de UI.
+import {
+  crearRefsInventario,
+  mostrar,
+  ocultarSecciones,
+  renderInventario,
+} from './listadoJerarquicoVista';
+import type { RefsInventario } from './listadoJerarquicoVista';
 
 // Re-export del contrato del payload para consumidores externos.
 export type { ObjetoArbol, NodoContenedor, GrupoEstructura, PayloadArbol } from './listadoObjetosRender';
@@ -46,14 +54,8 @@ let errorMsgEl: HTMLElement | null = null;
 let retryBtn: HTMLElement | null = null;
 let emptyEl: HTMLElement | null = null;
 let sinResultadosEl: HTMLElement | null = null;
-let resumenEl: HTMLElement | null = null;
-let seccionesWrap: HTMLElement | null = null;
-let seccionCajas: HTMLElement | null = null;
-let cajasContainer: HTMLElement | null = null;
-let seccionMuebles: HTMLElement | null = null;
-let mueblesContainer: HTMLElement | null = null;
-let seccionSueltos: HTMLElement | null = null;
-let gridSueltos: HTMLElement | null = null;
+// Secciones del inventario (refs que administra listadoJerarquicoVista.ts).
+let refsInventario: RefsInventario | null = null;
 let filtroDecision: HTMLSelectElement | null = null;
 let filtroCategoria: HTMLSelectElement | null = null;
 let filtroPublicado: HTMLSelectElement | null = null;
@@ -61,11 +63,6 @@ let searchInput: HTMLInputElement | null = null;
 let btnLimpiarFiltros: HTMLElement | null = null;
 
 const filtros: Filtros = { decision: '', categoria: '', publicado_ml: '' };
-
-function mostrar(el: HTMLElement | null, visible: boolean): void {
-  if (!el) return;
-  el.classList.toggle('hidden', !visible);
-}
 
 // ---------------------------------------------------------------------------
 // Carga del payload jerárquico (GET /api/contenedores/arbol/)
@@ -98,7 +95,7 @@ async function cargar(): Promise<void> {
       throw new Error('Error al consultar el árbol de inventario (' + res.status + ').');
     }
     const payload = (await res.json()) as PayloadArbol;
-    render(payload);
+    if (refsInventario) renderInventario(refsInventario, payload);
   } catch (err: any) {
     if (errorMsgEl) {
       errorMsgEl.textContent = err && err.message
@@ -114,59 +111,8 @@ async function cargar(): Promise<void> {
 // ---------------------------------------------------------------------------
 // Render del árbol jerárquico
 // ---------------------------------------------------------------------------
-
-function render(payload: PayloadArbol): void {
-  const estructuras = payload.estructuras || [];
-  const cajas = payload.cajas || [];
-  const sueltos = payload.sueltos || [];
-  const resumen = payload.resumen || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
-
-  // SECCIÓN 1 · 📦 Cajas e Inventario Interno. FILTRO DE DESCARTE ABSOLUTO
-  // aplicado en seccionCajasHtml: SOLO cajas móviles (`tipo='CAJA'` y
-  // `es_inmueble=false`). Armario Empotrado / Setup PC → removidos.
-  const cajasHtml = seccionCajasHtml(cajas);
-  // SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye inmuebles fijos).
-  const mueblesHtml = seccionMueblesHtml(estructuras);
-  // SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
-  const sueltosHtml = seccionSueltosHtml(sueltos);
-
-  const haySecciones = cajasHtml.length > 0 || mueblesHtml.length > 0 || sueltosHtml.length > 0;
-
-  if (resumenEl && haySecciones) {
-    resumenEl.innerHTML = resumenInventarioHtml(resumen, payload.filtros_activos);
-    mostrar(resumenEl, true);
-  }
-
-  // Caso borde: si TODOS los contenedores del Estok son inmuebles fijos
-  // (descartados de forma absoluta) y no hay objetos sueltos, no queda nada que
-  // listar → se degrada al estado vacío en vez de una pantalla muda.
-  if (!haySecciones) {
-    mostrar(seccionCajas, false);
-    mostrar(seccionSueltos, false);
-    mostrar(seccionMuebles, false);
-    mostrar(seccionesWrap, false);
-    mostrar(resumenEl, false);
-    if (payload.filtros_activos) {
-      mostrar(sinResultadosEl, true);
-    } else {
-      mostrar(emptyEl, true);
-    }
-    return;
-  }
-
-  mostrar(sinResultadosEl, false);
-  mostrar(emptyEl, false);
-
-  if (cajasContainer) cajasContainer.innerHTML = cajasHtml;
-  if (mueblesContainer) mueblesContainer.innerHTML = mueblesHtml;
-  if (gridSueltos) gridSueltos.innerHTML = sueltosHtml;
-
-  mostrar(seccionCajas, cajasHtml.length > 0);
-  mostrar(seccionSueltos, sueltosHtml.length > 0);
-  mostrar(seccionMuebles, mueblesHtml.length > 0);
-  // El lienzo de textura corporativa solo se muestra si hay alguna sección.
-  mostrar(seccionesWrap, true);
-}
+// El volcado del payload en el DOM vive en listadoJerarquicoVista.ts
+// (`renderInventario`): esta capa sólo orquesta red, filtros y eventos.
 
 // ---------------------------------------------------------------------------
 // Filtros dinámicos y búsqueda
@@ -321,14 +267,8 @@ export function initListadoJerarquicoObjetos(): void {
   retryBtn = document.getElementById('retryBtn');
   emptyEl = document.getElementById('emptyState');
   sinResultadosEl = document.getElementById('sinResultados');
-  resumenEl = document.getElementById('resumenInventario');
-  seccionesWrap = document.getElementById('seccionesInventario');
-  seccionCajas = document.getElementById('seccionCajas');
-  cajasContainer = document.getElementById('cajasContainer');
-  seccionMuebles = document.getElementById('seccionMuebles');
-  mueblesContainer = document.getElementById('mueblesContainer');
-  seccionSueltos = document.getElementById('seccionSueltos');
-  gridSueltos = document.getElementById('objetosGrid');
+  // Secciones del inventario: las refs las resuelve la capa de vista.
+  refsInventario = crearRefsInventario();
   filtroDecision = document.getElementById('filtroDecision') as HTMLSelectElement | null;
   filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
   filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
@@ -336,10 +276,7 @@ export function initListadoJerarquicoObjetos(): void {
   btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
   mostrar(sinResultadosEl, false);
-  mostrar(seccionesWrap, false);
-  mostrar(seccionCajas, false);
-  mostrar(seccionSueltos, false);
-  mostrar(seccionMuebles, false);
+  if (refsInventario) ocultarSecciones(refsInventario);
   enlazarEventos();
 
   // REFRESCO REACTIVO DEL COMBOBOX DE CATEGORÍAS: al crear una categoría desde

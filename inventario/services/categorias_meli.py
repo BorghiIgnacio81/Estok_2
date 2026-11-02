@@ -60,6 +60,19 @@ logger = logging.getLogger(__name__)
 # «📦 Cajas e Inventario Interno» y NO en «Objetos Sueltos o sin Caja».
 # No tiene subtipo técnico propio: el mapeo ML es el contenedor «Hogar,
 # Muebles y Jardín» (MLA1574) para que publicar nunca quede sin categoría.
+#
+# «Artesanías» (Lote 32) es la categoría de los trabajos manuales/artesanales,
+# que no tenían dónde clasificarse (caían en «Arte» o quedaban sin categoría y
+# desaparecían de los filtros). Viaja SIN `mercadolibre_category_id` a propósito:
+# reutilizar MLA34263 («Arte y Manualidades») crearía DOS filas del mismo Estok
+# con el mismo ID de ML y el seeding oficial (`update_or_create` por ese ID)
+# abortaría con MultipleObjectsReturned. Al publicar, la hoja real se resuelve
+# con el nombre del objeto (`resolver_categoria_ml_para_publicacion`).
+#
+# «Coleccionables» ya es una de las 11 oficiales (MLA1367). Se declara acá de
+# forma IDEMPOTENTE para que cualquier Estok creado antes del catálogo oficial
+# la reciba igual: la siembra busca por NOMBRE y sólo completa lo que falte, sin
+# duplicar ni pisar la fila oficial.
 # ---------------------------------------------------------------------------
 CATEGORIAS_BASE_ADICIONALES = [
     {
@@ -79,6 +92,18 @@ CATEGORIAS_BASE_ADICIONALES = [
         "mercadolibre_category_id": "MLA1574",
         "icono": "📦",
         "subtipo": "",
+    },
+    {
+        "nombre": "Coleccionables",
+        "mercadolibre_category_id": "MLA1367",
+        "icono": "🏆",
+        "subtipo": "mueble_arte",
+    },
+    {
+        "nombre": "Artesanías",
+        "mercadolibre_category_id": "",
+        "icono": "🧶",
+        "subtipo": "mueble_arte",
     },
 ]
 
@@ -400,13 +425,63 @@ def garantizar_categoria_hoja_ml(categoria, category_id,
     return predicho
 
 
+def valores_oficiales(cat) -> dict:
+    """Defaults que el seeding oficial escribe sobre una categoría."""
+    return {
+        "nombre": cat["nombre"],
+        "icono": cat["icono"],
+        "subtipo": cat.get("subtipo", ""),
+        "es_contenedor": True,
+        "es_sistema": True,
+    }
+
+
+def upsert_categoria_oficial(estok, cat):
+    """
+    Crea o actualiza UNA categoría oficial para un Estok. Devuelve (fila, created).
+
+    IDEMPOTENTE por (mercadolibre_category_id, estok), con una red de seguridad
+    imprescindible: varias categorías del MISMO Estok pueden compartir el ID de
+    Mercado Libre (caso real: «Hogar» MLA1574 y la categoría base «Cajas y
+    Contenedores» MLA1574, que es la organizativa de los bultos). En ese caso el
+    `update_or_create` levanta MultipleObjectsReturned y abortaba TODA la siembra
+    —incluidas las categorías base— en cada arranque del contenedor. El fallback
+    resuelve la fila por NOMBRE, que es lo único que identifica a la oficial.
+    """
+    valores = valores_oficiales(cat)
+    try:
+        return Categoria.objects.update_or_create(
+            mercadolibre_category_id=cat["mercadolibre_category_id"],
+            estok=estok,
+            defaults=valores,
+        )
+    except Categoria.MultipleObjectsReturned:
+        fila = (
+            Categoria.objects.filter(estok=estok, nombre__iexact=cat["nombre"])
+            .order_by("nombre")
+            .first()
+        )
+        if fila is None:
+            raise
+        for campo, valor in valores.items():
+            setattr(fila, campo, valor)
+        fila.save(update_fields=list(valores))
+        logger.warning(
+            "ID de ML compartido (%s) en el Estok %s: la categoría oficial "
+            "'%s' se resolvió por nombre.",
+            cat["mercadolibre_category_id"], estok.pk, cat["nombre"],
+        )
+        return fila, False
+
+
 def aplicar_categorias_oficiales_a_estok(estok):
     """
     Crea o actualiza las 11 categorías oficiales de Mercado Libre para un Estok.
 
-    Idempotente: usa update_or_create sobre (mercadolibre_category_id, estok),
-    por lo que puede ejecutarse múltiples veces (arranque del contenedor +
-    triggers en caliente) sin duplicar ni pisar nada.
+    Idempotente: usa `upsert_categoria_oficial` sobre
+    (mercadolibre_category_id, estok), por lo que puede ejecutarse múltiples
+    veces (arranque del contenedor + triggers en caliente) sin duplicar ni pisar
+    nada.
 
     AUTOCURACIÓN: antes de crear, adopta por NOMBRE la fila existente que tenga
     el mismo nombre con otro ID (categoría de usuario o mapeo legado). Sin esto,
@@ -421,17 +496,7 @@ def aplicar_categorias_oficiales_a_estok(estok):
         if adoptar_categoria_oficial(estok, cat):
             actualizadas += 1
             continue
-        _, created = Categoria.objects.update_or_create(
-            mercadolibre_category_id=cat["mercadolibre_category_id"],
-            estok=estok,
-            defaults={
-                "nombre": cat["nombre"],
-                "icono": cat["icono"],
-                "subtipo": cat.get("subtipo", ""),
-                "es_contenedor": True,
-                "es_sistema": True,
-            },
-        )
+        _, created = upsert_categoria_oficial(estok, cat)
         if created:
             creadas += 1
         else:
