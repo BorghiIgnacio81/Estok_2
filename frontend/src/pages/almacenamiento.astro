@@ -74,18 +74,23 @@ import {
         <p class="mt-1 text-gray-500">Flujo en cascada por niveles: Mapa Estok → Habitaciones → Espacios</p>
       </div>
       <!-- ALTA DIRECTA DE CONTENEDOR: abre el formulario simplificado (sin
-           «Valor Estimado»), con Nombre, Foto, Dimensiones y Ubicación. -->
+           «Valor Estimado»), con Nombre, Foto, Dimensiones y Ubicación.
+           El disparador es un BOTÓN GRÁFICO PURO (igual que los demás botones
+           ilustrados de la barra): sin texto, sin fondo azul, sin borde y sin
+           padding. La ilustración /nuevo-contenedor.webp ocupa TODA el área del
+           botón (el <button> se ajusta a la imagen), conserva su relación de
+           aspecto y el nombre accesible vive en title + aria-label. -->
       <button type="button" id="nuevaCajaContenedorBtn"
-        class="inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:bg-blue-800 active:scale-95 transition-base cursor-pointer"
-        title="Crear una caja o contenedor físico con nombre, foto, dimensiones y ubicación">
+        class="inline-flex self-center shrink-0 p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
+        title="Crear una caja o contenedor físico con nombre, foto, dimensiones y ubicación"
+        aria-label="Nueva caja o contenedor">
         <img
           src={ASSET_CAJA}
           alt=""
           aria-hidden="true"
           draggable="false"
-          class="h-6 w-6 shrink-0 object-contain select-none"
+          class="block h-20 w-auto md:h-24 md:w-auto max-w-none object-contain object-center select-none pointer-events-none"
         />
-        + Nueva Caja / Contenedor
       </button>
     </div>
 
