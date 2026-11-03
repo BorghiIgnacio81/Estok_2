@@ -284,37 +284,35 @@ export function tieneGeometriaDePlano(pieza: PiezaTaxonomica | null | undefined)
 /**
  * BULTO MOVIBLE REAL admitido en la canasta lateral de «Elementos por ubicar».
  *
- * PURGA ESTRICTA DE NODOS JERÁRQUICOS: sólo CAJAS móviles que NO ofician de
- * padre estructurador de nivel superior (una caja con sub-contenedores propios
- * ya es una estructura, no un bulto transportable). Los OBJETOS terminales
- * sueltos se admiten por su propia vía (registro `Objeto`).
+ * WHITELIST FÍSICA: sólo CAJAS móviles (`tipo='CAJA'`, no inmueble).
  *
- * PURGA INVENCIBLE DE ARQUITECTURA FIJA: cualquier pieza con geometría propia
- * en un plano (`tieneGeometriaDePlano`) queda excluida de raíz, así que los
- * «Espacios» de las habitaciones —que son CAJA sin sub-divisiones— jamás
- * contaminan la canasta. Quedan TERMINANTEMENTE EXCLUIDOS además los CONJUNTOS
- * (estanterías, cajoneras), los muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE) y las
- * zonas geográficas de nivel superior («PC Setup», «Zona Indoor»).
+ * PURGA DE NODOS JERÁRQUICOS: una caja con sub-contenedores propios ya es una
+ * estructura, no un bulto transportable.
+ *
+ * CANALES DE RECONOCIMIENTO (espejo exacto del ORM `aplicar_filtro_bandeja`):
+ *   1. RESCATE del limbo de mudanza (caja raíz suelta en «En Tránsito»);
+ *   2. `declarado_movible=True` (checkbox del modal / alta de caja);
+ *   3. `en_transito_interno=True` (guardada sin estante fino);
+ *   4. rótulo que EMPIEZA por «Caja» («Caja 01»…«Cajas 05», «Caja de
+ *      herramientas»).
+ *
+ * BUG QUE ESTO CORRIGE
+ *   La purga por geometría de plano (`tieneGeometriaDePlano`) se evaluaba ANTES
+ *   de los canales 2–4, así que toda caja dibujada en el minimapa de su mueble
+ *   (las «Caja 01…05» hijas de «Estante 1» tienen `ui_left/ui_top/ui_height`)
+ *   desaparecía de la canasta aunque existiera y tuviera objetos dentro. La
+ *   ARQUITECTURA —habitaciones «Espacio N», muebles y zonas— tampoco entra
+ *   ahora: no aparece por ningún canal (no está declarada movible ni se rotula
+ *   «Caja…»).
  */
 export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined): boolean {
   if (!esCajaMovil(pieza)) return false;
-  // 🔓 RESCATE DE EMERGENCIA (Lote 28): una caja RAÍZ suelta en el LIMBO de
-  // mudanza entra SIEMPRE —aunque `declarado_movible` esté en False por una
-  // mudanza vieja y aunque arrastre geometría residual del plano de origen—:
-  // es la única vía para que el operador la vea, la edite y le devuelva el flag.
-  // Espejo exacto del canal de rescate del backend
-  // (`api/viewsets/organizacion/filtros_bandeja.aplicar_filtro_bandeja`).
-  if (esCajaEnLimbo(pieza) && !pieza?.parent_contenedor) return true;
-  // PURGA INVENCIBLE DE ARQUITECTURA FIJA y de nodos jerárquicos: se aplica a
-  // TODOS los canales siguientes.
-  if (tieneGeometriaDePlano(pieza)) return false;
   if (Number(pieza?.subcontenedores_count ?? 0) > 0) return false;
-  // CANALES DE RECONOCIMIENTO DE CAJA (espejo del ORM `aplicar_filtro_bandeja`):
-  //   1. `declarado_movible=True` (checkbox del modal / alta de caja);
-  //   2. `en_transito_interno=True` (guardada sin estante fino);
-  //   3. rótulo que EMPIEZA por «Caja» («Caja 02»…«Cajas 05», «Caja de
-  //      herramientas»): el alta rápida sólo persiste el nombre, así que sin
-  //      esta vía esas cajas nunca llegaban a la pestaña 4 de la canasta.
+  // 1 · RESCATE DE EMERGENCIA (Lote 28): una caja RAÍZ suelta en el LIMBO de
+  // mudanza entra SIEMPRE —aunque `declarado_movible` esté en False por una
+  // mudanza vieja—: es la única vía para que el operador la vea y la edite.
+  if (esCajaEnLimbo(pieza) && !pieza?.parent_contenedor) return true;
+  // 2-4 · CANALES DE RECONOCIMIENTO DE CAJA.
   if (pieza?.declarado_movible === true) return true;
   if (pieza?.en_transito_interno === true) return true;
   return esNombreDeCaja(pieza?.nombre);

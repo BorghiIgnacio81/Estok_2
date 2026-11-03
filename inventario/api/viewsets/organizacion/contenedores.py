@@ -97,9 +97,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`)
         # ------------------------------------------------------------------
         # ÚNICA autoridad de la regla: `aplicar_filtro_bandeja`
-        # (whitelist física + recuperabilidad declarada + purga de arquitectura
-        # fija + 🔓 RESCATE de las cajas mudadas al limbo, Lotes 27/28). La regla
-        # completa y su porqué viven documentados en `filtros_bandeja.py`.
+        # (whitelist física + canales de reconocimiento: declaración explícita,
+        # tránsito interno, rótulo «Caja…» y 🔓 RESCATE de las cajas mudadas al
+        # limbo, Lotes 27/28). La regla completa y su porqué viven documentados
+        # en `filtros_bandeja.py`.
         bandeja = self.request.query_params.get('bandeja')
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
             qs = aplicar_filtro_bandeja(qs, estok_id)
