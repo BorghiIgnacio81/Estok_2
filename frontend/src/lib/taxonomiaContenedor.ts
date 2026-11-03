@@ -312,9 +312,9 @@ export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined
   // CANALES DE RECONOCIMIENTO DE CAJA (espejo del ORM `aplicar_filtro_bandeja`):
   //   1. `declarado_movible=True` (checkbox del modal / alta de caja);
   //   2. `en_transito_interno=True` (guardada sin estante fino);
-  //   3. rótulo numerado «Caja 02»…«Cajas 05»: el alta rápida sólo persiste el
-  //      nombre, así que sin esta vía las Cajas 02–05 nunca llegaban a la
-  //      pestaña 4 de la canasta.
+  //   3. rótulo que EMPIEZA por «Caja» («Caja 02»…«Cajas 05», «Caja de
+  //      herramientas»): el alta rápida sólo persiste el nombre, así que sin
+  //      esta vía esas cajas nunca llegaban a la pestaña 4 de la canasta.
   if (pieza?.declarado_movible === true) return true;
   if (pieza?.en_transito_interno === true) return true;
   return esNombreDeCaja(pieza?.nombre);
@@ -336,18 +336,18 @@ const CATEGORIAS_OBJETO_CONTENEDOR = [
 ];
 
 /**
- * RÓTULO NUMERADO DE CAJA («Caja 02», «Cajas 03», «Caja 4»). Espejo exacto de
- * `PATRON_NOMBRE_CAJA` en `inventario/services/taxonomia_contenedor.py`.
+ * RÓTULO DE CAJA («Caja 02», «Cajas 03», «Caja de herramientas»). Espejo
+ * exacto de `PATRON_NOMBRE_CAJA` en `inventario/services/taxonomia_contenedor.py`.
  *
  * Es la TERCERA vía de declaración de una caja (además de `es_contenedor` y de
  * la categoría «Cajas y Contenedores»): el alta rápida persiste sólo el nombre,
- * así que sin esta regla las «Cajas 02…05» se leían como OBJETOS SUELTOS.
- * Se exige el número para no capturar objetos genéricos («Caja de herramientas
- * de papá» sigue siendo un objeto fino).
+ * así que sin esta regla las cajas se leían como OBJETOS SUELTOS.
+ * La regla es el PREFIJO «Caja»/«Cajas»: el operador no necesita marcar ninguna
+ * casilla para que el registro sea reconocido como bulto contenedor.
  */
-export const RE_NOMBRE_CAJA = /^cajas?\s*0*\d+$/i;
+export const RE_NOMBRE_CAJA = /^\s*cajas?/i;
 
-/** ¿El rótulo es el de una caja numerada? (espejo de `es_nombre_de_caja`). */
+/** ¿El rótulo declara caja? (espejo de `es_nombre_de_caja`). */
 export function esNombreDeCaja(nombre?: string | null): boolean {
   return RE_NOMBRE_CAJA.test(String(nombre ?? '').trim());
 }
@@ -356,13 +356,14 @@ export function esNombreDeCaja(nombre?: string | null): boolean {
 export interface ObjetoClasificable {
   es_contenedor?: boolean | null;
   categoria_nombre?: string | null;
-  /** Rótulo del registro: «Caja 02»…«Cajas 05» declara caja por sí solo. */
+  /** Rótulo del registro: empezar por «Caja» lo declara caja por sí solo. */
   nombre?: string | null;
 }
 
 /**
  * OBJETO CONTENEDOR: bulto declarado por el operador (`es_contenedor=true`), por
- * la categoría base «Cajas y Contenedores» o por su RÓTULO NUMERADO de caja.
+ * la categoría base «Cajas y Contenedores» o por su RÓTULO de caja (empieza por
+ * «Caja»).
  *
  * La consumen las vistas que deben agrupar estos registros junto a las cajas
  * físicas (bandeja de Almacenamiento) y NUNCA entre los «Objetos sueltos».

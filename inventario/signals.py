@@ -175,8 +175,9 @@ def asegurar_clasificacion_de_caja(sender, instance, **kwargs):
     REGLA ÚNICA
         `services/clasificacion_contenedor_objeto.asegurar_clasificacion_contenedor`
         (idempotente y no destructiva): si el registro es caja por marca,
-        categoría o rótulo numerado, fuerza `es_contenedor=True` y le asigna
-        «Cajas y Contenedores» SÓLO si no tenía categoría.
+        categoría, rótulo que EMPIEZA por «Caja» o alta rápida, fuerza
+        `es_contenedor=True` y le asigna «Cajas y Contenedores» SÓLO si no
+        tenía categoría.
 
     CORTE CIRCUITO
         Se sale sin consultar nada cuando el registro ya está completo

@@ -13,7 +13,9 @@ REGLA ÚNICA (idempotente, no destructiva)
     Un Objeto es CAJA/CONTENEDOR cuando cumple AL MENOS una condición:
       1. `es_contenedor = True` (disyuntor «Caja / Mueble» del alta).
       2. Su categoría es «Cajas y Contenedores» (categoría base del Estok).
-      3. Su rótulo es el de una caja numerada («Caja 02», «Cajas 03»).
+      3. Su rótulo EMPIEZA por «Caja» («Caja 02», «Cajas 03», «Caja de
+         herramientas»): el nombre es señal suficiente, sin checkbox manual.
+      4. El alta rápida lo declaró caja (`especificaciones.alta_rapida='caja'`).
 
     Para todo Objeto que cumpla la regla se garantiza:
       · `es_contenedor = True` (el flag de contenedor NUNCA se pierde).
@@ -23,8 +25,12 @@ REGLA ÚNICA (idempotente, no destructiva)
     La siembra de la categoría base se delega en
     `services.seeding_categorias.sembrar_categorias_adicionales`, fuente única.
 
-Se invoca desde el CRUD de Objetos (POST y PUT) para que la clasificación se
-conserve aunque el cliente envíe un payload parcial de reubicación.
+Se invoca desde:
+    · el CRUD de Objetos (POST y PUT) para que la clasificación se conserve
+      aunque el cliente envíe un payload parcial de reubicación;
+    · `ObjetoCreateSerializer.validate` (AUTO-ACTIVACIÓN obligatoria: el flag
+      viaja forzado en el mismo guardado, sin checkbox del operador);
+    · la señal post_save de Objeto (cualquier otro camino de escritura).
 """
 
 import logging
@@ -35,11 +41,17 @@ from .arbol_inventario_objetos_contenedor import (
     es_nombre_de_caja,
 )
 from .categorias_meli import CATEGORIAS_BASE_ADICIONALES
+from .taxonomia_contenedor import es_categoria_de_caja
 
 logger = logging.getLogger(__name__)
 
 # Nombre canónico de la categoría organizativa de los bultos contenedores.
 NOMBRE_CATEGORIA_CONTENEDOR = 'Cajas y Contenedores'
+
+# Valor de `especificaciones.alta_rapida` que declara el objeto como CAJA
+# (disyuntor «Caja / Mueble» del alta: ver `frontend/src/lib/objetos/
+# objetoClasificacionAlta.ts`).
+ALTA_RAPIDA_CAJA = 'caja'
 
 
 def _definicion_categoria_contenedor():
@@ -89,20 +101,61 @@ def categoria_contenedor_del_estok(estok):
         ).first()
 
 
+def es_categoria_contenedor(categoria) -> bool:
+    """
+    True si la `Categoria` declara bultos contenedores («Cajas y Contenedores»).
+
+    Acepta la instancia del modelo (o None). Tolera las variantes manuales del
+    nombre («Cajas / Contenedores», «Cajas/Contenedor») y la marca
+    `Categoria.es_contenedor` con la que se siembra la categoría base.
+    """
+    if categoria is None:
+        return False
+    nombre = str(getattr(categoria, 'nombre', '') or '').strip().casefold()
+    if nombre in CATEGORIAS_OBJETO_CONTENEDOR:
+        return True
+    if es_categoria_de_caja(nombre):
+        return True
+    return bool(getattr(categoria, 'es_contenedor', False))
+
+
+def declara_contenedor(nombre=None, categoria=None, especificaciones=None) -> bool:
+    """
+    REGLA ÚNICA de declaración de CAJA sobre datos sueltos (sin consultas).
+
+    Basta UNA condición:
+      1. El rótulo EMPIEZA por «Caja»/«Cajas» (`es_nombre_de_caja`).
+      2. La categoría es «Cajas y Contenedores» (`es_categoria_contenedor`).
+      3. El alta rápida lo declaró caja (`especificaciones.alta_rapida='caja'`).
+
+    El ESPEJO de dualidad de un Contenedor (`especificaciones.
+    es_espejo_contenedor`) NUNCA declara caja: su caja real ya existe como
+    `Contenedor` y marcarlo duplicaría el bulto en las pestañas.
+
+    La usan el serializer (auto-activación obligatoria del flag al guardar) y
+    la clasificación de cualquier registro ya persistido (`es_objeto_caja`).
+    """
+    especificaciones = especificaciones or {}
+    if especificaciones.get('es_espejo_contenedor'):
+        return False
+    if especificaciones.get('alta_rapida') == ALTA_RAPIDA_CAJA:
+        return True
+    if es_nombre_de_caja(nombre):
+        return True
+    return es_categoria_contenedor(categoria)
+
+
 def es_objeto_caja(objeto) -> bool:
-    """True si el Objeto es una caja/contenedor por marca, categoría o rótulo."""
+    """True si el Objeto es una caja/contenedor por marca, rótulo o categoría."""
     if objeto is None:
         return False
     if bool(getattr(objeto, 'es_contenedor', False)):
         return True
-    if es_nombre_de_caja(getattr(objeto, 'nombre', '')):
-        return True
-    # Sin categoría asignada no hay nada más que evaluar (ni una query extra).
-    if getattr(objeto, 'categoria_id', None) is None:
-        return False
-    categoria = getattr(objeto, 'categoria', None)
-    nombre_categoria = str(getattr(categoria, 'nombre', '') or '').strip().casefold()
-    return nombre_categoria in CATEGORIAS_OBJETO_CONTENEDOR
+    return declara_contenedor(
+        getattr(objeto, 'nombre', ''),
+        getattr(objeto, 'categoria', None),
+        getattr(objeto, 'especificaciones', None),
+    )
 
 
 def asegurar_clasificacion_contenedor(objeto) -> bool:

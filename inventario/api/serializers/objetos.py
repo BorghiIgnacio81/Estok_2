@@ -17,6 +17,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from ...models import Objeto
 from ...services import decisiones_service
+from ...services.clasificacion_contenedor_objeto import declara_contenedor
 from ...services.transito_interno import esta_en_transito_interno
 from ...services.ubicacion_objeto import (
     TEXTO_CONTENEDOR_AUSENTE,
@@ -287,6 +288,11 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
 
     El aislamiento multi-tenant se respeta: `estok` se toma del header
     `X-Estok-Id` del request (nunca se recibe del cliente).
+
+    AUTO-ACTIVACIÓN DE CONTENEDOR: un objeto de la categoría «Cajas y
+    Contenedores» (o con rótulo que empieza por «Caja») se guarda SIEMPRE con
+    `es_contenedor = True`, sin casilla manual (ver
+    `_forzar_marca_contenedor`).
     """
     class Meta:
         model = Objeto
@@ -307,6 +313,30 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
+    def _forzar_marca_contenedor(self, attrs):
+        """
+        Fuerza `es_contenedor = True` cuando el registro declara ser CAJA.
+
+        REGLA (fuente única en `services.clasificacion_contenedor_objeto.
+        declara_contenedor`): categoría «Cajas y Contenedores», rótulo que
+        EMPIEZA por «Caja» o alta rápida marcada como caja.
+
+        · En POST resuelve la categoría del propio payload.
+        · En PUT/PATCH parcial usa la del registro ya guardado, así un guardado
+          que sólo reubica la caja no la degrada a «Objeto Suelto».
+        · NUNCA apaga el flag: sólo lo enciende. Los espejos de dualidad de un
+          Contenedor quedan excluidos (su caja real ya es un chip propio).
+        """
+        instancia = self.instance
+        categoria = attrs.get('categoria', getattr(instancia, 'categoria', None))
+        nombre = attrs.get('nombre', getattr(instancia, 'nombre', ''))
+        especificaciones = attrs.get(
+            'especificaciones', getattr(instancia, 'especificaciones', None),
+        )
+        if declara_contenedor(nombre, categoria, especificaciones):
+            attrs['es_contenedor'] = True
+        return attrs
+
     def validate(self, attrs):
         """
         Deriva el estado «En Transito Interno» del Drop del objeto.
@@ -323,6 +353,15 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         para no borrar un estado vigente en un PUT parcial que solo renombra el
         objeto.
         """
+        # ------------------------------------------------------------------
+        # AUTO-ACTIVACIÓN OBLIGATORIA DE `es_contenedor`
+        # ------------------------------------------------------------------
+        # La clasificación de CAJA no depende de un checkbox del operador: si
+        # el objeto pertenece a la categoría «Cajas y Contenedores», su rótulo
+        # empieza por «Caja» o el alta rápida lo declaró caja, el flag viaja
+        # FORZADO en `True` en este mismo guardado (backend = única autoridad).
+        self._forzar_marca_contenedor(attrs)
+
         # ------------------------------------------------------------------
         # GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar) por el CRUD
         # ------------------------------------------------------------------
