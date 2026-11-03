@@ -21,11 +21,20 @@
 //     sobre <html> (lib/mapa/portales/portalesAlmacenamiento.ts).
 //
 // CONTENIDO (cascada movible en este orden secuencial EXACTO):
-//   1) Objetos sueltos      → sin ningún hogar espacial (huérfanos).
+//   1) Objetos sueltos      → SIN CONTENEDOR y sin espacio físico real
+//                             (`contenedor_id IS NULL` Y `ubicacion_id IS NULL`,
+//                             o la zona VIRTUAL del limbo de mudanza).
 //   2) Cajas sueltas        → cajas móviles sin ubicación general (incluye las
 //                             mudadas al limbo «En Tránsito», Lote 28).
 //   3) Objetos a reubicar   → objetos ubicados que requieren reubicación urgente.
 //   4) Cajas a reubicar     → cajas ubicadas que requieren reubicación urgente.
+//
+// FILTRADO ESTRICTO DE «OBJETOS SUELTOS» (Lote 32): un objeto que pertenece a un
+// CONTENEDOR (`contenedor_id IS NOT NULL`) NUNCA se lista como suelto ni se marca
+// «En tránsito» individualmente. Su ubicación física depende EXCLUSIVAMENTE de la
+// caja que lo aloja, así que el bulto recuperable es el chip de SU CONTENEDOR
+// (grupo 2 · Cajas sueltas si la caja quedó en el limbo). Evita el doble listado
+// «caja + cada uno de sus objetos» que ensuciaba la barra flotante.
 //
 // REGLA DE RECUPERABILIDAD (una sola autoridad: PostgreSQL). La canasta lista los
 // bultos RECUPERABLES del Estok activo, que son:
@@ -70,7 +79,7 @@ import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
 // sostener el límite de 400 líneas: incluye el rótulo «· En tránsito»).
 import { grupoHtml } from './bandejaChipHtml';
 import type { ChipBandeja, GrupoChips } from './bandejaChipHtml';
-import { esCajaEnLimbo, esCajaMovil, esHabitacionLimbo, esObjetoContenedor } from './taxonomiaContenedor';
+import { esCajaEnLimbo, esCajaMovil, esHabitacionLimbo, esObjetoAlojadoEnContenedor, esObjetoContenedor, esObjetoSueltoSinHogar } from './taxonomiaContenedor';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
 
@@ -109,12 +118,28 @@ function esCaja(c: ContenedorBandeja): boolean {
 }
 
 /**
- * OBJETO / CAJA-OBJETO en el limbo «En Tránsito»: no tiene espacio físico fijo
- * (misma lectura que `esCajaEnLimbo` para los contenedores). Se lista con los
- * SUELTOS porque es justamente un bulto que hay que asignar a un espacio o caja.
+ * OBJETO registrado en la HABITACIÓN VIRTUAL del limbo de mudanza («En Tránsito»
+ * / «Zona de Mudanza»): NO tiene espacio físico fijo (misma lectura espacial que
+ * `esCajaEnLimbo` para los contenedores).
+ *
+ * OJO: es una lectura PURA de la habitación. Un objeto que vive DENTRO de una
+ * caja hereda la habitación de su caja, así que esta función NO decide por sí
+ * sola si el chip se rotula «En tránsito»: para eso está `esObjetoEnLimbo`, que
+ * además exige que el objeto no pertenezca a ningún contenedor.
+ */
+function estaEnHabitacionLimbo(o: ObjetoBandeja): boolean {
+  return o.ubicacion != null && esHabitacionLimbo(o.ubicacion_nombre);
+}
+
+/**
+ * OBJETO EN TRÁNSITO INDIVIDUAL: sin espacio físico fijo Y SIN CONTENEDOR.
+ *
+ * Un objeto alojado en una caja (`contenedor_id IS NOT NULL`) NUNCA se marca en
+ * tránsito por su cuenta: su ubicación física depende exclusivamente de la caja
+ * que lo aloja, y el bulto recuperable es el chip de esa caja.
  */
 function esObjetoEnLimbo(o: ObjetoBandeja): boolean {
-  return o.ubicacion != null && esHabitacionLimbo(o.ubicacion_nombre);
+  return !esObjetoAlojadoEnContenedor(o) && estaEnHabitacionLimbo(o);
 }
 
 function chipContenedor(c: ContenedorBandeja): ChipBandeja {
@@ -131,16 +156,18 @@ function chipContenedor(c: ContenedorBandeja): ChipBandeja {
 }
 
 function chipObjeto(o: ObjetoBandeja): ChipBandeja {
-  // OBJETO EN TRÁNSITO: registrado en el limbo «En Tránsito» (sin espacio físico
-  // fijo). Se lista con los SUELTOS: no lleva el 🔴 de «reubicación urgente»
-  // porque el backend ya lo devuelve en `?bandeja=true` y el chip lo rotula.
+  // OBJETO EN TRÁNSITO: sin espacio físico fijo y SIN caja (un objeto alojado en
+  // un contenedor nunca se rotula en tránsito por su cuenta). Se lista con los
+  // SUELTOS: no lleva el 🔴 de «reubicación urgente» porque el backend ya lo
+  // devuelve en `?bandeja=true` y el chip lo rotula.
   const enTransito = esObjetoEnLimbo(o);
   return {
     id: o.id,
     nombre: o.nombre,
     tipo: 'objeto',
     img: IMG_OBJETO,
-    urgente: o.ubicacion != null && !enTransito,
+    // El 🔴 sigue midiendo la UBICACIÓN física real: el limbo de mudanza no lo es.
+    urgente: o.ubicacion != null && !estaEnHabitacionLimbo(o),
     enTransito,
   };
 }
@@ -158,7 +185,7 @@ function chipObjetoContenedor(o: ObjetoBandeja): ChipBandeja {
     nombre: o.nombre,
     tipo: 'objeto',
     img: IMG_CONTENEDOR_PEQUENO,
-    urgente: o.ubicacion != null && !enTransito,
+    urgente: o.ubicacion != null && !estaEnHabitacionLimbo(o),
     // Caja declarada como Objeto que quedó en el limbo «En Tránsito».
     enTransito,
   };
@@ -183,13 +210,16 @@ function gruposCascada(): GrupoChips[] {
     {
       clave: 'objetos-sueltos',
       titulo: '1 · Objetos sueltos',
-      // SUELTOS + EN TRÁNSITO: un objeto sin espacio físico fijo (huérfano) o
-      // registrado en el limbo «En Tránsito» se lista acá, para que el libro
-      // recién cargado SIEMPRE aparezca en la barra inferior y pueda arrastrarse
-      // a un espacio o a una caja.
-      chips: objetosSimples
-        .filter((o) => o.ubicacion == null || esObjetoEnLimbo(o))
-        .map(chipObjeto),
+      // FILTRADO ESTRICTO (Lote 32): SOLO objetos SIN CONTENEDOR y sin espacio
+      // físico (`contenedor_id IS NULL` Y `ubicacion_id IS NULL`, o la habitación
+      // VIRTUAL del limbo de mudanza). Un objeto que vive DENTRO de una caja no
+      // es un bulto suelto —su ubicación depende exclusivamente de esa caja— y
+      // tampoco se marca «En tránsito» por su cuenta: se representa con el chip
+      // de SU CONTENEDOR (grupo 2 si la caja quedó en el limbo).
+      // Los objetos SIN caja registrados en el limbo siguen listándose para que
+      // el libro recién cargado SIEMPRE aparezca en la barra inferior y pueda
+      // arrastrarse a un espacio o a una caja.
+      chips: objetosSimples.filter(esObjetoSueltoSinHogar).map(chipObjeto),
     },
     {
       clave: 'cajas-sueltas',
@@ -201,7 +231,7 @@ function gruposCascada(): GrupoChips[] {
       //   sueltas.
       chips: cajas.filter(esCajaEnLimbo).map(chipContenedor).concat(
         objetosContenedor
-          .filter((o) => o.ubicacion == null || esObjetoEnLimbo(o))
+          .filter((o) => o.ubicacion == null || estaEnHabitacionLimbo(o))
           .map(chipObjetoContenedor),
       ),
     },
@@ -209,7 +239,7 @@ function gruposCascada(): GrupoChips[] {
       clave: 'objetos-reubicar',
       titulo: '3 · Objetos a reubicar',
       chips: objetosSimples
-        .filter((o) => o.ubicacion != null && !esObjetoEnLimbo(o))
+        .filter((o) => o.ubicacion != null && !estaEnHabitacionLimbo(o))
         .map(chipObjeto),
     },
     {
@@ -217,7 +247,7 @@ function gruposCascada(): GrupoChips[] {
       titulo: '4 · Cajas a reubicar',
       chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor).concat(
         objetosContenedor
-          .filter((o) => o.ubicacion != null && !esObjetoEnLimbo(o))
+          .filter((o) => o.ubicacion != null && !estaEnHabitacionLimbo(o))
           .map(chipObjetoContenedor),
       ),
     },

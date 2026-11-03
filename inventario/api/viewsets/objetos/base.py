@@ -230,18 +230,22 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         # ------------------------------------------------------------------
         # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`):
         # la canasta lista los OBJETOS que todavía necesitan reubicación.
-        #   1. Objetos SUELTOS: sin hogar espacial. La UBICACIÓN es la que manda
-        #      (un objeto con contenedor pero sin habitación sigue estando «por
-        #      ubicar»); antes se exigía además `contenedor` nulo y esos registros
-        #      quedaban invisibles en la barra inferior.
-        #   2. MÁS los que quedaron en la zona VIRTUAL «En Tránsito» (limbo de
-        #      mudanza): el objeto recién registrado en tránsito guarda la FK
-        #      `ubicacion` apuntando a esa habitación de SISTEMA —no a un cuarto
-        #      físico— y sin este canal desaparecía de la canasta, imposible de
-        #      arrastrar a un espacio o a una caja (punto 3 de las pruebas móviles).
-        #      El limbo se reconoce por nombre con la fuente ÚNICA del concepto
-        #      (`NOMBRES_LIMBO`) y se acota al Estok activo para no filtrar el
-        #      limbo de otro inquilinato.
+        #   1. Objetos SUELTOS: sin hogar espacial. `contenedor_id IS NULL` Y
+        #      `ubicacion_id IS NULL` (o en la habitación VIRTUAL del limbo, que
+        #      no es un espacio físico del plano). Un objeto que pertenece a un
+        #      CONTENEDOR (`contenedor_id IS NOT NULL`) NO es un bulto suelto: su
+        #      ubicación física depende EXCLUSIVAMENTE de la caja que lo aloja y
+        #      se representa con el chip de esa caja. Antes este canal lo devolvía
+        #      por el solo hecho de tener `ubicacion` nula y contaminaba la barra
+        #      «1 · Objetos sueltos» con el contenido de cada caja.
+        #   2. MÁS los SUELTOS que quedaron en la zona VIRTUAL «En Tránsito»
+        #      (limbo de mudanza): el objeto recién registrado en tránsito guarda
+        #      la FK `ubicacion` apuntando a esa habitación de SISTEMA —no a un
+        #      cuarto físico— y sin este canal desaparecía de la canasta, imposible
+        #      de arrastrar a un espacio o a una caja (punto 3 de las pruebas
+        #      móviles). El limbo se reconoce por nombre con la fuente ÚNICA del
+        #      concepto (`NOMBRES_LIMBO`) y se acota al Estok activo para no
+        #      filtrar el limbo de otro inquilinato.
         #   3. MÁS los que arrastran `en_transito_interno=True` (guardados dentro
         #      de un mueble sin estante fino: reubicación urgente).
         #   4. MÁS los que viven dentro de un CONTENEDOR o de una HABITACIÓN
@@ -255,9 +259,12 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
                     Q(ubicacion__estok_id=estok_id) | Q(ubicacion__estok__isnull=True),
                     ubicacion__nombre__in=NOMBRES_LIMBO,
                 )
+            # 1-2. SUELTOS DE VERDAD (Lote 32): sin contenedor y sin espacio
+            #      físico real (ubicación nula o la zona virtual del limbo).
+            #      Un objeto ALOJADO EN UNA CAJA nunca entra por acá.
+            sueltos = Q(contenedor__isnull=True) & (Q(ubicacion__isnull=True) | limbo)
             qs = qs.filter(
-                Q(ubicacion__isnull=True)
-                | limbo
+                sueltos
                 | Q(en_transito_interno=True)
                 | Q(contenedor__espacio_unico=True)
                 | Q(ubicacion__espacio_unico=True)

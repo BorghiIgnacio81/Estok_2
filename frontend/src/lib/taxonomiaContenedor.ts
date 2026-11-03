@@ -101,6 +101,56 @@ export function esCajaEnLimbo(pieza: PiezaEnBandeja | null | undefined): boolean
   return esHabitacionLimbo(pieza.ubicacion_nombre);
 }
 
+// =============================================================================
+// OBJETOS Y SU HOGAR ESPACIAL (contenedor ⇄ espacio) · única fuente en el cliente
+// -----------------------------------------------------------------------------
+// La canasta «🧺 Elementos por ubicar» distingue dos preguntas distintas:
+//   · ¿el objeto está ALOJADO en un contenedor? (`contenedor_id IS NOT NULL`)
+//   · ¿el objeto no tiene NINGÚN hogar espacial?
+// Un objeto que vive dentro de una caja NO es un bulto suelto: su ubicación
+// física depende EXCLUSIVAMENTE de la caja que lo aloja, así que no se lista ni
+// se marca individualmente (se representa con el chip de su contenedor).
+// =============================================================================
+
+/** Referencias espaciales mínimas de un Objeto (las FK que expone la API). */
+export interface ObjetoConHogar {
+  /** Caja/contenedor que lo aloja (`null` = no pertenece a ningún contenedor). */
+  contenedor?: string | null;
+  /** Habitación/espacio físico (`null` = sin espacio asignado). */
+  ubicacion?: string | null;
+  /** Nombre de esa habitación (`null` = sin espacio asignado). */
+  ubicacion_nombre?: string | null;
+}
+
+/**
+ * OBJETO ALOJADO EN UN CONTENEDOR (`contenedor_id IS NOT NULL`).
+ *
+ * Su ubicación física depende del contenedor que lo aloja: nunca debe listarse
+ * como «objeto suelto» ni rotularse «En tránsito» por su cuenta. Si la caja está
+ * en el limbo de mudanza, el bulto recuperable es LA CAJA, no su contenido.
+ */
+export function esObjetoAlojadoEnContenedor(
+  objeto: ObjetoConHogar | null | undefined,
+): boolean {
+  return objeto?.contenedor != null;
+}
+
+/**
+ * OBJETO SUELTO ESTRICTO de la canasta: `contenedor_id IS NULL` Y sin espacio
+ * físico real (`ubicacion_id IS NULL`).
+ *
+ * El limbo de mudanza («En Tránsito» / «Zona de Mudanza») cuenta como SIN
+ * espacio físico: es una habitación VIRTUAL de sistema, no un cuarto del plano,
+ * así que el objeto sigue siendo un bulto a ubicar (espejo de `esCajaEnLimbo`).
+ */
+export function esObjetoSueltoSinHogar(
+  objeto: ObjetoConHogar | null | undefined,
+): boolean {
+  if (esObjetoAlojadoEnContenedor(objeto)) return false;
+  if (objeto?.ubicacion == null) return true;
+  return esHabitacionLimbo(objeto.ubicacion_nombre);
+}
+
 /**
  * Tipo físico normalizado (mayúsculas) tolerando payloads legacy o parciales.
  *

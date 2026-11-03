@@ -40,12 +40,19 @@ export interface ContenedorBandeja {
 export interface ObjetoBandeja {
   id: string;
   nombre: string;
+  /**
+   * Caja/contenedor que lo aloja (`null` = no pertenece a ningún contenedor).
+   * Si NO es nulo, el objeto NO es un bulto suelto: su ubicación física depende
+   * exclusivamente de esa caja, así que nunca se lista en «1 · Objetos sueltos»
+   * ni se marca «En tránsito» individualmente (`esObjetoSueltoSinHogar`).
+   */
   contenedor: string | null;
   ubicacion: string | null;
   /**
    * Nombre de la habitación que lo aloja (limbo «En Tránsito» incluido).
    * Permite marcar el chip como EN TRÁNSITO: el objeto está registrado pero no
-   * tiene un espacio físico fijo, así que debe poder arrastrarse a uno.
+   * tiene un espacio físico fijo, así que debe poder arrastrarse a uno. Sólo
+   * aplica a objetos SIN contenedor (ver `esObjetoEnLimbo`).
    */
   ubicacion_nombre: string | null;
   deleted_at: string | null;
