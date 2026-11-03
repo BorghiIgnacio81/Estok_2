@@ -44,6 +44,9 @@ import {
 } from './portalesAlmacenamiento';
 import { conectarDropCiego, guardarEnContenedor, leerCargaArrastrada } from './transitoInterno';
 import type { DestinoCiego } from './transitoInterno';
+// ENLACE PROFUNDO («🗺️ Ver en el mapa» de /objetos → ?contenedor=<id>): apila la
+// ruta planta → habitación → … → caja sobre el nivel raíz recién montado.
+import { abrirDestinoDelMapaDesdeUrl } from './enlaceProfundoPortales';
 
 // -----------------------------------------------------------------------------
 // CLIC EN TARJETAS (portales recursivos)
@@ -399,8 +402,11 @@ export function iniciarPortalesAlmacenamiento(): void {
   conectarDropTarjetas();
   const izquierda = slotIzq();
   if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);
-  // ARRANQUE: nivel raíz (plano de la planta + habitaciones con mini-mapas).
-  void volverARaiz();
+  // ARRANQUE: nivel raíz (plano de la planta + habitaciones con mini-mapas) y,
+  // si la URL lo pide (`/almacenamiento?contenedor=<id>`, botón «🗺️ Ver en el
+  // mapa» de las tarjetas de /objetos), se abre la POSICIÓN exacta de la caja
+  // encima de ese nivel raíz.
+  void volverARaiz().then(() => abrirDestinoDelMapaDesdeUrl());
 }
 
 

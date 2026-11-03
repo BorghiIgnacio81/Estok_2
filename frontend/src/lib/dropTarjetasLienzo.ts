@@ -9,8 +9,9 @@
 // (`[data-inplace-card][data-id]`: espacios sueltos y bloques fusionados) como
 // zonas de soltado válidas, sin duplicar la física ni la persistencia:
 //   · objeto/caja soltado sobre un CONTENEDOR → `guardarEnContenedor`
-//     (PUT con `contenedor`/`parent_contenedor` y casillero nulo: el backend
-//      decide «guardado directo» o «En Tránsito Interno»).
+//     (PUT con `contenedor`/`parent_contenedor` y casillero nulo). La suelta
+//     sobre un espacio del lienzo es la ASIGNACIÓN definitiva: el PUT declara
+//     `en_transito_interno = False` y la caja sale del limbo «En Tránsito».
 //   · objeto/caja soltado sobre una HABITACIÓN (Planta Única / planta) →
 //     `guardarEnUbicacion` (PUT con `ubicacion` y sin contenedor).
 // En ambos casos se emite el latido global (`estok:espacios-cambiados`), que
@@ -107,6 +108,12 @@ export function conectarDropTarjetasLienzo(opts: OpcionesDropTarjetas): void {
             tieneDivisiones: conDivisiones,
             fila: null,
             col: null,
+            // CONFIRMACIÓN DE UBICACIÓN: soltar sobre un espacio del lienzo es la
+            // ASIGNACIÓN definitiva del operador. El PUT viaja con su
+            // `parent_contenedor` («espacio_id») y `en_transito_interno = False`,
+            // así la caja sale del limbo «En Tránsito» en el acto (requisito de
+            // las Cajas 01 a 05).
+            enTransito: false,
           })
         : guardarEnUbicacion(carga, id, nombre);
       void guardado

@@ -7,9 +7,12 @@
 // «Artesanías»)— el ítem quedaba oculto y el inventario parecía incompleto.
 //
 // Esta capa (100% PURA, sin estado ni DOM) pinta UNA TARJETA POR ÍTEM con la
-// insignia de su ubicación («📦 En Caja 02»). El payload lo entrega el backend
-// en `objetos_en_contenedor` (arbol_inventario_objetos_en_contenedor.py), que ya
-// resuelve `contenedor_tipo` y `contenedor_etiqueta` en memoria (cero N+1).
+// insignia de su ubicación («📦 En Caja 02») y la RUTA JERÁRQUICA COMPLETA de la
+// caja que lo contiene (Planta > Habitación > Mueble > Caja), con el despliegue
+// de minimapas y el botón «🗺️ Ver en el mapa» hacia /almacenamiento. El payload
+// lo entrega el backend en `objetos_en_contenedor`
+// (arbol_inventario_objetos_en_contenedor.py), que ya resuelve
+// `contenedor_tipo` y `contenedor_etiqueta` en memoria (cero N+1).
 //
 // Los chips y helpers visuales se reutilizan de listadoObjetosPiezas.ts: acá no
 // se duplica ninguna regla de presentación del inventario.
@@ -24,6 +27,10 @@ import {
   fotoDe,
   numerico,
 } from './listadoObjetosPiezas';
+// RUTA JERÁRQUICA COMPLETA de la tarjeta: MISMO widget que la sección de cajas
+// (texto con flechas + despliegue de minimapas + acceso directo al mapa de
+// /almacenamiento). No se duplica ninguna regla de presentación.
+import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 
 /** Objeto almacenado dentro de un contenedor (contrato del backend). */
 export interface ObjetoEnContenedor {
@@ -64,10 +71,26 @@ export function badgeContenedorHtml(obj: ObjetoEnContenedor): string {
 function tarjetaHtml(obj: ObjetoEnContenedor): string {
   const nombre = esc(obj.nombre);
   const badge = badgeContenedorHtml(obj);
-  const ruta = String(obj.ubicacion_display || obj.ubicacion_nombre || '').trim();
-  const rutaHtml = ruta
-    ? '<p class="text-[11px] text-gray-400 truncate" title="' + esc(ruta) + '">📍 ' + esc(ruta) + '</p>'
-    : '';
+  // RUTA JERÁRQUICA COMPLETA (Planta > Habitación > Mueble > Caja): el mismo
+  // widget interactivo de la Sección 1 —texto con flechas que despliega los
+  // minimapas— más el botón «🗺️ Ver en el mapa», que abre la POSICIÓN de la caja
+  // que lo contiene en /almacenamiento (`mapaId = obj.contenedor`).
+  const rutaWidget = rutaGeograficaCardHtml(
+    {
+      id: obj.id,
+      ubicacion: obj.ubicacion ?? null,
+      contenedor: obj.contenedor ?? null,
+    },
+    { mapaId: obj.contenedor ?? null },
+  );
+  // Sin ruta resoluble se conserva el texto plano histórico de la API
+  // (`ubicacion_display`): la tarjeta nunca queda muda ni inventa un plano.
+  const rutaTexto = String(obj.ubicacion_display || obj.ubicacion_nombre || '').trim();
+  const rutaHtml = rutaWidget
+    ? '<div class="min-w-0">' + rutaWidget + '</div>'
+    : (rutaTexto
+      ? '<p class="text-[11px] text-gray-400 truncate" title="' + esc(rutaTexto) + '">📍 ' + esc(rutaTexto) + '</p>'
+      : '');
   return '<article class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-base flex flex-col">'
     + '<div class="relative h-32 bg-slate-100 flex items-center justify-center overflow-hidden">'
     + '<img src="' + fotoDe(obj) + '" alt="' + nombre + '" class="h-full w-full object-cover" loading="lazy" />'

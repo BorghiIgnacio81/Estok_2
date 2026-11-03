@@ -56,6 +56,9 @@ import { sectoresDeItems } from './sectoresMinimapa';
 // Cara visual del replanteo geográfico del listado: texto con flechas + tooltip
 // «Mostrar en minimapas» + panel desplegable con la fila de minimapas.
 import { rutaGeograficaWidgetHtml } from './rutaGeograficaWidget';
+// FUENTE ÚNICA del enlace profundo al mapa espacial (mismo contrato que lee el
+// arranque de la cascada de portales en /almacenamiento).
+import { urlMapaContenedor } from './mapa/rutaMapaAlmacenamiento';
 
 // =============================================================================
 // TIPOS
@@ -359,9 +362,22 @@ export interface EntidadUbicable {
   contenedor?: string | null;
 }
 
+/**
+ * Opciones del widget de ruta de una TARJETA del listado.
+ */
+export interface OpcionesRutaCard {
+  /**
+   * CONTENEDOR cuya posición se abre con el botón «🗺️ Ver en el mapa»
+   * (/almacenamiento?contenedor=<id>). Para la caja de la tarjeta es su propio
+   * id; para un objeto guardado dentro de una caja es el id de esa caja. Sin
+   * este campo el widget se renderiza exactamente igual que antes (sin enlace).
+   */
+  mapaId?: string | null;
+}
+
 /** Ruta geográfica resuelta de una entidad del inventario. */
 export interface RutaGeografica {
-  /** Cadena jerárquica con flechas: Piso -> Habitación -> Mueble -> Caja. */
+  /** Cadena jerárquica con flechas: Piso > Habitación > Mueble > Caja. */
   texto: string;
   /** Fila de minimapas analíticos de esa misma cadena. */
   minimapas: string;
@@ -389,7 +405,7 @@ export function resolverRutaGeografica(entidad: EntidadUbicable): RutaGeografica
   const partes: string[] = [nombreDePlanta(plantaFila, division)];
   if (habitacion) partes.push(habitacion.nombre);
   cadena.forEach((contenedor) => partes.push(contenedor.nombre));
-  const texto = partes.filter((parte) => String(parte || '').trim() !== '').join(' -> ');
+  const texto = partes.filter((parte) => String(parte || '').trim() !== '').join(' > ');
 
   const ambienteId = habitacion ? habitacion.id : null;
   const nodos = nodosPlantaYAmbiente(ambienteId);
@@ -409,16 +425,27 @@ export function resolverRutaGeografica(entidad: EntidadUbicable): RutaGeografica
 
 /**
  * WIDGET de la tarjeta del listado: texto de ruta con flechas que despliega, al
- * hacer clic, la fila de minimapas analíticos. Devuelve '' cuando la entidad no
- * tiene ruta real (la tarjeta conserva su estado «sin ubicación»).
+ * hacer clic, la fila de minimapas analíticos, junto al botón «🗺️ Ver en el
+ * mapa» que abre la POSICIÓN de la pieza en /almacenamiento. Devuelve '' cuando
+ * la entidad no tiene ruta real (la tarjeta conserva su estado «sin ubicación»).
+ *
+ * `opciones.mapaId` es el CONTENEDOR cuya posición se quiere abrir en el mapa:
+ * para la propia caja es su id; para un objeto guardado dentro de una caja es el
+ * id de esa caja (`obj.contenedor`). Sin `mapaId` no se ofrece el enlace (un
+ * Objeto no es un nodo navegable del mapa espacial).
  */
-export function rutaGeograficaCardHtml(entidad: EntidadUbicable & { id?: string | null }): string {
+export function rutaGeograficaCardHtml(
+  entidad: EntidadUbicable & { id?: string | null },
+  opciones: OpcionesRutaCard = {},
+): string {
   const ruta = resolverRutaGeografica(entidad);
   if (!ruta.hayRuta) return '';
+  const mapaId = opciones.mapaId ?? null;
   return rutaGeograficaWidgetHtml({
     texto: ruta.texto,
     minimapas: ruta.minimapas,
     clave: String(entidad.id ?? entidad.contenedor ?? ''),
+    mapaUrl: mapaId ? urlMapaContenedor(mapaId) : undefined,
   });
 }
 

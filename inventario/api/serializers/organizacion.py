@@ -288,7 +288,33 @@ class ContenedorSerializer(serializers.ModelSerializer):
 
         # 5) Estado «En Transito Interno» derivado del Drop.
         self._resolver_transito_interno(instancia, attrs)
+        # 6) Herencia fisica de la HABITACION al guardar DENTRO de un espacio.
+        self._heredar_ubicacion_del_padre(attrs)
         return attrs
+
+    def _heredar_ubicacion_del_padre(self, attrs):
+        """
+        HERENCIA FISICA DE LA HABITACION (Drop de una caja dentro de un espacio).
+
+        Un elemento que vive DENTRO de un contenedor comparte SIEMPRE su
+        habitacion: no puede estar «dentro del Ropero Empotrado» y a la vez
+        seguir apuntando a la habitacion virtual «En Transito» del limbo de
+        mudanza. Cuando el payload mueve la jerarquia (`parent_contenedor`), la
+        `ubicacion` se re-ancla a la del PADRE en la MISMA transaccion, de modo
+        que el elemento queda con su ubicacion ASIGNADA aunque venia del limbo.
+
+        Solo actua con un padre real: al desvincular la pieza (`parent_contenedor
+        = null`) la ubicacion enviada por el cliente se respeta tal cual.
+        """
+        if 'parent_contenedor' not in attrs:
+            return
+        padre = attrs.get('parent_contenedor')
+        if padre is None or getattr(padre, 'pk', None) is None:
+            return
+        ubicacion_padre = getattr(padre, 'ubicacion', None)
+        if ubicacion_padre is None:
+            return
+        attrs['ubicacion'] = ubicacion_padre
 
     def _resolver_transito_interno(self, instancia, attrs):
         """
@@ -299,9 +325,20 @@ class ContenedorSerializer(serializers.ModelSerializer):
         (`parent_grid_row/col`), para no borrar un estado vigente en un PUT
         parcial que solo renombra la pieza. Solo aplica a CAJA y OBJETO: una
         sub-division (CONJUNTO) no es un elemento pendiente de ubicacion fina.
+
+        DECLARACION EXPLICITA DEL CLIENTE («asignado»): cuando el lienzo de
+        Almacenamiento suelta una caja DENTRO de un espacio concreto del mapa,
+        la peticion viaja con `en_transito_interno = False` (ver
+        frontend/src/lib/dropTarjetasLienzo.ts). Esa intencion MANDA sobre la
+        heuristica: el operador ya confirmo la ubicacion, asi que la pieza sale
+        del limbo «En Transito» y queda ASIGNADA a ese espacio.
         """
         claves = ('parent_contenedor', 'parent_grid_row', 'parent_grid_col')
         if not any(clave in attrs for clave in claves):
+            return
+
+        # Confirmacion explicita de ubicacion: se respeta el False del cliente.
+        if attrs.get('en_transito_interno') is False:
             return
 
         tipo_efectivo = attrs.get('tipo') or getattr(instancia, 'tipo', None)

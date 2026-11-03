@@ -31,7 +31,7 @@ export interface CargaArrastrada {
 
 /** Destino del Drop dentro de un contenedor PADRE. */
 export interface DestinoDrop {
-  /** UUID del contenedor que recibe al elemento (su anfitrión). */
+  /** UUID del contenedor que recibe al elemento (su anfitrión / «espacio_id»). */
   contenedorId: string;
   /** Nombre legible (sólo para los avisos en pantalla). */
   nombre: string;
@@ -40,6 +40,15 @@ export interface DestinoDrop {
   /** Celda fina elegida (F·C). `null` = a ciegas → «En Tránsito Interno». */
   fila?: number | null;
   col?: number | null;
+  /**
+   * CONFIRMACIÓN EXPLÍCITA DE UBICACIÓN: `false` declara que el operador ya
+   * asignó el elemento a ESE espacio del lienzo, así que el PUT viaja con
+   * `en_transito_interno = False` y la pieza sale del limbo «En Tránsito» en la
+   * misma transacción (el backend respeta el False explícito, ver
+   * inventario/api/serializers/organizacion.py → _resolver_transito_interno).
+   * `undefined` conserva la heurística histórica del Drop (a ciegas → tránsito).
+   */
+  enTransito?: boolean | null;
 }
 
 /** Etiqueta roja reutilizada del sistema («🔴 En tránsito interno»). */
@@ -90,6 +99,9 @@ async function pedirPut(
  *     marca «En Tránsito Interno» (queda dentro del mueble, pendiente de
  *     estante definitivo).
  *   · Destino «Espacio Único» → guardado DIRECTO (nunca tránsito).
+ *   · `enTransito: false` (Drop sobre una tarjeta/espacio del lienzo) → el PUT
+ *     declara `en_transito_interno = False`: la pieza queda ASIGNADA a ese
+ *     espacio y abandona el limbo «En Tránsito» en la misma transacción.
  */
 export async function guardarEnContenedor(
   carga: CargaArrastrada,
@@ -98,14 +110,30 @@ export async function guardarEnContenedor(
   const fila = destino.fila ?? null;
   const col = destino.col ?? null;
   const aCiegas = destino.tieneDivisiones && fila == null && col == null;
+  // CONFIRMACIÓN EXPLÍCITA DE UBICACIÓN: sólo la declara el Drop sobre un
+  // espacio real del lienzo (`enTransito === false`). Los demás orígenes
+  // (casillero fino, drop a ciegas) conservan la heurística del backend.
+  const asignado = destino.enTransito === false;
   const cuerpo =
     carga.tipo === 'contenedor'
-      ? { parent_contenedor: destino.contenedorId, parent_grid_row: fila, parent_grid_col: col }
+      ? {
+          // «espacio_id» real: la FK auto-referencial del contenedor anfitrión.
+          parent_contenedor: destino.contenedorId,
+          parent_grid_row: fila,
+          parent_grid_col: col,
+          // El backend hereda la habitación del padre y respeta este False
+          // explícito (inventario/api/serializers/organizacion.py).
+          ...(destino.enTransito === undefined || destino.enTransito === null
+            ? {}
+            : { en_transito_interno: destino.enTransito }),
+        }
       : { contenedor: destino.contenedorId, parent_grid_row: fila, parent_grid_col: col };
   const recurso = carga.tipo === 'contenedor' ? 'contenedores' : 'objetos';
   const ok = await pedirPut(recurso, carga.id, cuerpo);
   if (!ok) return false;
-  if (aCiegas) {
+  if (asignado) {
+    toast(`✅ «${destino.nombre}» quedó asignado: ubicación confirmada en el mapa.`);
+  } else if (aCiegas) {
     toast(
       `🔴 En tránsito interno: el elemento ya está dentro de «${destino.nombre}», pendiente de estante fino.`,
     );

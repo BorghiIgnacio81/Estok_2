@@ -1,11 +1,15 @@
 /* =============================================================================
    RUTA GEOGRÁFICA DE LAS TARJETAS DEL LISTADO DE OBJETOS
    -----------------------------------------------------------------------------
-   Widget de TEXTO jerárquico («1er piso -> Habitación Frente -> Ropero ->
-   Estante Arriba») que reemplaza al render estático de la cadena de minimapas.
+   Widget de TEXTO jerárquico («Planta de Arriba > Habitación Frente > Ropero
+   Empotrado») que reemplaza al render estático de la cadena de minimapas.
    Al hacer CLIC sobre el texto, el panel inferior despliega de forma suave la
    fila de minimapas analíticos unificados (casita + plano proporcional +
    subcontenedor en NARANJA #f97316); un segundo clic lo colapsa.
+
+   BOTÓN «🗺️ Ver en el mapa»: vive en la misma fila del widget y es un <a href>
+   real hacia /almacenamiento?contenedor=<id> (styles heredados de Tailwind, no
+   necesita reglas propias). La delegación de clic lo deja navegar.
 
    TRANSICIÓN REACTIVA: se anima `grid-template-rows` de `0fr` a `1fr` (el
    único mecanismo que interpola un despliegue de alto variable sin medir px ni

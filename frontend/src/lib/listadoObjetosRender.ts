@@ -322,10 +322,16 @@ export function seccionCajasHtml(cajas: NodoCaja[]): string {
   if (moviles.length === 0 && objetosContenedor.length === 0) return '';
   const tarjetas = moviles.map((caja) => contenedorTarjetaHtml(caja, {
     tipoLabel: '📦 Caja / Contenedor pequeño',
-    // RUTA DE TEXTO con flechas (Piso -> Habitación -> Mueble -> Caja): al
-    // hacer clic despliega la fila de minimapas analíticos, en vez de
-    // saturar la tarjeta con la cadena de minimapas siempre visible.
-    ruta: rutaGeograficaCardHtml({ id: caja.id, ubicacion: caja.ubicacion, contenedor: caja.id }),
+    // RUTA JERÁRQUICA COMPLETA del ESPACIO que la contiene (Piso > Habitación >
+    // Mueble/Espacio, ej. «Planta de Arriba > Habitación Frente > Ropero
+    // Empotrado»): la tarjeta YA se titula con el nombre de la caja, así que la
+    // ruta describe dónde está y no repite su propio nombre. Al hacer clic
+    // despliega la fila de minimapas analíticos; `mapaId` agrega el acceso
+    // directo «🗺️ Ver en el mapa» a la posición real en /almacenamiento.
+    ruta: rutaGeograficaCardHtml(
+      { id: caja.id, ubicacion: caja.ubicacion, contenedor: caja.parent_contenedor ?? null },
+      { mapaId: caja.id },
+    ),
     alinear: 'start',
     sumario: true,
     acciones: true,

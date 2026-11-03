@@ -33,6 +33,14 @@ export function initRutaGeograficaDespliegue(): void {
     const zona = objetivo.closest(SELECTOR_ZONA) as HTMLElement | null;
     if (!zona) return;
 
+    // ENLACE DIRECTO AL MAPA («🗺️ Ver en el mapa»): es un `<a href>` real, así
+    // que se deja navegar. Igual se frena la propagación para que su clic no
+    // abra/cierre el acordeón de la tarjeta.
+    if (objetivo.closest('[data-ruta-mapa]')) {
+      evento.stopPropagation();
+      return;
+    }
+
     // Nunca se propaga al <summary> contenedor: la ruta no abre/cierra la tarjeta.
     evento.preventDefault();
     evento.stopPropagation();
