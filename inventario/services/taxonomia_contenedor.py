@@ -76,6 +76,26 @@ RE_NOMBRE_MUEBLE_INMUEBLE = re.compile(
     re.IGNORECASE,
 )
 
+# =====================================================================
+# RÓTULO NUMERADO DE CAJA («Caja 02», «Cajas 03», «Caja 4»)
+# ---------------------------------------------------------------------
+# Tercera vía de declaración de una CAJA: el operador la crea desde la
+# botonera y el NOMBRE es la única señal persistida. Se exige el número para
+# no capturar objetos genéricos («Caja de herramientas de papá» sigue siendo
+# un objeto fino). Fuente ÚNICA del patrón en el backend: la consumen la
+# clasificación de Objetos (`arbol_inventario_objetos_contenedor`,
+# `clasificacion_contenedor_objeto`), el filtro de la canasta
+# (`api/viewsets/organizacion/filtros_bandeja`) y los filtros ORM de la API.
+# Espejo en el cliente: `frontend/src/lib/taxonomiaContenedor.ts`.
+# =====================================================================
+PATRON_NOMBRE_CAJA = r'^cajas?\s*0*\d+$'
+RE_NOMBRE_CAJA = re.compile(PATRON_NOMBRE_CAJA, re.IGNORECASE)
+
+# Categoría organizativa de los bultos contenedores («Cajas y Contenedores» y
+# sus variantes manuales: «Cajas / Contenedores», «Cajas/Contenedor»…).
+PATRON_CATEGORIA_CAJA = r'^cajas?\s*(?:y|/)\s*contenedores?$'
+RE_CATEGORIA_CAJA = re.compile(PATRON_CATEGORIA_CAJA, re.IGNORECASE)
+
 
 def es_nombre_de_mueble(nombre):
     """True si el rótulo es el de un mueble por defecto ("Mueble 1"/"Mueble F1·C2")."""
@@ -90,6 +110,33 @@ def es_nombre_de_mueble_inmueble(nombre):
 def es_nombre_de_estante(nombre):
     """True si el rótulo es el de una sub-división ("Estante 1"/"Estantería F2·C1")."""
     return bool(RE_NOMBRE_ESTANTE.match(str(nombre or '').strip()))
+
+
+def es_nombre_de_caja(nombre) -> bool:
+    """True si el rótulo es el de una caja numerada («Caja 02» / «Cajas 03»)."""
+    return bool(RE_NOMBRE_CAJA.match(str(nombre or '').strip()))
+
+
+def es_categoria_de_caja(nombre) -> bool:
+    """True si la categoría es la de bultos contenedores («Cajas y Contenedores»)."""
+    return bool(RE_CATEGORIA_CAJA.match(str(nombre or '').strip()))
+
+
+def qe_nombre_de_caja(campo='nombre'):
+    """
+    Q ORM de «el rótulo del registro es el de una caja numerada».
+
+    Permite que PostgreSQL reconozca como CAJA a una pieza cuyo único indicio
+    persistido es el nombre (Cajas 02…05 creadas sin marca ni categoría), sin
+    traer filas a Python. `__iregex` está soportado tanto en PostgreSQL como en
+    el SQLite de desarrollo (Django registra la función REGEXP).
+    """
+    return Q(**{f'{campo}__iregex': PATRON_NOMBRE_CAJA})
+
+
+def qe_categoria_de_caja(campo='categoria__nombre'):
+    """Q ORM de «la categoría del registro es Cajas y Contenedores»."""
+    return Q(**{f'{campo}__iregex': PATRON_CATEGORIA_CAJA})
 
 
 def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):

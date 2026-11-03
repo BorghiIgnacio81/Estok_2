@@ -242,13 +242,14 @@ import {
       </div>
     </section>
 
-    <!-- =========================================================================
-         BANDEJA LATERAL DE ELEMENTOS POR UBICAR (panel vertical flotante derecho)
-         Anclada al lateral derecho (md:w-80 h-full fixed right-0). Lista en
-         CASCADA MOVIBLE: objetos sueltos, cajas sueltas, objetos ubicados, cajas
-         ubicadas y muebles móviles. Es origen de arrastre hacia los casilleros y
-         Drop Zone de extracción viva. Lógica en src/lib/bandejaSinUbicar.ts.
-         ========================================================================= -->
+     <!-- =========================================================================
+          BANDEJA LATERAL DE ELEMENTOS POR UBICAR (panel vertical flotante derecho)
+          Anclada al lateral derecho (md:w-80 h-full fixed right-0). CUATRO
+          PESTAÑAS con filtros exactos: 1 · Objetos sueltos, 2 · Cajas sueltas,
+          3 · Objetos a reubicar y 4 · Cajas a reubicar. Es origen de arrastre
+          hacia los casilleros y Drop Zone de extracción viva.
+          Lógica en src/lib/bandejaSinUbicar.ts + bandejaPestanas.ts.
+          ========================================================================= -->
     <aside id="bandejaSinUbicar"
       class="bandeja-lateral hidden md:flex fixed right-0 w-64 sm:w-72 md:w-80 z-40"
       aria-label="Bandeja lateral de elementos por ubicar">

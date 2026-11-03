@@ -155,3 +155,50 @@ def sincronizar_publicacion_ml(sender, instance, created, **kwargs):
             exc,
         )
 
+
+# =============================================================================
+# COHERENCIA CAJA ⇄ CONTENEDOR EN CUALQUIER ESCRITURA DE OBJETO
+# =============================================================================
+@receiver(post_save, sender='inventario.Objeto')
+def asegurar_clasificacion_de_caja(sender, instance, **kwargs):
+    """
+    Garantiza que TODO Objeto que sea una caja quede marcado como contenedor.
+
+    PROBLEMA QUE RESUELVE
+        Las «Cajas 02…05» creadas por el alta rápida quedaron en la base con
+        `es_contenedor=False` y sin categoría: la API las devolvía como OBJETOS
+        SUELTOS y ni el backend ni la canasta las reconocían como cajas. La
+        coherencia sólo se aplicaba en el POST/PUT de `/objetos/`, así que
+        cualquier otro camino de escritura (mudanza inter-Estok, alta por IA,
+        espejo de contenedor, comandos de datos) podía degradar la caja.
+
+    REGLA ÚNICA
+        `services/clasificacion_contenedor_objeto.asegurar_clasificacion_contenedor`
+        (idempotente y no destructiva): si el registro es caja por marca,
+        categoría o rótulo numerado, fuerza `es_contenedor=True` y le asigna
+        «Cajas y Contenedores» SÓLO si no tenía categoría.
+
+    CORTE CIRCUITO
+        Se sale sin consultar nada cuando el registro ya está completo
+        (`es_contenedor=True` + categoría) y cuando es el espejo de dualidad de
+        un Contenedor (su caja real ya es un chip propio: marcarlo duplicaría
+        el bulto en las pestañas de cajas). El `save(update_fields=…)` que hace
+        el servicio vuelve a entrar acá y corta por el primer guardia.
+    """
+    if instance.es_contenedor and instance.categoria_id is not None:
+        return
+    if (instance.especificaciones or {}).get('es_espejo_contenedor'):
+        return
+    try:
+        from .services.clasificacion_contenedor_objeto import (
+            asegurar_clasificacion_contenedor,
+        )
+
+        asegurar_clasificacion_contenedor(instance)
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning(
+            'No se pudo asegurar la clasificación de caja del objeto %s: %s',
+            getattr(instance, 'pk', '?'),
+            exc,
+        )
+

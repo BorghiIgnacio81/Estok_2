@@ -35,6 +35,11 @@ export interface ContenedorBandeja {
   ui_left: string | null;
   ui_top: string | null;
   ui_height: string | null;
+  /**
+   * Guardada dentro de un mueble anfitrión SIN estante fino: bulto pendiente de
+   * ubicación fina. Es uno de los canales que reconoce la pestaña 4.
+   */
+  en_transito_interno: boolean;
 }
 
 export interface ObjetoBandeja {
@@ -108,6 +113,8 @@ function normalizarContenedor(c: Record<string, unknown>): ContenedorBandeja {
     ui_left: c.ui_left != null ? String(c.ui_left) : null,
     ui_top: c.ui_top != null ? String(c.ui_top) : null,
     ui_height: c.ui_height != null ? String(c.ui_height) : null,
+    // Canal de reconocimiento de caja (guardada sin estante fino).
+    en_transito_interno: c.en_transito_interno === true,
   };
 }
 

@@ -11,11 +11,9 @@ from django.db.models import Q
 
 from ....models import Objeto, FotoObjeto
 from ....services.mudanza_service import NOMBRES_LIMBO
-# Objetos que quedaron apuntando a una CAJA de OTRO Estok tras la mudanza: la
-# canasta los trata como huérfanos recuperables (services/referencias_huerfanas).
-from ....services.referencias_huerfanas import (
-    q_contenedor_ajeno_al_estok,
-    q_objetos_en_contenedor_limbo,
+from ....services.taxonomia_contenedor import (
+    qe_categoria_de_caja,
+    qe_nombre_de_caja,
 )
 from ...paginacion import EstokPaginacion
 from ...serializers import (
@@ -228,28 +226,31 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
             qs = qs.filter(categoria_id=categoria)
 
         # ------------------------------------------------------------------
-        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`):
-        # la canasta lista los OBJETOS que todavía necesitan reubicación.
-        #   1. Objetos SUELTOS: sin hogar espacial. `contenedor_id IS NULL` Y
-        #      `ubicacion_id IS NULL` (o en la habitación VIRTUAL del limbo, que
-        #      no es un espacio físico del plano). Un objeto que pertenece a un
-        #      CONTENEDOR (`contenedor_id IS NOT NULL`) NO es un bulto suelto: su
-        #      ubicación física depende EXCLUSIVAMENTE de la caja que lo aloja y
-        #      se representa con el chip de esa caja. Antes este canal lo devolvía
-        #      por el solo hecho de tener `ubicacion` nula y contaminaba la barra
-        #      «1 · Objetos sueltos» con el contenido de cada caja.
-        #   2. MÁS los SUELTOS que quedaron en la zona VIRTUAL «En Tránsito»
-        #      (limbo de mudanza): el objeto recién registrado en tránsito guarda
-        #      la FK `ubicacion` apuntando a esa habitación de SISTEMA —no a un
-        #      cuarto físico— y sin este canal desaparecía de la canasta, imposible
-        #      de arrastrar a un espacio o a una caja (punto 3 de las pruebas
-        #      móviles). El limbo se reconoce por nombre con la fuente ÚNICA del
-        #      concepto (`NOMBRES_LIMBO`) y se acota al Estok activo para no
-        #      filtrar el limbo de otro inquilinato.
-        #   3. MÁS los que arrastran `en_transito_interno=True` (guardados dentro
-        #      de un mueble sin estante fino: reubicación urgente).
-        #   4. MÁS los que viven dentro de un CONTENEDOR o de una HABITACIÓN
-        #      declarada «Espacio Único» (bloque monolítico sin casillero fino).
+        # FILTRO ORM DE LA CANASTA «🧺 ELEMENTOS POR UBICAR» (`?bandeja=true`)
+        # ------------------------------------------------------------------
+        # La canasta tiene CUATRO pestañas con filtros EXACTOS. Este endpoint
+        # devuelve el UNIVERSO que esas pestañas necesitan; el reparto final lo
+        # hace `bandejaSinUbicar.ts` (que además re-verifica en profundidad):
+        #
+        #   Pestaña 1 · Objetos sueltos    → contenedor IS NULL y (en tránsito o
+        #                                    sin ubicación).
+        #   Pestaña 3 · Objetos a reubicar → contenedor IS NULL y ubicación
+        #                                    IS NULL.
+        #
+        # Ambas condiciones se unen en `sueltos`: un objeto con `contenedor`
+        # asignado NUNCA se lista en estas pestañas —su ubicación física depende
+        # exclusivamente de la caja que lo aloja y el bulto recuperable es el
+        # chip de ESA caja—, así que se excluye de raíz en el ORM.
+        #
+        #   Pestaña 2 · Cajas sueltas      → cajas / Objetos-caja SIN espacio.
+        #   Pestaña 4 · Cajas a reubicar   → cajas / Objetos-caja CON espacio.
+        #
+        # Las cajas registradas como `Objeto` (Cajas 02…05: marca
+        # `es_contenedor`, categoría «Cajas y Contenedores» o rótulo numerado)
+        # viajan también, estén o no dentro de otra caja, porque la pestaña 4
+        # lista TODAS las que tienen espacio físico y deben poder arrastrarse.
+        # Los espejos de dualidad Contenedor⇄Objeto quedan fuera: su caja real
+        # ya es un chip propio y se duplicaría.
         # ------------------------------------------------------------------
         bandeja = self.request.query_params.get('bandeja')
         if bandeja and bandeja.lower() in ('true', '1', 'yes'):
@@ -259,27 +260,23 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
                     Q(ubicacion__estok_id=estok_id) | Q(ubicacion__estok__isnull=True),
                     ubicacion__nombre__in=NOMBRES_LIMBO,
                 )
-            # 1-2. SUELTOS DE VERDAD (Lote 32): sin contenedor y sin espacio
-            #      físico real (ubicación nula o la zona virtual del limbo).
-            #      Un objeto ALOJADO EN UNA CAJA nunca entra por acá.
+            # Pestañas 1 y 3 · sin contenedor, en tránsito o sin espacio físico.
             sueltos = Q(contenedor__isnull=True) & (Q(ubicacion__isnull=True) | limbo)
-            qs = qs.filter(
-                sueltos
-                | Q(en_transito_interno=True)
-                | Q(contenedor__espacio_unico=True)
-                | Q(ubicacion__espacio_unico=True)
-                # 5. MÁS los HUÉRFANOS POR MUDANZA: el objeto apunta a una caja que
-                #    pertenece al Estok de ORIGEN (o a un inquilinato ajeno), así que
-                #    la pieza es inalcanzable desde el árbol activo y el bulto quedaba
-                #    invisible. Sin este canal los libros mudados no podían volver a
-                #    asignarse a la «Caja 01» nueva (services/referencias_huerfanas.py).
-                | q_contenedor_ajeno_al_estok(estok_id)
-                # 6. MÁS los que viven dentro de una CAJA EN EL LIMBO: la caja es
-                #    válida pero el limbo es un espacio VIRTUAL que el plano nunca
-                #    dibuja, así que su contenido quedaba inalcanzable hasta
-                #    reubicarla (misma recuperabilidad que el RESCATE de cajas).
-                | q_objetos_en_contenedor_limbo(estok_id)
+            # Pestañas 2 y 4 · Objetos declarados CAJA / CONTENEDOR.
+            # El guardia del espejo se escribe con `has_key` para que la clave
+            # AUSENTE (caso normal) no propague NULL y descarte la fila: sin
+            # esto, `NOT (especificaciones -> 'es_espejo_contenedor' = true)`
+            # evalúa NULL para todo objeto sin la marca.
+            es_espejo = (
+                Q(especificaciones__has_key='es_espejo_contenedor')
+                & Q(especificaciones__es_espejo_contenedor=True)
             )
+            cajas_objeto = (
+                Q(es_contenedor=True)
+                | qe_categoria_de_caja()
+                | qe_nombre_de_caja()
+            ) & ~es_espejo
+            qs = qs.filter(sueltos | cajas_objeto)
 
         decision = self.request.query_params.get('decision')
         if decision:

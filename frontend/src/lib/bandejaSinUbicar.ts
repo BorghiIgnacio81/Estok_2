@@ -20,14 +20,22 @@
 //     duplicado. La visibilidad la gobierna la clase `portales-canasta-cuadrante`
 //     sobre <html> (lib/mapa/portales/portalesAlmacenamiento.ts).
 //
-// CONTENIDO (cascada movible en este orden secuencial EXACTO):
-//   1) Objetos sueltos      → SIN CONTENEDOR y sin espacio físico real
-//                             (`contenedor_id IS NULL` Y `ubicacion_id IS NULL`,
-//                             o la zona VIRTUAL del limbo de mudanza).
-//   2) Cajas sueltas        → cajas móviles sin ubicación general (incluye las
-//                             mudadas al limbo «En Tránsito», Lote 28).
-//   3) Objetos a reubicar   → objetos ubicados que requieren reubicación urgente.
-//   4) Cajas a reubicar     → cajas ubicadas que requieren reubicación urgente.
+// CONTENIDO · CUATRO PESTAÑAS con filtros EXACTOS (sólo una visible a la vez):
+//   1 · Objetos sueltos    → `contenedor_id IS NULL` Y (en tránsito o sin
+//                            ubicación). Excluye de raíz todo objeto alojado en
+//                            una caja: su ubicación depende de esa caja y el
+//                            bulto recuperable es el chip de la caja.
+//   2 · Cajas sueltas      → cajas/contenedores (incluidos los Objetos-caja) en
+//                            tránsito o SIN espacio físico asignado (`ubicacion`
+//                            nula o la habitación VIRTUAL del limbo).
+//   3 · Objetos a reubicar → `contenedor_id IS NULL` Y `ubicacion_id IS NULL`
+//                            (estricto: ni caja ni espacio, ni siquiera limbo).
+//   4 · Cajas a reubicar   → TODAS las cajas/contenedores que SÍ tienen un
+//                            espacio físico asignado: se seleccionan y se
+//                            arrastran a otro espacio, caja o casillero.
+// Las pestañas 1 ⇄ 3 y 2 ⇄ 4 son complementarias por construcción (una pieza con
+// espacio físico nunca cae en la pestaña de «sueltas»), y el reparto lo hace
+// `gruposCascada()` re-verificando en el cliente el payload de PostgreSQL.
 //
 // FILTRADO ESTRICTO DE «OBJETOS SUELTOS» (Lote 32): un objeto que pertenece a un
 // CONTENEDOR (`contenedor_id IS NOT NULL`) NUNCA se lista como suelto ni se marca
@@ -75,24 +83,22 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
 import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
 import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
-// Render PURO de los chips y de cada grupo de la cascada (módulo propio para
-// sostener el límite de 400 líneas: incluye el rótulo «· En tránsito»).
-import { grupoHtml } from './bandejaChipHtml';
-import type { ChipBandeja, GrupoChips } from './bandejaChipHtml';
-import { esCajaEnLimbo, esCajaMovil, esHabitacionLimbo, esObjetoAlojadoEnContenedor, esObjetoContenedor, esObjetoSueltoSinHogar } from './taxonomiaContenedor';
-// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
-
-const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
-const IMG_OBJETO = ASSET_MUEBLE;
+// Render PURO de las cuatro pestañas, de los chips y del panel activo (módulo
+// propio para sostener el límite de 400 líneas: incluye el rótulo «· En tránsito»).
+import { grupoHtml, pestanasHtml } from './bandejaChipHtml';
+import type { GrupoChips } from './bandejaChipHtml';
+// Filtros EXACTOS de las cuatro pestañas (módulo puro, sin DOM ni fetch).
+import { construirPestanas } from './bandejaPestanas';
 
 let contenedores: ContenedorBandeja[] = [];
 let objetos: ObjetoBandeja[] = [];
+/** Pestaña activa (clave de `gruposCascada`). Se conserva entre refrescos. */
+let pestanaActiva = 'objetos-sueltos';
 /** Hosts activos: panel lateral (escritorio) y barra inferior (celular). */
 let hosts: HTMLElement[] = [];
 
 // =============================================================================
-// CARGA + RENDER EN CASCADA (en TODOS los hosts activos)
+// CARGA + RENDER DE LAS CUATRO PESTAÑAS (en TODOS los hosts activos)
 // =============================================================================
 
 async function cargar(): Promise<void> {
@@ -100,8 +106,8 @@ async function cargar(): Promise<void> {
   try {
     // La consulta, la normalización y la purga estructural viven en la capa de
     // datos (`bandejaSinUbicarDatos.ts`): PostgreSQL es la autoridad de la regla
-    // de recuperabilidad (sueltas + En Tránsito Interno + «Espacio Único» +
-    // 🔓 RESCATE de las cajas mudadas al limbo, ver `filtros_bandeja.py`).
+    // (cajas móviles reconocidas por declaración, tránsito interno, rótulo
+    // numerado o limbo; objetos sueltos + cajas-Objeto, ver `?bandeja=true`).
     const datos = await cargarDatosBandeja();
     contenedores = datos.contenedores;
     objetos = datos.objetos;
@@ -112,156 +118,21 @@ async function cargar(): Promise<void> {
   render();
 }
 
-/** Caja móvil (tipo=CAJA, no inmueble): reutiliza la whitelist compartida. */
-function esCaja(c: ContenedorBandeja): boolean {
-  return esCajaMovil(c);
-}
-
-/**
- * OBJETO registrado en la HABITACIÓN VIRTUAL del limbo de mudanza («En Tránsito»
- * / «Zona de Mudanza»): NO tiene espacio físico fijo (misma lectura espacial que
- * `esCajaEnLimbo` para los contenedores).
- *
- * OJO: es una lectura PURA de la habitación. Un objeto que vive DENTRO de una
- * caja hereda la habitación de su caja, así que esta función NO decide por sí
- * sola si el chip se rotula «En tránsito»: para eso está `esObjetoEnLimbo`, que
- * además exige que el objeto no pertenezca a ningún contenedor.
- */
-function estaEnHabitacionLimbo(o: ObjetoBandeja): boolean {
-  return o.ubicacion != null && esHabitacionLimbo(o.ubicacion_nombre);
-}
-
-/**
- * OBJETO EN TRÁNSITO INDIVIDUAL: sin espacio físico fijo Y SIN CONTENEDOR.
- *
- * Un objeto alojado en una caja (`contenedor_id IS NOT NULL`) NUNCA se marca en
- * tránsito por su cuenta: su ubicación física depende exclusivamente de la caja
- * que lo aloja, y el bulto recuperable es el chip de esa caja.
- */
-function esObjetoEnLimbo(o: ObjetoBandeja): boolean {
-  return !esObjetoAlojadoEnContenedor(o) && estaEnHabitacionLimbo(o);
-}
-
-function chipContenedor(c: ContenedorBandeja): ChipBandeja {
-  // La canasta sólo expone cajas móviles reales: no hay rama de mueble.
-  return {
-    id: c.id,
-    nombre: c.nombre,
-    tipo: 'contenedor',
-    img: IMG_CONTENEDOR_PEQUENO,
-    // 🔴 Sólo si está ubicada de verdad: el LIMBO de mudanza no es una
-    // ubicación física (una caja mudada entra al grupo 2 · Cajas sueltas).
-    urgente: !esCajaEnLimbo(c),
-  };
-}
-
-function chipObjeto(o: ObjetoBandeja): ChipBandeja {
-  // OBJETO EN TRÁNSITO: sin espacio físico fijo y SIN caja (un objeto alojado en
-  // un contenedor nunca se rotula en tránsito por su cuenta). Se lista con los
-  // SUELTOS: no lleva el 🔴 de «reubicación urgente» porque el backend ya lo
-  // devuelve en `?bandeja=true` y el chip lo rotula.
-  const enTransito = esObjetoEnLimbo(o);
-  return {
-    id: o.id,
-    nombre: o.nombre,
-    tipo: 'objeto',
-    img: IMG_OBJETO,
-    // El 🔴 sigue midiendo la UBICACIÓN física real: el limbo de mudanza no lo es.
-    urgente: o.ubicacion != null && !estaEnHabitacionLimbo(o),
-    enTransito,
-  };
-}
-
-/**
- * Chip de un OBJETO CONTENEDOR (caja declarada por `es_contenedor=true` o por la
- * categoría «Cajas y Contenedores»). Conserva `tipo='objeto'` a propósito: el
- * registro físico es un Objeto y el arrastre debe seguir persistiendo por
- * PUT /objetos/{id}. Solo cambia la iconografía y el grupo donde se lista.
- */
-function chipObjetoContenedor(o: ObjetoBandeja): ChipBandeja {
-  const enTransito = esObjetoEnLimbo(o);
-  return {
-    id: o.id,
-    nombre: o.nombre,
-    tipo: 'objeto',
-    img: IMG_CONTENEDOR_PEQUENO,
-    urgente: o.ubicacion != null && !estaEnHabitacionLimbo(o),
-    // Caja declarada como Objeto que quedó en el limbo «En Tránsito».
-    enTransito,
-  };
-}
-
-/**
- * Segmentos de la cascada en ORDEN EXACTO. La HABITACIÓN LIMBO de mudanza
- * (Lote 28) se resuelve con `esCajaEnLimbo`: una caja mudada entre Estoks no
- * tiene cuarto físico, así que se lista como «suelta» (grupo 2) y NO como
- * «a reubicar» (grupo 4), que es lo que permite volver a arrastrarla al plano.
- * El grupo de MUEBLES MÓVILES fue ELIMINADO por la purga estricta de nodos
- * jerárquicos: la canasta sólo muestra bultos movibles y objetos terminales.
- */
-function gruposCascada(): GrupoChips[] {
-  const cajas = contenedores.filter(esCaja);
-  // SEPARACIÓN DE BULTOS CONTENEDOR: los Objetos declarados caja/contenedor o
-  // categorizados como «Cajas y Contenedores» viajan con las CAJAS (grupos 2 y
-  // 4) y JAMÁS se listan como «Objetos sueltos» (grupos 1 y 3).
-  const objetosContenedor = objetos.filter(esObjetoContenedor);
-  const objetosSimples = objetos.filter((o) => !esObjetoContenedor(o));
-  return [
-    {
-      clave: 'objetos-sueltos',
-      titulo: '1 · Objetos sueltos',
-      // FILTRADO ESTRICTO (Lote 32): SOLO objetos SIN CONTENEDOR y sin espacio
-      // físico (`contenedor_id IS NULL` Y `ubicacion_id IS NULL`, o la habitación
-      // VIRTUAL del limbo de mudanza). Un objeto que vive DENTRO de una caja no
-      // es un bulto suelto —su ubicación depende exclusivamente de esa caja— y
-      // tampoco se marca «En tránsito» por su cuenta: se representa con el chip
-      // de SU CONTENEDOR (grupo 2 si la caja quedó en el limbo).
-      // Los objetos SIN caja registrados en el limbo siguen listándose para que
-      // el libro recién cargado SIEMPRE aparezca en la barra inferior y pueda
-      // arrastrarse a un espacio o a una caja.
-      chips: objetosSimples.filter(esObjetoSueltoSinHogar).map(chipObjeto),
-    },
-    {
-      clave: 'cajas-sueltas',
-      titulo: '2 · Cajas sueltas',
-      // 🔓 Lote 28 · RESCATE DEL LIMBO: la caja mudada entre Estoks no tiene
-      // habitación física (vive en la zona «En Tránsito»): es un bulto SUELTO
-      // recuperable, no una caja «a reubicar» con alerta.
-      // + Los Objetos contenedor sin habitación (o en tránsito) también son cajas
-      //   sueltas.
-      chips: cajas.filter(esCajaEnLimbo).map(chipContenedor).concat(
-        objetosContenedor
-          .filter((o) => o.ubicacion == null || estaEnHabitacionLimbo(o))
-          .map(chipObjetoContenedor),
-      ),
-    },
-    {
-      clave: 'objetos-reubicar',
-      titulo: '3 · Objetos a reubicar',
-      chips: objetosSimples
-        .filter((o) => o.ubicacion != null && !estaEnHabitacionLimbo(o))
-        .map(chipObjeto),
-    },
-    {
-      clave: 'cajas-reubicar',
-      titulo: '4 · Cajas a reubicar',
-      chips: cajas.filter((c) => !esCajaEnLimbo(c)).map(chipContenedor).concat(
-        objetosContenedor
-          .filter((o) => o.ubicacion != null && !estaEnHabitacionLimbo(o))
-          .map(chipObjetoContenedor),
-      ),
-    },
-  ];
-}
-
 function render(): void {
   if (!hosts.length) return;
-  const grupos = gruposCascada();
-  const total = grupos.reduce((acc, g) => acc + g.chips.length, 0);
+  const grupos: GrupoChips[] = construirPestanas(contenedores, objetos);
+  // El contador global cuenta BULTOS ÚNICOS: las pestañas 1 y 3 comparten los
+  // objetos sin caja y sin espacio (la 3 es el subconjunto estricto de la 1), así
+  // que sumar los chips de las cuatro pestañas los contaría dos veces.
+  const total = new Set(
+    grupos.flatMap((g) => g.chips.map((chip) => `${chip.tipo}:${chip.id}`)),
+  ).size;
   document.querySelectorAll<HTMLElement>('[data-contador-bandeja]').forEach((contador) => {
     contador.textContent = `${total}`;
   });
-  const cuerpo = grupos.map(grupoHtml).join('');
+  // Sólo se pinta la pestaña activa (con su barra de solapas arriba).
+  const activo = grupos.find((g) => g.clave === pestanaActiva) ?? grupos[0];
+  const cuerpo = pestanasHtml(grupos, activo.clave) + grupoHtml(activo);
   for (const host of hosts) host.innerHTML = cuerpo;
   enlazar();
 }
@@ -277,7 +148,27 @@ function render(): void {
  */
 let arrastrandoChip = false;
 
+/**
+ * CAMBIO DE PESTAÑA: cada solapa re-renderiza la canasta con su filtro. El
+ * estado (`pestanaActiva`) es de módulo, así que el panel lateral, la barra
+ * inferior del celular y el cuadrante del visor muestran SIEMPRE la misma
+ * pestaña (una sola canasta en pantalla, sin lógica duplicada).
+ */
+function enlazarPestanas(): void {
+  for (const host of hosts) {
+    host.querySelectorAll<HTMLElement>('[data-bandeja-pestana]').forEach((solapa) => {
+      solapa.addEventListener('click', () => {
+        const clave = solapa.dataset.bandejaPestana || '';
+        if (!clave || clave === pestanaActiva) return;
+        pestanaActiva = clave;
+        render();
+      });
+    });
+  }
+}
+
 function enlazar(): void {
+  enlazarPestanas();
   for (const host of hosts) {
     host.querySelectorAll<HTMLElement>('[data-bandeja-dnd]').forEach((chip) => {
       chip.addEventListener('dragstart', (e) => {

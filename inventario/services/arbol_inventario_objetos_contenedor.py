@@ -27,9 +27,7 @@ POR QUÉ UN MÓDULO APARTE
     /objetos/{id} en vez del visor de contenedores.
 """
 
-import re
-
-from .taxonomia_contenedor import TIPO_CAJA
+from .taxonomia_contenedor import TIPO_CAJA, es_nombre_de_caja
 
 # Categorías (normalizadas: minúsculas, sin espacios extremos) que declaran un
 # Objeto como bulto contenedor. Las variantes toleran renombres manuales mínimos.
@@ -42,14 +40,10 @@ CATEGORIAS_OBJETO_CONTENEDOR = frozenset({
 
 # RÓTULO NUMERADO DE CAJA del flujo de alta («Caja 02», «Cajas 03», «Caja 4»).
 # Es la tercera vía de declaración: el operador crea la caja desde la botonera y
-# el nombre es la única señal persistida. Se exige el número para no capturar
-# objetos genéricos («Caja de herramientas de papá» sigue siendo un objeto).
-RE_NOMBRE_CAJA = re.compile(r'^cajas?\s*0*\d+$', re.IGNORECASE)
-
-
-def es_nombre_de_caja(nombre) -> bool:
-    """True si el rótulo es el de una caja numerada («Caja 02» / «Cajas 03»)."""
-    return bool(RE_NOMBRE_CAJA.match(str(nombre or '').strip()))
+# el nombre es la única señal persistida. El patrón y su predicado viven en
+# `services/taxonomia_contenedor.py` (fuente ÚNICA, compartida además con el
+# filtro ORM de la canasta) y se reexportan acá por compatibilidad con los
+# importadores históricos (`clasificacion_contenedor_objeto`).
 
 
 def es_objeto_contenedor(objeto_data):

@@ -83,6 +83,13 @@ export function esHabitacionLimbo(nombre?: string | null): boolean {
 
 /** Procedencia espacial de un bulto: la aporta la API de contenedores. */
 export interface PiezaEnBandeja extends PiezaTaxonomica {
+  /** Rótulo de la pieza: «Caja 02»…«Cajas 05» la declara Caja por sí solo. */
+  nombre?: string | null;
+  /**
+   * Guardada dentro de un mueble anfitrión SIN estante fino: es un bulto
+   * pendiente de ubicación fina y por lo tanto admisible en la canasta.
+   */
+  en_transito_interno?: boolean | null;
   /** ID de la habitación que la aloja (`null` = limbo huérfano). */
   ubicacion?: string | null;
   /** Nombre de esa habitación (`null` = limbo huérfano). */
@@ -298,12 +305,19 @@ export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined
   // Espejo exacto del canal de rescate del backend
   // (`api/viewsets/organizacion/filtros_bandeja.aplicar_filtro_bandeja`).
   if (esCajaEnLimbo(pieza) && !pieza?.parent_contenedor) return true;
-  // DECLARACIÓN EXPLÍCITA DEL OPERADOR (Lote 25 · default False): SOLO un True
-  // voluntario del checkbox «Declarar como Mueble Móvil / Objeto» admite la
-  // pieza. Ausencia/null/undefined se trata como arquitectura del espacio.
-  if (pieza?.declarado_movible !== true) return false;
+  // PURGA INVENCIBLE DE ARQUITECTURA FIJA y de nodos jerárquicos: se aplica a
+  // TODOS los canales siguientes.
   if (tieneGeometriaDePlano(pieza)) return false;
-  return Number(pieza?.subcontenedores_count ?? 0) === 0;
+  if (Number(pieza?.subcontenedores_count ?? 0) > 0) return false;
+  // CANALES DE RECONOCIMIENTO DE CAJA (espejo del ORM `aplicar_filtro_bandeja`):
+  //   1. `declarado_movible=True` (checkbox del modal / alta de caja);
+  //   2. `en_transito_interno=True` (guardada sin estante fino);
+  //   3. rótulo numerado «Caja 02»…«Cajas 05»: el alta rápida sólo persiste el
+  //      nombre, así que sin esta vía las Cajas 02–05 nunca llegaban a la
+  //      pestaña 4 de la canasta.
+  if (pieza?.declarado_movible === true) return true;
+  if (pieza?.en_transito_interno === true) return true;
+  return esNombreDeCaja(pieza?.nombre);
 }
 
 // =============================================================================
@@ -321,21 +335,42 @@ const CATEGORIAS_OBJETO_CONTENEDOR = [
   'cajas y contenedor',
 ];
 
+/**
+ * RÓTULO NUMERADO DE CAJA («Caja 02», «Cajas 03», «Caja 4»). Espejo exacto de
+ * `PATRON_NOMBRE_CAJA` en `inventario/services/taxonomia_contenedor.py`.
+ *
+ * Es la TERCERA vía de declaración de una caja (además de `es_contenedor` y de
+ * la categoría «Cajas y Contenedores»): el alta rápida persiste sólo el nombre,
+ * así que sin esta regla las «Cajas 02…05» se leían como OBJETOS SUELTOS.
+ * Se exige el número para no capturar objetos genéricos («Caja de herramientas
+ * de papá» sigue siendo un objeto fino).
+ */
+export const RE_NOMBRE_CAJA = /^cajas?\s*0*\d+$/i;
+
+/** ¿El rótulo es el de una caja numerada? (espejo de `es_nombre_de_caja`). */
+export function esNombreDeCaja(nombre?: string | null): boolean {
+  return RE_NOMBRE_CAJA.test(String(nombre ?? '').trim());
+}
+
 /** Campos mínimos para decidir si un Objeto es una caja/contenedor. */
 export interface ObjetoClasificable {
   es_contenedor?: boolean | null;
   categoria_nombre?: string | null;
+  /** Rótulo del registro: «Caja 02»…«Cajas 05» declara caja por sí solo. */
+  nombre?: string | null;
 }
 
 /**
- * OBJETO CONTENEDOR: bulto declarado por el operador (`es_contenedor=true`) o
- * clasificado con la categoría base «Cajas y Contenedores».
+ * OBJETO CONTENEDOR: bulto declarado por el operador (`es_contenedor=true`), por
+ * la categoría base «Cajas y Contenedores» o por su RÓTULO NUMERADO de caja.
  *
  * La consumen las vistas que deben agrupar estos registros junto a las cajas
  * físicas (bandeja de Almacenamiento) y NUNCA entre los «Objetos sueltos».
+ * Espejo exacto de `services/arbol_inventario_objetos_contenedor.es_objeto_contenedor`.
  */
 export function esObjetoContenedor(objeto: ObjetoClasificable | null | undefined): boolean {
   if (objeto?.es_contenedor === true) return true;
-  const nombre = String(objeto?.categoria_nombre ?? '').trim().toLowerCase();
-  return CATEGORIAS_OBJETO_CONTENEDOR.includes(nombre);
+  const nombreCategoria = String(objeto?.categoria_nombre ?? '').trim().toLowerCase();
+  if (CATEGORIAS_OBJETO_CONTENEDOR.includes(nombreCategoria)) return true;
+  return esNombreDeCaja(objeto?.nombre);
 }
