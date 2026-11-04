@@ -16,6 +16,7 @@ from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
 from ...services.mercadolibre_api import create_item, api_request_autenticado
+from ...services import mercadolibre_estado
 from ...services.mercadolibre_publicacion import registrar_publicacion
 from ...services.mercadolibre_atributos import construir_attributes_desde_objeto
 from ...services.mercadolibre_imagenes import construir_pictures
@@ -407,6 +408,86 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    # ------------------------------------------------------------------
+    # Estado REAL de las publicaciones (sentido Mercado Libre → Estok)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['post'], url_path='sincronizar_estados')
+    def sincronizar_estados(self, request):
+        """
+        Verifica el estado real de las publicaciones en Mercado Libre.
+
+        POST /api/mercadolibre/sincronizar_estados/
+        Body (todos opcionales):
+            {
+              "objeto_id": "<uuid>",  # verifica SOLO ese objeto (ficha del objeto)
+              "forzar": true,         # ignora la ventana de 5 minutos
+              "limite": 12            # tope de ítems por llamada (máx. 12)
+            }
+
+        Sin `objeto_id` recorre las publicaciones del Estok activo (header
+        X-Estok-Id) y devuelve:
+
+            { "verificados": n, "actualizados": n, "items": [ ...estado... ] }
+
+        Cada ítem trae el status NATIVO de Mercado Libre (active / paused /
+        closed) y el estado canónico que pintan las tarjetas (publicado /
+        pausada / finalizada). Si Mercado Libre responde 404 (ítem eliminado) o
+        `closed` (finalizado), Estok deja de marcar el objeto como publicado.
+
+        Lo llama /alertas-stock al cargar (best-effort, no bloquea el render) y
+        la ficha del objeto con `objeto_id`.
+        """
+        estok_id = (
+            request.headers.get('X-Estok-Id')
+            or request.query_params.get('estok_id')
+        )
+        datos = getattr(request, 'data', None) or {}
+
+        def _flag(valor):
+            return str(valor or '').strip().lower() in ('1', 'true', 'yes', 'si', 'sí')
+
+        objeto_id = str(datos.get('objeto_id') or '').strip()
+
+        if objeto_id:
+            objeto = Objeto.objects.filter(
+                pk=objeto_id, deleted_at__isnull=True,
+            ).first()
+            # Aislamiento multi-tenant: un objeto de OTRO Estok no existe acá.
+            if objeto is None or (
+                estok_id and objeto.estok_id
+                and str(objeto.estok_id) != str(estok_id)
+            ):
+                return Response(
+                    {"error": "Objeto no encontrado."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            resultado = mercadolibre_estado.verificar_publicacion(
+                objeto, forzar=True, usuario=request.user,
+            )
+            if resultado is None:
+                return Response({
+                    "verificados": 0,
+                    "actualizados": 0,
+                    "items": [],
+                    "estado": mercadolibre_estado.estado_publicacion(objeto),
+                })
+            return Response({
+                "verificados": 1,
+                "actualizados": 1 if resultado.get("cambiado") else 0,
+                "items": [{**resultado, "objeto_id": str(objeto.pk)}],
+                "estado": resultado,
+            })
+
+        return Response(
+            mercadolibre_estado.verificar_publicaciones_estok(
+                estok_id,
+                forzar=_flag(datos.get('forzar')),
+                limite=datos.get('limite') or mercadolibre_estado.LIMITE_VERIFICACIONES,
+            )
+        )
+
+
 
 
 def ml_callback(request):

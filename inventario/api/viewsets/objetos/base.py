@@ -72,7 +72,15 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         asegurar_clasificacion_contenedor(instance)
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
-        return Response(serializer.data)
+        data = serializer.data
+        # ¿El precio se empujó a la publicación de Mercado Libre? (ver
+        # ObjetoCreateSerializer.update → services/mercadolibre_estado).
+        # Se informa para que la UI pueda confirmarlo; el contrato del objeto
+        # queda intacto (clave extra, nunca reemplaza un campo del modelo).
+        sincronizado = getattr(instance, '_ml_precio_sincronizado', None)
+        if sincronizado is not None:
+            data['ml_precio_sincronizado'] = bool(sincronizado)
+        return Response(data)
 
     def create(self, request, *args, **kwargs):
         """

@@ -128,9 +128,21 @@ export const prerender = false;
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Buscar precio en ML
+                Comparar precio en Mercado Libre
               </button>
               <div id="precioReferenciaDetalle" class="hidden w-full"></div>
+            </div>
+
+            <!-- Publicación en Mercado Libre: estado REAL del ítem (active /
+                 paused / closed). Lo pinta lib/objetos/objetoDetallePublicacion.ts
+                 con `publicacion_ml` del detalle y lo RE-VERIFICA contra la API al
+                 abrir la ficha. Oculto si el objeto no tiene publicación. -->
+            <div id="publicacionMLSection"
+                 class="hidden border-t border-gray-100 pt-3">
+              <h2 class="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <span>🛒</span> Publicación en Mercado Libre
+              </h2>
+              <div id="publicacionMLContenido"></div>
             </div>
 
             <!-- Ubicación y contenedor -->
@@ -290,12 +302,19 @@ export const prerender = false;
   // VISTA PATRIMONIAL DEL DETALLE: ficha técnica destacada (formato a cargo de
   // lib/objetos/objetoFichaTecnica.ts) y limpieza de campos base secundarios.
   import { renderVistaDetalle } from '../../../lib/objetos/objetoDetalleVista';
-  // PRECIO DE REFERENCIA: botón «Buscar precio en ML» de la ficha, con la MISMA
-  // lógica del alta/edición (endpoint del backend + tarjeta del resultado).
+  // PRECIO DE REFERENCIA: botón «Comparar precio en Mercado Libre» de la ficha,
+  // con la MISMA lógica del alta/edición (endpoint del backend + tarjeta del
+  // resultado).
   import {
     actualizarObjetoPrecioDetalle,
     inicializarPrecioReferenciaDetalle,
   } from '../../../lib/objetos/objetoDetallePrecio';
+  // PUBLICACIÓN EN MERCADO LIBRE: estado REAL del ítem (active / paused /
+  // closed) con re-verificación contra la API al abrir la ficha.
+  import {
+    renderPublicacionML,
+    verificarPublicacionML,
+  } from '../../../lib/objetos/objetoDetallePublicacion';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -572,6 +591,15 @@ export const prerender = false;
       // Datos del objeto para la búsqueda de precio de referencia (nombre,
       // estado de conservación, categoría, ISBN/autor de los libros).
       actualizarObjetoPrecioDetalle(obj);
+
+      // === PUBLICACIÓN EN MERCADO LIBRE: estado REAL del ítem ===
+      // 1) Se pinta lo que ya viene del backend (`publicacion_ml`).
+      // 2) Se RE-VERIFICA contra la API de Mercado Libre (GET /items/{id}) y se
+      //    repinta con el estado verdadero (active / paused / closed).
+      renderPublicacionML(obj.publicacion_ml || null);
+      if (obj.publicacion_ml?.item_id) {
+        void verificarPublicacionML(String(obj.id));
+      }
 
       // === Renderizar info básica ===
       const tipoInfo = getCategoriaInfo(obj);

@@ -145,6 +145,10 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
     historial_precios = serializers.SerializerMethodField()
     total_objetos_contenidos = serializers.SerializerMethodField()
     distribucion_por_categorias = serializers.SerializerMethodField()
+    # ESTADO REAL de la publicación en Mercado Libre (active / paused / closed)
+    # para la ficha del objeto: la verificación en vivo la dispara la página con
+    # POST /api/mercadolibre/sincronizar_estados/ (objeto_id).
+    publicacion_ml = serializers.SerializerMethodField()
 
     class Meta:
         model = Objeto
@@ -208,6 +212,20 @@ class ObjetoDetailSerializer(serializers.ModelSerializer):
             }
             for f in fotos
         ]
+    def get_publicacion_ml(self, obj):
+        """
+        Estado REAL de la publicación del objeto en Mercado Libre.
+
+        FUENTE ÚNICA: services/mercadolibre_estado.estado_publicacion(), el
+        mismo contrato que consumen las tarjetas de /alertas-stock:
+        estado ('publicado' | 'pausada' | 'finalizada' | 'sin_publicar'),
+        etiqueta, aviso, item_id y el enlace (None si ya no está vigente).
+        """
+        from ...services import mercadolibre_estado
+
+        return mercadolibre_estado.estado_publicacion(obj)
+
+
 
     def get_datos_especificos(self, obj):
         """
@@ -429,6 +447,41 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         )
         attrs['en_transito_interno'] = esta_en_transito_interno(destino, fila, col)
         return attrs
+
+    def update(self, instance, validated_data):
+        """
+        Guarda el objeto y, si CAMBIÓ el valor estimado, lo empuja a Mercado
+        Libre (PUT /items/{item_id} {"price": nuevo}) para que la publicación
+        y el inventario nunca queden desfasados.
+
+        BEST-EFFORT: `sincronizar_precio()` nunca lanza; si Mercado Libre
+        falla, el guardado en Estok queda igual de firme. El resultado se deja
+        en `instance._ml_precio_sincronizado` para que el ViewSet lo informe en
+        la respuesta (`ml_precio_sincronizado`) sin alterar el contrato del
+        serializer.
+        """
+        precio_anterior = getattr(self.instance, 'valor_estimado', None)
+        guardado = super().update(instance, validated_data)
+        guardado._ml_precio_sincronizado = False
+
+        nuevo_precio = validated_data.get('valor_estimado', precio_anterior)
+        if nuevo_precio is None or precio_anterior == nuevo_precio:
+            return guardado
+
+        try:
+            from ...services import mercadolibre_estado
+
+            request = self.context.get('request')
+            guardado._ml_precio_sincronizado = mercadolibre_estado.sincronizar_precio(
+                guardado, nuevo_precio,
+                usuario=getattr(request, 'user', None),
+            )
+        except Exception as exc:  # pragma: no cover - defensivo
+            logger.warning(
+                'No se pudo sincronizar el precio del objeto %s con Mercado '
+                'Libre: %s', getattr(guardado, 'pk', '?'), exc,
+            )
+        return guardado
 
     def create(self, validated_data):
         # Aislamiento multi-tenant: el estok se asigna desde el header,

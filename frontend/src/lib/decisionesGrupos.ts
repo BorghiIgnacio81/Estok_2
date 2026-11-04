@@ -16,7 +16,7 @@
 // backend vuelve a validarlo en cada endpoint (403 si no corresponde).
 // =============================================================================
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { botonPublicacionExternaHtml, escapar, tarjetaObjetoHtml } from './decisionesTarjeta';
+import { botonPublicacionExternaHtml, escapar, estadoPublicacionInfo, tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import {
   EVENTO_CAMBIO_DESCARTE,
@@ -35,7 +35,7 @@ import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 // Lote 31 · punto 1: dentro de cada grilla, los casos TODAVÍA ACTIVOS se leen
 // arriba y los ya CERRADOS (despachados / plazo vencido) quedan al fondo.
-import { ordenarGrupoDecisiones } from './decisionesOrden';
+import { ordenarGrupoDecisiones, estaPublicado } from './decisionesOrden';
 import { EVENTO_DECISION_CAMBIADA, EVENTO_PUBLICACION_ACTUALIZADA } from './eventosDecisiones';
 
 /** Respuesta completa del tablero de la pestaña Decisiones. */
@@ -173,7 +173,9 @@ function renderVender(panel: PanelDecisiones): void {
 }
 
 function cardVender(obj: ObjetoDecision): string {
-  const publicado = obj.plataformas_publicadas.length > 0;
+  // El estado REAL manda: una publicación pausada/finalizada en Mercado Libre
+  // NO es «publicado» para el inventario (ver decisionesTarjeta).
+  const publicado = estaPublicado(obj);
   return tarjetaObjetoHtml(obj, {
     pie: pieDespachoHtml(obj),
     acciones: publicado ? accionesPublicadoHtml(obj) : accionesSinPublicarHtml(obj),
@@ -201,11 +203,21 @@ function accionesPublicadoHtml(obj: ObjetoDecision): string {
   // externa de Mercado Libre (pestaña nueva) y solo existe cuando el objeto
   // tiene una URL activa. La ficha interna se abre desde el cuerpo/título de la
   // tarjeta, no desde este botón (antes caía a `/objetos/<id>`).
+  //
+  // ESTADO REAL: si Mercado Libre la pausó, el veredicto deja de decir
+  // «Publicado para vender» y se advierte cómo reactivarla.
+  const info = estadoPublicacionInfo(obj);
+  const veredicto = info.vendiendo
+    ? `<span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
+        💰 Publicado para vender
+      </span>`
+    : `<span class="inline-flex items-center justify-center px-2 py-1 rounded-lg ${info.clases} text-xs font-bold">
+        ⏸️ ${escapar(info.label)}
+      </span>
+      ${info.aviso ? `<p class="text-[11px] text-amber-700">${escapar(info.aviso)}</p>` : ''}`;
   return `
     <div class="mt-auto flex flex-col gap-1.5">
-      <span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
-        💰 Publicado para vender
-      </span>
+      ${veredicto}
       ${botonPublicacionExternaHtml(obj)}
       ${botonDespachoHtml(obj)}
     </div>`;

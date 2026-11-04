@@ -161,3 +161,79 @@ export async function desconectarCuentaML(): Promise<void> {
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
+
+// =============================================================================
+// ESTADO REAL DE LAS PUBLICACIONES (sentido Mercado Libre → Estok)
+// -----------------------------------------------------------------------------
+// GET /items/{id} en el backend y persistencia del status real: si la
+// publicación fue pausada, finalizada o eliminada desde la web de Mercado
+// Libre, Estok deja de mostrarla como «Publicado listo para vender».
+// =============================================================================
+
+/** Estado canónico de una publicación (contrato del backend). */
+export interface EstadoPublicacionML {
+  item_id: string;
+  /** Status NATIVO de Mercado Libre: 'active' | 'paused' | 'closed'. */
+  status: string;
+  /** Estado canónico de la UI. */
+  estado: 'publicado' | 'pausada' | 'finalizada' | 'sin_publicar';
+  /** Etiqueta legible ('Publicado' / 'Pausada' / 'Finalizada' / 'Sin publicar'). */
+  label: string;
+  /** True sólo si existe publicación y NO está finalizada. */
+  publicado: boolean;
+  /** True sólo si Mercado Libre la reporta 'active'. */
+  activa: boolean;
+  /** Enlace externo vigente (null si ya no está activo). */
+  url: string | null;
+  permalink: string;
+  /** Advertencia lista para mostrar ('' cuando la publicación está OK). */
+  aviso: string;
+  verificado_en: string | null;
+  /** True si esta verificación cambió el estado guardado. */
+  cambiado?: boolean;
+  /** Objeto al que pertenece la publicación (sincronización en lote). */
+  objeto_id?: string;
+}
+
+export interface SincronizacionEstadosML {
+  verificados: number;
+  actualizados: number;
+  items: EstadoPublicacionML[];
+  /** Sólo en la verificación de un objeto puntual. */
+  estado?: EstadoPublicacionML;
+}
+
+export interface OpcionesSincronizacionML {
+  /** Verifica SOLO este objeto (ficha del objeto). */
+  objetoId?: number | string;
+  /** Ignora la ventana de 5 minutos entre consultas. */
+  forzar?: boolean;
+}
+
+/**
+ * POST /api/mercadolibre/sincronizar_estados/
+ *
+ * Sin `objetoId` verifica en lote las publicaciones del Estok activo (tope de
+ * 12 por llamada); con `objetoId` verifica sólo esa publicación.
+ */
+export async function sincronizarEstadosML(
+  opciones: OpcionesSincronizacionML = {},
+): Promise<SincronizacionEstadosML> {
+  const body: Record<string, unknown> = {};
+  if (opciones.objetoId !== undefined && opciones.objetoId !== null) {
+    body.objeto_id = opciones.objetoId;
+  }
+  if (opciones.forzar) body.forzar = true;
+
+  const response = await fetch(`${API_BASE_URL}/mercadolibre/sincronizar_estados/`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.json();
+}
+

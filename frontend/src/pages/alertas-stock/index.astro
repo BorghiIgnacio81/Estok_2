@@ -243,6 +243,10 @@ export const prerender = false;
     import { iniciarVentasDestacadas } from '../../lib/ventasDestacadas';
     import { iniciarModalesDescarte } from '../../lib/descarteModales';
     import { iniciarModalNotificarDueno } from '../../lib/notificacionDueno';
+    // ESTADO REAL DE LAS PUBLICACIONES: verifica en Mercado Libre (active /
+    // paused / closed) al abrir la pestaña y refresca las tarjetas si algo
+    // cambió (publicación pausada, finalizada o eliminada en ML).
+    import { iniciarSincronizacionPublicaciones } from '../../lib/sincronizacionPublicaciones';
     // Clic en el CUERPO/TÍTULO de cualquier tarjeta → ficha interna del objeto.
     // Los botones (publicar, «Ver publicación», despacho, reclamo…) y la ruta
     // geográfica conservan su propia acción y NO navegan.
@@ -255,6 +259,9 @@ export const prerender = false;
     iniciarModalPublicar();
     iniciarModalesDescarte();
     iniciarModalNotificarDueno();
+    // Segunda pasada (no bloquea el render): si el estado real de alguna
+    // publicación cambió en Mercado Libre, las islas se recargan solas.
+    iniciarSincronizacionPublicaciones();
   </script>
 
   <style is:global>

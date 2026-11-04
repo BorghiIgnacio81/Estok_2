@@ -20,7 +20,13 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { botonPublicacionExternaHtml, escapar, formatUSD, tarjetaObjetoHtml } from './decisionesTarjeta';
+import {
+  botonPublicacionExternaHtml,
+  escapar,
+  estadoPublicacionInfo,
+  formatUSD,
+  tarjetaObjetoHtml,
+} from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import { estaPublicado, ordenarVentasDestacadas } from './decisionesOrden';
 import { abrirPublicarObjeto } from './publicarObjeto';
@@ -127,9 +133,28 @@ async function refrescarVentasDestacadas(): Promise<void> {
 
 function piePublicacionHtml(obj: ObjetoDecision): string {
   if (estaPublicado(obj)) {
+    // Estado REAL de la publicación (Mercado Libre puede haberla pausado o
+    // finalizado): se avisa en la tarjeta en lugar de decir siempre
+    // «Publicado · listo para vender».
+    const info = estadoPublicacionInfo(obj);
+    if (!info.vendiendo) {
+      return `
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 text-[11px] text-amber-900 font-semibold">
+          ⏸️ ${escapar(info.label)} · ${escapar(info.aviso)}
+        </div>`;
+    }
     return `
       <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-[11px] text-emerald-800 font-semibold">
         🔗 ${escapar(obj.estado_publicacion_label || 'Publicado')} · listo para vender
+      </div>`;
+  }
+  // Publicación FINALIZADA / eliminada en Mercado Libre: el objeto vuelve a
+  // estar «sin publicar», pero se explica POR QUÉ para que no parezca un bug.
+  const info = estadoPublicacionInfo(obj);
+  if (obj.estado_publicacion === 'finalizada' && info.aviso) {
+    return `
+      <div class="bg-red-50 border border-red-200 rounded-lg p-2 text-[11px] text-red-800 font-semibold">
+        ⛔ ${escapar(info.label)} · ${escapar(info.aviso)}
       </div>`;
   }
   // TÍTULO DE SECCIÓN, NO un botón: sin fondo de CTA, sin borde interactivo,

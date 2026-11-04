@@ -128,6 +128,22 @@ class StockValuationService:
             objeto.nombre, valor_anterior, valor_nuevo, tipo
         )
 
+        # ── MERCADO LIBRE: precio SIEMPRE sincronizado en ambas plataformas ──
+        # Misma fuente única que el CRUD de objetos (api/serializers/objetos.py):
+        # si el objeto tiene una publicación vigente, se empuja el precio con
+        # PUT /items/{item_id} {"price": nuevo}. BEST-EFFORT: nunca lanza.
+        try:
+            from . import mercadolibre_estado
+
+            mercadolibre_estado.sincronizar_precio(
+                objeto, valor_nuevo, usuario=registrado_por,
+            )
+        except Exception as exc:  # pragma: no cover - defensivo
+            logger.warning(
+                "No se pudo sincronizar el precio del objeto %s con Mercado "
+                "Libre: %s", getattr(objeto, "id", "?"), exc,
+            )
+
         return CambioPrecioResult(
             objeto_id=str(objeto.id),
             objeto_nombre=objeto.nombre,

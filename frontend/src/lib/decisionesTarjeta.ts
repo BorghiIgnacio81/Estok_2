@@ -32,6 +32,12 @@ export interface ObjetoDecision {
   estado_publicacion?: string;
   /** Etiqueta legible del estado de publicación ('Publicado' / 'Sin publicar'). */
   estado_publicacion_label?: string | null;
+  /** Estado NATIVO que reporta Mercado Libre ('active' | 'paused' | 'closed'). */
+  publicacion_status?: string | null;
+  /** True sólo si Mercado Libre reporta la publicación como 'active'. */
+  publicacion_activa?: boolean;
+  /** Advertencia lista para mostrar ('' cuando la publicación está OK). */
+  publicacion_aviso?: string | null;
   /** Enlace externo a la publicación (Mercado Libre) cuando existe. */
   url_publicacion?: string | null;
   dueno_original: string | null;
@@ -111,13 +117,75 @@ export function ubicacionTexto(obj: ObjetoDecision): string {
   return [...new Set(nombres)].join(' · ');
 }
 
+/**
+ * Estado REAL de la publicación para las tarjetas (una sola versión).
+ *
+ * El backend verifica el ítem contra Mercado Libre (GET /items/{id}) y manda
+ * `estado_publicacion` = 'publicado' | 'pausada' | 'finalizada' | 'sin_publicar'.
+ * Acá se traduce a etiqueta + color + advertencia, sin comparar literales en
+ * cada tarjeta.
+ */
+export interface InfoEstadoPublicacion {
+  /** Etiqueta legible ('Publicado' / 'Pausada' / 'Finalizada' / 'Sin publicar'). */
+  label: string;
+  /** Clases Tailwind del chip de estado. */
+  clases: string;
+  /** Advertencia para el pie de la tarjeta ('' cuando está OK). */
+  aviso: string;
+  /** ¿La publicación está vendiendo en Mercado Libre? */
+  vendiendo: boolean;
+}
+
+const INFO_ESTADO_PUBLICACION: Record<string, Omit<InfoEstadoPublicacion, 'label'>> = {
+  publicado: { clases: 'bg-emerald-100 text-emerald-800', aviso: '', vendiendo: true },
+  pausada: {
+    clases: 'bg-amber-100 text-amber-800',
+    aviso: 'Publicación pausada en Mercado Libre: reactivala para volver a vender.',
+    vendiendo: false,
+  },
+  finalizada: {
+    clases: 'bg-red-100 text-red-800',
+    aviso: 'Publicación finalizada o eliminada en Mercado Libre: el enlace ya no está activo.',
+    vendiendo: false,
+  },
+  sin_publicar: { clases: 'bg-gray-100 text-gray-600', aviso: '', vendiendo: false },
+};
+
+/** Estado legible de la publicación de una tarjeta. */
+export function estadoPublicacionInfo(obj: ObjetoDecision): InfoEstadoPublicacion {
+  const estado = String(obj.estado_publicacion || '').trim() || 'sin_publicar';
+  const base = INFO_ESTADO_PUBLICACION[estado] || INFO_ESTADO_PUBLICACION.sin_publicar;
+  const label = (obj.estado_publicacion_label || '').trim()
+    || (estado === 'publicado' ? 'Publicado' : 'Sin publicar');
+  // La advertencia del backend manda (texto único); si no vino, la del estado.
+  const aviso = (obj.publicacion_aviso || '').trim() || base.aviso;
+  return { label, clases: base.clases, aviso, vendiendo: base.vendiendo };
+}
+
 /** Chips de plataformas donde el objeto ya fue publicado (ML / FB). */
 export function chipsPublicacionHtml(obj: ObjetoDecision): string {
-  const ml = obj.plataformas_publicadas.includes('mercadolibre');
-  const fb = obj.plataformas_publicadas.includes('facebook');
-  if (!ml && !fb) return '';
-  return `<div class="flex gap-1">
-    ${ml ? '<span class="px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-[10px] font-semibold">ML</span>' : ''}
+  const plataformas = Array.isArray(obj.plataformas_publicadas)
+    ? obj.plataformas_publicadas
+    : [];
+  const ml = plataformas.includes('mercadolibre');
+  const fb = plataformas.includes('facebook');
+  // Mercado Libre muestra el ESTADO REAL (pausada / finalizada) en lugar del
+  // chip genérico «ML»: si la publicación dejó de estar activa, el usuario
+  // tiene que verlo de un vistazo en la tarjeta. El aviso se dibuja incluso si
+  // el backend ya quitó la marca 'mercadolibre' del inventario.
+  const info = estadoPublicacionInfo(obj);
+  const estadoFueraDeLinea = obj.estado_publicacion === 'pausada'
+    || obj.estado_publicacion === 'finalizada';
+  if (!ml && !fb && !estadoFueraDeLinea) return '';
+
+  const chipMl = ml && info.vendiendo
+    ? '<span class="px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-[10px] font-semibold">ML</span>'
+    : '';
+  const chipEstado = estadoFueraDeLinea
+    ? `<span class="px-1.5 py-0.5 rounded-full ${info.clases} text-[10px] font-semibold">ML · ${escapar(info.label)}</span>`
+    : '';
+  return `<div class="flex gap-1 flex-wrap">
+    ${chipMl}${chipEstado}
     ${fb ? '<span class="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-semibold">FB</span>' : ''}
   </div>`;
 }

@@ -1,5 +1,5 @@
 // =============================================================================
-// FICHA DE OBJETO · «BUSCAR PRECIO EN ML» (precio de referencia)
+// FICHA DE OBJETO · «COMPARAR PRECIO EN MERCADO LIBRE» (precio de referencia)
 // -----------------------------------------------------------------------------
 // Reemplaza la antigua redirección a https://www.mercadolibre.com.ar/search?q=…
 // (búsqueda web genérica, sin validar coincidencia de título ni moneda) por la

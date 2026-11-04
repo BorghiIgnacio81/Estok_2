@@ -289,9 +289,15 @@ async function enviarFormulario(evento: Event): Promise<void> {
         new CustomEvent('estok:objetos-cambiados', { detail: guardado }),
       );
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      // PRECIO → MERCADO LIBRE: si cambió el valor estimado y el objeto tiene
+      // publicación vigente, el backend ya empujó el precio (PUT /items/{id}).
+      // `ml_precio_sincronizado` es sólo informativo: false/ausente = no aplica.
+      const precioEnML = guardado?.['ml_precio_sincronizado'] === true
+        ? ' · 💲 precio sincronizado en Mercado Libre'
+        : '';
       showToast(
         contenedorOk
-          ? '✅ Objeto actualizado correctamente'
+          ? `✅ Objeto actualizado correctamente${precioEnML}`
           : '⚠️ El objeto se guardó, pero la caja no quedó asignada. Volvé a elegirla desde «Contenedor / Caja».',
         contenedorOk ? 'success' : 'error',
       );

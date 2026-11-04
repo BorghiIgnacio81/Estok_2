@@ -88,10 +88,20 @@ def esta_publicado(objeto) -> bool:
 
 
 def publicacion_de(objeto):
-    """Registro de publicación del objeto, o None."""
+    """
+    Registro de publicación del objeto, o None.
+
+    Se lee por la relación inversa `Objeto.publicacion_ml` (OneToOne): Django
+    cachea el resultado en la instancia, así los tableros que hacen
+    `select_related('publicacion_ml')` no pagan una consulta por objeto
+    (payload_objeto_decision corre para TODOS los objetos del Estok).
+    """
     if objeto is None or getattr(objeto, "pk", None) is None:
         return None
-    return MercadoLibrePublicacion.objects.filter(objeto=objeto).first()
+    try:
+        return objeto.publicacion_ml
+    except MercadoLibrePublicacion.DoesNotExist:
+        return None
 
 
 def item_id_de(objeto) -> str:

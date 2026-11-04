@@ -38,7 +38,7 @@ from rest_framework.response import Response
 
 from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service, decisiones_service
-from ....services import mercadolibre_publicacion
+from ....services import mercadolibre_estado
 from ....services.espejo_contenedor import (
     q_objeto_es_espejo,
     q_objeto_espejo_explicito,
@@ -58,43 +58,16 @@ def nombre_mostrable(usuario):
     return usuario.get_full_name() or usuario.username
 
 
-def _url_publicacion(objeto):
+def _estado_publicacion(objeto):
     """
-    Enlace externo ACTIVO de la publicación del objeto en Mercado Libre.
+    Estado REAL de la publicación del objeto (fuente única).
 
-    FUENTE ÚNICA: services/mercadolibre_publicacion.py, que conoce las dos
-    formas de persistir la publicación:
-      1. `item_id` (campo legacy `meli_id`/`meli_item_id` o el registro
-         MercadoLibrePublicacion creado al publicar) → URL canónica del ítem:
-         https://articulo.mercadolibre.com.ar/<item_id>
-      2. `permalink` guardado por POST /items (respaldo, cuando el despliegue no
-         tiene el campo legacy y el ítem vino con enlace completo).
-
-    Sin ninguno de los dos la publicación externa no existe: se devuelve None y
-    el frontend NO dibuja el botón «Ver publicación» (el acceso a la ficha
-    interna es el clic en el cuerpo/título de la tarjeta).
+    Delega en services/mercadolibre_estado.py, que traduce el `status` que
+    Mercado Libre reportó (active / paused / closed) al estado canónico que
+    pintan las tarjetas: publicado / pausada / finalizada / sin_publicar.
+    El `item_id` legacy y el `permalink` los resuelve el propio servicio.
     """
-    item_id = mercadolibre_publicacion.item_id_de(objeto)
-    if item_id:
-        return f"https://articulo.mercadolibre.com.ar/{item_id}"
-    publicacion = mercadolibre_publicacion.publicacion_de(objeto)
-    permalink = str(getattr(publicacion, "permalink", "") or "").strip()
-    return permalink or None
-
-
-def _esta_publicado(objeto):
-    """
-    True si el objeto ya fue publicado en alguna plataforma de venta.
-
-    FUENTE ÚNICA de la regla (la comparten el payload y los grupos del panel):
-    se acepta cualquier plataforma registrada en `plataformas_publicadas`
-    (`mercadolibre`, `facebook`) o el id legacy de Mercado Libre.
-    """
-    if getattr(objeto, 'plataformas_publicadas', None):
-        return True
-    return bool(
-        getattr(objeto, 'meli_id', None) or getattr(objeto, 'meli_item_id', None)
-    )
+    return mercadolibre_estado.estado_publicacion(objeto)
 
 
 def payload_objeto_decision(obj, request):
@@ -118,7 +91,28 @@ def payload_objeto_decision(obj, request):
         obj.dueno_original_id, obj.beneficiario_id,
     )
     plataformas = list(obj.plataformas_publicadas or [])
-    publicado = _esta_publicado(obj)
+    # ESTADO REAL DE LA PUBLICACIÓN (fuente única: services/mercadolibre_estado):
+    # si Mercado Libre reporta el ítem pausado/finalizado, la tarjeta deja de
+    # decir «Publicado listo para vender» y muestra el estado verdadero.
+    info_ml = _estado_publicacion(obj)
+    # Otras plataformas (facebook/instagram) siguen contando como «publicado»
+    # aunque Mercado Libre no tenga publicación.
+    otras_plataformas = [
+        plataforma for plataforma in plataformas
+        if str(plataforma).strip().lower() != 'mercadolibre'
+    ]
+    publicado = bool(info_ml['publicado']) or bool(otras_plataformas)
+    if info_ml['estado'] != mercadolibre_estado.ESTADO_SIN_PUBLICAR:
+        estado_publicacion = info_ml['estado']
+        estado_publicacion_label = info_ml['label']
+    elif publicado:
+        estado_publicacion = 'publicado'
+        estado_publicacion_label = 'Publicado'
+    else:
+        estado_publicacion = mercadolibre_estado.ESTADO_SIN_PUBLICAR
+        estado_publicacion_label = mercadolibre_estado.ETIQUETAS[
+            mercadolibre_estado.ESTADO_SIN_PUBLICAR
+        ]
 
     return {
         "id": str(obj.id),
@@ -130,15 +124,17 @@ def payload_objeto_decision(obj, request):
         # --- Publicación (Bloque 3 + sección destacada de venta) ---
         "plataformas_publicadas": plataformas,
         "publicado": publicado,
-        "estado_publicacion": "publicado" if publicado else "sin_publicar",
-        "estado_publicacion_label": (
-            "Publicado" if publicado else "Sin publicar"
-        ),
-        # Enlace externo a la publicación ACTIVA de Mercado Libre (se reconstruye
-        # con el `item_id`/`permalink` persistidos al publicar). Si el objeto no
-        # tiene publicación externa, la UI NO dibuja «Ver publicación»: la ficha
-        # interna se abre desde el cuerpo/título de la tarjeta.
-        "url_publicacion": _url_publicacion(obj),
+        "estado_publicacion": estado_publicacion,
+        "estado_publicacion_label": estado_publicacion_label,
+        # Estado NATIVO que reporta Mercado Libre (active / paused / closed) y
+        # la advertencia lista para mostrar en la tarjeta.
+        "publicacion_status": info_ml['status'] or None,
+        "publicacion_activa": info_ml['activa'],
+        "publicacion_aviso": info_ml['aviso'],
+        # Enlace externo a la publicación VIGENTE (None si está finalizada o
+        # eliminada): sin URL la UI NO dibuja «Ver publicación», así nadie
+        # termina en un enlace muerto de Mercado Libre.
+        "url_publicacion": info_ml['url'],
 
         "dueno_original": (
             str(obj.dueno_original_id) if obj.dueno_original_id else None
@@ -238,6 +234,8 @@ class DecisionesActionsMixin:
             Objeto.objects.select_related(
                 'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
                 'categoria', 'despachado_por',
+                # Estado real de la publicación en Mercado Libre sin N+1.
+                'publicacion_ml',
             )
             .prefetch_related('fotos')
             .filter(deleted_at__isnull=True)
@@ -274,6 +272,8 @@ class DecisionesActionsMixin:
             Objeto.objects.select_related(
                 'ubicacion', 'contenedor', 'dueno_original', 'beneficiario',
                 'categoria', 'despachado_por',
+                # Estado real de la publicación en Mercado Libre sin N+1.
+                'publicacion_ml',
             )
             .prefetch_related('fotos')
             .filter(deleted_at__isnull=True)
