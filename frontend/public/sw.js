@@ -15,7 +15,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 18;
+const CACHE_VERSION = 19;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 
 // =============================================================================
@@ -25,7 +25,8 @@ const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 // asset de interfaz, actualizá los DOS archivos y subí CACHE_VERSION.
 // Son WebP ya redimensionados al tamaño real de renderizado (lado mayor 128 px,
 // salvo el fondo de la cómoda del login a 768 px de ancho), así que pesan entre
-// 1 y 17 KB en vez de los 175 KB a 3,4 MB de los PNG/JPG originales.
+// 1 y 17 KB en vez de los 175 KB a 3,4 MB de los PNG/JPG originales. La ÚNICA
+// excepción es el botón de informes, que se sirve en JPG (ver nota abajo).
 // =============================================================================
 const UI_ASSETS = [
   '/nuevo-objeto.webp',
@@ -37,7 +38,9 @@ const UI_ASSETS = [
   '/fluffy-objeto.webp',
   '/nueva-ubicacion.webp',
   '/boton-qr.webp',
-  '/informes.webp',
+  // El botón de informes viaja en JPG (no WebP) para que renderice en todos los
+  // WebView; ver la nota de ASSET_INFORMES en src/lib/assetsUi.ts.
+  '/informes.jpg',
   '/login-comoda.webp',
 ];
 

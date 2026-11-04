@@ -20,9 +20,12 @@
 // para que Tailwind las incluya en el bundle): border-green-500 bg-green-50
 // =============================================================================
 
-// Trigger gráfico: la ilustración /informes.webp ocupa el 100% del botón (sin
-// texto ni fondo azul), con el mismo tamaño/estilo que los demás botones
-// ilustrados de la barra de acciones (h-24 / md:h-32 / lg:h-36).
+// Trigger gráfico: la ilustración /informes.jpg ocupa el 100% del área del
+// botón (background transparente, sin borde, sin padding y sin texto), con el
+// mismo tamaño/estilo que los demás botones ilustrados de la barra de acciones
+// (96 px / 128 px / 144 px según breakpoint). El reset y el tamaño viven en el
+// bloque <style> del final, no en utilidades Tailwind, para que no quede ningún
+// fondo, borde o relleno residual del <button> nativo.
 import { ASSET_INFORMES } from '../../lib/assetsUi';
 ---
 
@@ -35,7 +38,7 @@ import { ASSET_INFORMES } from '../../lib/assetsUi';
        fondo, sin borde, sin padding y sin texto superpuesto. El nombre
        accesible vive en title + aria-label. -->
   <button type="button" id="btnExportarDatos"
-    class="inline-flex shrink-0 items-center justify-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+    class="boton-informes inline-flex shrink-0 items-center justify-center cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
     title="Exportar Datos / Informe: descargá el CSV del inventario o el informe PDF con mapas y precios"
     aria-label="Exportar Datos / Informe">
     <img
@@ -43,7 +46,8 @@ import { ASSET_INFORMES } from '../../lib/assetsUi';
       alt=""
       aria-hidden="true"
       draggable="false"
-      class="block h-24 w-auto md:h-32 md:w-auto lg:h-36 lg:w-auto max-w-none object-contain object-center select-none pointer-events-none"
+      decoding="async"
+      class="boton-informes__imagen"
     />
   </button>
 
@@ -158,4 +162,59 @@ import { ASSET_INFORMES } from '../../lib/assetsUi';
     </div>
   </div>
 </div>
+
+<style>
+  /* ==========================================================================
+     TRIGGER «EXPORTAR DATOS / INFORME» · BOTÓN GRÁFICO PURO
+     --------------------------------------------------------------------------
+     Reset explícito del <button> nativo: el navegador le pone fondo, borde y
+     padding por defecto, y las utilidades Tailwind viven en @layer utilities
+     (pierden contra cualquier regla sin capa). Al declararlo acá, con
+     background/border/padding en cero, no queda NINGÚN resto visual: lo único
+     que se ve es la ilustración /informes.jpg.
+
+     Tamaños: 96 px (h-24), 128 px (md:h-32) y 144 px (lg:h-36), la MISMA escala
+     responsiva que el resto de los botones ilustrados de la barra (categoría,
+     escáner QR y «Nuevo Objeto»), así la fila queda alineada al píxel.
+     ========================================================================== */
+  .boton-informes {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    line-height: 0;
+    box-shadow: none;
+    width: 6rem;
+    height: 6rem;
+  }
+
+  /* La ilustración cubre el 100% del ancho del botón y conserva su relación de
+     aspecto (height: auto): nunca se deforma ni deja franjas de fondo. */
+  .boton-informes__imagen {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: none;
+    object-fit: contain;
+    object-position: center;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+  }
+
+  @media (min-width: 768px) {
+    .boton-informes {
+      width: 8rem;
+      height: 8rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .boton-informes {
+      width: 9rem;
+      height: 9rem;
+    }
+  }
+</style>
+
 
