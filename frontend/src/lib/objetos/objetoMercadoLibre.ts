@@ -9,33 +9,22 @@
 //     de conservación.
 //   · Interpreta el campo `fuente` y los errores controlados con el módulo
 //     compartido lib/precioReferencia.ts (NO compara literales a mano).
-// Auth centralizada en services/auth (getAuthHeaders).
+// La consulta al backend y el markup de la tarjeta viven en el módulo
+// compartido lib/objetos/precioReferenciaConsulta.ts (mismo código que la
+// edición y la ficha de detalle del objeto).
+// Auth centralizada en services/auth (getAuthHeaders, dentro del módulo común).
 // =============================================================================
 
-import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
 import { refOpcional } from '../dom';
-import { esFuenteMercadoLibre, mensajeSinPrecio } from '../precioReferencia';
+import { mensajeSinPrecio } from '../precioReferencia';
 import { showToast } from '../toast';
 import { categoriaSeleccionadaParaBusqueda } from './categoriaSeleccionada';
 import { isbnYAutorParaBusqueda } from './datosBusquedaPrecio';
-
-/** Etiqueta legible del estado de conservación aplicado al precio. */
-function etiquetaEstado(estado: string): string {
-  const labels: Record<string, string> = {
-    excelente: 'Excelente',
-    bueno: 'Bueno',
-    regular: 'Regular',
-    malo: 'Malo',
-    muy_malo: 'Muy malo',
-  };
-  return labels[estado] || estado;
-}
-
-/** Porcentaje de descuento aplicado por estado (100 - porcentaje). */
-function etiquetaDescuento(porcentaje: number): string {
-  const descuento = 100 - porcentaje;
-  return descuento > 0 ? `-${descuento}%` : '0%';
-}
+import {
+  activarAperturaTarjetaPrecio,
+  consultarPrecioReferencia,
+  tarjetaPrecioReferenciaHtml,
+} from './precioReferenciaConsulta';
 
 /** Inicializa el botón «Buscar precio de referencia» (Mercado Libre MLA). */
 export function initObjetoMercadoLibre(): void {
@@ -64,77 +53,36 @@ export function initObjetoMercadoLibre(): void {
 
       // Consulta con `q` + `categoria` (ID oficial MLA / subtipo / nombre): el
       // backend restringe la búsqueda y, si no hay ítems, reintenta sin filtro.
-      const params = new URLSearchParams({ q: nombre, estado: estadoActual });
-      const categoria = categoriaSeleccionadaParaBusqueda();
-      if (categoria) params.set('categoria', categoria);
       // LIBROS: ISBN de la edición + autor habilitan la búsqueda flexible del
       // backend (ISBN estricto + «Título + Autor» para la mediana local). El
       // ISBN también se detecta dentro del nombre si el campo está vacío.
       const { isbn, autor } = isbnYAutorParaBusqueda();
-      if (isbn) params.set('isbn', isbn);
-      if (autor) params.set('autor', autor);
-
-      // Llamar al endpoint de precio referencia (scraping MLA + Gemini fallback)
-      const response = await fetch(
-        `${API_BASE_URL}/objetos/buscar_precio_referencia/?${params.toString()}`,
-        { headers: getAuthHeaders() }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Error del servidor (${response.status})`);
-      }
-
-      const data = await response.json();
+      const data = await consultarPrecioReferencia({
+        q: nombre,
+        estado: estadoActual,
+        categoria: categoriaSeleccionadaParaBusqueda(),
+        isbn,
+        autor,
+      });
 
       if (data.encontrado) {
         // Autocompletar valor estimado con el precio ajustado
         const valorEstimado = refOpcional<HTMLInputElement>('valor_estimado');
         if (valorEstimado) {
-          valorEstimado.value = data.precio_ajustado.toFixed(2);
+          valorEstimado.value = Number(data.precio_ajustado ?? 0).toFixed(2);
           valorEstimado.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
         // Mostrar tarjeta con el resultado
-        const esML = esFuenteMercadoLibre(data.fuente);
-        const tieneLink = data.link && data.link.length > 0;
         precioReferencia.className = 'mt-2';
-
-        precioReferencia.innerHTML = `
-          <div class="${tieneLink ? 'cursor-pointer ' : ''}${esML ? 'border border-blue-200 bg-blue-50 hover:bg-blue-100' : 'border border-purple-200 bg-purple-50 hover:bg-purple-100'} rounded-lg p-3 transition-base" ${tieneLink ? `data-link="${data.link}"` : ''}>
-            <div class="flex items-start gap-2">
-              <span class="text-lg">${esML ? '📦' : '🤖'}</span>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-900 truncate">${data.titulo}</p>
-                <div class="mt-1 space-y-0.5">
-                  <p class="text-xs text-gray-500">Precio original: <span class="font-semibold text-gray-700">$${data.precio_original.toFixed(2)}</span></p>
-                  <p class="text-xs text-gray-500">Ajuste por estado (${etiquetaEstado(data.estado_aplicado)} ${etiquetaDescuento(data.porcentaje_aplicado)}): <span class="font-semibold text-blue-700">$${data.precio_ajustado.toFixed(2)}</span></p>
-                  ${esML
-                    ? '<p class="text-xs text-blue-600 mt-1">🔗 Ver en MercadoLibre →</p>'
-                    : tieneLink
-                      ? '<p class="text-xs text-purple-600 mt-1">🔗 Ver resultados en MercadoLibre →</p>'
-                      : '<p class="text-xs text-purple-600 mt-1">🤖 Estimación de IA (Gemini)</p>'
-                  }
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
+        precioReferencia.innerHTML = tarjetaPrecioReferenciaHtml(data);
         precioReferencia.classList.remove('hidden');
 
         // Click en la tarjeta abre el link
-        if (tieneLink) {
-          const tarjeta = precioReferencia.querySelector('[data-link]') as HTMLElement;
-          if (tarjeta) {
-            tarjeta.addEventListener('click', () => {
-              const link = tarjeta.dataset.link;
-              if (link) {
-                window.open(link, '_blank');
-              }
-            });
-          }
-        }
+        activarAperturaTarjetaPrecio(precioReferencia);
 
-        showToast(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
+        const precio = Number(data.precio_ajustado ?? 0).toFixed(2);
+        showToast(`💰 Precio de referencia: $${precio}`, 'success');
       } else {
         // Error CONTROLADO del backend (sin_coincidencia / error_red): nunca se
         // inyecta el precio de un producto que no coincide con la búsqueda.

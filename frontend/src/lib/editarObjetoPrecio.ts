@@ -11,64 +11,18 @@
 // Vive fuera de la página por la regla de modularización (<400 líneas de UI).
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { esFuenteMercadoLibre, mensajeSinPrecio } from './precioReferencia';
+import { mensajeSinPrecio } from './precioReferencia';
 import { ref } from './dom';
 import { showToast } from './toast';
 import { categoriaSeleccionadaParaBusqueda } from './objetos/categoriaSeleccionada';
 import { isbnYAutorParaBusqueda } from './objetos/datosBusquedaPrecio';
-
-/** Etiquetas legibles del estado de conservación aplicado al ajuste de precio. */
-const ETIQUETAS_ESTADO: Record<string, string> = {
-  excelente: 'Excelente',
-  bueno: 'Bueno',
-  regular: 'Regular',
-  malo: 'Malo',
-  muy_malo: 'Muy malo',
-};
-
-/** Nombre legible del estado de conservación. */
-function getEstadoLabel(estado: string): string {
-  return ETIQUETAS_ESTADO[estado] || estado;
-}
-
-/** El backend informa el % que SE CONSERVA: el descuento es su complemento. */
-function getDescuentoLabel(porcentaje: number): string {
-  const descuento = 100 - porcentaje;
-  return descuento > 0 ? `-${descuento}%` : '0%';
-}
-
-/** Tarjeta del resultado: link externo, precio real de ML o estimación de IA. */
-function tarjetaHtml(data: any): string {
-  const esML = esFuenteMercadoLibre(data.fuente);
-  const tieneLink = Boolean(data.link && data.link.length > 0);
-  const claseCaja = esML
-    ? 'border border-blue-200 bg-blue-50 hover:bg-blue-100'
-    : 'border border-purple-200 bg-purple-50 hover:bg-purple-100';
-  const pie = esML
-    ? '<p class="text-xs text-blue-600 mt-1">🔗 Ver en MercadoLibre →</p>'
-    : tieneLink
-      ? '<p class="text-xs text-purple-600 mt-1">🔗 Ver resultados en MercadoLibre →</p>'
-      : '<p class="text-xs text-purple-600 mt-1">🤖 Estimación de IA (Gemini)</p>';
-
-  return `
-    <div class="${tieneLink ? 'cursor-pointer ' : ''}${claseCaja} rounded-lg p-3 transition-base" ${
-      tieneLink ? `data-link="${data.link}"` : ''
-    }>
-      <div class="flex items-start gap-2">
-        <span class="text-lg">${esML ? '📦' : '🤖'}</span>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-900 truncate">${data.titulo}</p>
-          <div class="mt-1 space-y-0.5">
-            <p class="text-xs text-gray-500">Precio original: <span class="font-semibold text-gray-700">$${data.precio_original.toFixed(2)}</span></p>
-            <p class="text-xs text-gray-500">Ajuste por estado (${getEstadoLabel(data.estado_aplicado)} ${getDescuentoLabel(data.porcentaje_aplicado)}): <span class="font-semibold text-blue-700">$${data.precio_ajustado.toFixed(2)}</span></p>
-            ${pie}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
+// Consulta y tarjeta del resultado: módulo COMPARTIDO con el alta de objetos y
+// con la ficha de detalle (misma versión, sin duplicar markup ni fetch).
+import {
+  activarAperturaTarjetaPrecio,
+  consultarPrecioReferencia,
+  tarjetaPrecioReferenciaHtml,
+} from './objetos/precioReferenciaConsulta';
 
 /** Refs del formulario que consume el precio de referencia. */
 let estimarPrecioBtn: HTMLButtonElement;
@@ -102,43 +56,32 @@ async function buscarPrecio(): Promise<void> {
 
     // Consulta con `q` + `categoria` (ID oficial MLA / subtipo / nombre): el
     // backend restringe la búsqueda y, si no hay ítems, reintenta sin filtro.
-    const params = new URLSearchParams({ q: nombre, estado: estadoActual });
-    const categoria = categoriaSeleccionadaParaBusqueda();
-    if (categoria) params.set('categoria', categoria);
     // LIBROS: ISBN de la edición + autor habilitan la búsqueda flexible del
     // backend (ISBN estricto + «Título + Autor» para la mediana del mercado).
+    // El fetch y su validación viven en el módulo compartido.
     const { isbn, autor } = isbnYAutorParaBusqueda();
-    if (isbn) params.set('isbn', isbn);
-    if (autor) params.set('autor', autor);
-
-    // Endpoint de precio de referencia (scraping + Gemini fallback)
-    const response = await fetch(
-      `${API_BASE_URL}/objetos/buscar_precio_referencia/?${params.toString()}`,
-      { headers: getAuthHeaders() },
-    );
-    if (!response.ok) throw new Error(`Error del servidor (${response.status})`);
-
-    const data = await response.json();
+    const data = await consultarPrecioReferencia({
+      q: nombre,
+      estado: estadoActual,
+      categoria: categoriaSeleccionadaParaBusqueda(),
+      isbn,
+      autor,
+    });
 
     if (data.encontrado) {
       // Autocompletar el valor estimado con el precio ajustado
-      valorEstimadoInput.value = data.precio_ajustado.toFixed(2);
+      valorEstimadoInput.value = Number(data.precio_ajustado ?? 0).toFixed(2);
       valorEstimadoInput.dispatchEvent(new Event('input', { bubbles: true }));
 
       precioReferencia.className = 'mt-2';
-      precioReferencia.innerHTML = tarjetaHtml(data);
+      precioReferencia.innerHTML = tarjetaPrecioReferenciaHtml(data);
       precioReferencia.classList.remove('hidden');
 
       // Click en la tarjeta abre el link del resultado
-      const tarjeta = precioReferencia.querySelector('[data-link]') as HTMLElement | null;
-      if (tarjeta) {
-        tarjeta.addEventListener('click', () => {
-          const link = tarjeta.dataset.link;
-          if (link) window.open(link, '_blank');
-        });
-      }
+      activarAperturaTarjetaPrecio(precioReferencia);
 
-      showToast(`💰 Precio de referencia: $${data.precio_ajustado.toFixed(2)}`, 'success');
+      const precio = Number(data.precio_ajustado ?? 0).toFixed(2);
+      showToast(`💰 Precio de referencia: $${precio}`, 'success');
     } else {
       // Error CONTROLADO del backend (sin_coincidencia / error_red): nunca se
       // inyecta el precio de un producto que no coincide con la búsqueda.

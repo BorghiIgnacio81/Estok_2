@@ -243,7 +243,12 @@ export const prerender = false;
     import { iniciarVentasDestacadas } from '../../lib/ventasDestacadas';
     import { iniciarModalesDescarte } from '../../lib/descarteModales';
     import { iniciarModalNotificarDueno } from '../../lib/notificacionDueno';
+    // Clic en el CUERPO/TÍTULO de cualquier tarjeta → ficha interna del objeto.
+    // Los botones (publicar, «Ver publicación», despacho, reclamo…) y la ruta
+    // geográfica conservan su propia acción y NO navegan.
+    import { initNavegacionTarjetasDecisiones } from '../../lib/decisionesTarjeta';
 
+    initNavegacionTarjetasDecisiones();
     iniciarVentasDestacadas();
     iniciarDecisionesPendientes();
     iniciarPanelDecisiones();

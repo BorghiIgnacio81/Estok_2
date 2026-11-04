@@ -247,7 +247,7 @@ function renderReclamos(): void {
       tarjetaObjetoHtml(objeto, {
         pie: pieReclamoHtml(objeto),
         acciones: accionesReclamoHtml(objeto),
-        atributos: 'data-reclamo-card="true"',
+        atributos: 'data-reclamo-card="true" data-no-ficha',
         extraClases: 'ring-1 ring-red-200',
       }),
     )

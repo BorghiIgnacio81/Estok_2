@@ -152,8 +152,8 @@ export function tarjetaObjetoHtml(
   });
 
   return `
-    <article data-objeto-card="${escapar(obj.id)}" ${opciones.atributos || ''}
-      class="decision-card bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col ${opciones.extraClases || ''}">
+    <article data-objeto-card="${escapar(obj.id)}" data-ficha-url="/objetos/${escapar(obj.id)}" ${opciones.atributos || ''}
+      class="decision-card cursor-pointer bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col ${opciones.extraClases || ''}">
       <div class="relative">
         <img src="${foto}" alt="" class="h-40 w-full object-cover bg-slate-100" loading="lazy" />
         <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[11px] font-semibold ${estadoClase}">
@@ -180,3 +180,69 @@ export function tarjetaObjetoHtml(
       </div>
     </article>`;
 }
+
+// =============================================================================
+// NAVEGACIÓN DE LAS TARJETAS (cuerpo → ficha interna del objeto)
+// -----------------------------------------------------------------------------
+// REGLA DE DESTINOS (pantalla /alertas-stock):
+//   · Clic en el CUERPO o el TÍTULO de la tarjeta → ficha interna de Estok
+//     (/objetos/<id>): es el `data-ficha-url` del <article>.
+//   · Los BOTONES de la tarjeta (publicar, «Ver publicación», despacho,
+//     descarte, reclamo…) y el widget de RUTA conservan su propia acción: la
+//     navegación los ignora para que nunca se pisen dos destinos.
+//   · «Ver publicación» es SIEMPRE la publicación externa de Mercado Libre
+//     (ver botonPublicacionExternaHtml): nunca la ficha interna.
+//
+// Se registra UNA sola vez por delegación en el documento, así funciona también
+// para las tarjetas que las islas vuelven a inyectar en caliente.
+// =============================================================================
+
+/** Elementos con acción propia: su clic NO navega a la ficha. */
+const SELECTOR_ACCION_PROPIA = [
+  'a', 'button', 'input', 'select', 'textarea', 'label', 'summary',
+  '[role="button"]',
+  // Widget de ruta geográfica (texto + minimapas) y acciones marcadas a mano.
+  '[data-ruta-geo]', '[data-ruta-mapa]', '[data-no-ficha]',
+].join(', ');
+
+let navegacionEnlazada = false;
+
+/** Habilita el clic en el cuerpo de las tarjetas → ficha interna del objeto. */
+export function initNavegacionTarjetasDecisiones(): void {
+  if (navegacionEnlazada || typeof document === 'undefined') return;
+  navegacionEnlazada = true;
+
+  document.addEventListener('click', (evento) => {
+    // El clic con modificador o con el botón central abre en otra pestaña: se
+    // deja el comportamiento nativo del navegador.
+    if (evento.defaultPrevented || evento.button !== 0) return;
+    if (evento.metaKey || evento.ctrlKey || evento.shiftKey || evento.altKey) return;
+
+    const objetivo = evento.target as Element | null;
+    if (!objetivo || typeof objetivo.closest !== 'function') return;
+    if (objetivo.closest(SELECTOR_ACCION_PROPIA)) return;
+
+    const tarjeta = objetivo.closest<HTMLElement>('[data-ficha-url]');
+    const url = (tarjeta?.dataset.fichaUrl || '').trim();
+    if (!url) return;
+
+    window.location.href = url;
+  });
+}
+
+/**
+ * Botón «🔗 Ver publicación»: abre EXCLUSIVAMENTE la publicación externa del
+ * objeto en Mercado Libre, en una pestaña nueva. Sin URL externa activa NO se
+ * dibuja: el acceso a la ficha interna es el clic en el cuerpo/título.
+ */
+export function botonPublicacionExternaHtml(obj: ObjetoDecision): string {
+  const url = String(obj.url_publicacion || '').trim();
+  if (!url) return '';
+  return `
+    <a href="${escapar(url)}" target="_blank" rel="noopener noreferrer"
+      title="Abrir la publicación en Mercado Libre"
+      class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">
+      🔗 Ver publicación
+    </a>`;
+}
+

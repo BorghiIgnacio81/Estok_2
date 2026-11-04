@@ -20,7 +20,7 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { escapar, formatUSD, tarjetaObjetoHtml } from './decisionesTarjeta';
+import { botonPublicacionExternaHtml, escapar, formatUSD, tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import { estaPublicado, ordenarVentasDestacadas } from './decisionesOrden';
 import { abrirPublicarObjeto } from './publicarObjeto';
@@ -150,12 +150,12 @@ function accionesVentaHtml(obj: ObjetoDecision): string {
       👁️ Ver detalle
     </a>`;
 
+  // DESTINOS SEPARADOS: «Ver publicación» abre SOLO la publicación externa de
+  // Mercado Libre en otra pestaña (y desaparece si el objeto no tiene URL
+  // activa). La ficha interna se abre desde el cuerpo/título de la tarjeta y
+  // desde «👁️ Ver detalle»; el botón de publicación ya no cae a `/objetos/<id>`.
   const accionPrincipal = estaPublicado(obj)
-    ? `<a href="${escapar(obj.url_publicacion || `/objetos/${obj.id}`)}"
-        ${obj.url_publicacion ? 'target="_blank" rel="noopener"' : ''}
-        class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">
-        🔗 Ver publicación
-      </a>`
+    ? botonPublicacionExternaHtml(obj)
     : `<button type="button" data-publicar="${id}"
         class="inline-flex items-center justify-center gap-1 px-2 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-base">
         📢 Publicar / Generar Anuncio

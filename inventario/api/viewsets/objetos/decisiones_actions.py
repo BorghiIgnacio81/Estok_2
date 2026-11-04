@@ -38,6 +38,7 @@ from rest_framework.response import Response
 
 from ....models import DecisionVotacion, Objeto
 from ....services import descarte_service, decisiones_service
+from ....services import mercadolibre_publicacion
 from ....services.espejo_contenedor import (
     q_objeto_es_espejo,
     q_objeto_espejo_explicito,
@@ -59,16 +60,26 @@ def nombre_mostrable(usuario):
 
 def _url_publicacion(objeto):
     """
-    Enlace externo a la publicación del objeto, si se puede reconstruir.
+    Enlace externo ACTIVO de la publicación del objeto en Mercado Libre.
 
-    Solo el módulo de Mercado Libre devuelve `permalink` y el objeto no lo
-    persiste; se arma con el id de ítem cuando el despliegue tiene el campo
-    legacy `meli_id`. Sin él, el frontend enlaza a la ficha interna.
+    FUENTE ÚNICA: services/mercadolibre_publicacion.py, que conoce las dos
+    formas de persistir la publicación:
+      1. `item_id` (campo legacy `meli_id`/`meli_item_id` o el registro
+         MercadoLibrePublicacion creado al publicar) → URL canónica del ítem:
+         https://articulo.mercadolibre.com.ar/<item_id>
+      2. `permalink` guardado por POST /items (respaldo, cuando el despliegue no
+         tiene el campo legacy y el ítem vino con enlace completo).
+
+    Sin ninguno de los dos la publicación externa no existe: se devuelve None y
+    el frontend NO dibuja el botón «Ver publicación» (el acceso a la ficha
+    interna es el clic en el cuerpo/título de la tarjeta).
     """
-    meli_id = getattr(objeto, 'meli_id', None) or getattr(objeto, 'meli_item_id', None)
-    if not meli_id:
-        return None
-    return f"https://articulo.mercadolibre.com.ar/{str(meli_id).strip()}"
+    item_id = mercadolibre_publicacion.item_id_de(objeto)
+    if item_id:
+        return f"https://articulo.mercadolibre.com.ar/{item_id}"
+    publicacion = mercadolibre_publicacion.publicacion_de(objeto)
+    permalink = str(getattr(publicacion, "permalink", "") or "").strip()
+    return permalink or None
 
 
 def _esta_publicado(objeto):
@@ -123,9 +134,10 @@ def payload_objeto_decision(obj, request):
         "estado_publicacion_label": (
             "Publicado" if publicado else "Sin publicar"
         ),
-        # Enlace externo a la publicación cuando el objeto tiene id de Mercado
-        # Libre persistido (campo legacy `meli_id`, presente solo en algunos
-        # despliegues); si no, la UI enlaza a la ficha interna del objeto.
+        # Enlace externo a la publicación ACTIVA de Mercado Libre (se reconstruye
+        # con el `item_id`/`permalink` persistidos al publicar). Si el objeto no
+        # tiene publicación externa, la UI NO dibuja «Ver publicación»: la ficha
+        # interna se abre desde el cuerpo/título de la tarjeta.
         "url_publicacion": _url_publicacion(obj),
 
         "dueno_original": (

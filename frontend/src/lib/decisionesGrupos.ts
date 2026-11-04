@@ -16,7 +16,7 @@
 // backend vuelve a validarlo en cada endpoint (403 si no corresponde).
 // =============================================================================
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { escapar, tarjetaObjetoHtml } from './decisionesTarjeta';
+import { botonPublicacionExternaHtml, escapar, tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import {
   EVENTO_CAMBIO_DESCARTE,
@@ -197,17 +197,16 @@ function accionesSinPublicarHtml(obj: ObjetoDecision): string {
 
 /** Veredicto + link 🔗 de un objeto ya publicado (y despacho si corresponde). */
 function accionesPublicadoHtml(obj: ObjetoDecision): string {
-  const url = obj.url_publicacion || `/objetos/${obj.id}`;
-  const externo = obj.url_publicacion ? ' target="_blank" rel="noopener"' : '';
+  // DESTINOS SEPARADOS: «Ver publicación» lleva EXCLUSIVAMENTE a la publicación
+  // externa de Mercado Libre (pestaña nueva) y solo existe cuando el objeto
+  // tiene una URL activa. La ficha interna se abre desde el cuerpo/título de la
+  // tarjeta, no desde este botón (antes caía a `/objetos/<id>`).
   return `
     <div class="mt-auto flex flex-col gap-1.5">
       <span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
         💰 Publicado para vender
       </span>
-      <a href="${escapar(url)}"${externo}
-        class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-base">
-        🔗 Ver publicación
-      </a>
+      ${botonPublicacionExternaHtml(obj)}
       ${botonDespachoHtml(obj)}
     </div>`;
 }
