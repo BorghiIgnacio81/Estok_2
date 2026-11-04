@@ -16,6 +16,10 @@ QUÉ RESUELVE
                                       ventana mínima entre consultas.
       4. `sincronizar_precio()`     → PUT /items/{id} {"price": ...} cuando el
                                       valor del objeto cambia en Estok.
+      5. `cambiar_estado_publicacion()` → PUT /items/{id} {"status": "paused" |
+                                      "active"}: pausa/reactiva a pedido del
+                                      operador desde la tarjeta de Decisiones o
+                                      la ficha del objeto.
 
 REGLA DE ORO
     Todo es BEST-EFFORT: un problema con Mercado Libre NUNCA debe romper el
@@ -493,3 +497,166 @@ def sincronizar_precio(objeto, precio, usuario=None):
         )
         return False
 
+
+# =============================================================================
+# ESTADO (sentido Estok → Mercado Libre) · PAUSAR / REACTIVAR
+# =============================================================================
+# Estados NATIVOS de Mercado Libre que puede fijar el operador desde Estok.
+ESTADO_ML_ACTIVO = 'active'
+ESTADO_ML_PAUSADO = 'paused'
+
+
+def _marcar_mercadolibre(objeto):
+    """
+    Vuelve a marcar el objeto como publicado en Mercado Libre.
+
+    Espejo de `_quitar_marca_mercadolibre()`: al REACTIVAR una publicación que
+    había quedado finalizada (o cuyo ítem se cerró y se volvió a activar en
+    Mercado Libre) el inventario tiene que volver a decir «publicado», o las
+    tarjetas de /alertas-stock y la ficha lo seguirían tratando como «sin
+    publicar» y el botón «Ver publicación» no aparecería.
+    """
+    plataformas = list(getattr(objeto, 'plataformas_publicadas', None) or [])
+    if any(str(p).strip().lower() == 'mercadolibre' for p in plataformas):
+        return
+    plataformas.append('mercadolibre')
+    try:
+        type(objeto).objects.filter(pk=objeto.pk).update(
+            plataformas_publicadas=plataformas
+        )
+        objeto.plataformas_publicadas = plataformas
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning(
+            'No se pudo marcar el objeto %s como publicado en Mercado Libre: %s',
+            getattr(objeto, 'pk', '?'), exc,
+        )
+
+
+def _candidatos_de_token(objeto, publicacion, usuario=None):
+    """
+    Usuarios posibles dueños del token OAuth del ítem, sin repetir.
+
+    Orden: usuario explícito del llamador → usuario que publicó (registro
+    MercadoLibrePublicacion) → dueño original del objeto. Los tokens de Mercado
+    Libre son POR USUARIO: si el operador que pausa no tiene la cuenta
+    conectada, la operación se reintenta con el token del publicador.
+    """
+    candidatos = []
+    for candidato in (
+        usuario,
+        getattr(publicacion, 'usuario', None),
+        getattr(objeto, 'dueno_original', None),
+    ):
+        if candidato is None:
+            continue
+        repetido = any(
+            getattr(existente, 'pk', None) == getattr(candidato, 'pk', None)
+            for existente in candidatos
+        )
+        if repetido:
+            continue
+        candidatos.append(candidato)
+    return candidatos
+
+
+def cambiar_estado_publicacion(objeto, estado, usuario=None):
+    """
+    Pausa o reactiva la publicación del objeto en Mercado Libre.
+
+    PUT /items/{item_id} {"status": "paused" | "active"}
+
+    `estado` es el ESTADO NATIVO de Mercado Libre ('paused' para pausar,
+    'active' para reactivar). Devuelve el contrato de `estado_publicacion()`
+    (+ `cambiado`) ya persistido, o None si no se pudo:
+
+      · el objeto no tiene publicación / item_id persistido,
+      · la publicación está FINALIZADA (Mercado Libre no permite reactivar un
+        ítem cerrado: hay que volver a publicarlo),
+      · ningún usuario tiene un token OAuth válido,
+      · Mercado Libre rechaza la operación (HTTP >= 400).
+
+    BEST-EFFORT como el resto del módulo: NUNCA lanza.
+    """
+    objetivo = str(estado or '').strip().lower()
+    if objetivo not in (ESTADO_ML_ACTIVO, ESTADO_ML_PAUSADO):
+        return None
+
+    try:
+        publicacion = publicacion_de(objeto)
+        item_id = item_id_de(objeto)
+        if not item_id:
+            logger.info(
+                'Objeto %s sin item_id de ML: no hay publicación que cambiar.',
+                getattr(objeto, 'pk', '?'),
+            )
+            return None
+
+        previo = estado_publicacion(objeto, publicacion=publicacion)
+        if previo['estado'] == ESTADO_FINALIZADA:
+            logger.info(
+                'Ítem %s de ML está finalizado: no se puede reactivar desde '
+                'Estok (objeto %s).', item_id, getattr(objeto, 'pk', '?'),
+            )
+            return None
+
+        candidatos = _candidatos_de_token(objeto, publicacion, usuario)
+        if not candidatos:
+            logger.warning(
+                'No se puede cambiar el estado del ítem %s de ML: el objeto %s '
+                'no tiene usuario dueño del token OAuth.',
+                item_id, getattr(objeto, 'pk', '?'),
+            )
+            return None
+
+        respuesta = None
+        dueno = None
+        for candidato in candidatos:
+            intento = api_request_autenticado(
+                candidato, 'PUT', f'/items/{item_id}', {'status': objetivo},
+                timeout=TIMEOUT_ESTADO,
+            )
+            http_status = int((intento or {}).get('http_status') or 200)
+            if intento and not intento.get('error') and http_status < 400:
+                respuesta, dueno = intento, candidato
+                break
+            respuesta = intento or respuesta
+            logger.warning(
+                'ML rechazó el cambio de estado del ítem %s con el token de %s: '
+                '%s', item_id, getattr(candidato, 'username', candidato), intento,
+            )
+
+        if respuesta is None or dueno is None:
+            logger.error(
+                'No se pudo cambiar el estado del ítem %s de ML (objeto %s → '
+                '%s): %s', item_id, getattr(objeto, 'pk', '?'), objetivo, respuesta,
+            )
+            return None
+
+        # El PUT devuelve el ítem COMPLETO: se toma el status REAL informado por
+        # Mercado Libre (puede diferir si el ítem entró en revisión) y se
+        # persiste junto con la permalink vigente.
+        status = MAPA_STATUS_ML.get(
+            str((respuesta or {}).get('status') or '').strip().lower()
+        ) or MAPA_STATUS_ML[objetivo]
+        permalink = str(
+            (respuesta or {}).get('permalink') or previo.get('permalink') or ''
+        ).strip()
+        actual = _persistir_estado(
+            objeto, publicacion, item_id, status, permalink,
+            dueno=dueno, previo=previo,
+        )
+        # REACTIVACIÓN: el objeto vuelve a estar publicado en Mercado Libre.
+        if status == MercadoLibrePublicacion.ESTADO_ACTIVO:
+            _marcar_mercadolibre(objeto)
+        logger.info(
+            'Publicación de ML %s del objeto %s → %s (pedido: %s).',
+            item_id, getattr(objeto, 'pk', '?'), actual.get('estado'), objetivo,
+        )
+        return actual
+
+    except Exception as exc:  # noqa: BLE001 - nunca rompe la UI del operador
+        logger.error(
+            'Error inesperado al cambiar el estado de la publicación de ML del '
+            'objeto %s: %s', getattr(objeto, 'pk', '?'), exc,
+        )
+        return None

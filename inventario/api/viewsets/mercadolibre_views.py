@@ -513,6 +513,86 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         resultado_lote['vendedor'] = resumen_vendedor
         return Response(resultado_lote)
 
+    # ------------------------------------------------------------------
+    # Estado REAL de las publicaciones (sentido Estok → Mercado Libre)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['post'], url_path='cambiar_estado')
+    def cambiar_estado(self, request):
+        """
+        Pausa o reactiva una publicación en Mercado Libre.
+
+        POST /api/mercadolibre/cambiar_estado/
+        Body: { "objeto_id": "<uuid>", "estado": "paused" | "active" }
+
+        Ejecuta PUT /items/{item_id} {"status": "paused" | "active"} con el
+        token OAuth del publicador (o del usuario que opera) y persiste el
+        estado REAL que devuelve Mercado Libre, de modo que la insignia de la
+        tarjeta y la ficha del objeto se actualicen sin recargar la página.
+
+        Respuesta: { "success": true, "estado": {...}, "mensaje": "..." }
+        El contrato de `estado` es el mismo de `sincronizar_estados`
+        (estado / label / activa / url / aviso), así que la insignia se puede
+        repintar sin traducciones extra en el cliente.
+        """
+        estok_id = (
+            request.headers.get('X-Estok-Id')
+            or request.query_params.get('estok_id')
+        )
+        datos = getattr(request, 'data', None) or {}
+        objeto_id = str(datos.get('objeto_id') or '').strip()
+        estado = str(datos.get('estado') or '').strip().lower()
+
+        if estado not in ('paused', 'active'):
+            return Response(
+                {'success': False, 'error': 'Estado inválido: usá "paused" o "active".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not objeto_id:
+            return Response(
+                {'success': False, 'error': 'Falta el objeto_id.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        objeto = Objeto.objects.filter(
+            pk=objeto_id, deleted_at__isnull=True,
+        ).first()
+        # Aislamiento multi-tenant: un objeto de OTRO Estok no existe acá.
+        if objeto is None or (
+            estok_id and objeto.estok_id
+            and str(objeto.estok_id) != str(estok_id)
+        ):
+            return Response(
+                {'success': False, 'error': 'Objeto no encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        resultado = mercadolibre_estado.cambiar_estado_publicacion(
+            objeto, estado, usuario=request.user,
+        )
+        if resultado is None:
+            return Response(
+                {
+                    'success': False,
+                    'estado': mercadolibre_estado.estado_publicacion(objeto),
+                    'error': (
+                        'No se pudo cambiar el estado de la publicación en '
+                        'Mercado Libre. Verificá que la cuenta siga conectada y '
+                        'que la publicación no esté finalizada.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            'success': True,
+            'estado': resultado,
+            'mensaje': (
+                '⏸️ Publicación pausada en Mercado Libre.'
+                if estado == 'paused'
+                else '▶️ Publicación reactivada en Mercado Libre.'
+            ),
+        })
+
 
 
 

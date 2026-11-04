@@ -144,6 +144,11 @@ class HasRolePermission(permissions.BasePermission):
             # sistema si el Estok aún no lo tiene (no es una edición de datos
             # del operador, por eso no exige can_write).
             'limbo': 'can_read',
+            # PUBLICACIÓN EN MERCADO LIBRE: pausar/reactivar un ítem es una
+            # ESCRITURA real sobre el anuncio público del objeto (igual que
+            # publicarlo), así que exige escritura/edición y no el can_read por
+            # defecto de las acciones custom.
+            'cambiar_estado': ('can_write', 'can_edit'),
         }
 
         action = getattr(view, 'action', None)

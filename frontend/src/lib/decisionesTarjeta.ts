@@ -16,6 +16,10 @@
 import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_MUEBLE } from './assetsUi';
+// ACCIÓN RÁPIDA de la publicación (pausar / reactivar en Mercado Libre): el
+// botón y su comportamiento viven en UN único módulo, compartido con la ficha
+// del objeto (/objetos/<id>). Nunca se duplica el markup ni el fetch.
+import { botonEstadoPublicacionHtml } from './accionesPublicacionML';
 
 /** Objeto del tablero de Decisiones (payload de /api/objetos/panel_decisiones/). */
 export interface ObjetoDecision {
@@ -250,6 +254,11 @@ export function tarjetaObjetoHtml(
           ${dueno ? `<p class="text-[11px] text-gray-400 truncate">👤 ${escapar(dueno)}</p>` : ''}
         </div>
         ${chipsPublicacionHtml(obj)}
+        ${botonEstadoPublicacionHtml({
+          objetoId: obj.id,
+          estado: obj.estado_publicacion,
+          clases: 'w-full',
+        })}
         ${opciones.pie || ''}
         ${opciones.acciones || ''}
       </div>

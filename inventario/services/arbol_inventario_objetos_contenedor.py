@@ -46,6 +46,27 @@ CATEGORIAS_OBJETO_CONTENEDOR = frozenset({
 # importadores históricos (`clasificacion_contenedor_objeto`).
 
 
+def es_caja_declarada_por_naturaleza(objeto_data):
+    """
+    True si el Objeto es caja/contenedor por CATEGORÍA o RÓTULO NUMERADO.
+
+    Esas dos vías son declaraciones EXPLÍCITAS de naturaleza («Cajas y
+    Contenedores», «Caja 02»): la pieza es un bulto del inventario y se lista
+    SIEMPRE como tarjeta de la SECCIÓN 1, esté donde esté.
+
+    El simple flag `es_contenedor` NO alcanza para eso: un objeto común apoyado
+    dentro de un ESPACIO/arquitectura del cuarto (p. ej. un sillón dentro de
+    «Setup PC») conserva su condición de OBJETO y se lista en «🧸 Objetos
+    Sueltos o sin Caja» con su ruta jerárquica (ver arbol_inventario_service).
+    """
+    nombre_categoria = str(
+        objeto_data.get('categoria_nombre') or ''
+    ).strip().casefold()
+    if nombre_categoria in CATEGORIAS_OBJETO_CONTENEDOR:
+        return True
+    return es_nombre_de_caja(objeto_data.get('nombre'))
+
+
 def es_objeto_contenedor(objeto_data):
     """
     True si el Objeto serializado es una CAJA/CONTENEDOR declarado.
@@ -54,12 +75,9 @@ def es_objeto_contenedor(objeto_data):
     el rótulo numerado de caja ya presentes en el payload de
     `ObjetoListSerializer`.
     """
-    if objeto_data.get('es_contenedor'):
+    if es_caja_declarada_por_naturaleza(objeto_data):
         return True
-    nombre = str(objeto_data.get('categoria_nombre') or '').strip().casefold()
-    if nombre in CATEGORIAS_OBJETO_CONTENEDOR:
-        return True
-    return es_nombre_de_caja(objeto_data.get('nombre'))
+    return bool(objeto_data.get('es_contenedor'))
 
 
 def nodo_objeto_contenedor(objeto_data, objetos_serializados):

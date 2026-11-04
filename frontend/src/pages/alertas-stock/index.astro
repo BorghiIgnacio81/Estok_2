@@ -251,8 +251,14 @@ export const prerender = false;
     // Los botones (publicar, «Ver publicación», despacho, reclamo…) y la ruta
     // geográfica conservan su propia acción y NO navegan.
     import { initNavegacionTarjetasDecisiones } from '../../lib/decisionesTarjeta';
+    // ACCIÓN RÁPIDA de las tarjetas: «⏸ Pausar publicación» / «▶️ Reactivar
+    // publicación» → PUT /items/{id} de Mercado Libre desde el backend
+    // (POST /api/mercadolibre/cambiar_estado/) y refresco en caliente de la
+    // insignia de estado (lógica en lib/accionesPublicacionML.ts).
+    import { iniciarAccionesEstadoPublicacion } from '../../lib/accionesPublicacionML';
 
     initNavegacionTarjetasDecisiones();
+    iniciarAccionesEstadoPublicacion();
     iniciarVentasDestacadas();
     iniciarDecisionesPendientes();
     iniciarPanelDecisiones();

@@ -596,7 +596,7 @@ export const prerender = false;
       // 1) Se pinta lo que ya viene del backend (`publicacion_ml`).
       // 2) Se RE-VERIFICA contra la API de Mercado Libre (GET /items/{id}) y se
       //    repinta con el estado verdadero (active / paused / closed).
-      renderPublicacionML(obj.publicacion_ml || null);
+      renderPublicacionML(obj.publicacion_ml || null, obj.id);
       if (obj.publicacion_ml?.item_id) {
         void verificarPublicacionML(String(obj.id));
       }

@@ -38,7 +38,7 @@ import { ASSET_INFORMES } from '../../lib/assetsUi';
        fondo, sin borde, sin padding y sin texto superpuesto. El nombre
        accesible vive en title + aria-label. -->
   <button type="button" id="btnExportarDatos"
-    class="boton-informes inline-flex shrink-0 items-center justify-center cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+    class="boton-informes shrink-0"
     title="Exportar Datos / Informe: descargá el CSV del inventario o el informe PDF con mapas y precios"
     aria-label="Exportar Datos / Informe">
     <img
@@ -178,40 +178,79 @@ import { ASSET_INFORMES } from '../../lib/assetsUi';
      escáner QR y «Nuevo Objeto»), así la fila queda alineada al píxel.
      ========================================================================== */
   .boton-informes {
-    background: transparent;
-    border: none;
+    /* RESET ABSOLUTO del <button> nativo: cualquier fondo, borde, padding,
+       sombra o alto de línea que el navegador agregue se anula acá. Las
+       utilidades Tailwind viven en @layer utilities y pierden contra esta
+       regla sin capa, así que no puede quedar ningún resto visual. */
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    background-color: transparent;
+    background-image: none;
+    border: 0;
+    outline: 0;
     padding: 0;
     margin: 0;
-    line-height: 0;
     box-shadow: none;
-    width: 6rem;
-    height: 6rem;
+    line-height: 0;
+    font-size: 0;
+    color: transparent;
+    overflow: visible;
+    cursor: pointer;
+    /* Sin destello azul del navegador/WebView al tocar el botón (móvil). */
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.2s ease;
   }
 
-  /* La ilustración cubre el 100% del ancho del botón y conserva su relación de
-     aspecto (height: auto): nunca se deforma ni deja franjas de fondo. */
+  .boton-informes:focus-visible {
+    outline: 2px solid #16a34a;
+    outline-offset: 3px;
+  }
+
+  /* La ilustración /informes.jpg es el 100% del área del botón: el <button>
+     se ajusta a la imagen (sin caja propia) y la imagen llena ese alto. Misma
+     escala responsiva que los demás botones ilustrados de la barra
+     (categoría, escáner QR y «Nuevo Objeto»): 96 / 128 / 144 px. */
   .boton-informes__imagen {
     display: block;
-    width: 100%;
-    height: auto;
+    height: 6rem;
+    width: auto;
     max-width: none;
+    max-height: none;
     object-fit: contain;
     object-position: center;
+    background: none;
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
     user-select: none;
     -webkit-user-select: none;
     pointer-events: none;
+    transition: transform 0.2s ease;
+  }
+
+  .boton-informes:hover .boton-informes__imagen {
+    transform: scale(1.05);
+  }
+
+  .boton-informes:active .boton-informes__imagen {
+    transform: scale(0.95);
   }
 
   @media (min-width: 768px) {
-    .boton-informes {
-      width: 8rem;
+    .boton-informes__imagen {
       height: 8rem;
     }
   }
 
   @media (min-width: 1024px) {
-    .boton-informes {
-      width: 9rem;
+    .boton-informes__imagen {
       height: 9rem;
     }
   }

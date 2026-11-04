@@ -21,6 +21,13 @@ import { escaparHtml } from '../invitacionEstok';
 import { showToast } from '../toast';
 import { sincronizarEstadosML } from '../../services/mercadolibre';
 import type { EstadoPublicacionML } from '../../services/mercadolibre';
+// ACCIÓN RÁPIDA «Pausar / Reactivar publicación»: markup + llamada a la API
+// (PUT /items/{id} vía backend) en UN módulo compartido con las tarjetas de
+// /alertas-stock. Acá sólo se delega el clic y se repinta el bloque.
+import {
+  botonEstadoPublicacionHtml,
+  ejecutarCambioEstadoPublicacion,
+} from '../accionesPublicacionML';
 
 const SECCION_ID = 'publicacionMLSection';
 const CONTENIDO_ID = 'publicacionMLContenido';
@@ -54,12 +61,28 @@ function estilo(estado: string) {
 }
 
 /**
+ * UUID del objeto de la ficha.
+ *
+ * El contrato de `estado_publicacion()` de Mercado Libre no incluye el id del
+ * objeto de Estok, y la acción rápida «Pausar / Reactivar publicación» lo
+ * necesita para el POST. Lo fija la página al pintar el bloque.
+ */
+let objetoFichaId = '';
+
+/**
  * Pinta el bloque de publicación de la ficha.
  *
  * `null` (objeto sin publicación vinculada) oculta la sección completa: la
  * ficha de un objeto que nunca se publicó no muestra nada de Mercado Libre.
+ * `objetoId` (opcional) fija el objeto de la ficha para la acción rápida.
  */
-export function renderPublicacionML(estado: EstadoPublicacionML | null | undefined): void {
+export function renderPublicacionML(
+  estado: EstadoPublicacionML | null | undefined,
+  objetoId?: string | number | null,
+): void {
+  if (objetoId !== undefined && objetoId !== null && String(objetoId).trim()) {
+    objetoFichaId = String(objetoId).trim();
+  }
   const seccion = refOpcional<HTMLElement>(SECCION_ID);
   const contenido = refOpcional<HTMLElement>(CONTENIDO_ID);
   if (!seccion || !contenido) return;
@@ -86,6 +109,13 @@ export function renderPublicacionML(estado: EstadoPublicacionML | null | undefin
         🔗 Ver publicación
       </a>`
     : '';
+  // ACCIÓN RÁPIDA: pausar / reactivar la publicación sin salir de Estok.
+  // El botón lo construye el módulo compartido con las tarjetas del tablero.
+  const botonEstado = botonEstadoPublicacionHtml({
+    objetoId: String(estado.objeto_id || objetoFichaId || ''),
+    estado: estadoActual,
+    clases: 'shrink-0',
+  });
 
   contenido.innerHTML = `
     <div class="flex flex-wrap items-center gap-2">
@@ -94,16 +124,44 @@ export function renderPublicacionML(estado: EstadoPublicacionML | null | undefin
       </span>
       <span class="text-[11px] text-gray-500">Ítem ${escaparHtml(estado.item_id)}</span>
       ${enlace}
+      ${botonEstado}
     </div>
     ${estado.aviso
       ? `<p class="mt-2 text-xs font-medium text-amber-700">⚠️ ${escaparHtml(estado.aviso)}</p>`
       : ''}`;
 
+  conectarAcciones(contenido);
   seccion.classList.remove('hidden');
   seccion.classList.remove(
     'border-emerald-200', 'border-amber-200', 'border-red-200', 'border-gray-200',
   );
   seccion.classList.add(visual.borde);
+}
+
+// -----------------------------------------------------------------------------
+// ACCIÓN RÁPIDA · PAUSAR / REACTIVAR (clic delegado en el bloque)
+// -----------------------------------------------------------------------------
+// El bloque se repinta con cada verificación, pero `#publicacionMLContenido` es
+// SIEMPRE el mismo nodo del markup: el listener se registra UNA sola vez.
+let accionesEnlazadas = false;
+
+/** Conecta el clic del botón «Pausar / Reactivar» del bloque de la ficha. */
+function conectarAcciones(contenido: HTMLElement): void {
+  if (accionesEnlazadas) return;
+  accionesEnlazadas = true;
+
+  contenido.addEventListener('click', (evento) => {
+    const objetivo = evento.target as HTMLElement | null;
+    const boton = objetivo?.closest?.<HTMLElement>('[data-ml-estado]');
+    if (!boton) return;
+    evento.preventDefault();
+    // La ficha no navega: se aísla el clic de cualquier delegación global.
+    evento.stopPropagation();
+    void (async () => {
+      const estado = await ejecutarCambioEstadoPublicacion(boton);
+      if (estado) renderPublicacionML(estado);
+    })();
+  });
 }
 
 /**
@@ -118,7 +176,7 @@ export async function verificarPublicacionML(objetoId: string): Promise<void> {
     const resultado = await sincronizarEstadosML({ objetoId, forzar: true });
     const estado = resultado?.estado || resultado?.items?.[0];
     if (estado) {
-      renderPublicacionML(estado);
+      renderPublicacionML(estado, objetoId);
       if (estado.cambiado) {
         const mensaje = estado.estado === 'publicado'
           ? '🔗 La publicación sigue activa en Mercado Libre.'

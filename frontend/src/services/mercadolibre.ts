@@ -260,3 +260,59 @@ export async function sincronizarEstadosML(
   return await response.json();
 }
 
+// =============================================================================
+// PAUSAR / REACTIVAR UNA PUBLICACIÓN (sentido Estok → Mercado Libre)
+// =============================================================================
+
+/** Estado NATIVO de Mercado Libre que fija el botón de acción rápida. */
+export type EstadoNativoPublicacionML = 'paused' | 'active';
+
+export interface RespuestaCambioEstadoML {
+  success: boolean;
+  estado: EstadoPublicacionML;
+  mensaje?: string;
+  error?: string;
+}
+
+/**
+ * POST /api/mercadolibre/cambiar_estado/
+ *
+ * El backend ejecuta la llamada real a Mercado Libre
+ * (PUT /items/{item_id} {"status": "paused" | "active"}), persiste el estado
+ * que devuelve la API y responde con el MISMO contrato de `EstadoPublicacionML`
+ * que usa el resto del tablero: la insignia de la tarjeta y el bloque de la
+ * ficha se repintan sin recargar la página.
+ *
+ * Lanza un Error con el mensaje del backend si Mercado Libre rechaza la
+ * operación (publicación finalizada, cuenta desconectada, ítem inexistente…),
+ * para que la UI pueda avisar sin inventar el motivo.
+ */
+export async function cambiarEstadoPublicacionML(
+  objetoId: number | string,
+  estado: EstadoNativoPublicacionML,
+): Promise<EstadoPublicacionML> {
+  const response = await fetch(`${API_BASE_URL}/mercadolibre/cambiar_estado/`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ objeto_id: objetoId, estado }),
+  });
+
+  const datos: Partial<RespuestaCambioEstadoML> = await response
+    .json()
+    .catch(() => ({}));
+
+  if (!response.ok || !datos?.success || !datos.estado) {
+    throw new Error(
+      String(
+        datos?.error
+          || datos?.mensaje
+          || `No se pudo cambiar el estado de la publicación (HTTP ${response.status}).`,
+      ),
+    );
+  }
+  return datos.estado;
+}
+
