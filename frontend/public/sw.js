@@ -15,7 +15,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 17;
+const CACHE_VERSION = 18;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 
 // =============================================================================
@@ -36,6 +36,8 @@ const UI_ASSETS = [
   '/mueble.webp',
   '/fluffy-objeto.webp',
   '/nueva-ubicacion.webp',
+  '/boton-qr.webp',
+  '/informes.webp',
   '/login-comoda.webp',
 ];
 

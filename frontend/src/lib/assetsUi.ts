@@ -9,9 +9,11 @@
 // OPTIMIZACIÓN (assets WebP redimensionados al tamaño real de renderizado):
 //   · Los originales eran PNG/JPG de 1254x1254 a 1680x1527 (175 KB a 3,4 MB
 //     cada uno) dibujados a 48-144 px en pantalla.
-//   · Ahora son WebP de lado mayor 128 px (entre 1 y 5 KB cada uno). La única
-//     excepción es el fondo de la cómoda del login —se pinta a 420 px de ancho—
-//     que va a 768 px de ancho (~17 KB).
+//   · Ahora son WebP de lado mayor 128 px (entre 1 y 5 KB cada uno). Las
+//     ilustraciones de la barra de acciones (botón QR y botón de informes) van
+//     a 288 px de lado mayor (~15-27 KB) porque se pintan hasta 144 px y
+//     necesitan nitidez en pantallas de 2x. La única excepción es el fondo de la
+//     cómoda del login —se pinta a 420 px de ancho— que va a 768 px (~17 KB).
 //   · Viven en frontend/public/ y están en la lista de precache del Service
 //     Worker (frontend/public/sw.js). Si agregás o renombrás uno, actualizá LOS
 //     DOS lugares y subí CACHE_VERSION en sw.js.
@@ -34,6 +36,16 @@ export const ASSET_NUEVA_CATEGORIA = '/nueva-categoria.webp';
 
 /** CTA «Mudanza Inter-Estok» (antes /mudanza.png). Render: 96-144 px. */
 export const ASSET_MUDANZA = '/mudanza.webp';
+
+/**
+ * CTA «Escanear QR» de la barra de acciones (antes /boton QR.png, 1230x1278 y
+ * 2,4 MB). Abre el modal de cámara que resuelve el QR de una caja/contenedor.
+ * Render: 96-144 px.
+ */
+export const ASSET_BOTON_QR = '/boton-qr.webp';
+
+/** Trigger «Exportar Datos / Informe» (antes /informes.jpg, 1024x1024 y 660 KB). Render: 96-144 px. */
+export const ASSET_INFORMES = '/informes.webp';
 
 /** Botón «Nueva ubicación» del plano elástico (antes /nueva ubicacion.png). Render: 76 px. */
 export const ASSET_NUEVA_UBICACION = '/nueva-ubicacion.webp';
