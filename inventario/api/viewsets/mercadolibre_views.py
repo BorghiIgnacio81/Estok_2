@@ -16,7 +16,7 @@ from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
 from ...services.mercadolibre_api import create_item, api_request_autenticado
-from ...services import mercadolibre_estado
+from ...services import mercadolibre_estado, mercadolibre_vendedor
 from ...services.mercadolibre_publicacion import registrar_publicacion
 from ...services.mercadolibre_atributos import construir_attributes_desde_objeto
 from ...services.mercadolibre_imagenes import construir_pictures
@@ -336,6 +336,17 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             )
 
         if result and "id" in result:
+            # PERMALINK REAL: es el único enlace válido de la publicación (las
+            # publicaciones de catálogo/UP no responden en
+            # articulo.mercadolibre.com.ar/<item_id>). Si POST /items no la
+            # devolvió se consulta GET /items/{id} antes de guardar, para que la
+            # tarjeta de /alertas-stock y la ficha nunca ofrezcan un 404.
+            permalink = str(result.get("permalink") or "").strip()
+            if not permalink:
+                permalink = mercadolibre_vendedor.obtener_permalink(
+                    request.user, result["id"],
+                )
+
             # Persistir el item_id devuelto por ML: es el dato que permite
             # después pausar (vendido / sin stock) o cerrar (baja del objeto)
             # la publicación con PUT /items/{item_id}. También marca
@@ -344,7 +355,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             registrar_publicacion(
                 objeto,
                 result["id"],
-                permalink=result.get("permalink", ""),
+                permalink=permalink,
                 usuario=request.user,
                 status=result.get("status", "active"),
             )
@@ -353,7 +364,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 "success": True,
                 "mensaje": "✅ Publicado exitosamente en Mercado Libre",
                 "ml_item_id": result["id"],
-                "permalink": result.get("permalink", ""),
+                "permalink": permalink,
                 "status": result.get("status", ""),
                 # Categoría realmente usada: permite auditar que la publicación
                 # cayó en la categoría mapeada y no en una predicha al azar.
@@ -435,6 +446,13 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         pausada / finalizada). Si Mercado Libre responde 404 (ítem eliminado) o
         `closed` (finalizado), Estok deja de marcar el objeto como publicado.
 
+        ÍTEMS DEL VENDEDOR: antes de verificar ítem por ítem se consultan los
+        ítems REALES del vendedor (GET /users/{user_id}/items/search) y se
+        asocian las publicaciones guardadas con su PERMALINK vigente. Así las
+        publicaciones de catálogo (UP), cuyo enlace no puede construirse a mano
+        con el item_id, quedan con la URL válida y el botón «Ver publicación»
+        deja de dar 404. El resumen de esa pasada viaja en `vendedor`.
+
         Lo llama /alertas-stock al cargar (best-effort, no bloquea el render) y
         la ficha del objeto con `objeto_id`.
         """
@@ -448,6 +466,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             return str(valor or '').strip().lower() in ('1', 'true', 'yes', 'si', 'sí')
 
         objeto_id = str(datos.get('objeto_id') or '').strip()
+
+        # Ítems del vendedor (permalink activa de las publicaciones de catálogo).
+        # Best-effort: si Mercado Libre no responde, la verificación sigue igual.
+        resumen_vendedor = mercadolibre_vendedor.sincronizar_permallinks(estok_id)
 
         if objeto_id:
             objeto = Objeto.objects.filter(
@@ -471,21 +493,25 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                     "actualizados": 0,
                     "items": [],
                     "estado": mercadolibre_estado.estado_publicacion(objeto),
+                    "vendedor": resumen_vendedor,
                 })
             return Response({
                 "verificados": 1,
                 "actualizados": 1 if resultado.get("cambiado") else 0,
                 "items": [{**resultado, "objeto_id": str(objeto.pk)}],
                 "estado": resultado,
+                "vendedor": resumen_vendedor,
             })
 
-        return Response(
-            mercadolibre_estado.verificar_publicaciones_estok(
-                estok_id,
-                forzar=_flag(datos.get('forzar')),
-                limite=datos.get('limite') or mercadolibre_estado.LIMITE_VERIFICACIONES,
-            )
+        resultado_lote = mercadolibre_estado.verificar_publicaciones_estok(
+            estok_id,
+            forzar=_flag(datos.get('forzar')),
+            limite=datos.get('limite') or mercadolibre_estado.LIMITE_VERIFICACIONES,
         )
+        # El resumen de ítems del vendedor viaja junto al lote: el frontend
+        # recarga las tarjetas si cambió una permalink (aunque el estado no).
+        resultado_lote['vendedor'] = resumen_vendedor
+        return Response(resultado_lote)
 
 
 

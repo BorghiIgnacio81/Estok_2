@@ -35,6 +35,7 @@ from django.utils import timezone
 from ..models import MercadoLibrePublicacion
 from .mercadolibre_api import api_request_autenticado
 from .mercadolibre_publicacion import (
+    actualizar_permalink,
     item_id_de,
     publicacion_de,
     registrar_publicacion,
@@ -155,11 +156,16 @@ def estado_publicacion(objeto, publicacion=None):
           'label': str,          # etiqueta legible para las tarjetas
           'publicado': bool,     # True sólo si existe y NO está finalizada
           'activa': bool,        # True sólo si ML la reporta 'active'
-          'url': str | None,     # enlace externo (None si está finalizada)
+          'url': str | None,     # PERMALINK guardada (None si no hay/finalizada)
           'permalink': str,
           'aviso': str,          # advertencia para la UI ('' si está OK)
           'verificado_en': str | None,
         }
+
+    ENLACE: `url` es SIEMPRE la permalink que devolvió la API de Mercado Libre y
+    que se persistió al crear, editar o sincronizar la publicación. NO se arma
+    la URL a mano con el `item_id` (`articulo.mercadolibre.com.ar/<id>`): las
+    publicaciones de catálogo (UP) tienen otra ruta y ese enlace daba HTTP 404.
     """
     publicacion = publicacion if publicacion is not None else publicacion_de(objeto)
     item_id = item_id_de(objeto)
@@ -176,12 +182,9 @@ def estado_publicacion(objeto, publicacion=None):
     estado = _estado_desde_status(status)
     publicado = estado in (ESTADO_PUBLICADO, ESTADO_PAUSADA)
 
-    url = None
-    if publicado:
-        if item_id:
-            url = f"https://articulo.mercadolibre.com.ar/{item_id}"
-        elif permalink.startswith('http'):
-            url = permalink
+    # EXCLUSIVAMENTE la permalink guardada: sin permalink no hay enlace (la UI
+    # no dibuja «Ver publicación») en vez de ofrecer una URL inventada.
+    url = permalink if (publicado and permalink.startswith('http')) else None
 
     verificado = getattr(publicacion, 'updated_at', None)
     return {
@@ -477,6 +480,10 @@ def sincronizar_precio(objeto, precio, usuario=None):
             'Precio del ítem %s de ML sincronizado a $%s (objeto %s).',
             item_id, nuevo, getattr(objeto, 'pk', '?'),
         )
+        # La respuesta de PUT /items/{id} es un ítem COMPLETO: si trae permalink
+        # se persiste (mantiene el enlace de la UI apuntando a la publicación
+        # real, sin URLs armadas a mano que devuelven 404).
+        actualizar_permalink(publicacion, (respuesta or {}).get('permalink'))
         return True
 
     except Exception as exc:  # noqa: BLE001 - nunca rompe el guardado del objeto

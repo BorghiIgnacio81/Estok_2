@@ -145,21 +145,45 @@ def registrar_publicacion(objeto, item_id, permalink="", usuario=None,
     publicado en `plataformas_publicadas` (sin disparar señales: se usa
     `.update()`, así el post_save de Objeto no lanza una sincronización inútil).
 
+    PERMALINK: se guarda TAL CUAL la devuelve Mercado Libre (es el único enlace
+    válido: armar `articulo.mercadolibre.com.ar/{item_id}` a mano produce 404 en
+    las publicaciones de catálogo). Si la llamada llega SIN permalink (p. ej. una
+    verificación de estado que sólo trae `status`), se CONSERVA el que ya estaba
+    guardado en lugar de borrarlo.
+
     Devuelve la MercadoLibrePublicacion creada/actualizada, o None.
     """
     item_id = str(item_id or "").strip()
     if not item_id or objeto is None or getattr(objeto, "pk", None) is None:
         return None
 
-    publicacion, creada = MercadoLibrePublicacion.objects.update_or_create(
-        objeto=objeto,
-        defaults={
-            "item_id": item_id,
-            "permalink": str(permalink or "")[:300],
-            "status": str(status or MercadoLibrePublicacion.ESTADO_ACTIVO)[:20],
-            "usuario": usuario if getattr(usuario, "pk", None) else None,
-        },
-    )
+    nuevo_status = str(
+        status or MercadoLibrePublicacion.ESTADO_ACTIVO
+    )[:20]
+    nuevo_permalink = str(permalink or "").strip()[:300]
+    publicacion = MercadoLibrePublicacion.objects.filter(objeto=objeto).first()
+    # `item_id` es UNIQUE: si ese ítem ya está asociado a OTRO objeto se aborta
+    # (nunca se reasigna una publicación de ML de un objeto a otro).
+    duplicada = MercadoLibrePublicacion.objects.filter(item_id=item_id).exclude(
+        objeto=objeto
+    ).exists()
+    if duplicada:
+        logger.warning(
+            "El ítem %s de ML ya está registrado en otro objeto: no se "
+            "reasigna al objeto %s.", item_id, objeto.pk,
+        )
+        return None
+    creada = publicacion is None
+    if creada:
+        publicacion = MercadoLibrePublicacion(objeto=objeto)
+
+    publicacion.item_id = item_id
+    if nuevo_permalink:
+        publicacion.permalink = nuevo_permalink
+    publicacion.status = nuevo_status
+    if getattr(usuario, "pk", None):
+        publicacion.usuario = usuario
+    publicacion.save()
 
     plataformas = list(getattr(objeto, "plataformas_publicadas", None) or [])
     if "mercadolibre" not in plataformas:
@@ -170,10 +194,35 @@ def registrar_publicacion(objeto, item_id, permalink="", usuario=None,
         objeto.plataformas_publicadas = plataformas
 
     logger.info(
-        "Publicación de ML registrada para el objeto %s: item_id=%s (%s)",
+        "Publicación de ML registrada para el objeto %s: item_id=%s (%s, "
+        "permalink=%s)",
         objeto.pk, item_id, "nueva" if creada else "actualizada",
+        publicacion.permalink or "sin permalink",
     )
     return publicacion
+
+
+def actualizar_permalink(publicacion, permalink):
+    """
+    Persiste la PERMALINK real que informó Mercado Libre.
+
+    Se usa al crear, editar (PUT /items/{id}) y sincronizar publicaciones: el
+    único enlace que las tarjetas de /alertas-stock y la ficha /objetos/<id>
+    pueden ofrecer es el que devuelve la API (armar la URL con el item_id
+    produce 404 en publicaciones de catálogo).
+
+    Devuelve True si el valor cambió y se guardó.
+    """
+    if publicacion is None:
+        return False
+    valor = str(permalink or "").strip()[:300]
+    if not valor or valor == str(getattr(publicacion, "permalink", "") or ""):
+        return False
+    MercadoLibrePublicacion.objects.filter(pk=publicacion.pk).update(
+        permalink=valor, updated_at=timezone.now(),
+    )
+    publicacion.permalink = valor
+    return True
 
 
 # =============================================================================
@@ -188,6 +237,9 @@ def _marcar_estado(publicacion, respuesta, objetivo):
         status=estado_real, updated_at=timezone.now(),
     )
     publicacion.status = estado_real
+    # La respuesta de PUT /items/{id} trae la PERMALINK vigente: se guarda tal
+    # cual (es el único enlace que la UI puede abrir sin caer en un 404).
+    actualizar_permalink(publicacion, (respuesta or {}).get("permalink"))
 
 
 def sincronizar_publicacion(objeto, forzar: bool = False) -> bool:

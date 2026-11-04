@@ -1,11 +1,17 @@
 """
 Servicio de Precio de Referencia (MercadoLibre Argentina + fallback IA).
 
+PUNTO ÚNICO DE COTIZACIÓN: `obtener_precio_referencia_ml()` es la función
+canónica que usan TODAS las pantallas que cotizan («Comparar precio en Mercado
+Libre» de la ficha y «Buscar precio de referencia» del alta / la edición), para
+que el mismo objeto nunca devuelva dos estimaciones distintas.
+
 Busca precios de referencia para objetos mediante:
 1. MercadoLibre ARGENTINA (site MLA): delega en `mercadolibre_busqueda`, que
    fuerza el site MLA, valida que el título coincida con la búsqueda y descarta
    cualquier moneda distinta de ARS (ver docstring de ese módulo: es el fix del
-   match erróneo que inyectaba precios en dólares).
+   match erróneo que inyectaba precios en dólares). El precio publicado es la
+   MEDIANA de la muestra tras la limpieza IQR de valores atípicos.
 2. Fallback a Gemini API para estimación por IA (estimación pedida en ARS).
 
 BÚSQUEDA FLEXIBLE DE LIBROS (ISBN + Título/Autor):
@@ -38,7 +44,16 @@ from .mercadolibre_busqueda import (
 
 # Re-export: `buscar_en_mercadolibre` era parte de la API histórica de este
 # módulo y hoy vive en `mercadolibre_busqueda`. Se mantiene el acceso.
-__all__ = ["buscar_precio_referencia", "buscar_en_mercadolibre"]
+#
+# `obtener_precio_referencia_ml` es la función CANÓNICA de cotización: la usan
+# tanto «Comparar precio en Mercado Libre» (ficha del objeto) como «Buscar
+# precio de referencia» (alta y edición). `buscar_precio_referencia` se conserva
+# como alias histórico para no romper imports existentes.
+__all__ = [
+    "obtener_precio_referencia_ml",
+    "buscar_precio_referencia",
+    "buscar_en_mercadolibre",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +139,7 @@ def _respuesta_encontrada(
     muestras: Optional[int] = None,
     metodo: Optional[str] = None,
     isbn: Optional[str] = None,
+    atipicos_descartados: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Respuesta estándar de precio encontrado (siempre en pesos argentinos)."""
     factor = _factor_estado(estado)
@@ -141,6 +157,9 @@ def _respuesta_encontrada(
         # Cantidad de publicaciones usadas en la mediana recortada (None cuando
         # el precio proviene de una estimación de IA, sin muestra real).
         "muestras": muestras,
+        # Publicaciones desorbitadas descartadas por la limpieza IQR (0/None si
+        # la muestra era chica y no hacía falta limpiar).
+        "atipicos_descartados": atipicos_descartados,
         # TRAZABILIDAD de la búsqueda flexible (libros): qué muestra definió la
         # mediana — 'isbn' (edición exacta), 'titulo_autor' (mercado local) o
         # None (búsqueda directa / estimación de IA) — y el ISBN consultado.
@@ -171,6 +190,7 @@ def _respuesta_vacia(estado: str, fuente_error: Optional[str]) -> Dict[str, Any]
         "estado_aplicado": estado,
         "porcentaje_aplicado": None,
         "muestras": None,
+        "atipicos_descartados": None,
         "mensaje": _mensaje_sin_precio(fuente_error),
     }
 
@@ -374,7 +394,7 @@ def _resolver_busqueda_ml(
     return {"fuente_error": "sin_coincidencia"}, None
 
 
-def buscar_precio_referencia(
+def obtener_precio_referencia_ml(
     nombre: str,
     estado: str = "bueno",
     access_token: Optional[str] = None,
@@ -383,16 +403,26 @@ def buscar_precio_referencia(
     autor: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
+    FUNCIÓN CANÓNICA de cotización (Mercado Libre MLA + fallback Gemini).
+
+    La consumen TODAS las pantallas que cotizan, para que el mismo objeto dé
+    siempre la misma estimación:
+      · «Comparar precio en Mercado Libre» (ficha /objetos/<id>),
+      · «Buscar precio de referencia» (alta /objetos/nuevo y edición),
+      · la sugerencia de marketing.
+    `buscar_precio_referencia` es sólo un alias histórico de esta función.
+
     Busca un precio de referencia para un objeto (SIEMPRE en pesos argentinos).
 
     Primero consulta MercadoLibre ARGENTINA (site MLA) con la búsqueda
     SANITIZADA (palabras clave, sin conectores, máx. 4 términos), validación de
     coincidencia de título y de moneda ARS. El valor devuelto es la MEDIANA de
-    la muestra recortada (se descarta el 20 % más bajo y el 20 % más alto) y
-    después se multiplica por el factor del estado (nuevo 1.0 / bueno 0.8 /
-    regular 0.6). Si no hay un match confiable, estima con Gemini. Si nada
-    resulta confiable devuelve un error CONTROLADO en lugar de inyectar el
-    precio de un producto equivocado.
+    la muestra, ANTES de eso se descartan los valores atípicos por IQR (una
+    publicación de $160.000 entre avisos de $25.000 no define el precio) y se
+    recorta el 20 % de cada cola; después se multiplica por el factor del estado
+    (nuevo 1.0 / bueno 0.8 / regular 0.6). Si no hay un match confiable, estima
+    con Gemini. Si nada resulta confiable devuelve un error CONTROLADO en lugar
+    de inyectar el precio de un producto equivocado.
 
     BÚSQUEDA FLEXIBLE DE LIBROS: con `isbn` (o un código de 10/13 dígitos dentro
     de `nombre`) se ejecuta la búsqueda ESTRICTA por ISBN y, además, la
@@ -457,8 +487,10 @@ def buscar_precio_referencia(
             link=resultado_ml["link"],
             estado=estado,
             fuente="mercadolibre_mla",
-            # Publicaciones que sobrevivieron al recorte del 20 % por cola.
+            # Publicaciones que sobrevivieron a la limpieza IQR + recorte del
+            # 20 % por cola.
             muestras=resultado_ml.get("muestras"),
+            atipicos_descartados=resultado_ml.get("atipicos_descartados"),
             metodo=metodo,
             isbn=isbn_objetivo,
         )
@@ -480,3 +512,15 @@ def buscar_precio_referencia(
 
     # Error controlado: sin coincidencia verificada no se devuelve ningún precio.
     return _respuesta_vacia(estado, fuente_error or "sin_coincidencia")
+
+
+def buscar_precio_referencia(*args, **kwargs) -> Dict[str, Any]:
+    """
+    ALIAS HISTÓRICO de `obtener_precio_referencia_ml()`.
+
+    Se mantiene para no romper código existente (management commands, scripts),
+    pero TODO llamador nuevo debe usar la función canónica: es la única
+    implementación y así la ficha («Comparar precio en Mercado Libre») y la
+    edición («Buscar precio de referencia») devuelven exactamente el mismo valor.
+    """
+    return obtener_precio_referencia_ml(*args, **kwargs)

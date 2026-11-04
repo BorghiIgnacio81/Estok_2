@@ -201,6 +201,29 @@ export interface SincronizacionEstadosML {
   items: EstadoPublicacionML[];
   /** Sólo en la verificación de un objeto puntual. */
   estado?: EstadoPublicacionML;
+  /**
+   * Resumen de la pasada por los ítems REALES del vendedor
+   * (GET /users/{user_id}/items/search + multi-get /items). Es la que asocia
+   * las publicaciones de catálogo (UP) con su permalink vigente.
+   */
+  vendedor?: ResumenItemsVendedor;
+}
+
+/** Ítems del vendedor leídos en Mercado Libre y publicaciones actualizadas. */
+export interface ResumenItemsVendedor {
+  vendedores: number;
+  items_vendedor: number;
+  /** Permalinks guardadas/actualizadas (la URL que abre «Ver publicación»). */
+  permalinks_actualizados: number;
+  estados_actualizados: number;
+  items: Array<{
+    objeto_id: string;
+    item_id: string;
+    permalink: string;
+    status: string;
+    permalink_actualizada: boolean;
+    estado_actualizado: boolean;
+  }>;
 }
 
 export interface OpcionesSincronizacionML {

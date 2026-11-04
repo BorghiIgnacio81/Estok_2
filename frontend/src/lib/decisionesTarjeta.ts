@@ -38,7 +38,14 @@ export interface ObjetoDecision {
   publicacion_activa?: boolean;
   /** Advertencia lista para mostrar ('' cuando la publicación está OK). */
   publicacion_aviso?: string | null;
-  /** Enlace externo a la publicación (Mercado Libre) cuando existe. */
+  /**
+   * PERMALINK guardada de la publicación en Mercado Libre.
+   *
+   * Es la ÚNICA fuente del botón «Ver publicación»: el backend la persiste al
+   * crear, editar y sincronizar el ítem (las publicaciones de catálogo / UP no
+   * responden en `articulo.mercadolibre.com.ar/<item_id>`, esa URL da 404).
+   * `null` cuando la publicación no está vigente o no tiene permalink real.
+   */
   url_publicacion?: string | null;
   dueno_original: string | null;
   dueno_original_nombre: string | null;
@@ -299,9 +306,11 @@ export function initNavegacionTarjetasDecisiones(): void {
 }
 
 /**
- * Botón «🔗 Ver publicación»: abre EXCLUSIVAMENTE la publicación externa del
- * objeto en Mercado Libre, en una pestaña nueva. Sin URL externa activa NO se
- * dibuja: el acceso a la ficha interna es el clic en el cuerpo/título.
+ * Botón «🔗 Ver publicación»: abre EXCLUSIVAMENTE la permalink guardada de la
+ * publicación en Mercado Libre, en una pestaña nueva. Sin permalink vigente NO
+ * se dibuja (nunca se arma la URL a mano con el item_id: eso produce 404 en las
+ * publicaciones de catálogo). El acceso a la ficha interna es el clic en el
+ * cuerpo/título.
  */
 export function botonPublicacionExternaHtml(obj: ObjetoDecision): string {
   const url = String(obj.url_publicacion || '').trim();

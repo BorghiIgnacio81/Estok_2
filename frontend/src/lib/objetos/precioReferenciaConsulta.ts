@@ -37,6 +37,10 @@ export interface ResultadoPrecioReferencia {
   link?: string | null;
   estado_aplicado?: string | null;
   porcentaje_aplicado?: number | null;
+  /** Publicaciones que entraron en la mediana (None en estimaciones de IA). */
+  muestras?: number | null;
+  /** Valores atípicos descartados por la limpieza IQR (ej. $160.000 de un pH). */
+  atipicos_descartados?: number | null;
   mensaje?: string | null;
 }
 

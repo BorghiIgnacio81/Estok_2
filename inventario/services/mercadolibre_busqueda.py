@@ -29,10 +29,12 @@ Reglas de este módulo (site MLA forzado + filtro de coincidencia):
    MAX_PALABRAS_BUSQUEDA palabras clave principales. Una consulta de 12
    palabras no devuelve resultados en el full-text de ML.
 6. PRECIO DE REFERENCIA ROBUSTO (no «el primero que aparezca»): se recolectan
-   TODAS las publicaciones coincidentes, se descarta el 20 % de los valores
-   extremos más bajos (cables/repuestos) y el 20 % más alto (publicaciones
-   infladas) y se toma la MEDIANA de lo que queda. Así una publicación basura
-   no define el valor del objeto.
+   TODAS las publicaciones coincidentes, se descartan los VALORES ATÍPICOS por
+   rango intercuartílico (regla de Tukey: fuera de Q1 - 1.5·IQR … Q3 + 1.5·IQR),
+   después se recorta el 20 % de los valores extremos más bajos
+   (cables/repuestos) y el 20 % más alto (publicaciones infladas) y se toma la
+   MEDIANA de lo que queda. Así una publicación basura no define el valor del
+   objeto (ver `precio_referencia_robusto` / `limpiar_atipicos_iqr`).
 7. CONSULTA CON CATEGORÍA + FALLBACK AUTOMÁTICO (bug real: «Buscar precio de
    referencia» en objetos de «Ropa» no devolvía nada):
    - La categoría del objeto (ID oficial «MLA1430», nombre «👕 Ropa» o subtipo
@@ -92,6 +94,17 @@ MAX_PALABRAS_BUSQUEDA = 4
 PORCENTAJE_RECORTE = 0.20
 # Muestras coincidentes suficientes para no seguir probando variantes.
 MIN_MUESTRAS_SUFICIENTES = 5
+# LIMPIEZA ESTRICTA DE VALORES ATÍPICOS (regla de Tukey sobre el IQR):
+#   · todo precio fuera de [Q1 - 1.5·IQR, Q3 + 1.5·IQR] se descarta antes de
+#     calcular la mediana (ej. el medidor de pH publicado a $160.000 entre
+#     publicaciones de $25.000);
+#   · con menos de MIN_MUESTRAS_IQR precios no hay cuartiles estables y no se
+#     aplica (la mediana recortada ya es robusta con muestras chicas);
+#   · si la limpieza dejaría menos de MIN_MUESTRAS_TRAS_IQR muestras se
+#     descarta el filtro completo (mejor la mediana recortada que 2 valores).
+FACTOR_IQR_OUTLIER = 1.5
+MIN_MUESTRAS_IQR = 4
+MIN_MUESTRAS_TRAS_IQR = 3
 
 HEADERS_NAVEGADOR = {
     "User-Agent": (
@@ -329,6 +342,77 @@ def _candidato_valido(titulo: str, precio: Any, moneda: str, link: str) -> Optio
     }
 
 
+def _percentil(ordenados: List[float], porcentaje: float) -> float:
+    """
+    Percentil con interpolación lineal sobre una lista YA ordenada (Q1 = 25 %,
+    Q3 = 75 %). No se usa `statistics.quantiles` para no depender del método de
+    interpolación según la versión de Python del contenedor.
+    """
+    total = len(ordenados)
+    if total == 0:
+        return 0.0
+    if total == 1:
+        return float(ordenados[0])
+    posicion = (total - 1) * (porcentaje / 100.0)
+    base = int(math.floor(posicion))
+    resto = posicion - base
+    actual = float(ordenados[base])
+    siguiente = float(ordenados[min(base + 1, total - 1)])
+    return actual + (siguiente - actual) * resto
+
+
+def limpiar_atipicos_iqr(precios: List[float]) -> Tuple[List[float], int]:
+    """
+    Limpieza ESTRICTA de outliers por rango intercuartílico (IQR).
+
+    Una sola publicación desorbitada (un medidor de pH a $160.000 entre avisos
+    de $25.000) arrastraba la mediana hacia arriba y entregaba una estimación
+    irreal. Se descarta todo precio fuera de la valla de Tukey:
+
+        [Q1 - FACTOR_IQR_OUTLIER·IQR , Q3 + FACTOR_IQR_OUTLIER·IQR]
+
+    Returns:
+        (precios_limpios ordenados ascendentemente, cantidad de descartados).
+        Si el filtro no es aplicable (muestra chica, IQR nulo o dejaría menos de
+        MIN_MUESTRAS_TRAS_IQR valores) se devuelve la muestra original completa.
+    """
+    ordenados = sorted(
+        float(precio) for precio in precios
+        if isinstance(precio, (int, float)) and precio > 0
+    )
+    total = len(ordenados)
+    if total < MIN_MUESTRAS_IQR:
+        return ordenados, 0
+
+    q1 = _percentil(ordenados, 25)
+    q3 = _percentil(ordenados, 75)
+    rango = q3 - q1
+    if rango <= 0:
+        return ordenados, 0
+
+    limite_inferior = q1 - FACTOR_IQR_OUTLIER * rango
+    limite_superior = q3 + FACTOR_IQR_OUTLIER * rango
+    limpios = [
+        precio for precio in ordenados
+        if limite_inferior <= precio <= limite_superior
+    ]
+    if len(limpios) < MIN_MUESTRAS_TRAS_IQR:
+        logger.info(
+            "Limpieza IQR descartada: dejaría %s de %s muestras",
+            len(limpios), total,
+        )
+        return ordenados, 0
+
+    descartados = total - len(limpios)
+    if descartados:
+        logger.info(
+            "Limpieza IQR: %s valor(es) atípico(s) descartado(s) "
+            "(valla ARS %.2f – %.2f de %s muestras)",
+            descartados, limite_inferior, limite_superior, total,
+        )
+    return limpios, descartados
+
+
 def _recortar_extremos(precios: List[float]) -> List[float]:
     """
     Mediana RECORTADA: descarta el 20 % de los valores más bajos (cables,
@@ -353,9 +437,12 @@ def precio_referencia_robusto(
     Precio de referencia ESTADÍSTICAMENTE robusto de una lista de candidatos.
 
     1. Se conservan sólo los títulos que coinciden con las palabras clave.
-    2. Se ordenan los precios y se recorta el 20 % inferior y el 20 % superior.
-    3. El precio de referencia es la MEDIANA de la muestra recortada.
-    4. El título/enlace que se devuelve es el de la publicación más cercana a
+    2. LIMPIEZA IQR: se descartan los valores atípicos (fuera de
+       Q1 - 1.5·IQR … Q3 + 1.5·IQR) — una publicación a $160.000 entre avisos
+       de $25.000 no puede definir el valor del objeto.
+    3. Se ordenan los precios y se recorta el 20 % inferior y el 20 % superior.
+    4. El precio de referencia es la MEDIANA de la muestra recortada.
+    5. El título/enlace que se devuelve es el de la publicación más cercana a
        esa mediana (la más representativa), no el primero del listado.
 
     Returns:
@@ -369,7 +456,12 @@ def precio_referencia_robusto(
     if not coincidentes:
         return None
 
-    muestra = _recortar_extremos([c["precio"] for c in coincidentes])
+    # 1) Limpieza ESTRICTA de outliers por IQR (publicaciones desorbitadas).
+    limpios, atipicos = limpiar_atipicos_iqr([c["precio"] for c in coincidentes])
+    if not limpios:
+        return None
+    # 2) Mediana recortada al 20 % de la muestra YA limpia.
+    muestra = _recortar_extremos(limpios)
     if not muestra:
         return None
 
@@ -384,7 +476,8 @@ def precio_referencia_robusto(
         "precio_publicacion": elegido["precio"],
         "muestras": len(muestra),
         "muestras_totales": len(coincidentes),
-        "metodo": "mediana_recortada",
+        "atipicos_descartados": atipicos,
+        "metodo": "iqr_mediana_recortada",
     }
 
 

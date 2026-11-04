@@ -131,9 +131,10 @@ def payload_objeto_decision(obj, request):
         "publicacion_status": info_ml['status'] or None,
         "publicacion_activa": info_ml['activa'],
         "publicacion_aviso": info_ml['aviso'],
-        # Enlace externo a la publicación VIGENTE (None si está finalizada o
-        # eliminada): sin URL la UI NO dibuja «Ver publicación», así nadie
-        # termina en un enlace muerto de Mercado Libre.
+        # PERMALINK guardada de la publicación VIGENTE (None si está finalizada,
+        # eliminada o si todavía no se sincronizó su permalink real): sin URL la
+        # UI NO dibuja «Ver publicación», así nadie termina en un 404 de
+        # Mercado Libre. Nunca se arma con el item_id.
         "url_publicacion": info_ml['url'],
 
         "dueno_original": (

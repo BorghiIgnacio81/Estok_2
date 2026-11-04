@@ -14,8 +14,6 @@ from django.core.cache import cache
 
 from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto
 from ...serializers import FotoObjetoUploadSerializer
-from ....services.mercadolibre_oauth import get_valid_access_token
-from ....services.precio_referencia_service import buscar_precio_referencia
 from .decisiones_actions import respuesta_decision_denegada
 
 

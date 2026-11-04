@@ -18,11 +18,16 @@ from django.core.cache import cache
 from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto
 from ...serializers import FotoObjetoUploadSerializer
 from ....services.mercadolibre_oauth import get_valid_access_token
-from ....services.precio_referencia_service import buscar_precio_referencia
+from ....services.precio_referencia_service import obtener_precio_referencia_ml
 from .decisiones_actions import respuesta_decision_denegada
 
 
 logger = logging.getLogger(__name__)
+
+# Versión del ALGORITMO de cotización. Forma parte de la clave de caché: al
+# cambiar el cálculo (p. ej. la limpieza IQR de valores atípicos) se sube la
+# versión para no servir durante 2 h una estimación calculada con la regla vieja.
+VERSION_COTIZACION = 'iqr_v2'
 
 
 from .utils_actions_estadisticas import UtilsEstadisticasMixin
@@ -285,6 +290,12 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         coincidencia de título y moneda ARS; si no hay match confiable, estima
         con Gemini. Los resultados se cachean (2h si hay precio, 5min si no).
 
+        FUNCIÓN ÚNICA: delega en `obtener_precio_referencia_ml()` (services/
+        precio_referencia_service.py), la MISMA que usa «Comparar precio en
+        Mercado Libre» de la ficha: el mismo objeto devuelve la misma
+        estimación en el alta, en la edición y en el detalle. El precio es la
+        mediana de la muestra tras la limpieza IQR de valores atípicos.
+
         GET /api/objetos/buscar_precio_referencia/?q=iphone+14&estado=bueno
             &categoria=MLA1430&isbn=9789500712345&autor=cortazar
 
@@ -328,8 +339,11 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         # Clave de caché: incluye estado, categoría, ISBN y autor para que el
         # ajuste y el conjunto de resultados no se mezclen entre búsquedas
         # distintas (dos ediciones del mismo título dan precios distintos).
+        # `VERSION_COTIZACION` invalida los valores calculados con el algoritmo
+        # anterior (sin limpieza IQR): al cambiar el cálculo de outliers se
+        # sube la versión y nadie recibe por 2 h una estimación vieja.
         cache_key = (
-            f"precio_ref_{q.lower().strip()}_{estado}_"
+            f"precio_ref_{VERSION_COTIZACION}_{q.lower().strip()}_{estado}_"
             f"{categoria.lower().strip()}_{isbn.lower().strip()}_{autor.lower().strip()}"
         )
         resultado_cache = cache.get(cache_key)
@@ -346,7 +360,7 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
             access_token = None
 
         try:
-            resultado = buscar_precio_referencia(
+            resultado = obtener_precio_referencia_ml(
                 q,
                 estado=estado,
                 access_token=access_token,

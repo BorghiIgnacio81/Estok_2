@@ -174,16 +174,17 @@ class MarketingActionsMixin:
             logger.error("Error al generar anuncios: %s", e)
             paquete = None
 
-        # Precio de referencia (MLA validado, siempre en ARS)
+        # Precio de referencia (función CANÓNICA de cotización, siempre en ARS):
+        # es la misma que usan la ficha y el alta/edición del objeto.
         from ....services.mercadolibre_oauth import get_valid_access_token
-        from ....services.precio_referencia_service import buscar_precio_referencia
+        from ....services.precio_referencia_service import obtener_precio_referencia_ml
         try:
             access_token = get_valid_access_token(request.user)
         except Exception as e:  # noqa: BLE001 - la referencia es opcional
             logger.warning("Sin token de ML para %s: %s", request.user, e)
             access_token = None
         try:
-            precio_ref = buscar_precio_referencia(
+            precio_ref = obtener_precio_referencia_ml(
                 objeto.nombre,
                 estado=objeto.estado_conservacion,
                 access_token=access_token,

@@ -9,8 +9,10 @@
 //     en el backend y persistencia del status real (active / paused / closed).
 //
 // Si Mercado Libre reporta la publicación pausada o finalizada, se advierte y
-// el enlace deja de ofrecerse (el backend ya no manda `url` para un ítem
-// cerrado): nunca se abre un enlace muerto.
+// el enlace deja de ofrecerse. El botón «Ver publicación» usa EXCLUSIVAMENTE la
+// permalink guardada en la base (la persiste el backend al crear, editar y
+// sincronizar el ítem): nunca se arma una URL manual con el item_id, que en las
+// publicaciones de catálogo (UP) devuelve 404.
 // Vive fuera de la página por la regla de modularización (<400 líneas de UI).
 // =============================================================================
 
@@ -70,10 +72,18 @@ export function renderPublicacionML(estado: EstadoPublicacionML | null | undefin
   }
 
   const visual = estilo(estadoActual);
-  const enlace = estado.url
-    ? `<a href="${escaparHtml(estado.url)}" target="_blank" rel="noopener noreferrer"
+  // ENLACE: SIEMPRE la PERMALINK guardada en la base. El backend la persiste al
+  // crear, editar (PUT /items) y sincronizar con los ítems del vendedor
+  // (GET /users/{user_id}/items/search); `url` ya viene derivada de ella, y
+  // `permalink` se usa como respaldo. NUNCA se arma la URL con el item_id:
+  // `articulo.mercadolibre.com.ar/<id>` devuelve 404 en publicaciones de
+  // catálogo (UP). Sin permalink no se dibuja el botón.
+  const permalink = String(estado.permalink || estado.url || '').trim();
+  const vigente = estadoActual === 'publicado' || estadoActual === 'pausada';
+  const enlace = permalink && vigente
+    ? `<a href="${escaparHtml(permalink)}" target="_blank" rel="noopener noreferrer"
         class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-base">
-        🔗 Ver en Mercado Libre
+        🔗 Ver publicación
       </a>`
     : '';
 
