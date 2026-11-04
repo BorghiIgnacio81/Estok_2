@@ -18,6 +18,13 @@
 import jsQR from 'jsqr';
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { ref, refOpcional } from './dom';
+// Utilidades compartidas con el modal del Dashboard (lib/escanerQrModal.ts):
+// formato del QR, mensajes de error de cámara y GET autenticado con timeout.
+import {
+  extraerContenedorId,
+  fetchQrConTimeout,
+  mensajeErrorCamara,
+} from './qrComun';
 
 /** Lado máximo del frame que se pasa a jsQR (más píxeles = menos fps). */
 const DIMENSION_MAX_ESCANEO = 640;
@@ -65,23 +72,6 @@ function mostrarError(mensaje: string): void {
 function ocultarError(): void {
   ui.cameraErrorText.textContent = '';
   ui.noCamera.classList.add('hidden');
-}
-
-/** Traduce el DOMException de getUserMedia a una instrucción útil. */
-function mensajeDeError(err: unknown): string {
-  const nombre = err instanceof DOMException ? err.name : '';
-  switch (nombre) {
-    case 'NotAllowedError':
-    case 'SecurityError':
-      return 'Permiso de cámara bloqueado. En iPhone: Ajustes → Safari (o Estok) → Cámara → Permitir. En Android: Ajustes → Aplicaciones → Permisos → Cámara.';
-    case 'NotFoundError':
-    case 'OverconstrainedError':
-      return 'No se encontró una cámara compatible en este dispositivo.';
-    case 'NotReadableError':
-      return 'La cámara está siendo usada por otra aplicación. Cerrala e intentá de nuevo.';
-    default:
-      return 'No se pudo iniciar la cámara. Revisá los permisos o escaneá desde una foto.';
-  }
 }
 
 // =============================================================================
@@ -138,7 +128,7 @@ async function iniciarCamara(): Promise<void> {
     iniciarBucleEscaneo();
   } catch (err) {
     console.error('Error al acceder a la cámara:', err);
-    mostrarError(mensajeDeError(err));
+    mostrarError(mensajeErrorCamara(err));
   }
 }
 
@@ -227,40 +217,11 @@ async function precargarContenedores(): Promise<void> {
 // PROCESAR QR ESCANEADO
 // =============================================================================
 
-/** fetch con timeout manual (AbortSignal.timeout no existe en iOS 15). */
-async function fetchConTimeout(url: string, ms: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), ms);
-  try {
-    return await fetch(url, { headers: getAuthHeaders(), signal: controller.signal });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function mostrarNoEncontrado(mensaje: string): void {
   ui.resultSpinner.classList.add('hidden');
   ui.resultText.textContent = mensaje;
   ui.stopBtn.classList.add('hidden');
   ui.retryScanBtn.classList.remove('hidden');
-}
-
-/** Extrae el id del contenedor de cualquiera de los formatos de QR soportados. */
-function extraerContenedorId(qrData: string): string | null {
-  // 1) URL de contenedor: ...?contenedor=<id>
-  const urlMatch = qrData.match(/[?&]contenedor=([a-f0-9-]+)/i);
-  if (urlMatch) return urlMatch[1];
-
-  // 2) JSON: {"contenedor_id": "..."} o {"id": "..."}
-  try {
-    const parsed = JSON.parse(qrData);
-    if (parsed?.contenedor_id) return String(parsed.contenedor_id);
-    if (parsed?.id) return String(parsed.id);
-    return null;
-  } catch {
-    // 3) UUID plano
-    return /^[0-9a-f-]{36}$/i.test(qrData) ? qrData : null;
-  }
 }
 
 async function procesarQR(qrData: string): Promise<void> {
@@ -285,7 +246,7 @@ async function procesarQR(qrData: string): Promise<void> {
         return;
       }
 
-      const res = await fetchConTimeout(`${API_BASE_URL}/contenedores/${contenedorId}/`, 3000);
+      const res = await fetchQrConTimeout(`${API_BASE_URL}/contenedores/${contenedorId}/`, 3000);
       if (res.ok) {
         ui.resultSpinner.classList.add('hidden');
         ui.resultText.textContent = '✅ Contenedor encontrado. Redirigiendo...';
@@ -295,7 +256,7 @@ async function procesarQR(qrData: string): Promise<void> {
     }
 
     // Compatibilidad con QR antiguos: resolver por el endpoint de escaneo.
-    const res = await fetchConTimeout(
+    const res = await fetchQrConTimeout(
       `${API_BASE_URL}/contenedores/escanear/?qr_data=${encodeURIComponent(qrData)}`,
       5000,
     );

@@ -3,6 +3,16 @@
 // Extraido de pages/index.astro (Fase A refactor preventivo).
 // =============================================================================
 
+// DETECCIÓN DE INSTALACIÓN (fuente única): display-mode / navigator.standalone /
+// TWA / marca persistente de `appinstalled`. Vive en lib/pwaDeteccion.ts.
+import {
+  marcarPwaInstalada,
+  mostrarBotonInstalarPwa,
+  ocultarBotonInstalarPwa,
+  pwaYaInstalada,
+  vigilarInstalacionPwa,
+} from '../pwaDeteccion';
+
   // ===========================================================================
   // PWA INSTALL - Android nativo (1 tap) + iOS Safari (2 taps guiados)
   // ===========================================================================
@@ -16,18 +26,24 @@
 
   let deferredPrompt: any = null;
 
-  const installPwaBtn = document.getElementById('installPwaBtn')!;
+  const installPwaBtn = document.getElementById('installPwaBtn');
 
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const isSafari = /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|OPiOS|mercury/i.test(navigator.userAgent);
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as any).standalone === true;
 
-  if (isStandalone) {
-    installPwaBtn?.classList.add('hidden');
+  // ESTADO INICIAL DEL BOTÓN: si Estok ya está instalada (modo app standalone,
+  // TWA de Android o `appinstalled` registrado en una sesión anterior) el botón
+  // se oculta; si no, se revela (el markup nace con `style="display:none"` para
+  // no parpadear durante el primer frame dentro de la PWA instalada).
+  if (pwaYaInstalada()) {
+    ocultarBotonInstalarPwa();
   } else {
-    installPwaBtn?.classList.remove('hidden');
+    mostrarBotonInstalarPwa();
   }
+
+  // Cambios posteriores: instalación aceptada, cambio de display-mode, retorno
+  // desde bfcache o vuelta del segundo plano.
+  vigilarInstalacionPwa();
 
   // Android Chrome/Edge: capturar beforeinstallprompt para instalar en 1 tap
   window.addEventListener('beforeinstallprompt', (e: Event) => {
@@ -39,7 +55,8 @@
 
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
-    installPwaBtn?.classList.add('hidden');
+    marcarPwaInstalada();
+    ocultarBotonInstalarPwa();
     window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
     console.log('✅ Estok instalada como PWA');
   });

@@ -8,8 +8,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import GodModales from '../components/dashboard/GodModales.astro';
+// Modal de cámara del escáner QR (botón gráfico de la barra de acciones).
+import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
+import { ASSET_BOTON_QR, ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
 
 // Detección de plataforma móvil por User Agent
 const userAgent = Astro.request.headers.get('user-agent') || '';
@@ -51,24 +53,41 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
         </div>
 
         <div class="flex flex-col md:flex-row items-center gap-3 md:gap-4 w-full lg:w-auto">
-          <!-- PWA Install Button (hero) - SOLO MÓVIL, no se renderiza en desktop -->
+          <!-- PWA Install Button (hero) - SOLO MÓVIL, no se renderiza en desktop.
+               Nace OCULTO con `style="display:none"` (no con la clase `hidden`:
+               en Tailwind v4 `.inline-flex` se emite DESPUÉS de `.hidden` y le
+               gana, por eso el botón seguía viéndose). lib/pwaDeteccion.ts lo
+               revela únicamente si la app NO está instalada. -->
           {isMobile && (
-            <button id="installPwaBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-full hover:bg-green-700 transition-base shadow-sm flex-shrink-0">
+            <button id="installPwaBtn" data-instalar-pwa style="display:none" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-full hover:bg-green-700 transition-base shadow-sm flex-shrink-0">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Instalar App
             </button>
           )}
-          <!-- ACCIONES RÁPIDAS EN PARALELO (md+): "Mudanza" y "Nuevo Objeto" van
-               en la misma fila (flex flex-row gap-4 w-full) y se reparten el
-               ancho en mitades simétricas con flex-1. La fila se acota con
-               max-w-sm para que los dos bloques queden equilibrados y el hero
-               no se estire de más. En móvil el wrapper apila la fila debajo del
-               botón de instalación PWA para no comprimir las dos acciones. -->
-          <div class="flex flex-row gap-4 w-full md:max-w-sm items-center justify-center">
+          <!-- ACCIONES RÁPIDAS EN PARALELO (md+): «Mudanza», «Escanear QR» y
+               «Nuevo Objeto» van en la misma fila (flex flex-row gap-4) y se
+               reparten el ancho en tercios simétricos con flex-1. La fila se
+               acota con md:max-w-lg para que los tres bloques conserven el
+               tamaño completo de la ilustración (h-24 / md:h-32 / lg:h-36) y
+               el hero no se estire de más. En móvil el wrapper apila la fila
+               debajo del botón de instalación PWA para no comprimir las
+               acciones. -->
+          <div class="flex flex-row gap-4 w-full md:max-w-lg items-center justify-center">
             <!-- Botón Mudanza: se inyecta dinámicamente SOLO si user.estoks.length > 1 -->
             <span id="mudanzaBtnContainer" class="flex-1 min-w-0 flex items-center justify-center"></span>
+            <!-- Escáner QR: BOTÓN GRÁFICO PURO (sin texto ni fondo) que abre la
+                 cámara del dispositivo y muestra el contenido y la ruta de
+                 ubicación completa de la caja/objeto escaneado. La lógica vive
+                 en lib/escanerQrModal.ts (disparador: data-abrir-escaner-qr). -->
+            <button type="button" data-abrir-escaner-qr
+              class="flex-1 min-w-0 flex items-center justify-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
+              title="Escanear el QR de una caja, contenedor u objeto y ver su contenido y ubicación"
+              aria-label="Escanear código QR">
+              <img src={ASSET_BOTON_QR} alt="" aria-hidden="true" draggable="false"
+                class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain select-none" />
+            </button>
             <!-- CTA principal - Nuevo Objeto: imagen local con fusión estética (reemplaza el botón de texto) -->
             <a href="/objetos/nuevo" class="flex-1 min-w-0 flex items-center justify-center" aria-label="Nuevo Objeto">
               <img src={ASSET_NUEVO_OBJETO} alt="Nuevo Objeto" class="h-24 md:h-32 lg:h-36 w-auto max-w-full hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
@@ -348,6 +367,11 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     <!-- ADMIN GLOBAL - Modales (usuario/estok) extraidos a componente -->
     <GodModales />
   </div>
+
+  <!-- ESCÁNER QR - modal de cámara que muestra el contenido y la ruta de
+       ubicación completa del contenedor/objeto escaneado. Se monta una sola vez
+       por página; su lógica (states, jsQR, API) vive en lib/escanerQrModal.ts. -->
+  <EscanerQrModal />
 
 
 <script>

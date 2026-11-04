@@ -37,7 +37,10 @@ import '../styles/ruta-geografica.css';
 // usa EXACTAMENTE el mismo host canónico que el componente (lib/minimapaRutaHost.ts).
 import '../styles/minimapa-ruta.css';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
+import { ASSET_BOTON_QR, ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
+// Modal de cámara del escáner QR: al escanear muestra el contenido y la ruta de
+// ubicación completa de la caja/objeto (lógica en lib/escanerQrModal.ts).
+import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
 ---
 
 <AuthGuard />
@@ -53,6 +56,16 @@ import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
       <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         <ModalExportarDatos />
+        <!-- Escáner QR: BOTÓN GRÁFICO PURO (sin texto ni fondo) entre la
+             exportación y «Nuevo Objeto». Abre la cámara y muestra el contenido
+             y la ruta de ubicación completa de la caja/objeto escaneado. -->
+        <button type="button" data-abrir-escaner-qr
+          class="inline-flex shrink-0 items-center justify-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
+          title="Escanear el QR de una caja, contenedor u objeto y ver su contenido y ubicación"
+          aria-label="Escanear código QR">
+          <img src={ASSET_BOTON_QR} alt="" aria-hidden="true" draggable="false"
+            class="block h-24 w-auto md:h-32 md:w-auto lg:h-36 lg:w-auto max-w-none object-contain object-center hover:scale-105 active:scale-95 transition-all duration-200 select-none" />
+        </button>
         <BotonAccionRapida
           variante="cabecera"
           class="flex-shrink-0"
@@ -270,5 +283,8 @@ import { ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
     etiqueta="Nuevo Objeto"
     class="boton-accion-rapida--solo-movil"
   />
+
+  <!-- ESCÁNER QR - modal de cámara (contenido + ruta de ubicación completa). -->
+  <EscanerQrModal />
 </BaseLayout>
 

@@ -19,20 +19,32 @@
 // Clases conmutadas por exportarDatos.ts al cambiar el alcance (declaradas acá
 // para que Tailwind las incluya en el bundle): border-green-500 bg-green-50
 // =============================================================================
+
+// Trigger gráfico: la ilustración /informes.webp ocupa el 100% del botón (sin
+// texto ni fondo azul), con el mismo tamaño/estilo que los demás botones
+// ilustrados de la barra de acciones (h-24 / md:h-32 / lg:h-36).
+import { ASSET_INFORMES } from '../../lib/assetsUi';
 ---
 
 <!-- `contents` (display: contents) evita que este bloque genere una caja propia:
      el botón queda como hijo directo del encabezado flex y el modal (fixed) sale
      del flujo. Se inyecta en pages/objetos.astro junto a CategoriaCreator. -->
 <div class="contents">
-  <!-- Trigger único: reemplaza al antiguo botón "Exportar CSV" -->
+  <!-- Trigger único (BOTÓN GRÁFICO PURO): reemplaza al antiguo botón de texto
+       «Exportar Datos / Informe». La ilustración ocupa TODO el botón: sin
+       fondo, sin borde, sin padding y sin texto superpuesto. El nombre
+       accesible vive en title + aria-label. -->
   <button type="button" id="btnExportarDatos"
-    class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-base shadow-sm">
-    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-    Exportar Datos / Informe
+    class="inline-flex shrink-0 items-center justify-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+    title="Exportar Datos / Informe: descargá el CSV del inventario o el informe PDF con mapas y precios"
+    aria-label="Exportar Datos / Informe">
+    <img
+      src={ASSET_INFORMES}
+      alt=""
+      aria-hidden="true"
+      draggable="false"
+      class="block h-24 w-auto md:h-32 md:w-auto lg:h-36 lg:w-auto max-w-none object-contain object-center select-none pointer-events-none"
+    />
   </button>
 
   <!-- Modal paramétrico (doble columna simétrica) -->
