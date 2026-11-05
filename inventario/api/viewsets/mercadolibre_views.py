@@ -11,8 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import redirect
 
-from ...models import CustomUser
-from ...services.feature_flags import CLAVE_SYNC_MERCADOLIBRE
+from ...models import CustomUser, BOTON_SYNC_MERCADOLIBRE
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
@@ -38,7 +37,7 @@ from ...services.categorias_meli import (
 )
 from ...models import Objeto
 from .base import HasRolePermission
-from ..plan_acceso import exigir_funcionalidad
+from ..plan_acceso import exigir_boton
 
 logger = logging.getLogger(__name__)
 
@@ -187,9 +186,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         Al frontend se le devuelve el detalle (campos faltantes / inválidos).
 
         CONTROL DE FUNCIONALIDADES: la publicación está sujeta al Feature Flag
-        `sync_mercadolibre` (maestro → promocional → plan Pro).
+        `sync_mercadolibre` (maestro → promocional → plan Pro) y al permiso/cuota
+        granular del botón `boton_sync_mercadolibre` (Panel de Permisos).
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        bloqueo = exigir_boton(request, BOTON_SYNC_MERCADOLIBRE)
         if bloqueo is not None:
             return bloqueo
 
@@ -496,9 +496,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         Lo llama /alertas-stock al cargar (best-effort, no bloquea el render) y
         la ficha del objeto con `objeto_id`.
 
-        Sujeto al Feature Flag `sync_mercadolibre` (Control de Funcionalidades).
+        Sujeto al Feature Flag `sync_mercadolibre` y al permiso/cuota del botón
+        `boton_sync_mercadolibre` (Control de Funcionalidades + Panel de Permisos).
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        bloqueo = exigir_boton(request, BOTON_SYNC_MERCADOLIBRE)
         if bloqueo is not None:
             return bloqueo
 
@@ -580,9 +581,10 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         (estado / label / activa / url / aviso), así que la insignia se puede
         repintar sin traducciones extra en el cliente.
 
-        Sujeto al Feature Flag `sync_mercadolibre` (Control de Funcionalidades).
+        Sujeto al Feature Flag `sync_mercadolibre` y al permiso/cuota del botón
+        `boton_sync_mercadolibre` (Control de Funcionalidades + Panel de Permisos).
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        bloqueo = exigir_boton(request, BOTON_SYNC_MERCADOLIBRE)
         if bloqueo is not None:
             return bloqueo
 

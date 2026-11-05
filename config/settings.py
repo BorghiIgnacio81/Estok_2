@@ -266,8 +266,14 @@ MERCADOLIBRE_DEFAULT_PICTURE_URL = os.environ.get(
 #      activa `es_premium` / `ocultar_publicidad` (services/suscripcion_pago.py).
 # Si MERCADOPAGO_ACCESS_TOKEN queda vacío, el endpoint responde 503 con un
 # mensaje claro: la app sigue funcionando en plan gratuito con publicidad.
+# Se acepta también `MP_ACCESS_TOKEN` (nombre oficial de Mercado Pago) como
+# respaldo, para no depender del alias que use el panel de Coolify.
 # =============================================================================
-MERCADOPAGO_ACCESS_TOKEN = os.environ.get('MERCADOPAGO_ACCESS_TOKEN', '').strip()
+MERCADOPAGO_ACCESS_TOKEN = (
+    os.environ.get('MERCADOPAGO_ACCESS_TOKEN')
+    or os.environ.get('MP_ACCESS_TOKEN')
+    or ''
+).strip()
 
 # URL base de la API de Mercado Pago (no cambiar salvo sandbox/on-premise).
 MERCADOPAGO_API_BASE = os.environ.get(

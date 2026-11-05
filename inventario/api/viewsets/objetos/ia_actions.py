@@ -13,12 +13,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 
-from ....models import Objeto, Ubicacion, Contenedor
+from ....models import Objeto, Ubicacion, Contenedor, BOTON_IA_GEMINI
 from ....services.ai_vision_service import (
     AIVisionService, GeminiClient, AIQuotaExceededError, MENSAJE_LIMITE_IA,
 )
-from ....services.feature_flags import CLAVE_IA_ILIMITADA
-from ...plan_acceso import exigir_funcionalidad
+from ...plan_acceso import exigir_boton
 
 
 logger = logging.getLogger(__name__)
@@ -44,11 +43,12 @@ class IAActionsMixin:
         Sin el flag se conserva el comportamiento histórico: persiste los
         campos detectados en el objeto.
 
-        Sujeto al Feature Flag `ia_ilimitada` (Control de Funcionalidades): el
-        Admin Global puede apagarlo para todos o liberarlo en modo promocional;
-        sin promoción queda reservado al plan Pro.
+        Sujeto al Feature Flag `ia_ilimitada` (Control de Funcionalidades) y al
+        permiso/cuota granular del botón `boton_ia_gemini` (Panel de Permisos):
+        el Admin Global puede apagarlo para todos, liberarlo en modo
+        promocional o fijarle un límite de usos por período.
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_IA_ILIMITADA)
+        bloqueo = exigir_boton(request, BOTON_IA_GEMINI)
         if bloqueo is not None:
             return bloqueo
 
@@ -183,10 +183,10 @@ class IAActionsMixin:
         Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
         Si se envía `crear_objeto: true`, también crea el objeto en BD.
 
-        Sujeto al Feature Flag `ia_ilimitada` (mismo criterio que
-        `analizar_con_ia`: maestro → promocional → plan).
+        Sujeto al Feature Flag `ia_ilimitada` y al permiso/cuota granular del
+        botón `boton_ia_gemini` (mismo criterio que `analizar_con_ia`).
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_IA_ILIMITADA)
+        bloqueo = exigir_boton(request, BOTON_IA_GEMINI)
         if bloqueo is not None:
             return bloqueo
 

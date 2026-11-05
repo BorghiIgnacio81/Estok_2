@@ -15,10 +15,11 @@ from rest_framework import status
 from django.db.models import Sum
 from django.core.cache import cache
 
-from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto
+from ....models import Objeto, Ubicacion, Contenedor, FotoObjeto, BOTON_COMPARAR_PRECIO
 from ...serializers import FotoObjetoUploadSerializer
 from ....services.mercadolibre_oauth import get_valid_access_token
 from ....services.precio_referencia_service import obtener_precio_referencia_ml
+from ...plan_acceso import exigir_boton
 from .decisiones_actions import respuesta_decision_denegada
 
 
@@ -310,7 +311,15 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
         del servicio — estricta por ISBN (edición exacta) + complementaria por
         «Título + Autor» (mercado local) cuando la edición es rara o la muestra
         es escasa. El ISBN también se detecta dentro de `q` cuando no se envía.
+
+        Sujeto al permiso/cuota granular del botón `boton_comparar_precio`
+        (Panel de Permisos del Admin Global): si la función está deshabilitada
+        o el usuario agotó sus usos del período, responde 403/402 explicativo.
         """
+        bloqueo = exigir_boton(request, BOTON_COMPARAR_PRECIO)
+        if bloqueo is not None:
+            return bloqueo
+
         q = request.query_params.get('q', '').strip()
         if not q:
             return Response(

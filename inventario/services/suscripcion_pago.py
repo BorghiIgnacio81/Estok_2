@@ -34,6 +34,18 @@ from . import suscripcion
 
 logger = logging.getLogger(__name__)
 
+# SDK OFICIAL de Mercado Pago (`pip install mercadopago`).
+# Si no está instalado en el entorno, `crear_preferencia()` usa la
+# implementación REST equivalente (`_pedido`), que produce exactamente el mismo
+# resultado: el despliegue nunca depende de que la librería esté presente.
+try:  # pragma: no cover - depende del entorno de ejecución
+    import mercadopago  # type: ignore
+except Exception as exc:  # ImportError u error de inicialización de la lib
+    mercadopago = None
+    logger.info(
+        'SDK de Mercado Pago no disponible (%s): se usará la API REST.', exc,
+    )
+
 PROVEEDOR = SuscripcionPago.PROVEEDOR_MERCADOPAGO
 
 # Timeout de las llamadas a la pasarela: el webhook debe responder rápido
@@ -86,7 +98,36 @@ def titulo_pro() -> str:
 
 
 def _access_token() -> str:
+    """
+    Access token del servidor.
+
+    Se acepta `MERCADOPAGO_ACCESS_TOKEN` (nombre histórico del proyecto) y
+    `MP_ACCESS_TOKEN` (nombre con el que Mercado Pago lo documenta). El valor se
+    resuelve en `config/settings.py`, acá sólo se lee.
+    """
     return str(getattr(settings, 'MERCADOPAGO_ACCESS_TOKEN', '') or '').strip()
+
+
+def _sdk_mercadopago():
+    """
+    Instancia del SDK oficial con el access token del servidor.
+
+    Devuelve `None` cuando la librería no está instalada (fallback REST) y
+    lanza `ErrorConfiguracionPago` si falta el token: sin credenciales no hay
+    checkout posible y la app sigue funcionando en el plan gratuito.
+    """
+    if not _access_token():
+        raise ErrorConfiguracionPago(
+            'La pasarela de pago todavía no está configurada. '
+            'La app sigue funcionando en el plan gratuito con publicidad.'
+        )
+    if mercadopago is None:
+        return None
+    try:
+        return mercadopago.SDK(_access_token())
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning('No se pudo inicializar el SDK de Mercado Pago: %s', exc)
+        return None
 
 
 def _api_base() -> str:
@@ -158,6 +199,52 @@ def _pedido(method: str, endpoint: str, **kwargs):
 # =============================================================================
 # ALTA DEL CHECKOUT
 # =============================================================================
+def _crear_preferencia_pago(cuerpo: dict) -> dict:
+    """
+    Crea la preferencia de Checkout Pro y devuelve la respuesta CRUDA de la
+    pasarela (`id`, `init_point`, `sandbox_init_point`, …).
+
+    Usa la SDK OFICIAL (`mercadopago.SDK.preference().create`) cuando la librería
+    está instalada y, si no, la API REST equivalente con `requests`. Las dos vías
+    comparten el mismo manejo de errores (`ErrorSuscripcion`) para que la vista
+    responda igual en ambos casos.
+
+    Raises:
+        ErrorConfiguracionPago: falta el access token del servidor.
+        ErrorSuscripcion: la pasarela rechazó o no respondió.
+    """
+    sdk = _sdk_mercadopago()
+    if sdk is None:
+        return _pedido('POST', '/checkout/preferences', json=cuerpo)
+
+    try:
+        respuesta = sdk.preference().create(cuerpo)
+    except ErrorConfiguracionPago:
+        raise
+    except Exception as exc:
+        logger.error('SDK de Mercado Pago falló creando la preferencia: %s', exc)
+        raise ErrorSuscripcion(
+            'No se pudo contactar a la pasarela de pago. Intentá de nuevo.'
+        )
+
+    respuesta = respuesta if isinstance(respuesta, dict) else {}
+    codigo = respuesta.get('status')
+    datos = respuesta.get('response')
+    try:
+        codigo = int(codigo)
+    except (TypeError, ValueError):
+        codigo = 0
+
+    if codigo >= 400 or not isinstance(datos, dict):
+        logger.error(
+            'SDK de Mercado Pago respondió HTTP %s: %s', codigo, respuesta,
+        )
+        raise ErrorSuscripcion(
+            'La pasarela de pago rechazó la operación. Intentá de nuevo.'
+        )
+    return datos
+
+
 def crear_preferencia(usuario, estok_id=None) -> dict:
     """
     Crea el registro de compra y la preferencia de Checkout Pro.
@@ -235,7 +322,7 @@ def crear_preferencia(usuario, estok_id=None) -> dict:
         if site.startswith('https://'):
             cuerpo['auto_return'] = 'approved'
 
-    preferencia = _pedido('POST', '/checkout/preferences', json=cuerpo)
+    preferencia = _crear_preferencia_pago(cuerpo)
 
     registro.preferencia_id = str(preferencia.get('id') or '')
     registro.init_point = str(preferencia.get('init_point') or '').strip()

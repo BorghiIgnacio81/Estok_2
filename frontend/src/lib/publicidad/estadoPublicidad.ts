@@ -84,7 +84,11 @@ function guardarCache(estado: EstadoPublicidad): void {
 /**
  * Aplica el estado a TODOS los contenedores de publicidad del documento.
  *
- * - ocultar → `remove()` (el hueco desaparece del layout, no queda espacio).
+ * - ocultar + plan RESUELTO → `remove()` (el hueco desaparece del layout).
+ * - ocultar sin resolver (todavía no sabemos el plan) → se deja `hidden`: el
+ *   slot ya nace oculto en el HTML, así que NO se destruye. Destruirlo acá era
+ *   el bug que dejaba a un usuario gratuito sin banner en su primera visita
+ *   (la respuesta del backend llegaba después del `remove()`).
  * - mostrar → se revela el slot y se avisa por evento para que se pinte el
  *   banner (AdSense en web / AdMob nativo en la TWA).
  */
@@ -92,10 +96,11 @@ export function aplicarEstadoPublicidad(estado: EstadoPublicidad): void {
   if (typeof document === 'undefined') return;
 
   const contenedores = Array.from(document.querySelectorAll<HTMLElement>(SELECTOR));
+  const planResuelto = estado.motivo !== 'anonimo';
 
   for (const contenedor of contenedores) {
     if (estado.ocultar) {
-      contenedor.remove();
+      if (planResuelto) contenedor.remove();
       continue;
     }
     contenedor.hidden = false;

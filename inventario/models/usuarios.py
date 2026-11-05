@@ -118,10 +118,18 @@ class CustomUser(AbstractUser):
         ),
     )
     plan_suscripcion = models.CharField(
-        max_length=10,
-        choices=[('free', 'Gratuito (con publicidad)'), ('pro', 'Pro (sin publicidad)')],
+        max_length=20,
+        choices=[
+            ('free', 'Gratuito (con publicidad)'),
+            ('pro', 'Pro (sin publicidad)'),
+            ('personalizado', 'Personalizado (permisos por botón)'),
+        ],
         default='free',
         verbose_name="Plan de suscripción",
+        help_text=(
+            "«Personalizado» = el usuario tiene permisos y cuotas propias por "
+            "botón (Admin Global → Panel de permisos por botón)."
+        ),
     )
     limite_objetos = models.PositiveIntegerField(
         null=True,

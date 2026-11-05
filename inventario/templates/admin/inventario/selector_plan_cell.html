@@ -1,0 +1,21 @@
+{% comment %}
+Celda «Suscripción» de la lista de usuarios del Admin Global.
+
+El `<select>` envía un POST (con el token CSRF que el propio admin ya renderiza
+en la página) a la vista `cambiar_plan_view`, que aplica el plan y vuelve a la
+lista. No se usa JS externo porque los estáticos nuevos del admin no se
+recolectan en este despliegue (no hay `collectstatic` en el build).
+{% endcomment %}
+<select
+  class="estok-plan-select"
+  data-url="{{ url }}"
+  data-csrf="{{ csrf }}"
+  title="Cambiar el plan de {{ etiqueta }} en caliente"
+  aria-label="Suscripción del usuario"
+  style="min-width:11rem;max-width:13rem;"
+  onchange="var f=document.createElement('form');f.method='post';f.action=this.dataset.url;var t=document.createElement('input');t.type='hidden';t.name='csrfmiddlewaretoken';t.value=this.dataset.csrf;var p=document.createElement('input');p.type='hidden';p.name='plan';p.value=this.value;f.appendChild(t);f.appendChild(p);document.body.appendChild(f);f.submit();"
+>
+  {% for valor, etiqueta_opcion in planes %}
+    <option value="{{ valor }}"{% if valor == plan_actual %} selected{% endif %}>{{ etiqueta_opcion }}</option>
+  {% endfor %}
+</select>

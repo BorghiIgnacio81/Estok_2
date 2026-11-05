@@ -19,6 +19,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth.hashers import make_password
 from inventario.models import Role, CustomUser, Membresia
 from inventario.services.feature_flags import sembrar_flags_estandar
+from inventario.services.permisos_botones import sembrar_permisos_botones
 
 
 class Command(BaseCommand):
@@ -179,6 +180,25 @@ class Command(BaseCommand):
             self.stdout.write(
                 f'  - Feature Flags ya existentes: '
                 f'{", ".join(resultado_flags["existentes"])}'
+            )
+
+        # ---------------------------------------------------------------------
+        # 6. Sembrar los PERMISOS/CUOTAS POR BOTÓN de los planes base
+        # ---------------------------------------------------------------------
+        # Idempotente: crea las reglas de Free y Pro que falten con
+        # permitido=True y limite_usos=-1 (ilimitado), para que el Panel de
+        # Permisos del Admin tenga siempre la matriz completa SIN cortar
+        # ninguna función existente. No pisa lo configurado por el Admin.
+        resultado_botones = sembrar_permisos_botones()
+        if resultado_botones['creados']:
+            self.stdout.write(self.style.SUCCESS(
+                f'  ✓ Permisos de botón creados: '
+                f'{", ".join(resultado_botones["creados"])}'
+            ))
+        if resultado_botones['existentes']:
+            self.stdout.write(
+                f'  - Permisos de botón ya existentes: '
+                f'{len(resultado_botones["existentes"])} regla(s).'
             )
 
         # ---------------------------------------------------------------------

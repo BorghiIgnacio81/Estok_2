@@ -36,17 +36,15 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from ....models import Contenedor, Estok
-from ....services.feature_flags import (
-    CLAVE_EXPORTACION_CSV,
-    CLAVE_EXPORTACION_PDF,
+from ....models import (
+    Contenedor, Estok, BOTON_EXPORTAR_CSV, BOTON_EXPORTAR_PDF,
 )
 from ....services.taxonomia_contenedor import (
     TIPO_CAJA,
     TIPO_MUEBLE_INMUEBLE,
     TIPO_MUEBLE_MOVIL,
 )
-from ...plan_acceso import exigir_funcionalidad
+from ...plan_acceso import exigir_boton
 
 logger = logging.getLogger(__name__)
 
@@ -211,11 +209,11 @@ class ExportActionsMixin:
         Exporta el inventario a CSV según el alcance elegido en el modal:
         `completo` (objetos + contenedores), `objetos` o `contenedores`.
 
-        Sujeto al Feature Flag `exportacion_csv`: si el Admin Global lo apaga, o
-        si lo deja activo sin modo promocional para un usuario del plan
-        gratuito, responde HTTP 403 antes de tocar la base.
+        Sujeto al Feature Flag `exportacion_csv` y al permiso/cuota granular del
+        botón `boton_exportar_csv`: si el Admin Global lo apaga, o si el usuario
+        agotó sus usos del período, responde 403/402 antes de tocar la base.
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_EXPORTACION_CSV)
+        bloqueo = exigir_boton(request, BOTON_EXPORTAR_CSV)
         if bloqueo is not None:
             return bloqueo
 
@@ -259,11 +257,11 @@ class ExportActionsMixin:
           - mostrar_precios → escribe (u omite) la celda del precio.
           - ahorro_tinta    → bordes negros limpios sin fondos ámbar.
 
-        Sujeto al Feature Flag `exportacion_pdf` (ver
-        inventario/services/feature_flags.py): apagado global o sin promoción
-        para un usuario gratuito ⇒ HTTP 403 con `motivo` para la UI.
+        Sujeto al Feature Flag `exportacion_pdf` y al permiso/cuota granular del
+        botón `boton_exportar_pdf` (ver inventario/services/permisos_botones.py):
+        apagado global o cuota agotada ⇒ 403/402 con el detalle para la UI.
         """
-        bloqueo = exigir_funcionalidad(request, CLAVE_EXPORTACION_PDF)
+        bloqueo = exigir_boton(request, BOTON_EXPORTAR_PDF)
         if bloqueo is not None:
             return bloqueo
 

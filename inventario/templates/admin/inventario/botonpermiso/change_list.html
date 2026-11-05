@@ -1,0 +1,18 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% comment %}
+Botón de acceso al PANEL DE PERMISOS Y CUOTAS POR BOTÓN desde el listado de
+reglas. El panel (`matriz/`) es la vista con el combobox de plan/usuario y la
+matriz completa de checkboxes + textboxes.
+{% endcomment %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{{ panel_permisos_url }}" style="background-image:none;"
+       title="Elegir un plan o un usuario y configurar todos los botones de una vez">
+      Panel de permisos por botón
+    </a>
+  </li>
+  {{ block.super }}
+{% endblock %}

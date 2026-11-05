@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from .admin_suscripcion import SuscripcionUsuarioAdminMixin
 from .models import (
     Role, CustomUser, Estok, Membresia, CodigoInvitacion,
     Ubicacion, Contenedor,
@@ -8,6 +9,10 @@ from .models import (
     FeatureFlag,
     SuscripcionPago,
 )
+
+# Panel de Permisos y Cuotas Granulares por Botón (BotonPermiso / CuotaUsoUsuario).
+# Se importa para que Django registre sus ModelAdmin y la vista «matriz/».
+from . import admin_panel_permisos  # noqa: E402,F401
 
 
 # =============================================================================
@@ -98,11 +103,24 @@ class RoleAdmin(admin.ModelAdmin):
 # ADMIN: USUARIO PERSONALIZADO
 # =============================================================================
 @admin.register(CustomUser)
-class CustomUserAdmin(UserAdmin):
+class CustomUserAdmin(SuscripcionUsuarioAdminMixin, UserAdmin):
+    """
+    Gestión visual de usuarios + columna «Suscripción» INTERACTIVA.
+
+    El combobox de la columna cambia el plan en caliente (Free / Pro /
+    Personalizado) mediante `admin_suscripcion.cambiar_plan_view`, que aplica el
+    cambio con `services/suscripcion.aplicar_plan_usuario()` (única fuente de
+    verdad: alinea `es_premium`, `limite_objetos` y `ocultar_publicidad`).
+    """
+
     list_display = ['username', 'email', 'get_full_name', 'is_active',
-                    'es_premium', 'plan_suscripcion', 'ocultar_publicidad']
-    list_filter = ['is_active', 'is_staff', 'es_premium', 'plan_suscripcion']
+                    'selector_plan', 'es_premium', 'ocultar_publicidad',
+                    'ultima_actividad']
+    list_filter = ['is_active', 'is_staff', 'es_premium', 'plan_suscripcion',
+                   'ocultar_publicidad']
     search_fields = ['username', 'email', 'first_name', 'last_name']
+    readonly_fields = ['ultima_actividad', 'login_count', 'date_joined',
+                       'last_login']
 
     fieldsets = UserAdmin.fieldsets + (
         ('Información adicional', {
@@ -114,7 +132,10 @@ class CustomUserAdmin(UserAdmin):
             'description': (
                 'Plan Pro: sin publicidad y sin límite de objetos. Si el usuario '
                 'es CREADOR de un Estok/Hogar, sus miembros heredan '
-                'automáticamente «Ocultar publicidad».'
+                'automáticamente «Ocultar publicidad». El plan también se puede '
+                'cambiar en caliente desde la columna «Suscripción» de la lista, '
+                'y los permisos/cuotas por botón en «Permisos y cuotas por botón» '
+                'del Admin.'
             ),
         }),
     )

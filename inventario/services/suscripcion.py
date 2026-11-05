@@ -23,9 +23,12 @@ from ..models import CustomUser, Estok, Membresia, Objeto
 logger = logging.getLogger(__name__)
 
 # Planes válidos (los mismos `choices` de CustomUser.plan_suscripcion y
-# Estok.plan_suscripcion).
+# Estok.plan_suscripcion) + el plan «Personalizado» del usuario, que habilita
+# permisos y cuotas propias por botón (models/permisos_botones.py).
 PLAN_FREE = 'free'
 PLAN_PRO = 'pro'
+PLAN_PERSONALIZADO = 'personalizado'
+PLANES_VALIDOS = (PLAN_FREE, PLAN_PRO, PLAN_PERSONALIZADO)
 
 # Cuota por defecto del plan gratuito (coincide con el default del modelo).
 LIMITE_OBJETOS_FREE = 100
@@ -111,6 +114,58 @@ def usuario_es_premium(usuario, estok_id=None):
 def plan_efectivo(usuario, estok_id=None):
     """Plan canónico ('free' / 'pro') que debe mostrar la UI."""
     return PLAN_PRO if usuario_es_premium(usuario, estok_id) else PLAN_FREE
+
+
+def aplicar_plan_usuario(usuario, plan):
+    """
+    Escribe el plan del usuario y deja COHERENTES los campos derivados.
+
+    Es el único punto que cambia el plan a mano (lo usan la columna
+    «Suscripción» de la lista de usuarios y el Panel de Permisos por botón):
+
+        - `pro`           → es_premium=True, limite_objetos=None (ilimitado),
+                            ocultar_publicidad=True (sin anuncios).
+        - `free`          → es_premium=False, limite_objetos=LIMITE_OBJETOS_FREE,
+                            ocultar_publicidad=False (las señales de
+                            signals.py vuelven a aplicar la herencia del hogar).
+        - `personalizado` → SÓLO cambia la etiqueta del plan: sus permisos y
+                            cuotas salen de `BotonPermiso` del usuario. No se
+                            tocan `es_premium` ni la publicidad (el Admin los
+                            define en el formulario del usuario).
+
+    Devuelve el dict de campos finalmente escritos. Lanza `ValueError` si el
+    plan no existe.
+    """
+    if usuario is None or not getattr(usuario, 'pk', None):
+        raise ValueError('Se requiere un usuario guardado para cambiar el plan.')
+
+    normalizado = str(plan or '').strip().lower()
+    if normalizado not in PLANES_VALIDOS:
+        raise ValueError(f'Plan inválido: {plan!r}')
+
+    campos = {'plan_suscripcion': normalizado}
+    if normalizado == PLAN_PRO:
+        campos.update(
+            es_premium=True,
+            limite_objetos=None,
+            ocultar_publicidad=True,
+        )
+    elif normalizado == PLAN_FREE:
+        campos.update(
+            es_premium=False,
+            limite_objetos=LIMITE_OBJETOS_FREE,
+            ocultar_publicidad=False,
+        )
+
+    for campo, valor in campos.items():
+        setattr(usuario, campo, valor)
+    usuario.save(update_fields=list(campos.keys()))
+
+    logger.info(
+        'Plan de %s cambiado a %s (campos: %s)',
+        getattr(usuario, 'username', '?'), normalizado, ', '.join(campos),
+    )
+    return campos
 
 
 def ocultar_publicidad_efectivo(usuario, estok_id=None):

@@ -1,0 +1,133 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+PANEL DE PERMISOS Y CUOTAS GRANULARES POR BOTÓN (Admin Global).
+
+Arriba: combobox para elegir un PLAN base (Free / Pro) o un USUARIO concreto.
+Abajo: todos los botones del sistema con checkbox (habilitar/deshabilitar) y
+textbox (límite de usos por período). Guardar para un usuario lo pasa a plan
+«Personalizado» (lo hace la vista, no este template).
+{% endcomment %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Inicio</a>
+  &rsaquo; <a href="{{ url_changelist }}">Permisos y cuotas por botón</a>
+  &rsaquo; Matriz
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <form method="get" style="margin:0 0 1.2rem;">
+    <label for="objetivo"><strong>Configurar permisos para:</strong></label>
+    <select name="objetivo" id="objetivo" onchange="this.form.submit();">
+      {% for valor, etiqueta in objetivos %}
+        <option value="{{ valor }}"{% if valor == objetivo %} selected{% endif %}>{{ etiqueta }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="button">Ver</button></noscript>
+  </form>
+
+  {% if usuario_objetivo %}
+    <ul class="messagelist">
+      <li class="info">
+        Estás editando las reglas propias de
+        <strong>{{ usuario_objetivo.username }}</strong>
+        (plan actual: {{ usuario_objetivo.get_plan_suscripcion_display }}).
+        Al guardar, su plan pasa a <strong>«Personalizado»</strong> y estas
+        reglas mandan sobre las del plan base.
+      </li>
+    </ul>
+  {% else %}
+    <ul class="messagelist">
+      <li class="info">
+        Estás editando las reglas del <strong>plan {{ plan|upper }}</strong>.
+        Aplican a todos los usuarios de ese plan que no tengan reglas propias.
+      </li>
+    </ul>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="objetivo" value="{{ objetivo }}">
+
+    <table id="matriz-permisos" style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th scope="col" style="text-align:left;">Botón / función</th>
+          <th scope="col">Habilitado</th>
+          <th scope="col">Límite de usos</th>
+          <th scope="col">Período</th>
+          <th scope="col">Consumo (período / total)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fila in filas %}
+          <tr>
+            <th scope="row" style="text-align:left;font-weight:normal;">
+              <strong>{{ fila.nombre }}</strong>
+              <div class="help" style="margin:0;">{{ fila.descripcion }}</div>
+              <div class="help" style="margin:0;">
+                <code>{{ fila.identificador }}</code>
+                {% if fila.feature_flag %}
+                  &middot; Feature Flag: <code>{{ fila.feature_flag }}</code>
+                {% endif %}
+                &middot; origen: {{ fila.origen }}
+              </div>
+            </th>
+            <td style="text-align:center;">
+              <input
+                type="checkbox"
+                name="permitido_{{ fila.identificador }}"
+                {% if fila.permitido %}checked{% endif %}
+                aria-label="Habilitar {{ fila.nombre }}">
+            </td>
+            <td style="text-align:center;">
+              <input
+                type="number"
+                name="limite_{{ fila.identificador }}"
+                value="{{ fila.limite_usos }}"
+                min="-1"
+                step="1"
+                style="width:6rem;"
+                aria-label="Límite de usos de {{ fila.nombre }}">
+              <div class="help" style="margin:0;">-1 = ilimitado</div>
+            </td>
+            <td style="text-align:center;">
+              <select name="periodo_{{ fila.identificador }}"
+                      aria-label="Período de {{ fila.nombre }}">
+                {% for valor, etiqueta in periodos %}
+                  <option value="{{ valor }}"{% if valor == fila.periodo %} selected{% endif %}>{{ etiqueta }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td style="text-align:center;">
+              {% if usuario_objetivo %}
+                {{ fila.usos }} / {{ fila.usos_totales }}
+              {% else %}
+                &mdash;
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="submit-row" style="margin-top:1rem;">
+      <input type="submit" class="default" value="Guardar permisos y cuotas">
+    </div>
+  </form>
+
+  <p class="help" style="margin-top:1.2rem;">
+    Al agotarse la cuota, el endpoint del botón responde
+    <code>HTTP 402</code> con el mensaje: «{{ mensaje_cuota }}».
+    Si la función está deshabilitada, responde <code>HTTP 403</code>.
+    El interruptor maestro de cada función sigue viviendo en
+    <a href="{{ url_flags }}">Feature Flags</a> y el consumo real se audita en
+    <a href="{{ url_cuotas }}">Cuotas de uso por botón</a>.
+  </p>
+
+</div>
+{% endblock %}

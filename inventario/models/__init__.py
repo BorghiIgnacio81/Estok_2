@@ -16,6 +16,17 @@ from .multimedia import FotoObjeto
 from .notificaciones import AlertaStock
 from .integraciones import MercadoLibreToken, MercadoLibrePublicacion
 from .suscripciones import SuscripcionPago
+from .permisos_botones import (
+    BOTONES_CATALOGO,
+    BOTON_COMPARAR_PRECIO,
+    BOTON_EXPORTAR_CSV,
+    BOTON_EXPORTAR_PDF,
+    BOTON_IA_GEMINI,
+    BOTON_SYNC_MERCADOLIBRE,
+    IDENTIFICADORES_BOTONES,
+    BotonPermiso,
+    CuotaUsoUsuario,
+)
 from .chat import Mensaje
 from .decisiones import DecisionVotacion, VotoDecision
 
