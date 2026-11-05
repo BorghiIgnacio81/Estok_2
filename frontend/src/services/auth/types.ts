@@ -30,6 +30,14 @@ export interface AuthUser {
   estoks: EstokInfo[];
   ultimo_estok_activo_id: string | null;
   tiene_clave_temporal: boolean;
+  // Estado de monetización (lo agrega GET /api/usuarios/me/ desde
+  // plan_acceso.estado_plan_usuario): el frontend lo usa para destruir el
+  // espacio publicitario. Opcionales para no romper la caché vieja de
+  // localStorage ni los endpoints que devuelven el usuario sin plan.
+  es_premium?: boolean;
+  ocultar_publicidad?: boolean;
+  plan_suscripcion?: 'free' | 'pro';
+  limite_objetos?: number | null;
 }
 
 export interface AuthError {

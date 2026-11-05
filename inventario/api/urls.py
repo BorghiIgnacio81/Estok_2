@@ -24,6 +24,7 @@ from .viewsets import (
     VersionViewSet,
     CategoriaViewSet,
     MercadoLibreViewSet,
+    SuscripcionViewSet,
     SuperAdminUserViewSet,
     SuperAdminEstokViewSet,
     AiModelsView,
@@ -58,6 +59,7 @@ router.register(r'mensajes', MensajeViewSet, basename='mensaje')
 router.register(r'version', VersionViewSet, basename='version')
 router.register(r'categorias', CategoriaViewSet, basename='categoria')
 router.register(r'mercadolibre', MercadoLibreViewSet, basename='mercadolibre')
+router.register(r'suscripciones', SuscripcionViewSet, basename='suscripcion')
 
 # =============================================================================
 # MODO DIOS (Super Admin) - Vista global de auditoría, SOLO 'ygumy44'

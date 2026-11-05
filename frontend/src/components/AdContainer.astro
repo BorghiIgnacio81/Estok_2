@@ -1,0 +1,184 @@
+---
+// =============================================================================
+// <AdContainer /> — espacio publicitario DINÁMICO (monetización)
+// -----------------------------------------------------------------------------
+// Renderiza un banner de publicidad que el cliente destruye por completo cuando
+// el usuario es Pro (`ocultar_publicidad = true` o `es_premium = true`).
+//
+// Reglas de diseño:
+//   1. El contenedor nace `hidden` + `aria-hidden`: un usuario Pro NUNCA ve un
+//      parpadeo de anuncio mientras se resuelve el plan.
+//   2. La decisión de mostrarlo/eliminarlo vive en `lib/publicidad/
+//      estadoPublicidad.ts` (única fuente de verdad en el cliente) y aplica
+//      `remove()` sobre `[data-ad-container]`: no queda hueco en la UI.
+//   3. Red publicitaria: AdSense en web (PUBLIC_ADSENSE_*). En la TWA el
+//      wrapper nativo puede montar un banner AdMob leyendo `window.EstokAds`
+//      (ver PWA_MOVIL_EMPAQUETADO.md).
+//   4. Sin red configurada se muestra el "anuncio de casa" (upgrade a Pro) para
+//      no dejar el slot vacío en cuentas gratuitas.
+// =============================================================================
+
+export interface Props {
+  /** id del contenedor (permite varios slots por página). */
+  id?: string;
+  /** banner = 320x50/320x100 · rectangulo = bloque más alto. */
+  formato?: 'banner' | 'rectangulo';
+  class?: string;
+}
+
+const {
+  id = 'adContainerPrincipal',
+  formato = 'banner',
+  class: claseExtra = '',
+} = Astro.props;
+
+// Configuración pública del banner (build-time). Si falta, se usa el anuncio de
+// casa: la app nunca depende de que la red publicitaria esté configurada.
+const adsenseClient = String(import.meta.env.PUBLIC_ADSENSE_CLIENT_ID || '').trim();
+const adsenseSlot = String(import.meta.env.PUBLIC_ADSENSE_SLOT_BANNER || '').trim();
+const admobBannerId = String(import.meta.env.PUBLIC_ADMOB_BANNER_ID || '').trim();
+
+const altoMinimo = formato === 'rectangulo' ? 'min-h-[250px]' : 'min-h-[60px]';
+---
+
+<div
+  id={id}
+  data-ad-container
+  data-ad-formato={formato}
+  data-ad-client={adsenseClient}
+  data-ad-slot={adsenseSlot}
+  data-admob-unit={admobBannerId}
+  data-estado="oculto"
+  hidden
+  aria-hidden="true"
+  class={`w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 ${claseExtra}`}
+>
+  <!-- Red publicitaria (AdSense / AdMob nativo). Se rellena en cliente. -->
+  <div
+    data-ad-network
+    class={`hidden w-full ${altoMinimo} rounded-xl bg-gray-100/60 dark:bg-slate-800/60 items-center justify-center overflow-hidden`}
+  ></div>
+
+  <!-- Anuncio de casa: sólo se ve si no hay red publicitaria configurada. -->
+  <div
+    data-ad-house
+    class="hidden w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+  >
+    <div class="flex items-start gap-2">
+      <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+      <p class="text-xs sm:text-sm text-amber-900">
+        <span class="font-semibold">Estok Pro:</span> sin publicidad y sin límite de objetos.
+      </p>
+    </div>
+    <button
+      type="button"
+      data-ad-upgrade
+      class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-base cursor-pointer"
+    >
+      Quitar la publicidad
+    </button>
+  </div>
+</div>
+
+<script>
+  // ===========================================================================
+  // PINTADO DEL BANNER (sólo cuando el plan gratuito habilita el slot)
+  // La decisión de ocultar/eliminar NO está acá: la resuelve
+  // lib/publicidad/estadoPublicidad.ts, que además dispara 'estok:publicidad'.
+  // ===========================================================================
+  import { irACheckoutPro } from '../services/suscripciones';
+
+  type DetallePublicidad = {
+    estado: { ocultar: boolean; premium: boolean; plan: string };
+  };
+
+  const ADSENSE_SCRIPT = 'script[data-estok-adsense]';
+
+  /** Carga adsbygoogle.js una sola vez (idempotente entre slots). */
+  function cargarAdSense(client: string): void {
+    if (!client || document.querySelector(ADSENSE_SCRIPT)) return;
+    const script = document.createElement('script');
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
+    script.dataset.estokAdsense = '1';
+    document.head.appendChild(script);
+  }
+
+  function pintarRed(contenedor: HTMLElement): boolean {
+    const client = contenedor.dataset.adClient || '';
+    const slot = contenedor.dataset.adSlot || '';
+    const red = contenedor.querySelector<HTMLElement>('[data-ad-network]');
+    if (!client || !slot || !red) return false;
+
+    cargarAdSense(client);
+    if (!red.querySelector('ins.adsbygoogle')) {
+      const ins = document.createElement('ins');
+      ins.className = 'adsbygoogle';
+      ins.style.display = 'block';
+      ins.style.width = '100%';
+      ins.dataset.adClient = client;
+      ins.dataset.adSlot = slot;
+      ins.dataset.adFormat = 'auto';
+      ins.dataset.fullWidthResponsive = 'true';
+      red.appendChild(ins);
+      const cola = ((window as any).adsbygoogle = (window as any).adsbygoogle || []);
+      cola.push({});
+    }
+    red.classList.remove('hidden');
+    red.classList.add('flex');
+    return true;
+  }
+
+  function mostrarAnuncioDeCasa(contenedor: HTMLElement): void {
+    const casa = contenedor.querySelector<HTMLElement>('[data-ad-house]');
+    if (!casa) return;
+    casa.classList.remove('hidden');
+    casa.classList.add('flex');
+  }
+
+  /** Avisa al wrapper nativo (TWA) que puede montar el banner AdMob. */
+  function avisarNativo(contenedor: HTMLElement): void {
+    const puente = (window as any).EstokAds?.nativo;
+    const unidad = contenedor.dataset.admobUnit || '';
+    if (unidad && typeof puente?.mostrarBanner === 'function') {
+      try {
+        puente.mostrarBanner(unidad);
+      } catch {
+        // Sin wrapper nativo: el banner web (o el de casa) ya está pintado.
+      }
+    }
+  }
+
+  function aplicar(detalle: DetallePublicidad): void {
+    if (!detalle?.estado || detalle.estado.ocultar) return;
+
+    document.querySelectorAll<HTMLElement>('[data-ad-container]').forEach((contenedor) => {
+      if (contenedor.hidden) return;
+      if (contenedor.dataset.pintado === '1') return;
+      contenedor.dataset.pintado = '1';
+
+      if (!pintarRed(contenedor)) mostrarAnuncioDeCasa(contenedor);
+      avisarNativo(contenedor);
+    });
+  }
+
+  // 1) Estado ya resuelto antes de que este script se ejecute.
+  const estadoActual = (window as any).EstokAds?.estado;
+  if (estadoActual) aplicar({ estado: estadoActual });
+
+  // 2) Estado que resuelva/actualice el módulo de publicidad.
+  window.addEventListener('estok:publicidad', (evento) => {
+    aplicar((evento as CustomEvent<DetallePublicidad>).detail);
+  });
+
+  // 3) CTA "Quitar la publicidad" → Checkout Pro de la suscripción.
+  document.addEventListener('click', (evento) => {
+    const boton = (evento.target as HTMLElement)?.closest('[data-ad-upgrade]');
+    if (!boton) return;
+    evento.preventDefault();
+    void irACheckoutPro();
+  });
+</script>

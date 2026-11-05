@@ -5,7 +5,8 @@ from .models import (
     Ubicacion, Contenedor,
     Objeto,
     FotoObjeto,
-    FeatureFlag
+    FeatureFlag,
+    SuscripcionPago,
 )
 
 
@@ -212,3 +213,35 @@ class CodigoInvitacionAdmin(admin.ModelAdmin):
     list_display = ['codigo', 'estok', 'role', 'activo', 'usos_actuales', 'usos_maximos', 'fecha_expiracion']
     list_filter = ['activo', 'estok']
     search_fields = ['codigo', 'estok__nombre']
+
+
+# =============================================================================
+# ADMIN: PAGOS DE SUSCRIPCIÓN (MONETIZACIÓN)
+# =============================================================================
+@admin.register(SuscripcionPago)
+class SuscripcionPagoAdmin(admin.ModelAdmin):
+    """
+    Auditoría de la pasarela de pago (sólo lectura).
+
+    El estado lo escribe el webhook de Mercado Pago
+    (services/suscripcion_pago.py): editarlo a mano NO activa ni desactiva el
+    plan Pro. Para cambiar el plan se usa el campo «Es premium» del usuario o
+    del Estok (única fuente de verdad: services/suscripcion.py).
+    """
+
+    list_display = ['created_at', 'usuario', 'estok', 'estado', 'monto',
+                    'moneda', 'dias_otorgados', 'pago_id']
+    list_filter = ['estado', 'proveedor', 'moneda']
+    search_fields = ['usuario__username', 'usuario__email', 'referencia_externa',
+                     'preferencia_id', 'pago_id']
+    date_hierarchy = 'created_at'
+    ordering = ['-created_at']
+    readonly_fields = ['id', 'usuario', 'estok', 'proveedor', 'plan',
+                       'referencia_externa', 'preferencia_id', 'pago_id',
+                       'estado', 'monto', 'moneda', 'dias_otorgados',
+                       'init_point', 'detalle', 'created_at', 'updated_at']
+
+    def has_add_permission(self, request):
+        # Las compras las crea el endpoint de suscripciones, no el admin.
+        return False
+

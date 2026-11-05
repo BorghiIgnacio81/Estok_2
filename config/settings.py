@@ -255,6 +255,41 @@ MERCADOLIBRE_DEFAULT_PICTURE_URL = os.environ.get(
 )
 
 # =============================================================================
+# MONETIZACIÓN · SUSCRIPCIÓN PRO (Checkout de Mercado Pago + AdMob/AdSense)
+# -----------------------------------------------------------------------------
+# El plan Pro se vende con Checkout Pro de Mercado Pago (REST, sin SDK) porque
+# el backend ya usa `requests` y no se agrega una dependencia nueva. Flujo:
+#   1. POST /api/suscripciones/crear_preferencia/  → init_point (checkout).
+#   2. El usuario paga en Mercado Pago y la pasarela llama a
+#      POST /api/suscripciones/webhook/ (público, sin JWT).
+#   3. El webhook consulta GET /v1/payments/{id} y, si el pago está aprobado,
+#      activa `es_premium` / `ocultar_publicidad` (services/suscripcion_pago.py).
+# Si MERCADOPAGO_ACCESS_TOKEN queda vacío, el endpoint responde 503 con un
+# mensaje claro: la app sigue funcionando en plan gratuito con publicidad.
+# =============================================================================
+MERCADOPAGO_ACCESS_TOKEN = os.environ.get('MERCADOPAGO_ACCESS_TOKEN', '').strip()
+
+# URL base de la API de Mercado Pago (no cambiar salvo sandbox/on-premise).
+MERCADOPAGO_API_BASE = os.environ.get(
+    'MERCADOPAGO_API_BASE', 'https://api.mercadopago.com'
+).rstrip('/')
+
+# URL pública a la que Mercado Pago envía las notificaciones (IPN/Webhooks).
+# Debe ser HTTPS y accesible desde Internet (Coolify/Traefik ya lo resuelve).
+SUSCRIPCION_WEBHOOK_URL = os.environ.get(
+    'SUSCRIPCION_WEBHOOK_URL',
+    f'{SITE_URL}/api/suscripciones/webhook/',
+)
+
+# Precio y duración del plan Pro (ARS / días de vigencia por pago).
+SUSCRIPCION_PRO_PRECIO_ARS = os.environ.get('SUSCRIPCION_PRO_PRECIO_ARS', '4999')
+SUSCRIPCION_PRO_DIAS = os.environ.get('SUSCRIPCION_PRO_DIAS', '30')
+SUSCRIPCION_PRO_MONEDA = os.environ.get('SUSCRIPCION_PRO_MONEDA', 'ARS')
+SUSCRIPCION_PRO_TITULO = os.environ.get(
+    'SUSCRIPCION_PRO_TITULO', 'Estok Pro - 30 días sin publicidad'
+)
+
+# =============================================================================
 # IA MULTI-MOTOR - CONMUTACIÓN POR ERROR (FAILOVER EN CADENA)
 # El análisis de imágenes es 100% en la NUBE (no hay motor local).
 #

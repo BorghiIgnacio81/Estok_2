@@ -1,0 +1,136 @@
+---
+// =============================================================================
+// LAYOUT DE PÁGINAS LEGALES (público, sin autenticación)
+// -----------------------------------------------------------------------------
+// Lo usan /politica-privacidad y /terminos-servicio, que Google Play Store exige
+// declarar en la ficha de la app (y AdMob/AdSense exigen para aprobar la cuenta).
+//
+// A propósito NO usa BaseLayout: esas páginas deben abrirse sin sesión, sin
+// navbar de la app, sin chat y sin publicidad (no hay <AdContainer /> acá).
+// =============================================================================
+
+import '../styles/global.css';
+
+export interface Props {
+  title: string;
+  description: string;
+  /** Fecha de la última revisión del documento (ISO: YYYY-MM-DD). */
+  actualizado: string;
+}
+
+const { title, description, actualizado } = Astro.props;
+
+// Fecha legible en español sin depender del locale del servidor.
+const [anio, mes, dia] = actualizado.split('-');
+const fechaLegible = `${dia}/${mes}/${anio}`;
+const anioActual = new Date().getFullYear();
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#8B4513" />
+    <meta name="robots" content="index, follow" />
+
+    <link rel="icon" type="image/png" href="/favicon.png?v=2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen flex flex-col" style="background-color: var(--bg-primary)">
+    <!-- Encabezado minimalista: identidad + vuelta a la app -->
+    <header class="bg-white border-b border-gray-200">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <a href="/" class="flex items-center gap-2 text-[#8B4513] font-extrabold text-xl">
+          <img src="/icons/icon-192x192.png" alt="Estok" class="w-8 h-8 rounded-lg" />
+          Estok
+        </a>
+        <a
+          href="/"
+          class="text-sm font-semibold text-gray-600 hover:text-[#8B4513] transition-base"
+        >
+          ← Volver a la app
+        </a>
+      </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8">
+      <article class="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 sm:px-8 py-7">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">{title}</h1>
+        <p class="text-xs text-gray-500 mb-6">Última actualización: {fechaLegible}</p>
+
+        <div class="legal-prose">
+          <slot />
+        </div>
+      </article>
+
+      <nav class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+        <a href="/politica-privacidad" class="text-[#8B4513] font-semibold hover:underline">
+          Política de Privacidad
+        </a>
+        <span class="text-gray-400">·</span>
+        <a href="/terminos-servicio" class="text-[#8B4513] font-semibold hover:underline">
+          Términos del Servicio
+        </a>
+      </nav>
+    </main>
+
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+      <div class="max-w-3xl mx-auto px-4 sm:px-6 py-5 text-center">
+        <p class="text-xs text-gray-500">
+          &copy; {anioActual} Estok · Sistema de Inventario Personal · Argentina
+        </p>
+      </div>
+    </footer>
+
+    <style is:global>
+      /* Tipografía de documentos legales: una sola definición para las dos
+         páginas (evita repetir clases de Tailwind en cada párrafo). */
+      .legal-prose {
+        color: #374151;
+        font-size: 0.9375rem;
+        line-height: 1.7;
+      }
+      .legal-prose h2 {
+        color: #111827;
+        font-size: 1.0625rem;
+        font-weight: 700;
+        margin: 1.75rem 0 0.5rem;
+      }
+      .legal-prose h3 {
+        color: #1f2937;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        margin: 1rem 0 0.35rem;
+      }
+      .legal-prose p {
+        margin: 0 0 0.75rem;
+      }
+      .legal-prose ul {
+        list-style: disc;
+        padding-left: 1.25rem;
+        margin: 0 0 0.9rem;
+      }
+      .legal-prose li {
+        margin-bottom: 0.35rem;
+      }
+      .legal-prose a {
+        color: #8b4513;
+        font-weight: 600;
+        text-decoration: underline;
+      }
+      .legal-prose strong {
+        color: #111827;
+      }
+    </style>
+  </body>
+</html>

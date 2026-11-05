@@ -1,0 +1,133 @@
+---
+// =============================================================================
+// TÉRMINOS DEL SERVICIO · requisito de Google Play Store
+// -----------------------------------------------------------------------------
+// URL pública exigida en la ficha de Play Store:
+//   https://eeestok.duckdns.org/terminos-servicio
+// =============================================================================
+import LegalLayout from '../layouts/LegalLayout.astro';
+
+const ACTUALIZADO = '2026-11-05';
+const CONTACTO = 'appestok@gmail.com';
+---
+
+<LegalLayout
+  title="Términos del Servicio"
+  description="Condiciones de uso de Estok, planes, pagos, publicaciones en Mercado Libre y responsabilidades."
+  actualizado={ACTUALIZADO}
+>
+  <p>
+    Estos Términos del Servicio («Términos») regulan el uso de <strong>Estok</strong>, la aplicación
+    de inventario personal disponible en <a href="https://eeestok.duckdns.org">eeestok.duckdns.org</a>
+    y en su versión para Android. Al crear una cuenta, instalar la app o usarla aceptás estos
+    Términos en su totalidad. Si no estás de acuerdo, no uses el servicio.
+  </p>
+
+  <h2>1. Descripción del servicio</h2>
+  <p>
+    Estok permite registrar y organizar objetos, contenedores, ubicaciones y espacios de un hogar u
+    organización; colaborar con otras personas dentro de un mismo grupo («Estok»); obtener ayuda de
+    inteligencia artificial para describir objetos; exportar informes; y publicar artículos en
+    Mercado Libre.
+  </p>
+
+  <h2>2. Cuenta y seguridad</h2>
+  <ul>
+    <li>Tenés que ser mayor de 13 años y, si sos menor, contar con autorización de tu madre, padre o tutor.</li>
+    <li>Los datos que declarás al registrarte deben ser reales y estar actualizados.</li>
+    <li>Sos responsable de mantener la confidencialidad de tu contraseña y de toda actividad realizada con tu cuenta.</li>
+    <li>Quien crea un grupo («Estok») administra sus miembros y puede invitar, quitar o cambiar roles.</li>
+  </ul>
+
+  <h2>3. Planes, publicidad y suscripción Pro</h2>
+  <ul>
+    <li><strong>Plan gratuito:</strong> incluye publicidad y un límite de 100 objetos por grupo. El límite puede ampliarse sin cargo a criterio del administrador del servicio.</li>
+    <li><strong>Estok Pro:</strong> elimina la publicidad y el límite de objetos mientras esté vigente.</li>
+    <li>El plan Pro se contrata por períodos de 30 días mediante <strong>Mercado Pago</strong> (Checkout Pro). El precio vigente se muestra antes de pagar; los precios se expresan en pesos argentinos e incluyen los impuestos aplicables.</li>
+    <li>Si la compra se realiza a través de <strong>Google Play</strong>, se aplican además las condiciones de facturación, renovación y reembolso de Google. Las suscripciones compradas en Play se gestionan desde la app de Play Store.</li>
+    <li>La activación del plan es automática una vez que la pasarela confirma el pago. Un pago rechazado o revertido no genera el plan.</li>
+    <li>Los reembolsos se rigen por la normativa de defensa del consumidor y por las políticas de la pasarela utilizada. Las solicitudes se evalúan escribiendo a <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.</li>
+  </ul>
+
+  <h2>4. Uso aceptable</h2>
+  <p>Al usar Estok te comprometés a no:</p>
+  <ul>
+    <li>Cargar contenido ilícito, ofensivo, difamatorio o que vulnere derechos de terceros.</li>
+    <li>Usar la app para vender productos prohibidos por la ley argentina o por las políticas de Mercado Libre.</li>
+    <li>Intentar acceder a cuentas, grupos o datos de otras personas sin autorización.</li>
+    <li>Automatizar peticiones masivas, interferir con la infraestructura o realizar ingeniería inversa del servicio.</li>
+    <li>Suplantar identidades o falsificar información de contacto.</li>
+  </ul>
+
+  <h2>5. Tu contenido</h2>
+  <p>
+    Conservás la titularidad de las fotos, textos y datos que cargás. Nos otorgás una licencia
+    limitada para almacenarlos, procesarlos y mostrarlos con el único fin de prestar el servicio,
+    incluyendo el envío de imágenes a los proveedores de inteligencia artificial cuando pedís una
+    función que los requiere. Podés eliminar tu contenido en cualquier momento desde la app.
+  </p>
+
+  <h2>6. Publicaciones en Mercado Libre</h2>
+  <p>
+    La conexión con Mercado Libre es opcional y requiere tu autorización expresa. Las publicaciones
+    se generan a partir de los datos de tus objetos y se envían a tu propia cuenta de vendedor:
+    <strong>la responsabilidad por el precio, la condición, la disponibilidad, la veracidad de los
+    datos y el cumplimiento de las reglas de Mercado Libre es exclusivamente tuya</strong>. Estok no
+    es parte de la operación de venta ni interviene en el cobro, el envío o las disputas.
+  </p>
+
+  <h2>7. Funciones de inteligencia artificial</h2>
+  <p>
+    Las sugerencias automáticas (categoría, marca, modelo, descripción) son estimaciones y pueden
+    contener errores. Verificá siempre la información antes de guardarla o publicarla. La
+    disponibilidad de los modelos depende de proveedores externos y puede interrumpirse sin aviso.
+  </p>
+
+  <h2>8. Disponibilidad y cambios en el servicio</h2>
+  <p>
+    El servicio se presta «tal como está». Podemos modificarlo, suspenderlo o discontinuarlo total o
+    parcialmente, con aviso razonable cuando sea posible. El mantenimiento programado puede
+    interrumpir el acceso temporalmente. No garantizamos disponibilidad ininterrumpida ni ausencia
+    de errores.
+  </p>
+
+  <h2>9. Límite de responsabilidad</h2>
+  <p>
+    En la máxima medida permitida por la ley, Estok no responde por daños indirectos, lucro cesante,
+    pérdida de datos derivada de fallas de terceros, ni por decisiones comerciales tomadas a partir
+    de la información registrada en la app. Nada en estos Términos limita los derechos que la Ley
+    24.240 de Defensa del Consumidor reconoce a los consumidores.
+  </p>
+
+  <h2>10. Propiedad intelectual</h2>
+  <p>
+    El nombre «Estok», su identidad visual, el código y la documentación son de titularidad del
+    proyecto. No se concede ninguna licencia sobre ellos salvo la necesaria para usar la aplicación
+    conforme a estos Términos.
+  </p>
+
+  <h2>11. Baja y cancelación</h2>
+  <ul>
+    <li>Podés dejar de usar la app en cualquier momento y solicitar la eliminación de tu cuenta escribiendo a <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.</li>
+    <li>Podemos suspender cuentas que incumplan estos Términos, previa notificación salvo casos graves (fraude, riesgo para otros usuarios o para la infraestructura).</li>
+    <li>La baja de la suscripción Pro no elimina tu inventario: sólo vuelve al plan gratuito con publicidad y límite de objetos.</li>
+  </ul>
+
+  <h2>12. Privacidad</h2>
+  <p>
+    El tratamiento de datos personales se rige por la
+    <a href="/politica-privacidad">Política de Privacidad</a>, que forma parte de estos Términos.
+  </p>
+
+  <h2>13. Ley aplicable y jurisdicción</h2>
+  <p>
+    Estos Términos se rigen por las leyes de la República Argentina. Cualquier controversia se
+    someterá a los tribunales ordinarios competentes del domicilio del usuario consumidor, conforme
+    a la normativa de defensa del consumidor vigente.
+  </p>
+
+  <h2>14. Contacto</h2>
+  <p>
+    Consultas sobre estos Términos: <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.
+  </p>
+</LegalLayout>

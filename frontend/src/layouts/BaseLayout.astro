@@ -8,6 +8,7 @@
 import '../styles/global.css';
 import ChatModal from '../components/ChatModal.astro';
 import MobileNavBars from '../components/MobileNavBars.astro';
+import AdContainer from '../components/AdContainer.astro';
 
 export interface Props {
   title?: string;
@@ -315,6 +316,11 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
       <slot />
     </main>
 
+    <!-- Publicidad dinámica (plan gratuito). El módulo
+         lib/publicidad/estadoPublicidad.ts lo DESTRUYE del DOM si el usuario es
+         Pro (`ocultar_publicidad` / `es_premium`): no deja hueco en la UI. -->
+    <AdContainer />
+
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 mt-auto">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -322,9 +328,16 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
           <p class="text-sm text-gray-500">
             &copy; {new Date().getFullYear()} Estok - Sistema de Inventario Personal
           </p>
-          <p class="text-sm text-gray-400">
-            Construido con Astro + Tailwind CSS
-          </p>
+          <!-- Páginas legales: Google Play Store exige que estén accesibles desde
+               la app, además de en la ficha de la tienda. -->
+          <nav class="flex items-center gap-4 text-sm">
+            <a href="/politica-privacidad" class="text-gray-500 hover:text-[#8B4513] transition-base">
+              Privacidad
+            </a>
+            <a href="/terminos-servicio" class="text-gray-500 hover:text-[#8B4513] transition-base">
+              Términos
+            </a>
+          </nav>
         </div>
       </div>
     </footer>
@@ -345,4 +358,9 @@ const { title = 'Estok - Sistema de Inventario', description = 'Sistema de gesti
   // en src/lib/layout/ (toasts, nav desktop/movil, god mode, dark mode, service
   // worker, heartbeat, presencia y deteccion de redeploy).
   import '../lib/layout/baseLayout';
+
+  // Monetizacion: resolver el plan del usuario y destruir/revelar el espacio
+  // publicitario (<AdContainer />) segun `ocultar_publicidad` / `es_premium`.
+  import { inicializarPublicidad } from '../lib/publicidad/estadoPublicidad';
+  inicializarPublicidad();
 </script>

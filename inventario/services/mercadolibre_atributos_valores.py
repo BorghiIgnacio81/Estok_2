@@ -49,6 +49,15 @@ ATRIBUTOS_OBJETO = {
     "PRODUCT_NAME": ("Producto", ("nombre", "titulo")),
     "ITEM_NAME": ("Producto", ("nombre", "titulo")),
     "TITLE": ("Producto", ("titulo", "nombre")),
+    # GTIN / EAN / UPC (código de barras): Mercado Libre documenta que un
+    # producto SIN código de barras se declara con el valor "-1". Es el único
+    # valor válido ahí: mandar "Genérico" (texto) produce HTTP 400
+    # "body.invalid_fields" y omitir el atributo produce "body.required_fields".
+    # Si el objeto trae el código REAL (en `especificaciones`: gtin / ean / upc /
+    # codigo de barras), ese valor gana siempre sobre el "-1".
+    "GTIN": ("-1", ("gtin", "ean", "upc", "codigo_barras")),
+    "EAN": ("-1", ("gtin", "ean", "upc", "codigo_barras")),
+    "UPC": ("-1", ("gtin", "ean", "upc", "codigo_barras")),
     "COLOR": (VALOR_GENERICO, ("color",)),
     "SIZE": ("Sin especificar", ("tamano",)),
     "MATERIAL": (VALOR_GENERICO, ("material",)),

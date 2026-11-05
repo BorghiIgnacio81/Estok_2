@@ -22,6 +22,11 @@ móvil. **No requiere cambiar el despliegue**: la app sigue siendo SSR
 | Selector «📷 Tomar foto» (`capture="environment"`) / «🖼️ Elegir de la Galería» en edición de objeto | `frontend/src/pages/objetos/[id]/editar/index.astro` + `lib/editarObjetoFotos.ts` | ✅ |
 | Header `Permissions-Policy: camera=(self)` y `/.well-known/` | `nginx-combined.conf` | ✅ |
 | Targets de build para WebView (es2020/safari14) y host LAN en dev | `frontend/astro.config.mjs` | ✅ |
+| Digital Asset Links de la TWA (`org.eeestok.app`) | `frontend/public/.well-known/assetlinks.json` | ✅ (falta la huella SHA-256 real) |
+| Banner publicitario dinámico (se destruye si el plan es Pro) | `frontend/src/components/AdContainer.astro` + `src/lib/publicidad/estadoPublicidad.ts` | ✅ |
+| Páginas legales exigidas por Play Store | `/politica-privacidad` y `/terminos-servicio` (`src/pages/`, layout `LegalLayout.astro`) | ✅ |
+| Suscripción Pro (checkout + webhook) | `inventario/api/viewsets/suscripciones.py` + `inventario/services/suscripcion_pago.py` | ✅ (requiere `MERCADOPAGO_ACCESS_TOKEN`) |
+
 
 > **Nota honesta:** la cámara en vivo y la instalación PWA no se pueden validar
 > desde este entorno (ni con `localhost`): requieren HTTPS y un dispositivo
@@ -248,9 +253,71 @@ npx cap open android   # compilar y ejecutar en el móvil
 - El formulario de edición de objetos mantiene el botón *Subir foto(s)*
   deshabilitado (la subida arranca al elegir el archivo). Es el comportamiento
   previo; no se modificó para no ampliar el alcance.
-- La orientación del manifest es `portrait-primary`. Si se quiere permitir
-  landscape (mapas), cambiarla a `any` y volver a validar el layout móvil.
-
+- La orientación del manifest es `portrait` (layout móvil ya validado en
+  vertical). Si se quiere permitir landscape para los mapas, cambiarla a `any`
+  y volver a validar el layout en horizontal.
 - Botón ATRÁS del hardware: vuelve de pantalla; en la raíz minimiza la app
   (requiere `@capacitor/app` solo si se usa Capacitor; en TWA lo maneja Chrome).
 - `/escanear`: debe pedir permiso de cámara y mostrar el feed.
+
+---
+
+## 8. Monetización y requisitos de Google Play Store
+
+### 8.1 Publicidad dinámica (`<AdContainer />`)
+
+- El layout incluye un único slot publicitario (`components/AdContainer.astro`,
+  montado en `layouts/BaseLayout.astro`). Nace `hidden` para que un usuario Pro
+  no vea ni un parpadeo de anuncio.
+- `lib/publicidad/estadoPublicidad.ts` es la ÚNICA fuente de verdad en el
+  cliente: lee `GET /api/usuarios/me/` (`ocultar_publicidad`, `es_premium`,
+  `plan_suscripcion`) y, si el plan es Pro, ejecuta `remove()` sobre
+  `[data-ad-container]` → **no queda hueco ni margen en la UI**.
+- Red publicitaria en web: definir en `frontend/.env` (build):
+  `PUBLIC_ADSENSE_CLIENT_ID`, `PUBLIC_ADSENSE_SLOT_BANNER`. Sin esas variables
+  se muestra el "anuncio de casa" (invitación a Estok Pro).
+- En la TWA/Capacitor el wrapper nativo puede montar el banner AdMob leyendo
+  `window.EstokAds.estado` y el evento `window.addEventListener('estok:publicidad', ...)`;
+  la unidad se configura con `PUBLIC_ADMOB_BANNER_ID`
+  (queda en `data-admob-unit`).
+
+### 8.2 Suscripción Pro (Mercado Pago)
+
+| Endpoint | Método | Auth | Uso |
+| --- | --- | --- | --- |
+| `/api/suscripciones/crear_preferencia/` | POST | JWT | Crea la preferencia de Checkout Pro y devuelve `init_point`. |
+| `/api/suscripciones/webhook/` | POST | Público | Mercado Pago notifica; el backend CONSULTA el pago y activa el plan. |
+
+Pasos para activarlo en producción:
+
+1. Cargar `MERCADOPAGO_ACCESS_TOKEN` en las variables de entorno de Coolify
+   (mientras falte, el endpoint responde **503** y la app sigue en plan gratuito).
+2. Verificar que `SUSCRIPCION_WEBHOOK_URL` sea `https://eeestok.duckdns.org/api/suscripciones/webhook/`.
+3. Ajustar `SUSCRIPCION_PRO_PRECIO_ARS` / `SUSCRIPCION_PRO_DIAS` si cambia el precio.
+4. Cada pago aprobado deja un registro auditable en **Admin → Pagos de suscripción**
+   (`SuscripcionPago`) y activa `es_premium` + `ocultar_publicidad` (el hogar
+   completo hereda el plan si la compra fue a nombre del Estok).
+
+> **Si se cobra dentro de la app en Google Play** hay que usar *Google Play
+> Billing* (política de Play): una compra con Mercado Pago dentro de la app
+> distribuida por Play puede ser rechazada. Alternativas válidas: cobrar en la
+> web (fuera de la app) o integrar Play Billing con un webhook equivalente a
+> `procesar_notificacion()`.
+
+### 8.3 Páginas legales (obligatorias)
+
+- `https://eeestok.duckdns.org/politica-privacidad`
+- `https://eeestok.duckdns.org/terminos-servicio`
+
+Se enlazan desde el footer de la app y deben declararse en Play Console
+(*Contenido de la app → Política de privacidad*) y en la consola de AdMob.
+
+### 8.4 Checklist antes de subir el AAB
+
+- [ ] `manifest.json` con `display: standalone`, `orientation: portrait`,
+      iconos 512 + maskable y `theme_color` `#8B4513`.
+- [ ] `/.well-known/assetlinks.json` respondiendo 200 con la huella SHA-256 real.
+- [ ] Política de privacidad y términos publicados y accesibles.
+- [ ] `MERCADOPAGO_ACCESS_TOKEN` cargado (o publicidad de casa como fallback).
+- [ ] `npm run build` sin errores y `python manage.py check` sin issues.
+

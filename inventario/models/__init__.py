@@ -15,6 +15,7 @@ from .productos import Objeto, HistorialPrecio
 from .multimedia import FotoObjeto
 from .notificaciones import AlertaStock
 from .integraciones import MercadoLibreToken, MercadoLibrePublicacion
+from .suscripciones import SuscripcionPago
 from .chat import Mensaje
 from .decisiones import DecisionVotacion, VotoDecision
 
@@ -35,6 +36,7 @@ __all__ = [
     'AlertaStock',
     'MercadoLibreToken',
     'MercadoLibrePublicacion',
+    'SuscripcionPago',
     'Mensaje',
     'DecisionVotacion',
     'VotoDecision',

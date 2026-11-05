@@ -1,0 +1,144 @@
+---
+// =============================================================================
+// POLÍTICA DE PRIVACIDAD · requisito de Google Play Store / AdMob / AdSense
+// -----------------------------------------------------------------------------
+// URL pública exigida en la ficha de Play Store y en la consola de AdMob:
+//   https://eeestok.duckdns.org/politica-privacidad
+// =============================================================================
+import LegalLayout from '../layouts/LegalLayout.astro';
+
+const ACTUALIZADO = '2026-11-05';
+const CONTACTO = 'appestok@gmail.com';
+---
+
+<LegalLayout
+  title="Política de Privacidad"
+  description="Cómo Estok recopila, usa y protege tus datos personales y los de tu inventario."
+  actualizado={ACTUALIZADO}
+>
+  <p>
+    Esta Política de Privacidad describe cómo <strong>Estok</strong> (en adelante, «Estok», «la app»),
+    disponible en <a href="https://eeestok.duckdns.org">https://eeestok.duckdns.org</a> y en su
+    aplicación para Android, recopila, usa, almacena y protege la información de las personas que la
+    utilizan. Al crear una cuenta y usar la app aceptás las prácticas descritas en este documento.
+  </p>
+
+  <h2>1. Responsable del tratamiento</h2>
+  <p>
+    El responsable de la base de datos es el titular del proyecto Estok, con domicilio en la
+    República Argentina. Para cualquier consulta, reclamo o ejercicio de derechos podés escribir a
+    <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.
+  </p>
+
+  <h2>2. Qué datos recopilamos</h2>
+  <h3>2.1 Datos de la cuenta</h3>
+  <ul>
+    <li>Nombre de usuario, correo electrónico, nombre y apellido, teléfono y descripción (los últimos, sólo si los cargás).</li>
+    <li>Contraseña almacenada como <strong>hash</strong> (nunca en texto plano) y un contador interno de inicios de sesión.</li>
+    <li>Identificadores técnicos de sesión (tokens JWT) guardados en el almacenamiento local del dispositivo.</li>
+  </ul>
+
+  <h3>2.2 Datos de tu inventario</h3>
+  <ul>
+    <li>Objetos, categorías, ubicaciones, contenedores y espacios que creás, junto con sus fotos, descripciones, precios, series y especificaciones.</li>
+    <li>Movimientos, decisiones y votaciones entre los miembros de un mismo grupo («Estok» o hogar), y los mensajes del chat interno.</li>
+    <li>Si conectás tu cuenta de Mercado Libre: tokens de acceso, identificador de vendedor y datos de las publicaciones que generás desde Estok.</li>
+  </ul>
+
+  <h3>2.3 Datos de uso y técnicos</h3>
+  <ul>
+    <li>Fecha y hora de la última actividad, para mostrar quién está en línea dentro de tu grupo.</li>
+    <li>Dirección IP y agente del navegador: se usan sólo para auditoría de presencia y se mantienen en memoria volátil del servidor, sin persistirse en la base de datos.</li>
+    <li>Registros de errores del servidor, sin contenido de tus objetos.</li>
+  </ul>
+
+  <h2>3. Para qué usamos los datos</h2>
+  <ul>
+    <li><strong>Prestar el servicio:</strong> autenticarte, guardar y mostrar tu inventario, sincronizar dispositivos y permitir la colaboración dentro de un mismo grupo.</li>
+    <li><strong>Funciones de inteligencia artificial:</strong> analizar las fotos y los textos que enviás para autocompletar datos de tus objetos (marca, modelo, categoría, descripción).</li>
+    <li><strong>Publicaciones en Mercado Libre:</strong> armar y enviar las publicaciones que decidís crear desde la app.</li>
+    <li><strong>Monetización:</strong> mostrar anuncios si usás el plan gratuito, y gestionar la suscripción «Estok Pro» si la contratás.</li>
+    <li><strong>Seguridad y soporte:</strong> detectar abusos, responder consultas y cumplir obligaciones legales.</li>
+  </ul>
+
+  <h2>4. Publicidad y plan gratuito</h2>
+  <p>
+    El plan gratuito muestra anuncios servidos por redes publicitarias de terceros
+    (<strong>Google AdMob / Google AdSense</strong>). Esas redes pueden usar identificadores del
+    dispositivo, datos aproximados de ubicación derivados de la IP y datos de interacción con el
+    anuncio para mostrar publicidad y medir su rendimiento, conforme a sus propias políticas
+    (podés revisarlas en
+    <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener">policies.google.com</a>).
+  </p>
+  <p>
+    Si contratás el plan <strong>Estok Pro</strong>, la publicidad se desactiva por completo: la app
+    deja de mostrar (y de cargar) los espacios publicitarios. En Android podés limitar la
+    personalización de anuncios desde <em>Ajustes → Google → Anuncios</em>.
+  </p>
+
+  <h2>5. Con quién compartimos datos</h2>
+  <p>Estok no vende datos personales. Sólo se comparten con proveedores necesarios para operar:</p>
+  <ul>
+    <li><strong>Hosting e infraestructura:</strong> servidores en la Unión Europea (Hetzner) que alojan la base de datos y la aplicación.</li>
+    <li><strong>Google:</strong> modelos de IA (Gemini) para el análisis de imágenes y textos, y AdMob/AdSense para publicidad.</li>
+    <li><strong>Proveedores alternativos de IA</strong> (OpenRouter, Groq, Hugging Face) que se usan sólo como respaldo si el motor principal falla.</li>
+    <li><strong>Mercado Libre:</strong> si conectás tu cuenta, para crear y consultar publicaciones.</li>
+    <li><strong>Mercado Pago:</strong> procesamiento de pagos de la suscripción. Estok no recibe ni almacena números de tarjeta; sólo guarda el identificador de la operación y su estado.</li>
+    <li><strong>Correo electrónico:</strong> para enviarte claves temporales y avisos del servicio.</li>
+  </ul>
+  <p>
+    Estas transferencias pueden implicar el tratamiento de datos fuera de la Argentina. Se realizan
+    con proveedores que ofrecen garantías contractuales de protección de datos.
+  </p>
+
+  <h2>6. Cookies y almacenamiento local</h2>
+  <p>
+    La app no usa cookies publicitarias propias. Guarda en el almacenamiento local del navegador o
+    del dispositivo el token de sesión, el grupo activo, las preferencias de tema y la versión de la
+    aplicación. Esos datos son necesarios para el funcionamiento y podés borrarlos cerrando sesión o
+    limpiando los datos del sitio.
+  </p>
+
+  <h2>7. Cuánto tiempo conservamos la información</h2>
+  <ul>
+    <li>Los datos de tu cuenta y tu inventario se conservan mientras la cuenta esté activa.</li>
+    <li>Si pedís la baja, se eliminan o anonimizan, salvo registros contables de pagos que la ley obliga a conservar.</li>
+    <li>Los registros de presencia (IP / agente) son volátiles y se pierden al reiniciar el servidor.</li>
+  </ul>
+
+  <h2>8. Seguridad</h2>
+  <p>
+    El acceso viaja cifrado por HTTPS. Las contraseñas se almacenan con hash y las credenciales de
+    integraciones (Mercado Libre, correo) se guardan sólo del lado del servidor. Ningún sistema es
+    infalible: si detectamos una brecha que afecte tus datos, te lo notificaremos por los medios de
+    contacto disponibles.
+  </p>
+
+  <h2>9. Tus derechos</h2>
+  <p>
+    De acuerdo con la Ley 25.326 de Protección de Datos Personales de la República Argentina, podés
+    ejercer los derechos de <strong>acceso, rectificación, actualización y supresión</strong> de tus
+    datos escribiendo a <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>. También podés modificar o
+    eliminar la mayor parte de tu información directamente desde la sección «Mi Perfil» y desde el
+    detalle de cada objeto, ubicación o contenedor. La Agencia de Acceso a la Información Pública es
+    el órgano de control competente y recibe denuncias por incumplimientos.
+  </p>
+
+  <h2>10. Menores de edad</h2>
+  <p>
+    Estok no está dirigida a menores de 13 años. Si sos menor de edad, necesitás la autorización de
+    tu madre, padre o tutor para usar la app.
+  </p>
+
+  <h2>11. Cambios a esta política</h2>
+  <p>
+    Podemos actualizar esta política para reflejar cambios en el servicio o en la normativa. La
+    versión vigente es siempre la publicada en esta página, con su fecha de última actualización.
+    Los cambios sustanciales se comunican dentro de la aplicación.
+  </p>
+
+  <h2>12. Contacto</h2>
+  <p>
+    Consultas sobre privacidad: <a href={`mailto:${CONTACTO}`}>{CONTACTO}</a>.
+  </p>
+</LegalLayout>

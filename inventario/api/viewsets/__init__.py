@@ -15,6 +15,7 @@ from .chat import MensajeViewSet
 from .version import VersionViewSet
 from .categorias import CategoriaViewSet
 from .mercadolibre_views import MercadoLibreViewSet
+from .suscripciones import SuscripcionViewSet
 from .ia import AiModelsView
 from .super_admin import (
     IsYgumyMaster,
@@ -41,6 +42,7 @@ __all__ = [
     'VersionViewSet',
     'CategoriaViewSet',
     'MercadoLibreViewSet',
+    'SuscripcionViewSet',
     'AiModelsView',
     'IsYgumyMaster',
     'SuperAdminUserViewSet',
