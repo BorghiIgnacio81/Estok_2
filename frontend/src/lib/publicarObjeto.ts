@@ -20,6 +20,8 @@ import { escaparHtml } from './invitacionEstok';
 // Aviso "en caliente": al publicar (o marcar como publicado) se refrescan la
 // sección destacada de venta y el bloque de «ya publicados» del tablero.
 import { notificarPublicacionActualizada } from './eventosDecisiones';
+// Toast ÚNICO del proyecto (lib/toast): nunca se invoca window.showToast acá.
+import { showToast } from './toast';
 
 /** Objeto que se va a publicar (los datos que muestra el paso 1 del modal). */
 export interface ObjetoPublicable {
@@ -291,6 +293,16 @@ async function publicarAhora(): Promise<void> {
     notificarPublicacionActualizada();
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : 'Error al publicar en Mercado Libre';
+    // Cartel DESCRIPTIVO con el motivo exacto que devolvió Mercado Libre (una
+    // línea por causa: "Falta el atributo obligatorio: FAMILY_NAME") en lugar
+    // de un error genérico, + toast con el primer motivo.
+    const causas = err instanceof MercadoLibreError ? err.causas : [];
+    const motivo = causas.length
+      ? `<p class="font-semibold">Mercado Libre rechazó la publicación:</p>` +
+        `<ul class="mt-1 list-disc list-inside text-xs">` +
+        causas.map((causa) => `<li>${escaparHtml(causa)}</li>`).join('') +
+        `</ul>`
+      : `❌ ${escaparHtml(mensaje)}`;
     // Diagnóstico en pantalla: el JSON exacto enviado a ML + su respuesta.
     const diagnostico = err instanceof MercadoLibreError
       ? `<details class="mt-2"><summary class="cursor-pointer font-medium">` +
@@ -298,7 +310,8 @@ async function publicarAhora(): Promise<void> {
         `<pre class="mt-1 text-xs whitespace-pre-wrap break-all">` +
         `${escaparHtml(JSON.stringify(err.diagnostico, null, 2))}</pre></details>`
       : '';
-    mostrarStatus('error', `❌ ${mensaje}${diagnostico}`);
+    mostrarStatus('error', `${motivo}${diagnostico}`);
+    showToast(`❌ ${causas[0] || mensaje}`, 'error');
   }
 }
 

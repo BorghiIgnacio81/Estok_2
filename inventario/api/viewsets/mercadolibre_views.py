@@ -20,6 +20,8 @@ from ...services.mercadolibre_api import create_item, api_request_autenticado
 from ...services import mercadolibre_estado, mercadolibre_vendedor
 from ...services.mercadolibre_publicacion import registrar_publicacion
 from ...services.mercadolibre_atributos import construir_attributes_desde_objeto
+from ...services.mercadolibre_atributos_fallback import inyectar_atributos_requeridos
+from ...services.mercadolibre_atributos_valores import construir_datos_objeto
 from ...services.mercadolibre_imagenes import construir_pictures
 from ...services.mercadolibre_payload import (
     cantidad_disponible_ml,
@@ -324,7 +326,30 @@ class MercadoLibreViewSet(viewsets.ViewSet):
             "attributes": construir_attributes_desde_objeto(objeto, category_id),
         }
 
-        diagnostico: dict = {}
+        # ── FALLBACK DE ATRIBUTOS OBLIGATORIOS DE LA CATEGORÍA ────────────────
+        # Antes de enviar el body se consulta GET /categories/{id}/attributes y
+        # se inyecta un valor válido para cada atributo que la categoría marca
+        # como obligatorio (`tags.required`: FAMILY_NAME, BRAND, MODEL,
+        # DEVELOPER, SOFTWARE_NAME...) y que el objeto NO tenga cargado. Así la
+        # publicación no depende de que ML devuelva el 400 "validation_error /
+        # body.required_fields" para descubrir el dato faltante. Se usa el dato
+        # REAL del objeto y, si no existe, el fallback seguro del catálogo
+        # ("Genérico", "Sin marca", "Sin especificar" o un value_id válido).
+        atributos_fallback = inyectar_atributos_requeridos(
+            item_data["attributes"],
+            category_id,
+            access_token=access_token or "",
+            datos=construir_datos_objeto(item_data, title),
+        )
+        item_data["attributes"] = atributos_fallback["attributes"]
+
+        diagnostico: dict = {
+            "category_id": category_id,
+            "atributos_fallback": {
+                "inyectados": atributos_fallback["inyectados"],
+                "sin_valor_seguro": atributos_fallback["omitidos"],
+            },
+        }
         try:
             result = create_item(
                 request.user, item_data, diagnostico=diagnostico
@@ -340,6 +365,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                     "atributos_detectados_categoria": diagnostico.get(
                         "atributos_detectados_categoria", []
                     ),
+                    # Atributos obligatorios completados con el fallback antes
+                    # de llamar a ML (ver bloque de inyección más arriba).
+                    "atributos_fallback": diagnostico.get("atributos_fallback", {}),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -414,6 +442,9 @@ class MercadoLibreViewSet(viewsets.ViewSet):
                 ),
                 "categoria_ml": diagnostico.get("category_id", category_id),
                 "intentos_ml": diagnostico.get("intentos", 0),
+                # Atributos obligatorios que el backend completó con el fallback
+                # antes de llamar a ML (inyectados / sin valor seguro posible).
+                "atributos_fallback": diagnostico.get("atributos_fallback", {}),
                 # Contrato pedido por el frontend: detalle + causas + raw.
                 "detail": "Error en campos de Mercado Libre",
                 "causes": causas,

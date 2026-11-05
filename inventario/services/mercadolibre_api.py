@@ -31,6 +31,7 @@ from .mercadolibre_atributos import (
     ids_requeridos,
 )
 from .mercadolibre_atributos_diagnostico import atributos_detectados
+from .mercadolibre_atributos_fallback import atributos_fallback_por_causas
 from .mercadolibre_atributos_reintentos import (
     ACCION_CORTAR,
     ACCION_REINTENTAR,
@@ -501,6 +502,28 @@ def create_item(user, item_data: Dict[str, Any],
             continue
         if decision["accion"] == ACCION_CORTAR:
             break
+
+        # Intento 8 (última red): ML exige atributos obligatorios que el
+        # catálogo de la categoría NO devolvió (consulta caída) y que
+        # `aplicar_causas_atributos` no pudo resolver. Se completan SOLO los IDs
+        # que ML nombró en sus causas, con el valor de fallback seguro
+        # ("Sin marca" / "Sin especificar" / "Genérico"), sin volver a agregar
+        # los que ya rechazó en esta misma publicación.
+        fallback_atributos = atributos_fallback_por_causas(
+            causes,
+            body.get("attributes", []),
+            datos_atributos,
+            atributos_descartados,
+        )
+        if fallback_atributos:
+            body.setdefault("attributes", []).extend(fallback_atributos)
+            logger.info(
+                "Reintento %d: atributos obligatorios completados con fallback "
+                "genérico (catálogo de la categoría no disponible): [%s]",
+                retry_count,
+                ", ".join(a["id"] for a in fallback_atributos),
+            )
+            continue
 
         # Intento 7: campo de PRIMER NIVEL rechazado (body.invalid_fields). Se
         # usa la causa REAL de ML (campo entre corchetes o `references`) para

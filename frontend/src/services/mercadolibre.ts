@@ -20,6 +20,8 @@ export interface DiagnosticoPublicacionML {
   payload_enviado: unknown;
   /** Atributos que el backend detectó en la categoría (required/catalog/identidad). */
   atributos_detectados_categoria: unknown;
+  /** Atributos obligatorios que el backend completó con un valor de fallback. */
+  atributos_fallback?: unknown;
   categoria_ml?: string;
   intentos_ml?: number;
 }
@@ -27,17 +29,86 @@ export interface DiagnosticoPublicacionML {
 /**
  * Error de publicación con el diagnóstico completo adjunto.
  *
- * La UI puede leer `diagnostico` para mostrar el payload exacto y la respuesta
- * de Mercado Libre sin perder información al convertir el error a string.
+ * La UI puede leer `causas` para mostrar el motivo EXACTO que devolvió Mercado
+ * Libre ("Falta el atributo obligatorio: FAMILY_NAME") y `diagnostico` para ver
+ * el payload enviado y la respuesta cruda, sin perder información al convertir
+ * el error a string.
  */
 export class MercadoLibreError extends Error {
   diagnostico: DiagnosticoPublicacionML;
+  /** Causas de Mercado Libre traducidas a texto claro (una por causa). */
+  causas: string[];
+  /** Atributos/campos involucrados en el rechazo. */
+  campos: string[];
 
-  constructor(message: string, diagnostico: DiagnosticoPublicacionML) {
+  constructor(
+    message: string,
+    diagnostico: DiagnosticoPublicacionML,
+    causas: string[] = [],
+    campos: string[] = [],
+  ) {
     super(message);
     this.name = 'MercadoLibreError';
     this.diagnostico = diagnostico;
+    this.causas = causas;
+    this.campos = campos;
   }
+}
+
+/** Atributos/campos que Mercado Libre nombra dentro de una causa ("[A, B]"). */
+function camposDeCausaML(causa: any): string[] {
+  const nombres: string[] = [];
+  const agregar = (nombre: string): void => {
+    const limpio = nombre.trim();
+    if (limpio && !nombres.includes(limpio)) nombres.push(limpio);
+  };
+
+  [causa?.message, causa?.attribute].forEach((referencia) => {
+    if (!referencia) return;
+    const grupos = String(referencia).match(/\[([^\]]+)\]/g) ?? [];
+    grupos.forEach((grupo) => {
+      grupo
+        .slice(1, -1)
+        .split(/[,/]| and | y /)
+        .forEach(agregar);
+    });
+  });
+  if (causa?.attribute) agregar(String(causa.attribute));
+  return nombres;
+}
+
+/**
+ * Mensaje descriptivo de UNA causa de Mercado Libre.
+ *
+ * Traduce "The attributes [FAMILY_NAME] are required" a "Falta el atributo
+ * obligatorio: FAMILY_NAME" en lugar de mostrar el 400 genérico. Si la causa no
+ * es reconocible se devuelve su mensaje original tal cual lo mandó la API.
+ */
+function describirCausaML(causa: any): string {
+  if (!causa || typeof causa !== 'object') return '';
+  const codigo = String(causa.code ?? '').toLowerCase();
+  const mensaje = String(causa.message ?? '').trim();
+  const nombres = camposDeCausaML(causa);
+  const lista = nombres.length ? `: ${nombres.join(', ')}` : mensaje ? `: ${mensaje}` : '';
+
+  if (codigo.includes('required') || /required|missing|obligatorio|falta/i.test(mensaje)) {
+    return `Falta el atributo obligatorio${lista}`;
+  }
+  if (codigo.includes('invalid') || /invalid|no es válido|no válido/i.test(mensaje)) {
+    return `Valor rechazado por Mercado Libre${lista}`;
+  }
+  return mensaje || String(causa.code ?? '');
+}
+
+/** Causas de Mercado Libre traducidas a texto claro, sin duplicados. */
+function causasLegibles(causes: unknown): string[] {
+  if (!Array.isArray(causes)) return [];
+  const legibles: string[] = [];
+  causes.forEach((causa) => {
+    const texto = describirCausaML(causa);
+    if (texto && !legibles.includes(texto)) legibles.push(texto);
+  });
+  return legibles;
 }
 
 /**
@@ -75,26 +146,12 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
     // Detalle específico devuelto por el backend a partir de la respuesta de
     // Mercado Libre: `causes` (arreglo `cause` crudo de ML), `campos_invalidos`
     // y `campos_faltantes`.
-    const causas: string[] = Array.isArray(result.causes)
-      ? result.causes
-          .map((c: any) => {
-            const mensaje = String(c?.message ?? '').trim();
-            const codigo = String(c?.code ?? '').trim();
-            return mensaje ? (codigo ? `${codigo}: ${mensaje}` : mensaje) : codigo;
-          })
-          .filter((texto: string) => texto.length > 0)
-      : [];
+    const causas: string[] = causasLegibles(result.causes);
     const campos: string[] = [
       ...(result.campos_invalidos ?? []),
       ...(result.campos_faltantes ?? []),
     ];
-    const detalle = campos.length
-      ? ` [${campos.join(', ')}]`
-      : causas.length
-        ? ` (${causas.join('; ')})`
-        : Array.isArray(result.detalles) && result.detalles.length
-          ? ` (${result.detalles.join('; ')})`
-          : '';
+    const detalle = campos.length ? ` [${campos.join(', ')}]` : '';
     const base = result.error || result.detail || result.ml_response?.message
       || `Error (${response.status})`;
     // Diagnóstico TRANSPARENTE: el backend devuelve el payload exacto enviado a
@@ -104,6 +161,7 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
       payload_enviado: result.payload_enviado ?? null,
       atributos_detectados_categoria:
         result.atributos_detectados_categoria ?? [],
+      atributos_fallback: result.atributos_fallback ?? null,
       categoria_ml: result.categoria_ml,
       intentos_ml: result.intentos_ml,
     };
@@ -112,7 +170,12 @@ export async function publicarEnMercadoLibre(params: PublicarMLParams) {
       '[Mercado Libre] Publicación rechazada. Diagnóstico completo:',
       JSON.parse(JSON.stringify(diagnostico)),
     );
-    throw new MercadoLibreError(`${base}${detalle}`, diagnostico);
+    // Mensaje DESCRIPTIVO para la UI: la causa REAL de Mercado Libre
+    // ("Falta el atributo obligatorio: FAMILY_NAME") en lugar del 400 genérico.
+    const mensaje = causas.length
+      ? `Mercado Libre rechazó la publicación → ${causas.join(' · ')}`
+      : `${base}${detalle}`;
+    throw new MercadoLibreError(mensaje, diagnostico, causas, campos);
   }
 
   return result;
