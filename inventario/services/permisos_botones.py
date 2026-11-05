@@ -24,6 +24,8 @@ from ..models.permisos_botones import (
     IDENTIFICADORES_BOTONES,
     PERIODO_MENSUAL,
     PERIODOS,
+    PLAN_REGLA_EMPRESAS,
+    PLAN_REGLA_FAMILIAR,
     PLAN_REGLA_FREE,
     PLAN_REGLA_PERSONALIZADO,
     PLAN_REGLA_PRO,
@@ -36,6 +38,8 @@ __all__ = [
     'BOTONES_CATALOGO',
     'IDENTIFICADORES_BOTONES',
     'PERIODOS',
+    'PLAN_REGLA_EMPRESAS',
+    'PLAN_REGLA_FAMILIAR',
     'PLAN_REGLA_FREE',
     'PLAN_REGLA_PERSONALIZADO',
     'PLAN_REGLA_PRO',
@@ -80,17 +84,47 @@ def plan_para_permisos(usuario):
     """
     Plan con el que se resuelven las cuotas del usuario.
 
-    `personalizado` se respeta tal cual (tiene sus propias filas); cualquier
-    otro valor se resuelve con la fuente de verdad del plan
-    (`services/suscripcion.plan_efectivo`, que incluye la herencia del hogar).
+    `personalizado`, `familiar` y `empresas` se respetan tal cual (tienen su
+    propio juego de reglas base); cualquier otro valor se resuelve con la fuente
+    de verdad del plan (`services/suscripcion.plan_efectivo`, que incluye la
+    herencia del hogar → `free` / `pro`).
     """
     if usuario is None:
         return PLAN_REGLA_FREE
 
     declarado = str(getattr(usuario, 'plan_suscripcion', '') or '').strip().lower()
-    if declarado == suscripcion.PLAN_PERSONALIZADO:
-        return PLAN_REGLA_PERSONALIZADO
+    if declarado in (
+        suscripcion.PLAN_PERSONALIZADO,
+        suscripcion.PLAN_FAMILIAR,
+        suscripcion.PLAN_EMPRESAS,
+    ):
+        return declarado
     return suscripcion.plan_efectivo(usuario)
+
+
+def _cadena_planes(plan, usuario=None):
+    """
+    Planes a consultar, del MÁS ESPECÍFICO al más GENERAL (herencia).
+
+    - `familiar` / `empresas` → sus reglas propias y, si un botón no está
+      configurado ahí, las del plan Pro (los tres son planes premium).
+    - `personalizado` → el plan base que le corresponde por su estado premium.
+    - `pro` / `free` → ellos mismos (catálogo permisivo como último recurso).
+    """
+    plan = str(plan or '').strip().lower()
+
+    if plan == PLAN_REGLA_PERSONALIZADO:
+        premium = bool(
+            usuario is not None and suscripcion.usuario_es_premium(usuario)
+        )
+        return (PLAN_REGLA_PRO,) if premium else (PLAN_REGLA_FREE,)
+    if plan == PLAN_REGLA_FAMILIAR:
+        return (PLAN_REGLA_FAMILIAR, PLAN_REGLA_PRO)
+    if plan == PLAN_REGLA_EMPRESAS:
+        return (PLAN_REGLA_EMPRESAS, PLAN_REGLA_PRO)
+    if plan == PLAN_REGLA_PRO:
+        return (PLAN_REGLA_PRO,)
+    return (PLAN_REGLA_FREE,)
 
 
 def _regla_desde_fila(fila, origen):
@@ -142,18 +176,16 @@ def regla_efectiva(usuario, identificador_boton):
         if fila is not None:
             return _regla_desde_fila(fila, 'usuario')
 
-    # b) Regla del plan base.
-    plan_base = plan
-    if plan == PLAN_REGLA_PERSONALIZADO:
-        # Usuario personalizado sin fila propia: hereda de su plan efectivo.
-        plan_base = (
-            PLAN_REGLA_PRO if suscripcion.usuario_es_premium(usuario) else PLAN_REGLA_FREE
-        )
-    fila = BotonPermiso.objects.filter(
-        identificador_boton=identificador, plan=plan_base, usuario__isnull=True,
-    ).first()
-    if fila is not None:
-        return _regla_desde_fila(fila, 'plan')
+    # b) Regla del plan: propia del plan declarado y, si ese botón no está
+    # configurado ahí, la del plan del que hereda (familiar/empresas → pro).
+    for plan_candidato in _cadena_planes(plan, usuario):
+        fila = BotonPermiso.objects.filter(
+            identificador_boton=identificador,
+            plan=plan_candidato,
+            usuario__isnull=True,
+        ).first()
+        if fila is not None:
+            return _regla_desde_fila(fila, 'plan')
 
     # c) Sin configuración: catálogo permisivo.
     return _regla_por_defecto(identificador)
@@ -165,6 +197,8 @@ def reglas_del_objetivo(plan, usuario=None):
 
     Las usa el Panel de Permisos del Admin para dibujar la matriz completa: una
     fila por botón del catálogo, con la regla persistida o la de por defecto.
+    Para un plan que hereda (familiar/empresas) se parte de las reglas del plan
+    heredado y las filas propias las pisan.
     """
     if usuario is not None:
         filas = {
@@ -173,10 +207,13 @@ def reglas_del_objetivo(plan, usuario=None):
         }
         origen = 'usuario'
     else:
-        filas = {
-            fila.identificador_boton: fila
-            for fila in BotonPermiso.objects.filter(plan=plan, usuario__isnull=True)
-        }
+        filas = {}
+        # De la más general a la más específica: el plan propio pisa al heredado.
+        for candidato in reversed(_cadena_planes(plan)):
+            for fila in BotonPermiso.objects.filter(
+                plan=candidato, usuario__isnull=True,
+            ):
+                filas[fila.identificador_boton] = fila
         origen = 'plan'
 
     reglas = {}

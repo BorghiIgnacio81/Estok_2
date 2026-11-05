@@ -106,15 +106,20 @@ PERIODOS = (
     (PERIODO_TOTAL, 'Total (no se reinicia nunca)'),
 )
 
-# Planes válidos de una regla. `free` / `pro` = plan base; `personalizado` =
-# regla propia de un usuario concreto (`usuario` obligatorio).
+# Planes válidos de una regla. `free` / `pro` / `familiar` / `empresas` = plan
+# base (regla global del plan); `personalizado` = regla propia de un usuario
+# concreto (`usuario` obligatorio).
 PLAN_REGLA_FREE = 'free'
 PLAN_REGLA_PRO = 'pro'
+PLAN_REGLA_FAMILIAR = 'familiar'
+PLAN_REGLA_EMPRESAS = 'empresas'
 PLAN_REGLA_PERSONALIZADO = 'personalizado'
 
 PLANES_REGLA = (
     (PLAN_REGLA_FREE, 'Plan Gratuito (Free)'),
-    (PLAN_REGLA_PRO, 'Plan Pro'),
+    (PLAN_REGLA_PRO, 'Plan Pro Individual'),
+    (PLAN_REGLA_FAMILIAR, 'Plan Familiar'),
+    (PLAN_REGLA_EMPRESAS, 'Plan Empresas'),
     (PLAN_REGLA_PERSONALIZADO, 'Personalizado (usuario)'),
 )
 
@@ -145,8 +150,8 @@ class BotonPermiso(models.Model):
         default=PLAN_REGLA_FREE,
         verbose_name="Plan de la regla",
         help_text=(
-            "Plan base (Free/Pro) al que aplica la regla. Si la regla es de un "
-            "usuario puntual queda en «Personalizado»."
+            "Plan base (Free/Pro/Familiar/Empresas) al que aplica la regla. "
+            "Si la regla es de un usuario puntual queda en «Personalizado»."
         ),
     )
     usuario = models.ForeignKey(

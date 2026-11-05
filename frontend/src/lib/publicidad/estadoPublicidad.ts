@@ -45,7 +45,10 @@ export function estadoDesdeUsuario(usuario: Record<string, any> | null): EstadoP
   if (!usuario) return { ...ESTADO_PUBLICIDAD_INICIAL };
 
   const plan = String(usuario.plan_suscripcion || 'free').toLowerCase();
-  const premium = Boolean(usuario.es_premium) || plan === 'pro';
+  // Planes premium (espejo de services/suscripcion.PLANES_PREMIUM del backend):
+  // Pro Individual, Familiar y Empresas navegan sin publicidad.
+  const planesPremium = ['pro', 'familiar', 'empresas'];
+  const premium = Boolean(usuario.es_premium) || planesPremium.includes(plan);
   const ocultar = Boolean(usuario.ocultar_publicidad) || premium;
 
   return {

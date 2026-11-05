@@ -93,7 +93,7 @@ class UsuarioViewSetBase(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         if self.action == 'recuperar_password':
             return [permissions.AllowAny()]
-        if self.action in ('me', 'perfil', 'ping', 'online', 'notificar_dueno', 'admin_delete_user', 'asignar_estok', 'remover_estok'):
+        if self.action in ('me', 'perfil', 'ping', 'online', 'notificar_dueno', 'admin_delete_user', 'asignar_estok', 'remover_estok', 'cambiar_plan'):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), HasRolePermission()]
 

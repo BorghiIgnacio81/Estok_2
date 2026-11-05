@@ -36,7 +36,9 @@ export interface AuthUser {
   // localStorage ni los endpoints que devuelven el usuario sin plan.
   es_premium?: boolean;
   ocultar_publicidad?: boolean;
-  plan_suscripcion?: 'free' | 'pro';
+  // Plan de suscripción (choices de CustomUser.plan_suscripcion). La lista
+  // canónica vive en el backend (services/suscripcion.PLANES_ETIQUETAS).
+  plan_suscripcion?: 'free' | 'pro' | 'familiar' | 'empresas' | 'personalizado';
   limite_objetos?: number | null;
 }
 

@@ -1,0 +1,39 @@
+---
+// =============================================================================
+// ADMIN GLOBAL · PESTAÑA «PERMISOS POR BOTÓN»
+//
+// Reemplaza el atajo que abría /admin/inventario/botonpermiso/matriz/ en otra
+// pestaña. La matriz se dibuja y guarda contra
+// GET|POST /api/admin/permisos-botones/ (lib/adminGlobal/permisosBotones.ts):
+//
+//   - El selector de objetivo contiene los 5 planes (Gratuito, Pro Individual,
+//     Familiar, Empresas y Personalizado) + cada usuario (regla propia).
+//   - «Personalizado» a nivel plan no existe: se resuelve eligiendo un usuario
+//     del grupo «Personalizado (por usuario)».
+//   - Usos: -1 = ilimitado, 0 = bloqueado, N = N ejecuciones por período.
+// =============================================================================
+---
+
+<div class="p-6 space-y-4">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="min-w-[240px]">
+      <label for="godPermisosObjetivo" class="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+        Objetivo de la matriz
+      </label>
+      <select id="godPermisosObjetivo"
+        class="w-full max-w-sm text-sm px-2 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-800">
+        <option value="free">Plan: Gratuito (Free)</option>
+      </select>
+    </div>
+    <button id="godPermisosGuardar" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
+      💾 Guardar permisos
+    </button>
+  </div>
+
+  <p id="godPermisosResumen" class="text-xs text-gray-500"></p>
+  <div id="godPermisosAviso" class="hidden"></div>
+
+  <div id="godPermisosMatriz" class="overflow-x-auto rounded-lg border border-gray-200">
+    <p class="text-sm text-gray-400 px-3 py-6">Cargando matriz de permisos...</p>
+  </div>
+</div>

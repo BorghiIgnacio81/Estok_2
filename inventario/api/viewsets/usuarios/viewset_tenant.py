@@ -13,6 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ....models import CustomUser, Membresia, Estok, Role
+from ....services import suscripcion
 
 
 class UsuarioTenantMixin:
@@ -207,4 +208,75 @@ class UsuarioTenantMixin:
         return Response({
             "success": True,
             "mensaje": f"Usuario '{user.username}' removido del Estok correctamente.",
+        })
+
+    @action(detail=True, methods=['post', 'patch'], url_path='cambiar_plan')
+    def cambiar_plan(self, request, pk=None):
+        """
+        [RESTRINGIDO - SOLO ygumy44]
+        Cambia el PLAN DE SUSCRIPCIÓN de un usuario en caliente.
+
+        POST|PATCH /api/usuarios/{id}/cambiar_plan/   Body: { "plan": "<valor>" }
+
+        Valores admitidos (los mismos `choices` de `CustomUser.plan_suscripcion`
+        y el catálogo `services/suscripcion.PLANES_ETIQUETAS`):
+        `free`, `pro`, `familiar`, `empresas`, `personalizado`.
+
+        NO escribe el campo a mano: delega en
+        `services/suscripcion.aplicar_plan_usuario()`, única fuente de verdad que
+        alinea `es_premium`, `limite_objetos` y `ocultar_publicidad` (y dispara
+        la herencia del hogar vía señales).
+
+        Lo consume el combobox «Plan de Suscripción» de la tabla de usuarios del
+        Admin Global (frontend). Cualquier otro usuario recibe 404 (error
+        ciego, igual que el resto de las acciones máster).
+        """
+        if request.user.username != 'ygumy44':
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Query directa (NO self.get_object()): get_queryset filtra por el Estok
+        # activo y el panel global opera sobre TODOS los usuarios.
+        try:
+            user = CustomUser.objects.filter(pk=pk).first()
+        except (ValueError, TypeError):
+            user = None
+        if user is None:
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        datos = getattr(request, 'data', None)
+        plan = str((datos.get('plan') if hasattr(datos, 'get') else '') or '').strip().lower()
+        if not plan:
+            return Response(
+                {"error": "El campo 'plan' es obligatorio."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            campos = suscripcion.aplicar_plan_usuario(user, plan)
+        except ValueError as exc:
+            return Response(
+                {"error": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            "success": True,
+            "usuario_id": str(user.id),
+            "username": user.username,
+            "plan_suscripcion": user.plan_suscripcion,
+            "etiqueta": suscripcion.etiqueta_plan(user.plan_suscripcion),
+            "es_premium": bool(user.es_premium),
+            "limite_objetos": user.limite_objetos,
+            "ocultar_publicidad": bool(user.ocultar_publicidad),
+            "campos": sorted(campos.keys()),
+            "mensaje": (
+                f"Plan de {user.username} actualizado a "
+                f"«{suscripcion.etiqueta_plan(user.plan_suscripcion)}»."
+            ),
         })

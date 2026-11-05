@@ -15,6 +15,11 @@
 
 import { getCachedUser } from '../services/auth';
 import { apiPost, apiPut, apiDelete, fetchAllPages } from './api';
+import { cargarPlanes } from './adminGlobal/planes';
+import { celdaPlanHtml, cambiarPlanUsuario } from './adminGlobal/columnaPlan';
+import { initAdminGlobalTabs, registrarCargadorTab } from './adminGlobal/tabs';
+import { cargarPermisosBotones, initPermisosBotonesTab } from './adminGlobal/permisosBotones';
+import { cargarFeatureFlags, initFeatureFlagsTab } from './adminGlobal/featureFlags';
 
 // =============================================================================
 // Estado global del módulo
@@ -105,7 +110,7 @@ function godRenderUsuarios(): void {
 
   if (godUsuarios.length === 0) {
     godUsuariosTbody.innerHTML =
-      '<tr><td colspan="5" class="px-3 py-6 text-center text-sm text-gray-400">No hay usuarios registrados.</td></tr>';
+      '<tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">No hay usuarios registrados.</td></tr>';
     return;
   }
 
@@ -139,9 +144,13 @@ function godRenderUsuarios(): void {
         </div>`
       : '';
 
+    // Combobox «Plan de Suscripción» (columna propia de la tabla): la celda y
+    // el POST a /api/usuarios/{id}/cambiar_plan/ viven en
+    // lib/adminGlobal/columnaPlan.ts (los 5 planes salen del backend).
+    const planHtml = celdaPlanHtml(u, displayName);
+
     // Botón Editar
     const editBtn = `<button data-god-edit-user data-uid="${u.id}" data-username="${esc(u.username)}" class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-md hover:bg-amber-200 transition-base" title="Editar usuario">✏️ Editar</button>`;
-
     // Botón Enviar Mail (SIEMPRE visible y activo: sirve para la bienvenida
     // pendiente o para comunicaciones futuras vía tipo=actualizacion).
     // El backend decide si reenviar la bienvenida según el primer envío.
@@ -165,6 +174,7 @@ function godRenderUsuarios(): void {
           </div>
         </td>
         <td class="px-3 py-3 text-xs text-gray-600">${esc(u.email || '—')}</td>
+        <td class="px-3 py-3">${planHtml}</td>
         <td class="px-3 py-3">${badgesHtml}</td>
         <td class="px-3 py-3 text-center">
           <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-[11px] font-medium whitespace-nowrap" title="Inicios de sesión exitosos">🔄 ${esc(u.login_count ?? 0)}</span>
@@ -257,6 +267,19 @@ async function godDesvincular(uid: string, estokId: string, estokNombre: string)
     await godCargarTodo();
   } catch (err: any) {
     godMostrarError(err?.error || 'Error al revocar la membresía.');
+  }
+}
+
+/**
+ * Cambia el PLAN DE SUSCRIPCIÓN de un usuario desde el combobox de la tabla.
+ * La llamada HTTP y el rollback del `<select>` viven en
+ * lib/adminGlobal/columnaPlan.ts; acá sólo se muestra el feedback global.
+ */
+async function godCambiarPlan(select: HTMLSelectElement): Promise<void> {
+  try {
+    godMostrarExito(await cambiarPlanUsuario(select, godCargarTodo));
+  } catch (err: any) {
+    godMostrarError(err?.error || 'Error al cambiar el plan del usuario.');
   }
 }
 
@@ -570,6 +593,14 @@ function bindGodEventos(): void {
     }
   });
 
+  // Combobox «Plan de Suscripción» de la tabla de usuarios (cambio en caliente).
+  godUsuariosTbody?.addEventListener('change', (e) => {
+    const target = e.target as HTMLElement;
+    const select = target.closest('[data-god-plan-select]') as HTMLSelectElement | null;
+    if (!select) return;
+    void godCambiarPlan(select);
+  });
+
   godEstoksTbody?.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
 
@@ -672,6 +703,25 @@ export function initGodMode(): void {
 
   // Delegación de eventos para las tablas
   bindGodEventos();
+
+  // Panel CENTRALIZADO con pestañas INTERNAS (Usuarios · Estoks · Permisos por
+  // Botón · Feature Flags). Cada pestaña pide sus datos recién cuando el Admin
+  // la abre: no hay ventanas ni pestañas externas del navegador.
+  registrarCargadorTab('permisos', () => {
+    initPermisosBotonesTab();
+    void cargarPermisosBotones();
+  });
+  registrarCargadorTab('flags', () => {
+    initFeatureFlagsTab();
+    void cargarFeatureFlags();
+  });
+  initAdminGlobalTabs();
+
+  // Catálogo de planes (GET /api/admin/planes/) para el combobox de la tabla:
+  // se refresca por detrás y se repinta la lista de usuarios ya cargada.
+  void cargarPlanes().then(() => {
+    if (godUsuarios.length > 0) godRenderUsuarios();
+  });
 }
 
 

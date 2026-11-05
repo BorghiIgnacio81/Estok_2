@@ -64,10 +64,16 @@ def _parsear_limite(texto):
 
 
 def _objetivos():
-    """Opciones del combobox: los dos planes base + todos los usuarios."""
+    """
+    Opciones del combobox: TODOS los planes base + todos los usuarios.
+
+    Los planes se toman de `suscripcion.PLANES_ETIQUETAS` (fuente única) salvo
+    «Personalizado», que no tiene reglas a nivel plan (sólo por usuario).
+    """
     opciones = [
-        (suscripcion.PLAN_FREE, 'Plan: Gratuito (Free)'),
-        (suscripcion.PLAN_PRO, 'Plan: Pro'),
+        (valor, f'Plan: {etiqueta}')
+        for valor, etiqueta in suscripcion.PLANES_ETIQUETAS
+        if valor != suscripcion.PLAN_PERSONALIZADO
     ]
     usuarios = CustomUser.objects.order_by('username')[:MAX_USUARIOS_SELECTOR]
     for usuario in usuarios:
@@ -81,10 +87,12 @@ def _objetivos():
 
 def _resolver_objetivo(valor):
     """
-    `'free'` / `'pro'` / `'usuario:<uuid>'` → `(plan, usuario)`.
+    `'free'` / `'pro'` / `'familiar'` / `'empresas'` / `'usuario:<uuid>'`
+    → `(plan, usuario)`.
 
     Cualquier valor inválido (o un usuario borrado) cae al plan Free: el panel
-    nunca debe romperse por una query string vieja.
+    nunca debe romperse por una query string vieja. «Personalizado» no tiene
+    reglas a nivel plan (sólo por usuario), así que también cae a Free.
     """
     crudo = str(valor or '').strip()
 
@@ -97,8 +105,12 @@ def _resolver_objetivo(valor):
         if usuario is not None:
             return suscripcion.PLAN_PERSONALIZADO, usuario
 
-    if crudo == suscripcion.PLAN_PRO:
-        return suscripcion.PLAN_PRO, None
+    planes_con_regla = {
+        valor for valor, _ in suscripcion.PLANES_ETIQUETAS
+        if valor != suscripcion.PLAN_PERSONALIZADO
+    }
+    if crudo in planes_con_regla:
+        return crudo, None
     return suscripcion.PLAN_FREE, None
 
 

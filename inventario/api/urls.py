@@ -28,6 +28,9 @@ from .viewsets import (
     SuperAdminUserViewSet,
     SuperAdminEstokViewSet,
     AiModelsView,
+    AdminGlobalPlanesView,
+    AdminGlobalFeatureFlagsView,
+    AdminGlobalPermisosBotonesView,
 )
 
 from .viewsets.mudanza import MudanzaView
@@ -77,6 +80,16 @@ urlpatterns = [
     # Catálogo simulado de modelos de IA (evita 404 de /api/ai/models/ cuando
     # no hay motor de visión configurado en el servidor)
     path('ai/models/', AiModelsView.as_view(), name='ai-models'),
+    # =========================================================================
+    # ADMIN GLOBAL (pestañas INTERNAS del panel del frontend) - SOLO 'ygumy44'
+    # Alimentan Usuarios (combobox de plan), Permisos por Botón y Feature Flags
+    # sin abrir pestañas externas hacia /admin/.
+    # =========================================================================
+    path('admin/planes/', AdminGlobalPlanesView.as_view(), name='admin-planes'),
+    path('admin/feature-flags/', AdminGlobalFeatureFlagsView.as_view(),
+         name='admin-feature-flags'),
+    path('admin/permisos-botones/', AdminGlobalPermisosBotonesView.as_view(),
+         name='admin-permisos-botones'),
     # Mudanza Inter-Estok (transferencia hermética de contenedores/objetos)
     path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),
     # Migración MASIVA «Mudar Todo el Stock» (bloque + purga de estructuras)

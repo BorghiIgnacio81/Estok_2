@@ -121,14 +121,18 @@ class CustomUser(AbstractUser):
         max_length=20,
         choices=[
             ('free', 'Gratuito (con publicidad)'),
-            ('pro', 'Pro (sin publicidad)'),
+            ('pro', 'Pro Individual (sin publicidad)'),
+            ('familiar', 'Plan Familiar (varios miembros del hogar)'),
+            ('empresas', 'Plan Empresas (gestión comercial/multisector)'),
             ('personalizado', 'Personalizado (permisos por botón)'),
         ],
         default='free',
         verbose_name="Plan de suscripción",
         help_text=(
-            "«Personalizado» = el usuario tiene permisos y cuotas propias por "
-            "botón (Admin Global → Panel de permisos por botón)."
+            "«Familiar» y «Empresas» son planes premium (sin publicidad y sin "
+            "tope de objetos). «Personalizado» = el usuario tiene permisos y "
+            "cuotas propias por botón (Admin Global → pestaña Permisos por "
+            "Botón)."
         ),
     )
     limite_objetos = models.PositiveIntegerField(

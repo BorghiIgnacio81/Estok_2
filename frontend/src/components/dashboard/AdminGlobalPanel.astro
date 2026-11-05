@@ -1,0 +1,77 @@
+---
+// =============================================================================
+// ADMIN GLOBAL · PANEL CENTRALIZADO (solo 'ygumy44')
+//
+// ÚNICO punto de administración del frontend. Se abre/cierra con el botón
+// «Administración Global» del navbar (layouts/BaseLayout.astro) y agrupa TODO en
+// pestañas INTERNAS (mismo documento, sin abrir ventanas ni pestañas nuevas):
+//
+//     Usuarios · Estoks · Permisos por Botón · Feature Flags
+//
+// Antes había 6 botones sueltos que abrían /admin/... en pestañas externas
+// (componente AdminGlobalEnlaces.astro, eliminado). La lógica de las pestañas
+// vive en lib/adminGlobal/tabs.ts; cada subpanel en su propio componente.
+// =============================================================================
+
+import AdminGlobalUsuarios from './AdminGlobalUsuarios.astro';
+import AdminGlobalEstoks from './AdminGlobalEstoks.astro';
+import AdminGlobalPermisos from './AdminGlobalPermisos.astro';
+import AdminGlobalFlags from './AdminGlobalFlags.astro';
+
+const CLASE_TAB =
+  'px-3 py-2 text-sm font-medium rounded-t-lg text-gray-600 hover:text-red-700 hover:bg-red-50 border-b-2 border-transparent';
+---
+
+<div id="godPanel" class="hidden mt-8">
+  <div class="bg-white rounded-xl shadow-sm border-2 border-red-200 overflow-hidden">
+    <!-- Header del panel -->
+    <div class="px-6 py-4 bg-red-50 border-b border-red-200 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🛡️</span>
+        <div>
+          <h2 class="text-lg font-bold text-red-900">Administración Global</h2>
+          <p class="text-sm text-red-500">Panel de control — usuarios, planes, permisos y funcionalidades</p>
+        </div>
+      </div>
+      <button id="godRefreshBtn" class="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base flex items-center gap-1" title="Recargar los listados">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Recargar
+      </button>
+    </div>
+
+    <!-- Feedback global -->
+    <div id="godError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mx-6 mt-4"></div>
+    <div id="godSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mx-6 mt-4"></div>
+    <div id="godLoading" class="hidden text-center py-10">
+      <svg class="animate-spin h-8 w-8 mx-auto text-red-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-sm text-gray-500">Cargando datos globales...</p>
+    </div>
+
+    <!-- Pestañas INTERNAS (lib/adminGlobal/tabs.ts) -->
+    <div class="flex flex-wrap gap-1 px-4 pt-3 bg-gray-50 border-b border-gray-200" role="tablist" aria-label="Secciones de Administración Global">
+      <button type="button" data-god-tab="usuarios" class={CLASE_TAB} role="tab">👥 Usuarios</button>
+      <button type="button" data-god-tab="estoks" class={CLASE_TAB} role="tab">🏢 Estoks</button>
+      <button type="button" data-god-tab="permisos" class={CLASE_TAB} role="tab">🧩 Permisos por Botón</button>
+      <button type="button" data-god-tab="flags" class={CLASE_TAB} role="tab">🚩 Feature Flags</button>
+    </div>
+
+    <!-- Paneles (uno visible a la vez) -->
+    <div data-god-panel="usuarios">
+      <AdminGlobalUsuarios />
+    </div>
+    <div data-god-panel="estoks" class="hidden">
+      <AdminGlobalEstoks />
+    </div>
+    <div data-god-panel="permisos" class="hidden">
+      <AdminGlobalPermisos />
+    </div>
+    <div data-god-panel="flags" class="hidden">
+      <AdminGlobalFlags />
+    </div>
+  </div>
+</div>

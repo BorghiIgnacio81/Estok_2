@@ -4,7 +4,9 @@ Admin · Suscripción del usuario EN CALIENTE desde la lista de usuarios.
 Aporta al `CustomUserAdmin`:
 
     - Columna «Plan» con un combobox (`<select>`) por fila para cambiar
-      el plan entre Gratuito (Free) / Pro / Personalizado sin abrir el detalle.
+      el plan entre Gratuito (Free) / Pro Individual / Familiar / Empresas /
+      Personalizado sin abrir el detalle. Las opciones salen de
+      `services/suscripcion.PLANES_ETIQUETAS` (fuente única del catálogo).
     - Vista `cambiar-plan/<uuid>/` (POST + CSRF del propio admin) que aplica el
       cambio con `services/suscripcion.aplicar_plan_usuario()` (única fuente de
       verdad del plan: alinea `es_premium`, `limite_objetos` y
@@ -29,11 +31,10 @@ from .models import CustomUser
 from .services import suscripcion
 
 # Opciones del combobox (valor estable → etiqueta visible del Admin Global).
-PLANES_SELECCION = (
-    (suscripcion.PLAN_FREE, 'Gratuito (Free)'),
-    (suscripcion.PLAN_PRO, 'Pro'),
-    (suscripcion.PLAN_PERSONALIZADO, 'Personalizado'),
-)
+# La lista vive en `services/suscripcion.PLANES_ETIQUETAS` (fuente única): el
+# mismo catálogo alimenta el selector del Panel de Permisos y
+# `GET /api/admin/planes/` (tabla de usuarios del Admin Global del frontend).
+PLANES_SELECCION = suscripcion.PLANES_ETIQUETAS
 ETIQUETAS_PLAN = dict(PLANES_SELECCION)
 
 NOMBRE_URL_CAMBIAR_PLAN = 'inventario_customuser_cambiar_plan'

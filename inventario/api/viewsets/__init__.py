@@ -22,6 +22,11 @@ from .super_admin import (
     SuperAdminUserViewSet,
     SuperAdminEstokViewSet,
 )
+from .admin_global import (
+    AdminGlobalPlanesView,
+    AdminGlobalFeatureFlagsView,
+    AdminGlobalPermisosBotonesView,
+)
 
 __all__ = [
     'HasRolePermission',
@@ -47,6 +52,9 @@ __all__ = [
     'IsYgumyMaster',
     'SuperAdminUserViewSet',
     'SuperAdminEstokViewSet',
+    'AdminGlobalPlanesView',
+    'AdminGlobalFeatureFlagsView',
+    'AdminGlobalPermisosBotonesView',
 ]
 
 

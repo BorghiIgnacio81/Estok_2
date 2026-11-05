@@ -1,0 +1,44 @@
+---
+// =============================================================================
+// ADMIN GLOBAL · PESTAÑA «USUARIOS»
+//
+// Tabla de usuarios con la columna «Plan de Suscripción»: cada fila renderiza un
+// combobox (<select>) que cambia el plan en caliente con
+// POST /api/usuarios/{id}/cambiar_plan/ (lib/godMode.ts → columna
+// `data-god-plan-select`). Los 5 planes (Gratuito / Pro Individual / Familiar /
+// Empresas / Personalizado) salen de lib/adminGlobal/planes.ts, espejo de
+// GET /api/admin/planes/.
+//
+// Los botones de acción (Editar, Enviar Mail, Asociar, Eliminar y Revocar
+// membresía) los cablea la delegación de eventos de lib/godMode.ts.
+// =============================================================================
+---
+
+<div class="p-6">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div>
+      <h3 class="text-base font-bold text-gray-900">👥 Gestión de Usuarios</h3>
+      <p class="text-xs text-gray-500">El plan se cambia directo en la tabla, sin abrir el detalle.</p>
+    </div>
+    <button id="godCrearUsuarioBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
+      ➕ Crear Nuevo Usuario
+    </button>
+  </div>
+  <div class="overflow-x-auto rounded-lg border border-gray-200">
+    <table class="min-w-full divide-y divide-gray-200 text-sm">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuario</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Plan de Suscripción</th>
+          <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Estoks Conectados</th>
+          <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Accesos</th>
+          <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="godUsuariosTbody" class="bg-white divide-y divide-gray-200">
+        <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">Cargando usuarios...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

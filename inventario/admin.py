@@ -107,10 +107,11 @@ class CustomUserAdmin(SuscripcionUsuarioAdminMixin, UserAdmin):
     """
     Gestión visual de usuarios + columna «Plan» INTERACTIVA.
 
-    El combobox de la columna cambia el plan en caliente (Free / Pro /
-    Personalizado) mediante `admin_suscripcion.cambiar_plan_view`, que aplica el
-    cambio con `services/suscripcion.aplicar_plan_usuario()` (única fuente de
-    verdad: alinea `es_premium`, `limite_objetos` y `ocultar_publicidad`).
+    El combobox de la columna cambia el plan en caliente (Gratuito / Pro
+    Individual / Familiar / Empresas / Personalizado) mediante
+    `admin_suscripcion.cambiar_plan_view`, que aplica el cambio con
+    `services/suscripcion.aplicar_plan_usuario()` (única fuente de verdad:
+    alinea `es_premium`, `limite_objetos` y `ocultar_publicidad`).
     """
 
     list_display = ['username', 'email', 'get_full_name', 'is_active',
@@ -138,7 +139,8 @@ class CustomUserAdmin(SuscripcionUsuarioAdminMixin, UserAdmin):
             'fields': ('es_premium', 'plan_suscripcion', 'limite_objetos',
                        'ocultar_publicidad'),
             'description': (
-                'Plan Pro: sin publicidad y sin límite de objetos. Si el usuario '
+                'Planes premium (Pro Individual, Familiar y Empresas): sin '
+                'publicidad y sin límite de objetos. Si el usuario '
                 'es CREADOR de un Estok/Hogar, sus miembros heredan '
                 'automáticamente «Ocultar publicidad». El plan también se puede '
                 'cambiar en caliente desde la columna «Suscripción» de la lista, '

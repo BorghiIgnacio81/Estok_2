@@ -22,13 +22,41 @@ from ..models import CustomUser, Estok, Membresia, Objeto
 
 logger = logging.getLogger(__name__)
 
-# Planes válidos (los mismos `choices` de CustomUser.plan_suscripcion y
-# Estok.plan_suscripcion) + el plan «Personalizado» del usuario, que habilita
-# permisos y cuotas propias por botón (models/permisos_botones.py).
+# Planes válidos (los mismos `choices` de CustomUser.plan_suscripcion) + el plan
+# «Personalizado» del usuario, que habilita permisos y cuotas propias por botón
+# (models/permisos_botones.py).
 PLAN_FREE = 'free'
 PLAN_PRO = 'pro'
+PLAN_FAMILIAR = 'familiar'
+PLAN_EMPRESAS = 'empresas'
 PLAN_PERSONALIZADO = 'personalizado'
-PLANES_VALIDOS = (PLAN_FREE, PLAN_PRO, PLAN_PERSONALIZADO)
+
+PLANES_VALIDOS = (
+    PLAN_FREE, PLAN_PRO, PLAN_FAMILIAR, PLAN_EMPRESAS, PLAN_PERSONALIZADO,
+)
+
+# Planes PREMIUM: sin publicidad y sin tope de objetos. Es el único lugar donde
+# se declara qué planes pagan; el resto del código compara contra esta tupla
+# (nunca contra un string suelto).
+PLANES_PREMIUM = (PLAN_PRO, PLAN_FAMILIAR, PLAN_EMPRESAS)
+
+# Etiquetas visibles (fuente ÚNICA): las consumen el combobox de la tabla de
+# usuarios del Admin de Django (admin_suscripcion.py), el selector del Panel de
+# Permisos (admin_panel_permisos.py) y `GET /api/admin/planes/` que alimenta la
+# tabla del Admin Global del frontend. No duplicar esta lista en otro archivo.
+PLANES_ETIQUETAS = (
+    (PLAN_FREE, 'Gratuito (Free)'),
+    (PLAN_PRO, 'Pro Individual'),
+    (PLAN_FAMILIAR, 'Plan Familiar'),
+    (PLAN_EMPRESAS, 'Plan Empresas'),
+    (PLAN_PERSONALIZADO, 'Personalizado'),
+)
+
+
+def etiqueta_plan(plan):
+    """Etiqueta legible de un plan (el propio valor si no está en el catálogo)."""
+    valor = str(plan or '').strip().lower()
+    return dict(PLANES_ETIQUETAS).get(valor, valor)
 
 # Cuota por defecto del plan gratuito (coincide con el default del modelo).
 LIMITE_OBJETOS_FREE = 100
@@ -116,15 +144,32 @@ def plan_efectivo(usuario, estok_id=None):
     return PLAN_PRO if usuario_es_premium(usuario, estok_id) else PLAN_FREE
 
 
+def plan_declarado(usuario):
+    """
+    Plan ELEGIDO explícitamente por el Admin (campo `plan_suscripcion`).
+
+    A diferencia de `plan_efectivo()` (que colapsa todo a free/pro según el
+    estado premium y la herencia del hogar), éste devuelve el valor tal cual se
+    guardó —incluidos `familiar`, `empresas` y `personalizado`—, que es lo que
+    muestran los comboboxes del Admin Global.
+    """
+    valor = str(getattr(usuario, 'plan_suscripcion', '') or '').strip().lower()
+    return valor or PLAN_FREE
+
+
 def aplicar_plan_usuario(usuario, plan):
     """
     Escribe el plan del usuario y deja COHERENTES los campos derivados.
 
     Es el único punto que cambia el plan a mano (lo usan la columna
-    «Suscripción» de la lista de usuarios y el Panel de Permisos por botón):
+    «Plan» de la lista de usuarios del Admin de Django, el endpoint
+    `POST|PATCH /api/usuarios/{id}/cambiar_plan/` del Admin Global del
+    frontend y el Panel de Permisos por botón):
 
-        - `pro`           → es_premium=True, limite_objetos=None (ilimitado),
-                            ocultar_publicidad=True (sin anuncios).
+        - `pro`, `familiar`, `empresas`
+                          → planes PREMIUM (`PLANES_PREMIUM`): es_premium=True,
+                            limite_objetos=None (ilimitado), ocultar_publicidad
+                            =True (sin anuncios).
         - `free`          → es_premium=False, limite_objetos=LIMITE_OBJETOS_FREE,
                             ocultar_publicidad=False (las señales de
                             signals.py vuelven a aplicar la herencia del hogar).
@@ -144,7 +189,7 @@ def aplicar_plan_usuario(usuario, plan):
         raise ValueError(f'Plan inválido: {plan!r}')
 
     campos = {'plan_suscripcion': normalizado}
-    if normalizado == PLAN_PRO:
+    if normalizado in PLANES_PREMIUM:
         campos.update(
             es_premium=True,
             limite_objetos=None,

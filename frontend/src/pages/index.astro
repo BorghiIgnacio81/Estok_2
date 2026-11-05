@@ -8,8 +8,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import GodModales from '../components/dashboard/GodModales.astro';
-// Atajos del panel Admin Global al Admin de Django (planes, permisos, modelos).
-import AdminGlobalEnlaces from '../components/dashboard/AdminGlobalEnlaces.astro';
+// Panel ÚNICO de Administración Global (usuarios, estoks, permisos por botón y
+// feature flags en pestañas internas; sin ventanas externas al Admin de Django).
+import AdminGlobalPanel from '../components/dashboard/AdminGlobalPanel.astro';
+import AdminGlobalPanel from '../components/dashboard/AdminGlobalPanel.astro';
 // Modal de cámara del escáner QR (botón gráfico de la barra de acciones).
 import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
@@ -245,100 +247,14 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
     </div>
 
     <!-- ================================================================ -->
-    <!-- ADMIN GLOBAL - Panel de Control global (solo visible para ygumy44) -->
-    <!-- Se abre/cierra con el botón "Admin Global" del navbar (BaseLayout) -->
+    <!-- ADMIN GLOBAL - Panel centralizado (solo visible para ygumy44)     -->
+    <!-- Se abre/cierra con el ÚNICO botón «Administración Global» del      -->
+    <!-- navbar (BaseLayout) y agrupa todo en pestañas internas:           -->
+    <!-- Usuarios · Estoks · Permisos por Botón · Feature Flags.           -->
+    <!-- El marcado vive en components/dashboard/AdminGlobalPanel.astro.   -->
     <!-- ================================================================ -->
-    <div id="godPanel" class="hidden mt-8">
-      <div class="bg-white rounded-xl shadow-sm border-2 border-red-200 overflow-hidden">
-        <!-- Header del panel -->
-        <div class="px-6 py-4 bg-red-50 border-b border-red-200 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl">🛡️</span>
-            <div>
-              <h2 class="text-lg font-bold text-red-900">Admin Global</h2>
-              <p class="text-sm text-red-500">Panel de control — usuarios y Estoks</p>
-            </div>
-          </div>
-          <button id="godRefreshBtn" class="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-lg hover:bg-red-200 transition-base flex items-center gap-1" title="Recargar ambos listados">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Recargar
-          </button>
-        </div>
+    <AdminGlobalPanel />
 
-        <!-- Feedback global -->
-        <div id="godError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mx-6 mt-4"></div>
-        <div id="godSuccess" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm mx-6 mt-4"></div>
-        <div id="godLoading" class="hidden text-center py-10">
-          <svg class="animate-spin h-8 w-8 mx-auto text-red-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <p class="text-sm text-gray-500">Cargando datos globales...</p>
-        </div>
-
-        <!-- Gestión de Estoks (ARRIBA) y Usuarios (ABAJO) - apilado vertical 100% ancho -->
-        <div class="p-6 space-y-8">
-          <!-- ================= MONETIZACIÓN, PERMISOS Y MODELOS ================= -->
-          <!-- Atajos al Admin de Django (monetización + modelos registrados). -->
-          <AdminGlobalEnlaces />
-
-          <!-- ================= GESTIÓN DE ESTOKS (ARRIBA) ================= -->
-          <div>
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 class="text-base font-bold text-gray-900">🏢 Gestión de Estoks</h3>
-              <button id="godCrearEstokBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
-                🏢 Crear Nuevo Estok
-              </button>
-            </div>
-            <div class="overflow-x-auto rounded-lg border border-gray-200">
-              <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Nombre Estok</th>
-                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuarios</th>
-                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Objetos</th>
-                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Ubicaciones</th>
-                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Contenedores</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="godEstoksTbody" class="bg-white divide-y divide-gray-200">
-                  <tr><td colspan="6" class="px-3 py-6 text-center text-sm text-gray-400">Cargando Estoks...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- ================= GESTIÓN DE USUARIOS (ABAJO) ================= -->
-          <div>
-            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 class="text-base font-bold text-gray-900">👥 Gestión de Usuarios</h3>
-              <button id="godCrearUsuarioBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition-base shadow-sm">
-                ➕ Crear Nuevo Usuario
-              </button>
-            </div>
-            <div class="overflow-x-auto rounded-lg border border-gray-200">
-              <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Usuario</th>
-                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</th>
-                    <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Estoks Conectados</th>
-                    <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Accesos</th>
-                    <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody id="godUsuariosTbody" class="bg-white divide-y divide-gray-200">
-                  <tr><td colspan="5" class="px-3 py-6 text-center text-sm text-gray-400">Cargando usuarios...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     <!-- ================================================================ -->
     <!-- ADMIN GLOBAL - Sync del toggle (vanilla JS, sin dependencias)     -->
     <!-- El panel es dueño de su propia visibilidad: escucha el evento     -->

@@ -45,8 +45,18 @@ class SuperAdminUserSerializer(serializers.ModelSerializer):
             'is_active', 'is_superuser', 'password',
             'date_joined', 'last_login', 'login_count', 'ultimo_estok_activo_id',
             'membresias', 'membresias_count',
+            # Monetización: el Admin Global del frontend muestra el plan en la
+            # tabla y lo cambia con `POST|PATCH /api/usuarios/{id}/cambiar_plan/`
+            # (única vía: `services/suscripcion.aplicar_plan_usuario` mantiene
+            # coherentes es_premium / limite_objetos / ocultar_publicidad).
+            'plan_suscripcion', 'es_premium', 'limite_objetos',
+            'ocultar_publicidad',
         ]
-        read_only_fields = ['id', 'date_joined', 'last_login', 'login_count']
+        read_only_fields = [
+            'id', 'date_joined', 'last_login', 'login_count',
+            'plan_suscripcion', 'es_premium', 'limite_objetos',
+            'ocultar_publicidad',
+        ]
 
     def get_display_name(self, obj):
         try:
