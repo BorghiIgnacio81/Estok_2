@@ -37,11 +37,16 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ....models import Contenedor, Estok
+from ....services.feature_flags import (
+    CLAVE_EXPORTACION_CSV,
+    CLAVE_EXPORTACION_PDF,
+)
 from ....services.taxonomia_contenedor import (
     TIPO_CAJA,
     TIPO_MUEBLE_INMUEBLE,
     TIPO_MUEBLE_MOVIL,
 )
+from ...plan_acceso import exigir_funcionalidad
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +210,15 @@ class ExportActionsMixin:
         """
         Exporta el inventario a CSV según el alcance elegido en el modal:
         `completo` (objetos + contenedores), `objetos` o `contenedores`.
+
+        Sujeto al Feature Flag `exportacion_csv`: si el Admin Global lo apaga, o
+        si lo deja activo sin modo promocional para un usuario del plan
+        gratuito, responde HTTP 403 antes de tocar la base.
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_EXPORTACION_CSV)
+        if bloqueo is not None:
+            return bloqueo
+
         alcance = self._normalizar_alcance(request.query_params.get('alcance'))
         self._estok_activo_id()  # 400 temprano si el header está malformado
 
@@ -245,7 +258,15 @@ class ExportActionsMixin:
           - incluir_mapas   → dibuja (o no) los bloques geométricos de ruta.
           - mostrar_precios → escribe (u omite) la celda del precio.
           - ahorro_tinta    → bordes negros limpios sin fondos ámbar.
+
+        Sujeto al Feature Flag `exportacion_pdf` (ver
+        inventario/services/feature_flags.py): apagado global o sin promoción
+        para un usuario gratuito ⇒ HTTP 403 con `motivo` para la UI.
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_EXPORTACION_PDF)
+        if bloqueo is not None:
+            return bloqueo
+
         try:
             from ....services.informe_pdf_service import construir_informe_pdf
         except ImportError as exc:  # ReportLab ausente en el despliegue

@@ -102,6 +102,47 @@ class CustomUser(AbstractUser):
         ),
     )
 
+    # ------------------------------------------------------------------
+    # MONETIZACIÓN · PLAN GRATUITO (con publicidad) vs. PLAN PRO
+    # ------------------------------------------------------------------
+    # `es_premium` es el interruptor del plan Pro del usuario. Un miembro de un
+    # Estok/Hogar cuyo CREADOR es premium también se considera premium a los
+    # efectos de la API (ver inventario/services/suscripcion.py, única fuente de
+    # verdad: no duplicar estas reglas en las vistas).
+    es_premium = models.BooleanField(
+        default=False,
+        verbose_name="Es premium",
+        help_text=(
+            "Plan Pro activo: sin publicidad y sin límite de objetos. "
+            "Los miembros de un Estok cuyo creador es premium también lo heredan."
+        ),
+    )
+    plan_suscripcion = models.CharField(
+        max_length=10,
+        choices=[('free', 'Gratuito (con publicidad)'), ('pro', 'Pro (sin publicidad)')],
+        default='free',
+        verbose_name="Plan de suscripción",
+    )
+    limite_objetos = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=100,
+        verbose_name="Límite de objetos",
+        help_text=(
+            "Tope de objetos del plan gratuito (100). NULL = ilimitado "
+            "(se usa en el plan Pro)."
+        ),
+    )
+    ocultar_publicidad = models.BooleanField(
+        default=False,
+        verbose_name="Ocultar publicidad",
+        help_text=(
+            "True = la UI no muestra anuncios. Se activa con el plan Pro y se "
+            "HEREDA automáticamente cuando el usuario pertenece a un Estok cuyo "
+            "creador es premium (inventario/services/suscripcion.py)."
+        ),
+    )
+
     class Meta:
         verbose_name = "Usuario"
         verbose_name_plural = "Usuarios"

@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from django.shortcuts import redirect
 
 from ...models import CustomUser
+from ...services.feature_flags import CLAVE_SYNC_MERCADOLIBRE
 from ...services.mercadolibre_oauth import (
     get_auth_url, has_valid_token, delete_token, get_valid_access_token,
 )
@@ -35,6 +36,7 @@ from ...services.categorias_meli import (
 )
 from ...models import Objeto
 from .base import HasRolePermission
+from ..plan_acceso import exigir_funcionalidad
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +183,14 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         logger.info("Payload ML enviado: ...") y, ante 400/422, el cuerpo
         completo de la respuesta con logger.error("Respuesta ML Error: ...").
         Al frontend se le devuelve el detalle (campos faltantes / inválidos).
+
+        CONTROL DE FUNCIONALIDADES: la publicación está sujeta al Feature Flag
+        `sync_mercadolibre` (maestro → promocional → plan Pro).
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        if bloqueo is not None:
+            return bloqueo
+
         if not has_valid_token(request.user):
             return Response(
                 {
@@ -455,7 +464,13 @@ class MercadoLibreViewSet(viewsets.ViewSet):
 
         Lo llama /alertas-stock al cargar (best-effort, no bloquea el render) y
         la ficha del objeto con `objeto_id`.
+
+        Sujeto al Feature Flag `sync_mercadolibre` (Control de Funcionalidades).
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        if bloqueo is not None:
+            return bloqueo
+
         estok_id = (
             request.headers.get('X-Estok-Id')
             or request.query_params.get('estok_id')
@@ -533,7 +548,13 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         El contrato de `estado` es el mismo de `sincronizar_estados`
         (estado / label / activa / url / aviso), así que la insignia se puede
         repintar sin traducciones extra en el cliente.
+
+        Sujeto al Feature Flag `sync_mercadolibre` (Control de Funcionalidades).
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_SYNC_MERCADOLIBRE)
+        if bloqueo is not None:
+            return bloqueo
+
         estok_id = (
             request.headers.get('X-Estok-Id')
             or request.query_params.get('estok_id')

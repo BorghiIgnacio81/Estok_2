@@ -18,6 +18,7 @@ Uso:
 from django.core.management.base import BaseCommand
 from django.contrib.auth.hashers import make_password
 from inventario.models import Role, CustomUser, Membresia
+from inventario.services.feature_flags import sembrar_flags_estandar
 
 
 class Command(BaseCommand):
@@ -27,12 +28,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.NOTICE('Iniciando carga de datos iniciales...'))
 
         # ---------------------------------------------------------------------
-        # 1. Crear Roles Básicos
+        # 1. Asegurar los ROLES ESTÁNDAR (permisos garantizados en cada deploy)
         # ---------------------------------------------------------------------
+        # Se usa update_or_create a propósito: el comando NO sólo crea lo que
+        # falta, también GARANTIZA los permisos de los roles estándar (un rol
+        # editado a mano en el admin vuelve a su definición canónica).
+        # El NOMBRE no se renombra nunca: el código busca estos roles por nombre
+        # (Role.objects.get(name='Admin') en el alta de Estok, EsAdminDelEstok,
+        # etc.). El "nombre comercial" (Admin del Hogar / Editor Familiar /
+        # Visualizador-Beneficiario) va en la descripción.
         roles_data = [
             {
                 'name': 'Admin',
-                'description': 'Administrador del sistema con todos los permisos.',
+                'description': (
+                    'Admin del Hogar: todos los permisos del Estok '
+                    '(leer, escribir, editar y eliminar).'
+                ),
                 'can_read': True,
                 'can_write': True,
                 'can_edit': True,
@@ -40,7 +51,9 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Editor',
-                'description': 'Puede leer, escribir y editar, pero no eliminar.',
+                'description': (
+                    'Editor Familiar: puede leer, escribir y editar, pero no eliminar.'
+                ),
                 'can_read': True,
                 'can_write': True,
                 'can_edit': True,
@@ -48,7 +61,10 @@ class Command(BaseCommand):
             },
             {
                 'name': 'Visualizador',
-                'description': 'Acceso de solo lectura. No puede modificar ni eliminar.',
+                'description': (
+                    'Visualizador / Beneficiario: acceso de solo lectura. '
+                    'No puede modificar ni eliminar.'
+                ),
                 'can_read': True,
                 'can_write': False,
                 'can_edit': False,
@@ -71,15 +87,23 @@ class Command(BaseCommand):
 
         created_roles = []
         for role_data in roles_data:
-            role, created = Role.objects.get_or_create(
-                name=role_data['name'],
-                defaults=role_data
+            datos = dict(role_data)
+            nombre = datos.pop('name')
+            # `es_administrador_fisico` se OMITE en los roles estándar para no
+            # pisar una configuración manual del Admin Global; sólo el rol
+            # «Administrador Físico» lo declara explícitamente.
+            if nombre != 'Administrador Físico':
+                datos.pop('es_administrador_fisico', None)
+
+            role, created = Role.objects.update_or_create(
+                name=nombre,
+                defaults=datos,
             )
             if created:
                 created_roles.append(role.name)
                 self.stdout.write(self.style.SUCCESS(f'  ✓ Rol creado: {role.name}'))
             else:
-                self.stdout.write(f'  - Rol ya existente: {role.name}')
+                self.stdout.write(f'  - Rol asegurado (permisos canónicos): {role.name}')
 
         admin_role = Role.objects.get(name='Admin')
 
@@ -137,6 +161,25 @@ class Command(BaseCommand):
             ))
         else:
             self.stdout.write('  - Membresía admin → Estok Principal ya existente.')
+
+        # ---------------------------------------------------------------------
+        # 5. Sembrar los FEATURE FLAGS estándar (Control de Funcionalidades)
+        # ---------------------------------------------------------------------
+        # Idempotente: crea las filas que falten con el estado inicial
+        # (activo_global=True + modo_promocional=True, para no cortar ninguna
+        # función existente) y NO pisa lo que el Admin Global ya configuró.
+        # Los switches se manejan desde el admin: «Feature Flags (control de
+        # funcionalidades)».
+        resultado_flags = sembrar_flags_estandar()
+        if resultado_flags['creados']:
+            self.stdout.write(self.style.SUCCESS(
+                f'  ✓ Feature Flags creados: {", ".join(resultado_flags["creados"])}'
+            ))
+        if resultado_flags['existentes']:
+            self.stdout.write(
+                f'  - Feature Flags ya existentes: '
+                f'{", ".join(resultado_flags["existentes"])}'
+            )
 
         # ---------------------------------------------------------------------
         # Resumen final

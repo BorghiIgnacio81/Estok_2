@@ -22,6 +22,7 @@ from ...serializers import (
 from ....services.clasificacion_contenedor_objeto import (
     asegurar_clasificacion_contenedor,
 )
+from ...plan_acceso import exigir_cupo_objetos
 from ..base import HasRolePermission
 
 
@@ -93,7 +94,17 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         'imagen') se persisten en la tabla relacional FotoObjeto de forma
         hermética para el Estok activo (el objeto se crea con el estok del
         header X-Estok-Id y las fotos quedan vinculadas a ese objeto).
+
+        CONTROL DE FUNCIONALIDADES / PLAN: antes de crear se verifica la cuota
+        de objetos del plan (100 en el plan gratuito; ilimitada en Pro). El
+        bloqueo es un HTTP 403 con `codigo: "limite_objetos_alcanzado"` y el
+        estado completo de la cuota, para que el frontend muestre el aviso de
+        upgrade (ver inventario/services/suscripcion.py).
         """
+        bloqueo = exigir_cupo_objetos(request)
+        if bloqueo is not None:
+            return bloqueo
+
         create_serializer = ObjetoCreateSerializer(
             data=request.data, context={'request': request}
         )

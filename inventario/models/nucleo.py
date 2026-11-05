@@ -16,6 +16,49 @@ class Estok(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=200, default='Mi Inventario', verbose_name="Nombre del Estok")
     descripcion = models.TextField(blank=True, verbose_name="Descripción")
+
+    # ------------------------------------------------------------------
+    # PROPIEDAD Y MONETIZACIÓN DEL HOGAR
+    # ------------------------------------------------------------------
+    # `creador` es el dueño original del hogar (quien lo dio de alta con
+    # POST /api/estoks/). Es la pieza que hace posible la REGLA DE HERENCIA:
+    # si el creador tiene plan Pro, TODOS los miembros heredan
+    # `ocultar_publicidad = True` (ver inventario/services/suscripcion.py).
+    creador = models.ForeignKey(
+        'inventario.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='estoks_creados',
+        verbose_name="Creador del Estok",
+        help_text="Dueño original del hogar. Si es premium, sus miembros no ven publicidad.",
+    )
+    # Plan a nivel HOGAR: permite vender el plan al Estok completo sin depender
+    # de que el creador siga siendo el titular de la cuenta.
+    es_premium = models.BooleanField(
+        default=False,
+        verbose_name="Estok premium",
+        help_text="El hogar tiene plan Pro: todos sus miembros navegan sin publicidad.",
+    )
+    plan_suscripcion = models.CharField(
+        max_length=10,
+        choices=[('free', 'Gratuito (con publicidad)'), ('pro', 'Pro (sin publicidad)')],
+        default='free',
+        verbose_name="Plan del hogar",
+    )
+    limite_objetos = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=100,
+        verbose_name="Límite de objetos del hogar",
+        help_text="Tope de objetos del plan gratuito (100). NULL = ilimitado (plan Pro).",
+    )
+    ocultar_publicidad = models.BooleanField(
+        default=False,
+        verbose_name="Ocultar publicidad en el hogar",
+        help_text="Se propaga a los miembros cuando el hogar (o su creador) es premium.",
+    )
+
     tipo_layout = models.CharField(
         max_length=50,
         choices=[

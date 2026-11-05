@@ -38,10 +38,17 @@ class EstokSerializer(serializers.ModelSerializer):
             'id', 'nombre', 'descripcion',
             'tipo_layout', 'cantidad_pisos',
             'grid_filas', 'grid_columnas', 'grid_filas_config',
+            'es_premium', 'plan_suscripcion', 'limite_objetos',
+            'ocultar_publicidad',
             'miembros', 'miembros_count', 'objetos_count',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at',
+            # El plan del hogar SOLO lo cambia el Admin Global (Django Admin) o
+            # el flujo de facturación: nunca un PUT del cliente.
+            'es_premium', 'plan_suscripcion', 'limite_objetos', 'ocultar_publicidad',
+        ]
 
     def get_miembros_count(self, obj):
         return obj.miembros.count()
@@ -78,7 +85,7 @@ class EstokCreateSerializer(serializers.ModelSerializer):
         role_admin = Role.objects.get(name='Admin')
 
         with transaction.atomic():
-            estok = Estok.objects.create(**validated_data)
+            estok = Estok.objects.create(creador=user, **validated_data)
 
             Membresia.objects.create(
                 usuario=user,

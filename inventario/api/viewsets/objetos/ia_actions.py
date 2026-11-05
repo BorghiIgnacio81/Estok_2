@@ -17,6 +17,8 @@ from ....models import Objeto, Ubicacion, Contenedor
 from ....services.ai_vision_service import (
     AIVisionService, GeminiClient, AIQuotaExceededError, MENSAJE_LIMITE_IA,
 )
+from ....services.feature_flags import CLAVE_IA_ILIMITADA
+from ...plan_acceso import exigir_funcionalidad
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +43,15 @@ class IAActionsMixin:
         vuelca en el formulario y el usuario decide si guarda con el PUT).
         Sin el flag se conserva el comportamiento histórico: persiste los
         campos detectados en el objeto.
+
+        Sujeto al Feature Flag `ia_ilimitada` (Control de Funcionalidades): el
+        Admin Global puede apagarlo para todos o liberarlo en modo promocional;
+        sin promoción queda reservado al plan Pro.
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_IA_ILIMITADA)
+        if bloqueo is not None:
+            return bloqueo
+
         objeto = self.get_object()
         foto_principal = objeto.fotos.filter(es_principal=True).first()
         if not foto_principal:
@@ -172,7 +182,14 @@ class IAActionsMixin:
         de visión; el failover automático vive en AIVisionService).
         Por defecto SOLO analiza y devuelve los datos (no crea el objeto).
         Si se envía `crear_objeto: true`, también crea el objeto en BD.
+
+        Sujeto al Feature Flag `ia_ilimitada` (mismo criterio que
+        `analizar_con_ia`: maestro → promocional → plan).
         """
+        bloqueo = exigir_funcionalidad(request, CLAVE_IA_ILIMITADA)
+        if bloqueo is not None:
+            return bloqueo
+
         # El payload puede venir como JSON (imagen_base64) o como multipart con
         # archivos. Si el multipart trae MÚLTIPLES fotos, se selecciona
         # ESTRICTAMENTE la primera (la principal) para el análisis; el resto se

@@ -6,6 +6,7 @@ Re-exporta los 18 modelos para que el resto del proyecto siga usando
 from .base import *  # noqa: F401,F403
 from .usuarios import Role, CustomUser, Membresia, CodigoInvitacion
 from .nucleo import Estok
+from .feature_flags import FeatureFlag
 from .clasificacion import Categoria
 from .espacios import Contenedor
 from .ubicaciones import Ubicacion
@@ -23,6 +24,7 @@ __all__ = [
     'Membresia',
     'CodigoInvitacion',
     'Estok',
+    'FeatureFlag',
     'Categoria',
     'Ubicacion',
     'Contenedor',

@@ -27,6 +27,7 @@ from rest_framework.response import Response
 
 from ....models import Role, CustomUser, Membresia, Objeto
 from ...serializers import RoleSerializer, UserSerializer, UserCreateSerializer
+from ...plan_acceso import estado_plan_usuario
 from ..base import HasRolePermission
 from ...services import usuario_auth_service
 
@@ -143,11 +144,21 @@ class UsuarioViewSetBase(viewsets.ModelViewSet):
         """
         Retorna el usuario autenticado actual con la lista COMPLETA de sus
         Estoks (membresías activas) y su último Estok activo.
+
+        Incluye además el ESTADO DE MONETIZACIÓN y de FEATURE FLAGS, para que el
+        frontend ajuste dinámicamente la UI y la publicidad sin adivinar:
+            - es_premium / plan_suscripcion ('free' | 'pro')
+            - ocultar_publicidad  → oculta los anuncios (heredado del hogar Pro)
+            - limite_objetos / cupo_objetos → cuota del plan (100 en free)
+            - feature_flags → {clave: {habilitado, activo_global, ...}}
+        Todo lo resuelve `inventario/api/plan_acceso.py` +
+        `inventario/services/{feature_flags,suscripcion}.py` (fuente única).
         """
         serializer = UserSerializer(request.user)
         data = serializer.data
         data['estoks'] = usuario_auth_service.membresias_del_usuario(request.user)
         data['ultimo_estok_activo_id'] = usuario_auth_service.id_estok_activo(request.user)
+        data.update(estado_plan_usuario(request))
         return Response(data)
 
     @action(detail=False, methods=['put'], url_path='perfil')

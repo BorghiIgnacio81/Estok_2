@@ -203,3 +203,118 @@ def asegurar_clasificacion_de_caja(sender, instance, **kwargs):
             exc,
         )
 
+
+# =============================================================================
+# HERENCIA DE PUBLICIDAD DEL PLAN PRO (Gratuito con Ads vs. Pro)
+# =============================================================================
+# REGLA DE NEGOCIO: si un usuario pertenece a un Estok/Hogar cuyo CREADOR es
+# premium, todos sus miembros heredan `ocultar_publicidad = True`.
+#
+# La resolución real vive en `services/suscripcion.py` (única fuente de verdad).
+# Acá sólo se detecta el CAMBIO del plan comparando una foto tomada en pre_save,
+# para no golpear la base en cada guardado intrascendente (perfil, presencia,
+# etc.). Toda la propagación usa `queryset.update()`, que NO dispara señales:
+# por diseño es imposible entrar en recursión.
+# =============================================================================
+@receiver(pre_save, sender='inventario.CustomUser')
+def capturar_plan_previo_usuario(sender, instance, **kwargs):
+    """Guarda el plan anterior del usuario para detectar cambios reales."""
+    if not instance.pk:
+        instance._plan_previo = None
+        return
+    instance._plan_previo = sender.objects.filter(pk=instance.pk).values(
+        'es_premium', 'plan_suscripcion',
+    ).first()
+
+
+@receiver(post_save, sender='inventario.CustomUser')
+def heredar_publicidad_del_hogar(sender, instance, created, **kwargs):
+    """
+    Alinea `ocultar_publicidad` del usuario y de sus hogares cuando cambia el plan.
+
+    - Cambió `es_premium` / `plan_suscripcion` del usuario → se recalcula su
+      propio flag y se re-propaga a los hogares que él creó (sus miembros
+      heredan el plan Pro del creador).
+    """
+    if created:
+        return
+    previo = getattr(instance, '_plan_previo', None)
+    if not previo:
+        return
+    if (
+        previo.get('es_premium') == instance.es_premium
+        and previo.get('plan_suscripcion') == instance.plan_suscripcion
+    ):
+        return
+
+    try:
+        from .services.suscripcion import (
+            sincronizar_publicidad_estok,
+            sincronizar_publicidad_usuario,
+        )
+
+        sincronizar_publicidad_usuario(instance)
+        for estok in instance.estoks_creados.all():
+            sincronizar_publicidad_estok(estok)
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning(
+            'No se pudo propagar el plan de %s a sus hogares: %s',
+            getattr(instance, 'username', '?'),
+            exc,
+        )
+
+
+@receiver(pre_save, sender='inventario.Estok')
+def capturar_plan_previo_estok(sender, instance, **kwargs):
+    """Guarda el plan/creador anterior del Estok para detectar cambios reales."""
+    if not instance.pk:
+        instance._plan_previo = None
+        return
+    instance._plan_previo = sender.objects.filter(pk=instance.pk).values(
+        'es_premium', 'creador_id',
+    ).first()
+
+
+@receiver(post_save, sender='inventario.Estok')
+def heredar_publicidad_al_guardar_estok(sender, instance, **kwargs):
+    """Propaga el plan del hogar a TODOS sus miembros cuando el plan cambia."""
+    previo = getattr(instance, '_plan_previo', None)
+    if previo is not None:
+        if (
+            previo.get('es_premium') == instance.es_premium
+            and previo.get('creador_id') == instance.creador_id
+        ):
+            return
+
+    try:
+        from .services.suscripcion import sincronizar_publicidad_estok
+
+        sincronizar_publicidad_estok(instance)
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning(
+            'No se pudo propagar el plan del Estok %s: %s',
+            getattr(instance, 'pk', '?'),
+            exc,
+        )
+
+
+@receiver(post_save, sender='inventario.Membresia')
+def heredar_publicidad_al_unirse(sender, instance, **kwargs):
+    """
+    Al unirse a un hogar premium, el miembro hereda `ocultar_publicidad = True`.
+
+    Cubre el alta de la Membresia (nuevo miembro, código de invitación, o
+    Membresia creada junto al Estok), donde el usuario todavía no tenía el flag.
+    """
+    try:
+        from .services.suscripcion import sincronizar_publicidad_usuario
+
+        sincronizar_publicidad_usuario(getattr(instance, 'usuario', None))
+    except Exception as exc:  # pragma: no cover - defensivo
+        logger.warning(
+            'No se pudo heredar la publicidad en la Membresia %s: %s',
+            getattr(instance, 'pk', '?'),
+            exc,
+        )
+
+
