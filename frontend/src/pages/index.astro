@@ -8,6 +8,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import GodModales from '../components/dashboard/GodModales.astro';
+// Atajos del panel Admin Global al Admin de Django (planes, permisos, modelos).
+import AdminGlobalEnlaces from '../components/dashboard/AdminGlobalEnlaces.astro';
 // Modal de cámara del escáner QR (botón gráfico de la barra de acciones).
 import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
@@ -278,6 +280,10 @@ const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/
 
         <!-- Gestión de Estoks (ARRIBA) y Usuarios (ABAJO) - apilado vertical 100% ancho -->
         <div class="p-6 space-y-8">
+          <!-- ================= MONETIZACIÓN, PERMISOS Y MODELOS ================= -->
+          <!-- Atajos al Admin de Django (monetización + modelos registrados). -->
+          <AdminGlobalEnlaces />
+
           <!-- ================= GESTIÓN DE ESTOKS (ARRIBA) ================= -->
           <div>
             <div class="flex flex-wrap items-center justify-between gap-3 mb-4">

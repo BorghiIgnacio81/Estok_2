@@ -3,7 +3,7 @@ Admin · Suscripción del usuario EN CALIENTE desde la lista de usuarios.
 
 Aporta al `CustomUserAdmin`:
 
-    - Columna «Suscripción» con un combobox (`<select>`) por fila para cambiar
+    - Columna «Plan» con un combobox (`<select>`) por fila para cambiar
       el plan entre Gratuito (Free) / Pro / Personalizado sin abrir el detalle.
     - Vista `cambiar-plan/<uuid>/` (POST + CSRF del propio admin) que aplica el
       cambio con `services/suscripcion.aplicar_plan_usuario()` (única fuente de
@@ -58,7 +58,7 @@ class SuscripcionUsuarioAdminMixin:
         ]
         return propias + super().get_urls()
 
-    @admin.display(description='Suscripción')
+    @admin.display(description='Plan')
     def selector_plan(self, usuario):
         """
         Versión SIN interacción de la columna.
@@ -86,7 +86,7 @@ class SuscripcionUsuarioAdminMixin:
         csrf_token = get_token(request)
         planes = PLANES_SELECCION
 
-        @admin.display(description='Suscripción')
+        @admin.display(description='Plan')
         def selector_plan(usuario):
             plan_actual = str(usuario.plan_suscripcion or suscripcion.PLAN_FREE)
             return render_to_string(

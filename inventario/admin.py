@@ -116,6 +116,14 @@ class CustomUserAdmin(SuscripcionUsuarioAdminMixin, UserAdmin):
     list_display = ['username', 'email', 'get_full_name', 'is_active',
                     'selector_plan', 'es_premium', 'ocultar_publicidad',
                     'ultima_actividad']
+    # Edición EN CALIENTE de los dos booleanos desde la propia lista (un click +
+    # «Guardar», sin abrir el detalle de cada fila).
+    # `plan_suscripcion` NO se pone acá a propósito: se cambia con el combobox de
+    # la columna «Plan», que aplica el plan con
+    # `services/suscripcion.aplicar_plan_usuario()` y alinea de una sola vez
+    # `es_premium`, `limite_objetos` y `ocultar_publicidad`. Editarlo como texto
+    # crudo en la lista desincronizaría esos tres campos.
+    list_editable = ['es_premium', 'ocultar_publicidad']
     list_filter = ['is_active', 'is_staff', 'es_premium', 'plan_suscripcion',
                    'ocultar_publicidad']
     search_fields = ['username', 'email', 'first_name', 'last_name']
