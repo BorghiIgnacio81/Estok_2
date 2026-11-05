@@ -105,7 +105,7 @@ class RoleAdmin(admin.ModelAdmin):
 @admin.register(CustomUser)
 class CustomUserAdmin(SuscripcionUsuarioAdminMixin, UserAdmin):
     """
-    Gestión visual de usuarios + columna «Suscripción» INTERACTIVA.
+    Gestión visual de usuarios + columna «Plan» INTERACTIVA.
 
     El combobox de la columna cambia el plan en caliente (Free / Pro /
     Personalizado) mediante `admin_suscripcion.cambiar_plan_view`, que aplica el
