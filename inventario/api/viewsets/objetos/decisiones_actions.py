@@ -37,6 +37,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ....models import DecisionVotacion, Objeto
+from ....api.tenant_activo import estok_id_de_request
 from ....services import descarte_service, decisiones_service
 from ....services import mercadolibre_estado
 from ....services.espejo_contenedor import (
@@ -214,10 +215,7 @@ class DecisionesActionsMixin:
     @staticmethod
     def _estok_id(request):
         """Tenant activo del request (header X-Estok-Id con fallback a query)."""
-        return (
-            request.headers.get('X-Estok-Id')
-            or request.query_params.get('estok_id')
-        )
+        return estok_id_de_request(request)
 
     def _objetos_del_estok(self):
         """

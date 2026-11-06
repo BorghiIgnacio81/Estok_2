@@ -36,6 +36,9 @@ import { celdaDelCentro } from './fusionCentroide';
 // ICONOGRAFÍA FÍSICA ÚNICA: el icono del ambiente sale de la MISMA fuente que el
 // lienzo de edición de Almacenamiento, Objetos y Mudanza (subtipo por nombre).
 import { iconoDeEspacio, ICONO_ESPACIO } from './iconosFisicos';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml). Es un módulo puro y
+// sin dependencias, así que no genera ciclos de importación con este render.
+import { escapeHtml } from './escapeHtml';
 
 /** Marco del lienzo del plano: los MISMOS valores con los que el motor dibujó. */
 export interface MarcoEtiquetas {
@@ -99,20 +102,6 @@ function normalizar(valor: unknown): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
-}
-
-/**
- * Escapa texto que viaja a `innerHTML` (los nombres vienen de la base). Se
- * mantiene local, igual que en el resto de los módulos de render de lib/, para
- * que este módulo sea puro y sin dependencias (nada de ciclos de importación).
- */
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /**

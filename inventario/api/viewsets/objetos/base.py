@@ -23,6 +23,7 @@ from ....services.clasificacion_contenedor_objeto import (
     asegurar_clasificacion_contenedor,
 )
 from ...plan_acceso import exigir_cupo_objetos
+from ...tenant_activo import estok_id_de_request
 from ..base import HasRolePermission
 
 
@@ -207,10 +208,7 @@ class ObjetoViewSetBase(viewsets.ModelViewSet):
         qs = Objeto.objects.all()
 
         # Filtrar por estok
-        estok_id = (
-            self.request.headers.get('X-Estok-Id')
-            or self.request.query_params.get('estok_id')
-        )
+        estok_id = estok_id_de_request(self.request)
         # `?incluir_sin_estok=true` (opt-in, default = comportamiento histórico):
         # incluye además los objetos FÍSICAMENTE presentes en el Estok activo
         # cuya FK `estok` quedó nula (huérfanos de carga/legacy) pero que sí

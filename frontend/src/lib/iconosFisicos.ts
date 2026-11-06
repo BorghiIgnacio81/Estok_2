@@ -20,7 +20,7 @@
 // 100% puro: sin estado, sin DOM y sin dependencias (evita ciclos de importación).
 // =============================================================================
 
-import { TIPO_CAJA, TIPO_OBJETO, TIPO_CONJUNTO, esMuebleInmueble, tipoFisico } from './taxonomiaContenedor';
+import { TIPO_CAJA, TIPO_OBJETO, TIPO_CONJUNTO, tipoFisico } from './taxonomiaContenedor';
 import type { PiezaTaxonomica } from './taxonomiaContenedor';
 
 /** Icono base de un ambiente/espacio desconocido (habitación común). */
@@ -80,9 +80,6 @@ const REGLAS_MUEBLE: readonly ReglaIcono[] = [
   { icono: '🗄️', claves: ['biblioteca', 'vitrina', 'modulo', 'organizador'] },
 ];
 
-const ICONO_MUEBLE_CONTENEDOR = '🗄️';
-const ICONO_MUEBLE_COMUN = '🪑';
-
 /**
  * Icono de un MUEBLE SEGÚN SU NOMBRE/TAXONOMÍA, devolviendo '' cuando NO hay un
  * subtipo reconocido (para conservar el fallback por imagen del lienzo).
@@ -101,20 +98,4 @@ export function iconoDeMuebleReconocido(
     if (regla.claves.some((clave) => base.includes(clave))) return regla.icono;
   }
   return '';
-}
-
-/**
- * Icono de un MUEBLE según su nombre y su taxonomía:
- *   · CAJA   → 📦   · OBJETO → 🧸   · CONJUNTO → 🗃️ (estante/cajonera interna)
- *   · MUEBLE → regla por nombre; sin coincidencia, 🗄️ si es contenedor e
- *              inmueble o tiene sub-divisiones, y 🪑 si es un mueble común.
- */
-export function iconoDeMueble(
-  nombre?: string | null,
-  pieza?: PiezaTaxonomica | null,
-): string {
-  const reconocido = iconoDeMuebleReconocido(nombre, pieza);
-  if (reconocido) return reconocido;
-  const contenedor = esMuebleInmueble(pieza) || Number(pieza?.subcontenedores_count) > 0;
-  return contenedor ? ICONO_MUEBLE_CONTENEDOR : ICONO_MUEBLE_COMUN;
 }

@@ -24,6 +24,8 @@
 
 import { API_BASE_URL, getAuthHeaders } from '../../services/auth';
 import { esFuenteMercadoLibre } from '../precioReferencia';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml } from '../escapeHtml';
 
 /** Respuesta de GET /api/objetos/buscar_precio_referencia/. */
 export interface ResultadoPrecioReferencia {
@@ -77,15 +79,6 @@ export function etiquetaEstadoPrecio(estado: string): string {
 export function etiquetaDescuentoPrecio(porcentaje: number): string {
   const descuento = 100 - porcentaje;
   return descuento > 0 ? `-${descuento}%` : '0%';
-}
-
-/** Escapa un valor para interpolarlo dentro de un atributo o texto HTML. */
-function escapeHtml(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 /**

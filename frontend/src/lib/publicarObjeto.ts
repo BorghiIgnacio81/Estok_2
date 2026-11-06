@@ -17,6 +17,8 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { MercadoLibreError, publicarEnMercadoLibre } from '../services/mercadolibre';
 import { escaparHtml } from './invitacionEstok';
+// Importe con formato es-AR: helper ÚNICO (lib/formatoMoneda). Nunca duplicar.
+import { formatearMoneda } from './formatoMoneda';
 // Aviso "en caliente": al publicar (o marcar como publicado) se refrescan la
 // sección destacada de venta y el bloque de «ya publicados» del tablero.
 import { notificarPublicacionActualizada } from './eventosDecisiones';
@@ -49,10 +51,7 @@ function el<T extends HTMLElement>(id: string): T | null {
 }
 
 function formatUSD(val: string | null | undefined): string {
-  if (!val) return '—';
-  const num = parseFloat(val);
-  if (Number.isNaN(num)) return '—';
-  return `$${num.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
+  return formatearMoneda(val);
 }
 
 // -----------------------------------------------------------------------------

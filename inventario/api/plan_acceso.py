@@ -31,6 +31,7 @@ from ..services import cuotas_botones as cuotas_service
 from ..services import feature_flags as flags_service
 from ..services import permisos_botones as permisos_service
 from ..services import suscripcion
+from .tenant_activo import estok_id_de as _estok_id_de
 
 # Códigos estables para el frontend (no traducir ni renombrar).
 CODIGO_FUNCIONALIDAD = 'funcionalidad_no_disponible'
@@ -45,20 +46,10 @@ def estok_id_de(request):
       1. header X-Estok-Id (lo envía getAuthHeaders)
       2. query param `estok_id`
       3. `user.ultimo_estok_activo` (sesión del backend)
+
+    La resolución vive en `api/tenant_activo.py` (helper único multi-tenant).
     """
-    if request is None:
-        return None
-
-    estok_id = (
-        request.headers.get('X-Estok-Id')
-        or request.query_params.get('estok_id')
-    )
-    if estok_id:
-        return str(estok_id)
-
-    usuario = getattr(request, 'user', None)
-    ultimo = getattr(usuario, 'ultimo_estok_activo_id', None)
-    return str(ultimo) if ultimo else None
+    return _estok_id_de(request)
 
 
 def exigir_funcionalidad(request, clave, estok_id=None):

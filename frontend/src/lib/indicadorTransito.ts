@@ -10,6 +10,8 @@
 // =============================================================================
 
 export type TipoTransito = 'interno' | 'general';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from './escapeHtml';
 
 const TEXTO_POR_DEFECTO: Record<TipoTransito, string> = {
   interno: '🔴 En tránsito interno',
@@ -22,16 +24,6 @@ const TITULO_POR_DEFECTO: Record<TipoTransito, string> = {
   general:
     'En Tránsito: viaja al Estok destino SIN ubicación física (limbo del inquilinato).',
 };
-
-/** Escapa texto para inyectarlo en HTML de forma segura. */
-function esc(valor: string): string {
-  return String(valor)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** Pastilla del indicador de tránsito (idéntica firma que el componente .astro). */
 export function indicadorTransitoHtml(

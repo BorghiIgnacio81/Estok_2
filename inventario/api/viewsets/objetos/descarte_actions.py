@@ -24,6 +24,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from ....services import descarte_service
+from ....api.tenant_activo import estok_id_de_request
 from .decisiones_actions import payload_objeto_decision
 
 
@@ -36,10 +37,7 @@ class DescarteActionsMixin:
     @staticmethod
     def _estok_id(request):
         """Tenant activo del request (header X-Estok-Id con fallback a query)."""
-        return (
-            request.headers.get('X-Estok-Id')
-            or request.query_params.get('estok_id')
-        )
+        return estok_id_de_request(request)
 
     @staticmethod
     def _error(mensaje, codigo=status.HTTP_400_BAD_REQUEST):

@@ -20,6 +20,8 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 // Lote 31 · punto 1: las votaciones ACTIVAS/pendientes se leen arriba y las
 // resueltas/canceladas quedan relegadas al fondo (regla compartida y pura).
 import { ordenarVotaciones } from './decisionesOrden';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as escapar } from './escapeHtml';
 
 // =============================================================================
 // TIPOS
@@ -90,15 +92,6 @@ const estado: EstadoVotaciones = {
 
 function el(id: string): HTMLElement | null {
   return document.getElementById(id);
-}
-
-function escapar(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function nombreUsuario(usuario: UsuarioEstok): string {
@@ -388,11 +381,5 @@ export function iniciarVotacionesPendientes(): void {
   });
 
   void cargarDatos().then(render);
-}
-
-/** Recarga las votaciones (por ejemplo tras crear un objeto con votación). */
-export async function refrescarVotacionesPendientes(): Promise<void> {
-  await cargarDatos();
-  render();
 }
 

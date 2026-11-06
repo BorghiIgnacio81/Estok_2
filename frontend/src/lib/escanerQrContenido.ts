@@ -150,9 +150,5 @@ export function fotoDeObjeto(objeto: ObjetoApi): string {
 }
 
 /** «$1.234,56» o «—» cuando el objeto no tiene valor estimado. */
-export function formatearValor(valor: string | number | null | undefined): string {
-  if (valor === null || valor === undefined || valor === '') return '—';
-  const numero = Number(valor);
-  if (!Number.isFinite(numero)) return '—';
-  return `$${numero.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
-}
+export { formatearMoneda as formatearValor } from './formatoMoneda';
+

@@ -18,7 +18,6 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../../../services/auth';
 import { toast } from '../../mapaJerarquico';
-import { indicadorTransitoHtml } from '../../indicadorTransito';
 
 /** Naturaleza del elemento arrastrado. */
 export type TipoCarga = 'contenedor' | 'objeto';
@@ -49,11 +48,6 @@ export interface DestinoDrop {
    * `undefined` conserva la heurística histórica del Drop (a ciegas → tránsito).
    */
   enTransito?: boolean | null;
-}
-
-/** Etiqueta roja reutilizada del sistema («🔴 En tránsito interno»). */
-export function etiquetaTransitoInternoHtml(): string {
-  return indicadorTransitoHtml('interno');
 }
 
 /** Lee la carga arrastrada de los MIME types estándar (null si no hay nada). */

@@ -28,7 +28,6 @@ import { esCajaMovil } from './taxonomiaContenedor';
 // no repintar el interior mientras se edita un nombre, se arrastra/estira una
 // pieza o hay un PUT diferido en vuelo.
 import { conservarViewport, hayEdicionEspacioActiva } from './edicionEspacioActiva';
-import type { ItemGeometria } from './sectoresMinimapa';
 import {
   ADVERTENCIA_ELIMINAR_DIVISION,
   agregarDivisionEnFila,
@@ -749,39 +748,6 @@ function activarMueble(id: string | null): void {
   window.dispatchEvent(
     new CustomEvent('estok:mueble-seleccionado', { detail: { id, hermanos: raices } }),
   );
-}
-
-/** Datos de navegación de una pieza interna (Nivel 3) para el portal de niveles. */
-export interface DatosPiezaNivel3 {
-  /** La pieza tiene sub-divisiones propias: se desciende de forma recursiva. */
-  tieneDivisiones: boolean;
-  /** Piezas hermanas (mismo contenedor padre) con su geometría real (minimapa). */
-  hermanos: ItemGeometria[];
-}
-
-/**
- * Datos de navegación de una pieza del Nivel 3 (estante/caja dentro del mueble
- * activo) que consume el motor de portales: permite DESCENDER de forma recursiva
- * dentro de una estructura que a su vez tiene divisiones propias, y dibujar el
- * minimapa de orientación con las hermanas reales (geometría ui_* persistida).
- *
- * Devuelve null cuando el id no es una pieza interna conocida de la habitación.
- */
-export function datosPiezaNivel3(id: string): DatosPiezaNivel3 | null {
-  const pieza = subContenedores.find((s) => s.id === id);
-  if (!pieza) return null;
-  const hermanos: ItemGeometria[] = subContenedores
-    .filter((s) => s.parent_contenedor === pieza.parent_contenedor)
-    .map((s) => ({
-      id: s.id,
-      nombre: s.nombre,
-      ui_left: s.ui_left,
-      ui_top: s.ui_top,
-      ui_width: s.ui_width,
-      ui_height: s.ui_height,
-      fusion_grupo: s.fusion_grupo,
-    }));
-  return { tieneDivisiones: Number(pieza.subcontenedores_count) > 0, hermanos };
 }
 
 /** Reduce en el estado local la geometría de una fila (espejo del PUT servido). */

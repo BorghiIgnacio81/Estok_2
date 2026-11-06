@@ -9,6 +9,12 @@
 import type { NodoCaja } from './rutaCajaMinimapas';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_MUEBLE } from './assetsUi';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml). Se re-exporta con el
+// nombre histórico (`esc`) porque categoriasGestion y el render lo importan acá.
+import { escapeHtml as esc } from './escapeHtml';
+
+export { esc };
+
 
 export interface ObjetoArbol {
   [key: string]: any;
@@ -67,15 +73,6 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
 // ---------------------------------------------------------------------------
 // Helpers puros
 // ---------------------------------------------------------------------------
-
-export function esc(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 export function numerico(v: unknown): number {
   const n = Number(v);

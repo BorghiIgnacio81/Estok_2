@@ -13,6 +13,11 @@
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi } from '../../services/auth';
 import { contenedorToastFijo, mostrarToastFijo } from '../toastFijo';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml). Se re-exporta con
+// el nombre histórico porque otros módulos del mapa lo importan desde acá.
+import { escapeHtml } from '../escapeHtml';
+
+export { escapeHtml };
 
 // =============================================================================
 // CONSTANTES
@@ -86,15 +91,6 @@ export interface UbicacionPlano {
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-export function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function entero(v: unknown, def: number): number {
   const n = Number(v);

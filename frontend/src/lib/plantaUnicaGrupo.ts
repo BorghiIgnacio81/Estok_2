@@ -9,37 +9,12 @@
 // Auth 100% centralizada (services/auth).
 // =============================================================================
 
-import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-
 export interface ParteGrupo {
   id: string;
   ui_left: string;
   ui_top: string;
   ui_width: string;
   ui_height: string;
-}
-
-/** PUT JSON con auth centralizada (JWT + X-Estok-Id). Devuelve true si fue 2xx. */
-export async function putJson(url: string, body: Record<string, unknown>): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Aplica nombre y/o geometría a TODAS las partes del grupo en un único PUT. */
-export async function putGrupo(baseId: string, payload: Record<string, unknown>): Promise<boolean> {
-  return putJson(`${API_BASE_URL}/ubicaciones/${baseId}/grupo/`, payload);
 }
 
 function porCiento(n: number): string {

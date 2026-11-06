@@ -38,6 +38,7 @@ from ...services.categorias_meli import (
 from ...models import Objeto
 from .base import HasRolePermission
 from ..plan_acceso import exigir_boton
+from ..tenant_activo import estok_id_de_request
 
 logger = logging.getLogger(__name__)
 
@@ -503,10 +504,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         if bloqueo is not None:
             return bloqueo
 
-        estok_id = (
-            request.headers.get('X-Estok-Id')
-            or request.query_params.get('estok_id')
-        )
+        estok_id = estok_id_de_request(request)
         datos = getattr(request, 'data', None) or {}
 
         def _flag(valor):
@@ -588,10 +586,7 @@ class MercadoLibreViewSet(viewsets.ViewSet):
         if bloqueo is not None:
             return bloqueo
 
-        estok_id = (
-            request.headers.get('X-Estok-Id')
-            or request.query_params.get('estok_id')
-        )
+        estok_id = estok_id_de_request(request)
         datos = getattr(request, 'data', None) or {}
         objeto_id = str(datos.get('objeto_id') or '').strip()
         estado = str(datos.get('estado') or '').strip().lower()

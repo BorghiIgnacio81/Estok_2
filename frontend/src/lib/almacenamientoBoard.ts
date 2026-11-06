@@ -35,6 +35,8 @@ import { conservarViewportAsync, hayEdicionEspacioActiva } from './edicionEspaci
 import { prepararSeccionObjeto, recolectarSeccionObjeto } from './objetoEspacioModal';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_CAJA, ASSET_CONTENEDOR_GRANDE, ASSET_MUEBLE } from './assetsUi';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml } from './escapeHtml';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -140,15 +142,6 @@ export interface EntidadEditable {
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** Formatea las medidas "Alto × Ancho × Largo" (solo si al menos una existe). */
 function formatearMedidas(e: EntidadEditable): string | null {

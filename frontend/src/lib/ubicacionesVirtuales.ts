@@ -145,17 +145,6 @@ export function filtrarEspaciosDePlano<T extends EspacioConGeometria>(
 }
 
 /**
- * Descarta únicamente los espacios VIRTUALES conservando la geometría pendiente.
- * Lo usan las capas de navegación/edición, donde un espacio todavía sin `ui_*`
- * debe seguir siendo alcanzable aunque el plano no lo dibuje.
- */
-export function filtrarEspaciosVirtuales<T extends EspacioConGeometria>(
-  espacios: T[] | null | undefined,
-): T[] {
-  return (espacios ?? []).filter((espacio) => !esEspacioVirtual(espacio));
-}
-
-/**
  * Espacio virtual «En Tránsito» del Estok (limbo de mudanza), si está cargado.
  * Se usa para la tarjeta externa al plano y para restaurar una selección
  * guardada en el limbo.

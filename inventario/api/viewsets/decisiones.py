@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from ...models import DecisionVotacion, Membresia
 from ...services import decisiones_service
 from ..serializers.decisiones import DecisionVotacionSerializer, VotoCreateSerializer
+from ..tenant_activo import estok_id_de_request
 from .base import HasRolePermission
 
 
@@ -34,10 +35,7 @@ class DecisionVotacionViewSet(viewsets.ReadOnlyModelViewSet):
     # ------------------------------------------------------------------
     def _estok_id(self):
         """Estok activo del request (header X-Estok-Id con fallback a query)."""
-        return (
-            self.request.headers.get('X-Estok-Id')
-            or self.request.query_params.get('estok_id')
-        )
+        return estok_id_de_request(self.request)
 
     def _es_miembro(self, user, estok_id):
         """Padrón democrático: miembro del Estok o superuser."""

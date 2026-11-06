@@ -33,18 +33,6 @@ export const TIPO_MUEBLE_MOVIL = 'MUEBLE_MOVIL';
 export const TIPO_CAJA = 'CAJA';
 export const TIPO_OBJETO = 'OBJETO';
 
-/** Los 5 tipos canónicos (whitelist). */
-export const TIPOS_FISICOS = [
-  TIPO_CONJUNTO,
-  TIPO_MUEBLE_INMUEBLE,
-  TIPO_MUEBLE_MOVIL,
-  TIPO_CAJA,
-  TIPO_OBJETO,
-] as const;
-
-/** Muebles de la taxonomía (móviles o inmuebles): dueños de su cuadrícula. */
-export const TIPOS_MUEBLE = [TIPO_MUEBLE_MOVIL, TIPO_MUEBLE_INMUEBLE] as const;
-
 /** Campos mínimos para clasificar cualquier pieza (payload de la API o local). */
 export interface PiezaTaxonomica {
   tipo?: string | null;
@@ -179,11 +167,6 @@ export function esCajaMovil(pieza: PiezaTaxonomica | null | undefined): boolean 
   return tipoFisico(pieza) === TIPO_CAJA && !pieza?.es_inmueble;
 }
 
-/** OBJETO fino suelto: ítem contenido directamente en la habitación o caja. */
-export function esObjetoFisico(pieza: PiezaTaxonomica | null | undefined): boolean {
-  return tipoFisico(pieza) === TIPO_OBJETO;
-}
-
 /** CONJUNTO: estructura interna de un mueble (estante/cajonera/cajón). */
 export function esConjunto(pieza: PiezaTaxonomica | null | undefined): boolean {
   return tipoFisico(pieza) === TIPO_CONJUNTO;
@@ -211,16 +194,6 @@ export function esMuebleMovil(pieza: PiezaTaxonomica | null | undefined): boolea
 }
 
 /**
- * ANCLADA: estructura fija que nunca se muda (CONJUNTO o MUEBLE_INMUEBLE).
- * Espejo de `services.taxonomia_contenedor.es_anclado`.
- */
-export function esAnclado(pieza: PiezaTaxonomica | null | undefined): boolean {
-  if (pieza?.es_inmueble) return true;
-  const t = tipoFisico(pieza);
-  return t === TIPO_CONJUNTO || t === TIPO_MUEBLE_INMUEBLE;
-}
-
-/**
  * ESTRUCTURA INGRESABLE (navegable hacia adentro): un mueble (móvil o inmueble),
  * un CONJUNTO o cualquier contenedor que ya tenga sub-divisiones. Es el criterio
  * con el que el lienzo ABRE el interior de una pieza en vez de tratarla como hoja
@@ -230,18 +203,6 @@ export function esEstructuraIngresable(pieza: PiezaTaxonomica | null | undefined
   return esMueble(pieza)
     || esConjunto(pieza)
     || Number(pieza?.subcontenedores_count) > 0;
-}
-
-/**
- * ELEMENTO «POR UBICAR» admisible en la bandeja inferior de Almacenamiento.
- *
- * SOLO cajas móviles y objetos sueltos: ninguna estructura fija, ningún CONJUNTO
- * y ningún mueble (ni móvil ni inmueble) puede aparecer acá, aunque esté sin
- * casillero. El registro espejo (Objeto) de un mueble mudable se excluye aparte
- * por tener `contenedor` asignado.
- */
-export function esPiezaPorUbicar(pieza: PiezaTaxonomica | null | undefined): boolean {
-  return esCajaMovil(pieza) || esObjetoFisico(pieza);
 }
 
 /**

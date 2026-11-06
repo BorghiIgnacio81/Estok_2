@@ -12,6 +12,8 @@
 
 import { apiPost } from '../api';
 import { etiquetaPlan, opcionesPlanHtml } from './planes';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from '../escapeHtml';
 
 /** Fila mínima del endpoint global de usuarios que usa esta columna. */
 export interface UsuarioConPlan {
@@ -20,16 +22,6 @@ export interface UsuarioConPlan {
   display_name?: string;
   plan_suscripcion?: string;
   es_premium?: boolean;
-}
-
-function esc(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** Celda `<td>` lista para la columna «Plan de Suscripción». */

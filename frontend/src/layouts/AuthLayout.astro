@@ -111,7 +111,6 @@ const { title = 'Estok - Autenticación', bare = false } = Astro.props;
 
       if (cachedVersion && cachedVersion !== currentCommit) {
         // ¡Nuevo deploy detectado!
-        console.log('🆕 Nueva versión detectada:', currentCommit, '(anterior:', cachedVersion, ')');
 
         // Mostrar banner
         const banner = document.getElementById('updateBanner');
@@ -128,7 +127,6 @@ const { title = 'Estok - Autenticación', bare = false } = Astro.props;
           try {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
-            console.log('🗑️ Cache limpiado');
           } catch (err) {
             console.warn('⚠️ Error limpiando cache:', err);
           }
@@ -139,7 +137,6 @@ const { title = 'Estok - Autenticación', bare = false } = Astro.props;
           try {
             const registrations = await navigator.serviceWorker.getRegistrations();
             await Promise.all(registrations.map(reg => reg.unregister()));
-            console.log('🗑️ Service Workers desregistrados');
           } catch (err) {
             console.warn('⚠️ Error desregistrando SW:', err);
           }

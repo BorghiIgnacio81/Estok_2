@@ -14,6 +14,8 @@
 // =============================================================================
 
 import { apiGet, apiPatch } from '../api';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from '../escapeHtml';
 
 interface FeatureFlag {
   clave: string;
@@ -25,16 +27,6 @@ interface FeatureFlag {
 
 let contenedor: HTMLElement | null = null;
 let cargando = false;
-
-function esc(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function interruptorHtml(
   flag: FeatureFlag,

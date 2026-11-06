@@ -14,9 +14,6 @@
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { showToast } from './toast';
 
-/** Mensaje EXACTO con el que el backend rechaza una decisión sobre objeto ajeno. */
-export const MENSAJE_SIN_PERMISOS = 'No tienes permisos sobre este objeto.';
-
 /** True si el error corresponde al 403 de objeto ajeno (dispara el puente). */
 export function esErrorPermisoAjeno(mensaje: string): boolean {
   return (mensaje || '')

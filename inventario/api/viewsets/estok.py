@@ -16,6 +16,7 @@ from ...services.email_service import (
     resolver_destinatario_invitacion,
 )
 from ...services.mapa_estok_service import MapaEstokService
+from ..tenant_activo import estok_id_de_request
 from ..serializers import (
     EstokSerializer, EstokCreateSerializer,
     MembresiaSerializer, CodigoInvitacionSerializer,
@@ -176,7 +177,7 @@ class CodigoInvitacionViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return CodigoInvitacion.objects.all()
 
-        estok_id = self.request.headers.get('X-Estok-Id') or self.request.query_params.get('estok_id')
+        estok_id = estok_id_de_request(self.request)
         if estok_id:
             return CodigoInvitacion.objects.filter(estok_id=estok_id)
         return CodigoInvitacion.objects.none()

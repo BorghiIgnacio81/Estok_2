@@ -19,16 +19,11 @@
 
 import { getCachedUser } from '../services/auth';
 import type { EstokInfo } from '../services/auth';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml). Se re-exporta con
+// el nombre histórico de este módulo (lo usan publicarObjeto y las tarjetas).
+import { escapeHtml as escaparHtml } from './escapeHtml';
 
-/** Escapa texto para inyectarlo en HTML (los nombres de Estok son editables). */
-export function escaparHtml(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+export { escaparHtml };
 
 /** Estoks (inquilinatos) a los que tiene acceso la cuenta logueada. */
 export function estoksDelUsuario(): EstokInfo[] {

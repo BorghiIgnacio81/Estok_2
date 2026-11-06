@@ -21,6 +21,8 @@ import { esEspacioVirtual } from './ubicacionesVirtuales';
 // DESPUÉS del SVG cuando la pantalla la pide (`etiquetas: true`). Vive en su
 // propio módulo puro para no acoplar el dibujo con la iconografía.
 import { etiquetasSectoresHtml } from './minimapaEtiquetas';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml } from './escapeHtml';
 
 // =============================================================================
 // TIPOS
@@ -56,15 +58,6 @@ export const COLOR_NARANJA = '#f97316';
 // =============================================================================
 // HELPERS
 // =============================================================================
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function etiquetaCasillero(fila: number | null, columna: number | null): string {
   if (fila && columna) return `F${fila}·C${columna}`;

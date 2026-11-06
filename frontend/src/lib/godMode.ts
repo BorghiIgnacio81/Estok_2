@@ -20,6 +20,8 @@ import { celdaPlanHtml, cambiarPlanUsuario } from './adminGlobal/columnaPlan';
 import { initAdminGlobalTabs, registrarCargadorTab } from './adminGlobal/tabs';
 import { cargarPermisosBotones, initPermisosBotonesTab } from './adminGlobal/permisosBotones';
 import { cargarFeatureFlags, initFeatureFlagsTab } from './adminGlobal/featureFlags';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from './escapeHtml';
 
 // =============================================================================
 // Estado global del módulo
@@ -44,16 +46,6 @@ let godEstoks: any[] = [];
 // =============================================================================
 // Helpers de UI
 // =============================================================================
-
-function esc(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function godMostrarLoading(activo: boolean): void {
   if (!godLoading) return;

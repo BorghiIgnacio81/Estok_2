@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 
 from ...models import Role, CustomUser
 from ...services.email_service import TIPO_BIENVENIDA, enviar_email_usuario
+from ..tenant_activo import estok_id_de_request
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -49,7 +50,7 @@ class UserSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
 
         if request and obj.alias_por_estok:
-            estok_id = request.headers.get('X-Estok-Id') or request.query_params.get('estok_id')
+            estok_id = estok_id_de_request(request)
             if estok_id and str(estok_id) in obj.alias_por_estok:
                 return obj.alias_por_estok[str(estok_id)]
 

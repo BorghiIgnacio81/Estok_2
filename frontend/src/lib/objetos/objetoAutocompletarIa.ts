@@ -96,7 +96,6 @@ async function analizarConIa(): Promise<void> {
   // Todo el handler envuelto en try/catch desde la primera línea para evitar
   // errores silenciosos antes del fetch.
   try {
-    console.log('[IA] Click en Analizar IA detectado');
 
     // Guard clauses: verificar que los elementos del DOM existan
     const imagenInput = refOpcional<HTMLInputElement>(ID_INPUT_FOTO);
@@ -142,8 +141,6 @@ async function analizarConIa(): Promise<void> {
       iaProgressSubtext.textContent = 'Si no responde en 2 minutos más, se cancelará automáticamente.';
     }, 90000);
 
-    console.log('[IA] Enviando fetch a analizar_imagen con timeout de 250s');
-
     // COMPRESIÓN PREVIA EN EL CLIENTE (canvas HTML5): la foto puede llegar en su
     // resolución original (galería restaurada tras un F5, editor de imagen o
     // HEIC que no se pudo recomprimir al capturar). Se reescala a 1024 px como
@@ -152,8 +149,6 @@ async function analizarConIa(): Promise<void> {
     let imagenParaEnviar = base64Image;
     try {
       imagenParaEnviar = await comprimirImagenBase64(base64Image, 1024, 0.75);
-      const pesoKb = Math.round((imagenParaEnviar.length * 0.73) / 1024);
-      console.log(`[IA] Imagen comprimida para el análisis: ~${pesoKb} KB`);
     } catch (err) {
       // Si el navegador no puede recomprimirla (ej. HEIC de iPhone), se envía
       // la original: nunca se pierde la captura del operador.
@@ -174,7 +169,6 @@ async function analizarConIa(): Promise<void> {
       signal: controller.signal,
     });
 
-    console.log('[IA] Fetch completado, status:', response.status);
     clearTimeout(timeoutId);
     iaProgressText.textContent = '✅ Análisis completado';
 
@@ -205,14 +199,6 @@ async function analizarConIa(): Promise<void> {
 
     const result = await response.json();
     const datos = result.datos_ia || result;
-
-    // AUDITORÍA: estructura exacta del payload JSON que entrega el backend
-    // (debug de sincronización de keys entre Django y este módulo).
-    console.log('[IA] Respuesta cruda del backend:', JSON.stringify(result));
-    console.log('[IA] Claves de datos_ia:', Object.keys(datos));
-    if (datos.motor_utilizado && datos.motor_utilizado !== 'gemini') {
-      console.info(`[IA] Análisis resuelto por la IA secundaria: ${datos.motor_utilizado}`);
-    }
 
     aplicarCamposIa(datos);
     reportarResultadoIa(datos, result);

@@ -39,6 +39,7 @@ from rest_framework.response import Response
 from ....models import (
     Contenedor, Estok, BOTON_EXPORTAR_CSV, BOTON_EXPORTAR_PDF,
 )
+from ....api.tenant_activo import estok_id_de_request
 from ....services.taxonomia_contenedor import (
     TIPO_CAJA,
     TIPO_MUEBLE_INMUEBLE,
@@ -96,11 +97,7 @@ class ExportActionsMixin:
     # Tenant activo (X-Estok-Id) y parámetros de la query string
     # ------------------------------------------------------------------
     def _estok_activo_crudo(self) -> str:
-        return (
-            self.request.headers.get('X-Estok-Id')
-            or self.request.query_params.get('estok_id')
-            or ''
-        ).strip()
+        return (estok_id_de_request(self.request) or '').strip()
 
     def _estok_activo_id(self):
         """

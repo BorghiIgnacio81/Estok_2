@@ -29,35 +29,11 @@ import type { PiezaTaxonomica } from './taxonomiaContenedor';
 
 // Iconografía local estricta del Lienzo de Mapeo Espacial.
 // Rutas canónicas (WebP optimizados) en UN solo módulo: lib/assetsUi.ts.
-import { ASSET_CAJA, ASSET_CONTENEDOR_GRANDE, ASSET_MUEBLE } from './assetsUi';
+import { ASSET_MUEBLE } from './assetsUi';
 
-const IMG_CONTENEDOR_GRANDE = ASSET_CONTENEDOR_GRANDE;
-const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
 const IMG_OBJETO = ASSET_MUEBLE;
 
 export { IMG_OBJETO };
-
-export interface ItemCeldaVisor {
-  id: string;
-  nombre: string;
-  /** Taxonomía física del contenedor (para el icono de subtipo). */
-  tipo?: string | null;
-  subcontenedores_count?: number;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-  /** Mueble inmueble fijo: no se arrastra ni elimina. */
-  es_inmueble?: boolean;
-  /** Medidas visuales (resizing elástico recursivo, PUT ui_width/ui_height). */
-  ui_width?: string | null;
-  ui_height?: string | null;
-}
-
-export interface ObjetoCeldaVisor {
-  id: string;
-  nombre: string;
-  parent_grid_row?: number | null;
-  parent_grid_col?: number | null;
-}
 
 /** Etiquetas legibles de las cuatro paredes (posicion_puerta). */
 export const ETIQUETAS_PARED: Record<string, string> = {
@@ -77,52 +53,6 @@ export function iconoContenedorVisor(
   pieza?: PiezaTaxonomica | null,
 ): string {
   return iconoDeMuebleReconocido(nombre, pieza);
-}
-
-/** Contenido de una celda del Visor (contenedores y objetos con esa coordenada). */
-export function celdaVisorContenidoHtml(
-  conts: ItemCeldaVisor[],
-  objs: ObjetoCeldaVisor[],
-  r: number,
-  c: number,
-): string {
-  const contsCelda = conts.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  const objsCelda = objs.filter((x) => x.parent_grid_row === r && x.parent_grid_col === c);
-  // Celda vacía: botón sutil de creación dual que hereda las coordenadas exactas
-  // de fila/columna. Al crearse un mueble aquí, el backend inserta el Contenedor
-  // (almacenamiento) y su registro espejo en Objeto (stock mudable).
-  if (!contsCelda.length && !objsCelda.length) {
-    return `<button type="button" class="visor-celda-vacia-crear" data-crear-mueble-celda data-crear-fila="${r}" data-crear-col="${c}" title="Crear un mueble nuevo en el casillero F${r}·C${c}">➕ Crear mueble aquí</button>`;
-  }
-
-  const contsHtml = contsCelda
-    .map((x) => {
-      const img = (x.subcontenedores_count || 0) > 0 ? IMG_CONTENEDOR_GRANDE : IMG_CONTENEDOR_PEQUENO;
-      const ico = iconoContenedorVisor(x.nombre, x);
-      const visual = ico
-        ? `<span class="visor-celda-emoji">${ico}</span>`
-        : `<img src="${img}" alt="${escapeHtml(x.nombre)}" class="h-16 w-auto draggable" draggable="false" />`;
-      const uiW = x.ui_width && x.ui_width !== '100%' ? x.ui_width : null;
-      const uiH = x.ui_height && x.ui_height !== 'auto' ? x.ui_height : null;
-      const estilosUI = uiW || uiH
-        ? `style="${uiW ? `width:${uiW};` : ''}${uiH ? `height:${uiH};` : ''}"`
-        : '';
-      return `<div class="visor-celda-cont" data-contenedor-id="${x.id}" data-inplace-card data-id="${x.id}" ${estilosUI} draggable="${x.es_inmueble ? 'false' : 'true'}" title="${escapeHtml(x.nombre)}${x.es_inmueble ? ' · 📌 Mueble inmueble fijo (no mudable)' : ' · Arrastrá para reacomodar en otro casillero'}. Clic en el nombre para renombrar · tirá de la esquina para estirar">
-        ${x.es_inmueble ? '<span class="visor-celda-fijo" title="Mueble inmueble fijo">📌</span>' : ''}
-        <button type="button" class="visor-celda-editar" data-editar-contenedor-visor="${x.id}" title="Editar «${escapeHtml(x.nombre)}»">✏️</button>
-        ${visual}
-        <span class="visor-celda-nombre casita-renombrable" data-inplace-renombrar data-id="${x.id}" title="Clic para renombrar este mueble en caliente">${escapeHtml(x.nombre)}</span>
-        <span class="visor-celda-resize" data-inplace-resize data-id="${x.id}" title="Estirar para cambiar el tamaño visual de este mueble (se guarda automáticamente)"></span>
-      </div>`;
-    })
-    .join('');
-  const objsHtml = objsCelda
-    .map(
-      (x) =>
-        `<img src="${IMG_OBJETO}" alt="${escapeHtml(x.nombre)}" class="h-12 w-12 rounded-full draggable" draggable="true" data-objeto-dnd="${x.id}" title="${escapeHtml(x.nombre)} — arrastrá para reacomodar o extraer" />`,
-    )
-    .join('');
-  return `${contsHtml}${objsHtml}`;
 }
 
 /** Cuerpo de la habitación: grilla rodeada por las CUATRO paredes Drop Zone. */

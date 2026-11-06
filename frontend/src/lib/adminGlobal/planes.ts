@@ -12,6 +12,8 @@
 // =============================================================================
 
 import { apiGet } from '../api';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from '../escapeHtml';
 
 export interface PlanSuscripcion {
   valor: string;
@@ -27,16 +29,6 @@ export const PLANES_RESPALDO: PlanSuscripcion[] = [
 ];
 
 let catalogo: PlanSuscripcion[] = PLANES_RESPALDO;
-
-function esc(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** Planes disponibles ahora mismo (caché refrescada desde el backend). */
 export function planesDisponibles(): PlanSuscripcion[] {

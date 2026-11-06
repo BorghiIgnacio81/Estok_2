@@ -247,12 +247,4 @@ export function conectarResizeElastico(
   });
 }
 
-/** Destruye los estilos inline residuales de una carta (tras un render limpio). */
-export function limpiarEstilosInplace(scope: ParentNode): void {
-  scope.querySelectorAll<HTMLElement>('[data-inplace-card]').forEach((carta) => {
-    carta.style.removeProperty('width');
-    carta.style.removeProperty('height');
-  });
-}
-
 

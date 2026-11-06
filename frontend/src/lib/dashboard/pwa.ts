@@ -49,7 +49,6 @@ import {
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     e.preventDefault();
     deferredPrompt = e;
-    console.log('📲 PWA: beforeinstallprompt listo (1-tap)');
     window.dispatchEvent(new CustomEvent('estok-pwa-ready'));
   });
 
@@ -58,7 +57,6 @@ import {
     marcarPwaInstalada();
     ocultarBotonInstalarPwa();
     window.dispatchEvent(new CustomEvent('estok-pwa-installed'));
-    console.log('✅ Estok instalada como PWA');
   });
 
   function mostrarPromptIOS() {

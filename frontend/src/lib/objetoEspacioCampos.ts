@@ -24,6 +24,8 @@ import {
 } from './catalogosEstok';
 import type { CategoriaEstok } from './catalogosEstok';
 import { CAMPOS_PATRIMONIALES, patrimonialesPanelHtml } from './objetoCamposPatrimoniales';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml } from './escapeHtml';
 
 /** Foto del objeto tal como la devuelve el backend. */
 export interface FotoObjetoEspacio {
@@ -68,15 +70,6 @@ export const ESTADOS_CONSERVACION = [
   { valor: 'malo', etiqueta: 'A reparar' },
   { valor: 'muy_malo', etiqueta: 'Muy deteriorado' },
 ] as const;
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 /** Markup completo de los campos del objeto (sin botón de guardado). */
 export function camposObjetoEspacioHtml(): string {

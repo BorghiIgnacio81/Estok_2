@@ -194,8 +194,6 @@ export const HOSTS = {
   grillaObjetos: 'grillaObjetosPanel',
 } as const;
 
-export type ClaveHost = keyof typeof HOSTS;
-
 /** Todos los hosts de la cascada (se ocultan antes de encender los del nivel). */
 export const TODOS_LOS_HOSTS: string[] = Object.values(HOSTS);
 

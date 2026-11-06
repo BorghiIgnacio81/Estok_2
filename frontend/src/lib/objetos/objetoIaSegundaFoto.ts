@@ -65,10 +65,6 @@ export function initObjetoIaSegundaFoto(): void {
         base64Image = rawBase64;
       }
 
-      // LOG: tamaño real de la imagen comprimida
-      const imgSizeKB = Math.round((base64Image.length * 0.73) / 1024);
-      console.log(`[SEGUNDA FOTO] Tamaño comprimido: ~${imgSizeKB}KB`);
-
       const response = await fetch(`${API_BASE_URL}/objetos/analizar_imagen/`, {
         method: 'POST',
         headers: {

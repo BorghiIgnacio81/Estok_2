@@ -19,14 +19,12 @@
     // recargar la página para que el usuario vea la nueva versión.
     // =====================================================================
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('🔄 Nuevo SW tomó control, recargando...');
       window.location.reload();
     });
 
     // Registrar el Service Worker
     navigator.serviceWorker.register('/sw.js').then((registration) => {
       swRegistration = registration;
-      console.log('✅ SW registrado:', registration.scope);
 
       // =====================================================================
       // DETECCIÓN DE NUEVO SW (updatefound)
@@ -40,7 +38,6 @@
         if (newWorker) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('🆕 Nueva versión detectada via updatefound');
               mostrarBannerActualizacion(registration);
             }
           });
@@ -52,7 +49,6 @@
       // la página se cargó mientras se actualizaba en segundo plano).
       // =====================================================================
       if (registration.waiting && navigator.serviceWorker.controller) {
-        console.log('🆕 Nueva versión detectada via registration.waiting');
         mostrarBannerActualizacion(registration);
       }
 
@@ -79,7 +75,6 @@
       const wrappedUpdate = async function(): Promise<ServiceWorkerRegistration> {
         await originalUpdate();
         if (registration.waiting && navigator.serviceWorker.controller) {
-          console.log('🆕 Nueva versión detectada post-update()');
           mostrarBannerActualizacion(registration);
         }
         return registration;

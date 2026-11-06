@@ -20,8 +20,10 @@
 // REGLAS: un dato nulo/vacío/ausente NO genera fila; un bloque sin filas no se
 // dibuja; sin ningún dato específico la tarjeta completa queda oculta. Números
 // con formato es-AR y unidad (kg / cm). Todo valor se escapa antes de inyectarse
-// como HTML. Sin dependencias: sirve en cliente y en frontmatter SSR.
+// como HTML con el helper ÚNICO del frontend (lib/escapeHtml.ts).
 // =============================================================================
+
+import { escapeHtml as escaparHtml } from '../escapeHtml';
 
 /** Payload de datos específicos tal como llega desde la API (clave → valor). */
 export type DatosFichaTecnica = Record<string, unknown>;
@@ -94,16 +96,6 @@ export function esVacio(valor: unknown): boolean {
   if (Array.isArray(valor)) return valor.length === 0;
   if (typeof valor === 'object') return Object.keys(valor as object).length === 0;
   return false;
-}
-
-/** Escapa un valor antes de inyectarlo como HTML (texto provisto por el usuario). */
-function escaparHtml(valor: unknown): string {
-  return String(valor)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** Número con formato es-AR y la cantidad máxima de decimales indicada. */

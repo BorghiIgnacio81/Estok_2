@@ -25,9 +25,6 @@ export const PERIMETRO_MIN_ALTO = 240;
 export const PERIMETRO_MAX_ANCHO = 2400;
 export const PERIMETRO_MAX_ALTO = 1800;
 
-/** Alto vivo por defecto del lienzo (coincide con el `min-height` del CSS). */
-export const PERIMETRO_ALTO_DEFECTO = 480;
-
 /** Medida efectiva del perímetro en píxeles. */
 export interface MedidaPerimetro {
   ancho: number;
@@ -59,25 +56,6 @@ export function medidaPx(token?: string | null): number | null {
   if (!m) return null;
   const n = parseFloat(m[1]);
   return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-/** true si el token todavía no define una medida propia ('auto', '100%', vacío). */
-export function sinMedidaPropia(token?: string | null): boolean {
-  return medidaPx(token) === null;
-}
-
-/**
- * Medida efectiva del perímetro: la persistida (px) o, mientras no exista, la
- * medida VIVA del contenedor en pantalla (nunca 'auto' → cero saltos visuales).
- */
-export function medidaDePerimetro(
-  duenio: DuenioPerimetro | null | undefined,
-  vivo: MedidaPerimetro,
-): MedidaPerimetro {
-  return acotarMedida({
-    ancho: medidaPx(duenio?.ui_width) ?? vivo.ancho,
-    alto: medidaPx(duenio?.ui_height) ?? vivo.alto,
-  });
 }
 
 /**

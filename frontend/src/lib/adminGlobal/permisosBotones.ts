@@ -17,6 +17,8 @@
 
 import { apiGet, apiPost, fetchAllPages } from '../api';
 import { planesDisponibles } from './planes';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml as esc } from '../escapeHtml';
 
 interface Periodo {
   valor: string;
@@ -52,16 +54,6 @@ let periodosCache: Periodo[] = [];
 let objetivoActual = 'free';
 let inicializado = false;
 let cargando = false;
-
-function esc(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  return String(v)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function aviso(texto: string, error = false): void {
   const caja = document.getElementById('godPermisosAviso');

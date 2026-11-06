@@ -183,6 +183,8 @@ export const prerender = false;
   // ===========================================================================
 
   import { getAuthHeaders, API_BASE_URL } from '../../services/auth';
+  // ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+  import { escapeHtml as escapar } from '../../lib/escapeHtml';
 
   const hojasEl = document.getElementById('hojas')!;
   const loadingEl = document.getElementById('loadingState')!;
@@ -198,12 +200,6 @@ export const prerender = false;
     const out: T[][] = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
-  }
-
-  function escapar(texto: string): string {
-    return texto.replace(/[&<>"']/g, (c) =>
-      ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c] || c)
-    );
   }
 
   // ===========================================================================

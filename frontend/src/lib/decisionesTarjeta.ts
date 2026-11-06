@@ -20,6 +20,13 @@ import { ASSET_MUEBLE } from './assetsUi';
 // botón y su comportamiento viven en UN único módulo, compartido con la ficha
 // del objeto (/objetos/<id>). Nunca se duplica el markup ni el fetch.
 import { botonEstadoPublicacionHtml } from './accionesPublicacionML';
+// ESCAPADO HTML y FORMATEO DE MONEDA: helpers ÚNICOS del frontend. Este módulo
+// los re-exporta con sus nombres históricos para no tocar a los consumidores
+// (lib/ventasDestacadas.ts importa `formatUSD` desde acá).
+import { escapeHtml as escapar } from './escapeHtml';
+import { formatearMoneda as formatUSD } from './formatoMoneda';
+
+export { escapar, formatUSD };
 
 /** Objeto del tablero de Decisiones (payload de /api/objetos/panel_decisiones/). */
 export interface ObjetoDecision {
@@ -86,22 +93,6 @@ const ESTADO_COLORS: Record<string, string> = {
   malo: 'bg-orange-100 text-orange-700',
   muy_malo: 'bg-red-100 text-red-700',
 };
-
-export function escapar(valor: unknown): string {
-  return String(valor ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export function formatUSD(val: string | null | undefined): string {
-  if (!val) return '—';
-  const num = parseFloat(val);
-  if (Number.isNaN(num)) return '—';
-  return `$${num.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`;
-}
 
 /** Nombre del dueño/beneficiario mostrable en la tarjeta ('' si no hay). */
 export function nombreDueno(obj: ObjetoDecision): string {

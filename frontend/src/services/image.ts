@@ -36,13 +36,6 @@ export function comprimirImagenBase64(
       // Exportar como JPEG comprimido
       const compressed = canvas.toDataURL('image/jpeg', quality);
 
-      // Log de tamaño para diagnóstico
-      const originalBytes = Math.round((base64.length * 3) / 4);
-      const compressedBytes = Math.round((compressed.length * 3) / 4);
-      console.log(
-        `[comprimirImagen] ${originalBytes > 1024 ? Math.round(originalBytes / 1024) + 'KB' : originalBytes + 'B'} → ${compressedBytes > 1024 ? Math.round(compressedBytes / 1024) + 'KB' : compressedBytes + 'B'} (${width}x${height} @${Math.round(quality * 100)}%)`
-      );
-
       resolve(compressed);
     };
     img.onerror = () => reject(new Error('Error al cargar la imagen para compresión'));

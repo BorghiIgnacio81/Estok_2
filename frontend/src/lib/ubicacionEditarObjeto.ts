@@ -21,6 +21,8 @@ import {
   conectarCamposObjeto,
   obtenerControladorCamposObjeto,
 } from './objetoEspacioCampos';
+// ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
+import { escapeHtml } from './escapeHtml';
 
 const HOST_ID = 'ubicacionObjetoCampos';
 
@@ -32,15 +34,6 @@ interface MuebleDeclarado {
 
 /** Estado del mueble actualmente seleccionado para editar. */
 let contenedorActualId = '';
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 function hostObjeto(): HTMLElement | null {
   return document.getElementById(HOST_ID);

@@ -46,12 +46,6 @@ export function checkboxEspacioUnicoHtml(opciones: OpcionesEspacioUnico): string
     </label>`;
 }
 
-/** Lee el estado del checkbox por id; `false` si no existe en el DOM. */
-export function leerEspacioUnico(id: string): boolean {
-  const input = document.getElementById(id) as HTMLInputElement | null;
-  return Boolean(input?.checked);
-}
-
 /**
  * LEYENDA DE GUÍA del control (micro-texto que acompaña al checkbox en los
  * paneles del flujo de portales de Almacenamiento).
