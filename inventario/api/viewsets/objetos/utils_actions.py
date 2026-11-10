@@ -45,40 +45,15 @@ class UtilsActionsMixin(UtilsEstadisticasMixin):
     @action(detail=True, methods=['post'])
     def owner_action(self, request, pk=None):
         """
-        Permite al dueño original decidir qué hacer con el objeto.
-        Body: {"action": "vender" | "conservar" | "tirar"}
-        Solo el dueño original puede ejecutar esta acción.
+        [ALIAS LEGACY] Misma decisión patrimonial que `tomar_decision`.
+
+        POST /api/objetos/{id}/owner_action/   { "action": "vender" | "conservar" | "tirar" }
+
+        Se mantiene por compatibilidad con clientes viejos: delega en
+        `tomar_decision` para que exista UNA sola implementación (y una sola
+        guardia de propiedad: objeto de otro usuario → HTTP 403).
         """
-        objeto = self.get_object()
-        action_val = request.data.get('action', '').strip().lower()
-
-        valid_actions = [c[0] for c in Objeto.OWNER_ACTION_CHOICES]
-        if action_val not in valid_actions:
-            return Response(
-                {
-                    "error": (
-                        f"Acción no válida. Opciones: {', '.join(valid_actions)}"
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar):
-        #   - objeto de OTRO usuario del sistema → HTTP 403.
-        #   - dueño externo/fallecido            → HTTP 202 (muta a VOTACIÓN FOMO).
-        # Cierra el bypass de cualquier editor/superusuario sobre objetos ajenos.
-        denegada = respuesta_decision_denegada(objeto, request)
-        if denegada is not None:
-            return denegada
-
-        objeto.owner_action = action_val
-        objeto.save(update_fields=['owner_action'])
-
-        action_labels = dict(Objeto.OWNER_ACTION_CHOICES)
-        return Response({
-            "mensaje": f"Acción '{action_labels[action_val]}' registrada correctamente",
-            "owner_action": action_val,
-        })
+        return self.tomar_decision(request, pk)
 
     @action(detail=True, methods=['delete'])
     def clear_owner_action(self, request, pk=None):

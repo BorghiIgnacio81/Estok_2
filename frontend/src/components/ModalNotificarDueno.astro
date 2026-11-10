@@ -1,10 +1,15 @@
 ---
 // =============================================================================
-// MODAL: Notificación al dueño (puente del 403) · pestaña "Decisiones"
+// MODAL: Avisar al propietario (Caso C de la tarjeta de Decisiones)
 // -----------------------------------------------------------------------------
-// Se abre cuando una decisión sobre un objeto AJENO es rechazada con 403
-// ("No tienes permisos sobre este objeto"). La lógica (fetch + wiring de los
-// botones) vive en src/lib/notificacionDueno.ts.
+// Se abre cuando el objeto pertenece a OTRO usuario del Estok (el usuario
+// autenticado no puede decidir por él) y también como puente del 403 si el
+// backend rechaza una decisión directa sobre un objeto ajeno.
+//
+// Muestra el texto EXACTO que recibe el propietario:
+//   «El usuario <Nombre> te solicita tomar una decisión sobre el objeto
+//    "<Nombre Objeto>".»
+// El preview lo rellena src/lib/notificacionDueno.ts (ofrecerNotificarDueno).
 //
 // Estética crema/naranja de ESTOK: background #fff7ed (orange-50),
 // acento #f97316 (orange-500) y hover #ea580c (orange-600).
@@ -20,8 +25,15 @@
         class="text-white/80 hover:text-white text-xl leading-none">✕</button>
     </header>
     <div class="p-5">
-      <p class="text-sm text-gray-800">
-        ¿Desea que invitemos por email al dueño a tomar una decisión sobre este objeto?
+      <p class="text-sm text-gray-800 mb-3">
+        Este objeto pertenece a otro usuario. Le enviaremos un aviso interno para
+        que sea él quien decida qué hacer con el objeto:
+      </p>
+      <p id="avisoPropietarioTexto"
+        class="px-3 py-2 rounded-lg bg-white border border-orange-200 text-sm font-medium text-orange-900"></p>
+      <p class="mt-3 text-xs text-gray-500">
+        Si el propietario tiene correo registrado, también recibirá la invitación
+        por email con los enlaces para decidir a distancia.
       </p>
     </div>
     <footer class="flex items-center justify-end gap-2 px-4 py-3 border-t border-orange-200">
@@ -31,7 +43,7 @@
       </button>
       <button type="button" id="btnConfirmarNotificarDueno"
         class="px-4 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm transition-base disabled:opacity-40">
-        Sí, enviar invitación
+        Sí, enviar aviso
       </button>
     </footer>
   </div>

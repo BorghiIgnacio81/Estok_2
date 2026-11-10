@@ -10,14 +10,19 @@
 // El markup de la tarjeta NO se define acá: vive en lib/decisionesTarjeta.ts y
 // lo comparten todos los bloques de la pestaña.
 //
-// Cómo se fija la decisión en el backend:
-//   - 💰 Vender / 📦 Conservar:
-//       · `es_decision_propia` (el usuario es el dueño original o el
-//         beneficiario) → POST /api/objetos/{id}/owner_action/ {action}
-//       · cualquier otro miembro con permiso de edición → PUT del objeto
-//   - 🗑️ Tirar: POST /api/objetos/{id}/ordenar_descarte/ (lib/descarteModales.ts),
-//     que abre el período de gracia obligatorio cuando el Estok tiene más de un
-//     usuario activo. El objeto pasa al Bloque 4 (lib/decisionesGrupos.ts).
+// Cómo se fija la decisión en el backend (regla de PROPIEDAD del objeto):
+//   - 💰 Vender / 📦 Conservar / 🗑️ Tirar / Donar (Caso A · el objeto es del
+//     usuario): los 3 botones individuales se persisten con
+//     POST /api/objetos/{id}/tomar_decision/ (blindado: 403 si el objeto es de
+//     otro usuario). Tirar sigue abriendo el período de gracia
+//     (lib/descarteModales.ts → POST /api/objetos/{id}/ordenar_descarte/).
+//   - 🗳️ Iniciar votación (Caso B · objeto SIN propietario): no hay a quién
+//     pertenecer la decisión, así que se PROPONE al grupo familiar con
+//     POST /api/objetos/{id}/iniciar_votacion/ y el objeto pasa a «Votaciones
+//     pendientes del Estok».
+//   - 📩 Avisar al propietario (Caso C · objeto de OTRO usuario): no se puede
+//     decidir por él; se envía el aviso interno (lib/notificacionDueno.ts).
+// Qué botón corresponde lo decide lib/decisionesPropiedad.ts (fuente ÚNICA).
 //
 // Datos: GET /api/objetos/pendientes_decision/ (DecisionesActionsMixin), que ya
 // excluye los objetos en votación: esos se resuelven votando en "Votaciones
@@ -31,6 +36,12 @@ import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { abrirPublicarObjeto } from './publicarObjeto';
 import { tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
+// MARKUP Y ESTADO DE LA TARJETA (botonera de los 3 casos de propiedad).
+import {
+  bloquearBotones,
+  botoneraHtml,
+  marcarTarjetaDecidida,
+} from './decisionesBotonera';
 import { solicitarDescarte } from './descarteModales';
 import { esErrorPermisoAjeno, ofrecerNotificarDueno } from './notificacionDueno';
 // Aviso "en caliente" para que la sección destacada de venta y el tablero de
@@ -111,45 +122,6 @@ async function cargar(): Promise<void> {
 // Render
 // -----------------------------------------------------------------------------
 
-/** Botonera in-place de una tarjeta sin decidir (3 acciones de ESTOK). */
-function botoneraHtml(obj: ObjetoPendiente): string {
-  const boton = (accion: string, etiqueta: string, icono: string, clase: string): string => `
-    <button type="button" data-objeto-id="${obj.id}" data-decision="${accion}" title="${etiqueta}"
-      class="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-white rounded-lg shadow-sm transition-base disabled:opacity-40 disabled:cursor-not-allowed ${clase}">
-      <span aria-hidden="true">${icono}</span>${etiqueta}
-    </button>`;
-
-  return `
-    <div class="mt-auto flex items-stretch gap-1.5" data-botones-decision>
-      ${boton('vender', 'Vender', '💰', 'bg-green-600 hover:bg-green-700')}
-      ${boton('conservar', 'Conservar', '📦', 'bg-blue-600 hover:bg-blue-700')}
-      ${boton('tirar', 'Tirar', '🗑️', 'bg-red-600 hover:bg-red-700')}
-    </div>`;
-}
-
-/** Veredicto que reemplaza la botonera una vez fijada la decisión. */
-function decididoHtml(obj: ObjetoPendiente, accion: string): string {
-  if (accion === 'vender') {
-    const publicadoML = obj.plataformas_publicadas.includes('mercadolibre');
-    return `
-      <div class="mt-auto flex flex-col gap-1.5" data-botones-decision>
-        <span class="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
-          💰 Para vender
-        </span>
-        <button type="button" data-publicar="${obj.id}"
-          class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-base">
-          📢 ${publicadoML ? 'Ver / republicar anuncio' : 'Publicar en ML o Facebook'}
-        </button>
-      </div>`;
-  }
-  return `
-    <div class="mt-auto flex flex-col gap-1.5" data-botones-decision>
-      <span class="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-lg bg-blue-100 text-blue-800 text-xs font-bold">
-        📦 Se conserva en el Estok
-      </span>
-    </div>`;
-}
-
 function tarjetaHtml(obj: ObjetoPendiente): string {
   return tarjetaObjetoHtml(obj, {
     acciones: botoneraHtml(obj),
@@ -203,22 +175,19 @@ function mostrarAviso(mensaje: string, exito = true): void {
 // -----------------------------------------------------------------------------
 
 /**
- * Fija la decisión en PostgreSQL. Si el objeto espera a ESTE usuario (dueño
- * original o beneficiario) se usa el endpoint dedicado `owner_action`, que es
- * el que aplica la regla de negocio "solo el dueño original decide"; en
- * cualquier otro caso se fija por el CRUD (PUT del objeto con `owner_action`).
+ * Fija la decisión INDIVIDUAL del propietario (Caso A).
+ *
+ * Endpoint ÚNICO y blindado: POST /api/objetos/{id}/tomar_decision/. El backend
+ * responde 403 si el objeto tiene dueño y no es el usuario autenticado
+ * («No tienes permisos para decidir sobre un objeto propiedad de otro
+ * usuario») y 202 cuando el dueño es externo/fallecido (la decisión se deriva
+ * a la votación del Estok).
  */
 async function guardarDecision(obj: ObjetoPendiente, accion: string): Promise<void> {
-  const url = obj.es_decision_propia
-    ? `${API_BASE_URL}/objetos/${obj.id}/owner_action/`
-    : `${API_BASE_URL}/objetos/${obj.id}/`;
-
-  const res = await fetch(url, {
-    method: obj.es_decision_propia ? 'POST' : 'PUT',
+  const res = await fetch(`${API_BASE_URL}/objetos/${obj.id}/tomar_decision/`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    body: JSON.stringify(
-      obj.es_decision_propia ? { action: accion } : { owner_action: accion },
-    ),
+    body: JSON.stringify({ action: accion }),
   });
 
   if (res.status === 401) {
@@ -240,24 +209,6 @@ async function guardarDecision(obj: ObjetoPendiente, accion: string): Promise<vo
       data.error || data.detail || `Error ${res.status} al fijar la decisión.`,
     );
   }
-}
-
-function bloquearBotones(id: string, bloquear: boolean): void {
-  document
-    .querySelectorAll<HTMLButtonElement>(`[data-objeto-card="${id}"] [data-decision]`)
-    .forEach((boton) => {
-      boton.disabled = bloquear;
-    });
-}
-
-/** Reemplaza la botonera por el veredicto y resalta la tarjeta. */
-function marcarTarjetaDecidida(obj: ObjetoPendiente, accion: string): void {
-  const card = document.querySelector<HTMLElement>(`[data-objeto-card="${obj.id}"]`);
-  if (!card) return;
-  card.dataset.decisionTomada = accion;
-  card.classList.add('ring-2', 'ring-green-400');
-  const botones = card.querySelector('[data-botones-decision]');
-  if (botones) botones.outerHTML = decididoHtml(obj, accion);
 }
 
 /** Remueve la tarjeta con una animación suave y la quita del estado. */
@@ -317,16 +268,73 @@ async function decidir(obj: ObjetoPendiente, accion: string): Promise<void> {
       ? err.message
       : 'No se pudo fijar la decisión.';
 
-    // 403 "No tienes permisos sobre este objeto": el objeto pertenece a OTRO
-    // usuario del sistema. En vez de un error seco, se ofrece invitar por email
-    // al dueño (puente del 403). La tarjeta queda intacta (estado anterior).
+    // 403 patrimonial: el objeto pertenece a OTRO usuario del sistema. En vez de
+    // un error seco, se ofrece avisarle (puente del 403). La tarjeta queda
+    // intacta (estado anterior).
     if (esErrorPermisoAjeno(mensaje)) {
-      ofrecerNotificarDueno(obj.id);
+      ofrecerNotificarDueno(obj.id, obj.nombre);
       return;
     }
 
     mostrarAviso(mensaje, false);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Caso B · Iniciar votación (objeto SIN propietario asignado)
+// -----------------------------------------------------------------------------
+
+/**
+ * Propone la decisión COMPARTIDA al grupo familiar.
+ *
+ * El objeto sin dueño no admite decisión individual: el Estok vota. Al abrirse
+ * la votación el objeto sale de esta grilla (el backend lo excluye de
+ * `pendientes_decision`) y aparece en «Votaciones pendientes del Estok».
+ */
+async function iniciarVotacion(obj: ObjetoPendiente): Promise<void> {
+  const boton = document.querySelector<HTMLButtonElement>(
+    `[data-iniciar-votacion="${obj.id}"]`,
+  );
+  if (boton) boton.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/objetos/${obj.id}/iniciar_votacion/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    });
+
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return;
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || data.detail || `Error ${res.status} al abrir la votación.`);
+    }
+
+    const data = await res.json().catch(() => ({}));
+    mostrarAviso(
+      data.mensaje || `🗳️ Se abrió la votación de "${obj.nombre}" para todo el Estok.`,
+    );
+    // El panel de votaciones (arriba) se recarga con el aviso en caliente.
+    notificarDecisionCambiada();
+    await tirarTarjeta(obj);
+  } catch (err) {
+    if (boton) boton.disabled = false;
+    mostrarAviso(
+      err instanceof Error ? err.message : 'No se pudo iniciar la votación.',
+      false,
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Caso C · Avisar al propietario (objeto de OTRO usuario)
+// -----------------------------------------------------------------------------
+
+/** Abre el modal de confirmación del aviso interno al propietario. */
+function avisarPropietario(obj: ObjetoPendiente): void {
+  ofrecerNotificarDueno(obj.id, obj.nombre);
 }
 
 function onClickTarjeta(evento: Event): void {
@@ -336,6 +344,22 @@ function onClickTarjeta(evento: Event): void {
   if (publicar) {
     const obj = estado.objetos.find((o) => o.id === publicar.dataset.publicar);
     if (obj) abrirPublicarObjeto({ id: obj.id, nombre: obj.nombre, valor: obj.valor_estimado });
+    return;
+  }
+
+  // Caso B · «Iniciar votación»
+  const votacion = objetivo?.closest<HTMLElement>('[data-iniciar-votacion]');
+  if (votacion) {
+    const obj = estado.objetos.find((o) => o.id === votacion.dataset.iniciarVotacion);
+    if (obj) void iniciarVotacion(obj);
+    return;
+  }
+
+  // Caso C · «Avisar al propietario»
+  const avisar = objetivo?.closest<HTMLElement>('[data-avisar-propietario]');
+  if (avisar) {
+    const obj = estado.objetos.find((o) => o.id === avisar.dataset.avisarPropietario);
+    if (obj) avisarPropietario(obj);
     return;
   }
 

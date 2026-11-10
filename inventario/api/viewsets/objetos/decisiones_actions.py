@@ -31,12 +31,14 @@ los dos endpoints y el mixin de descarte: no se duplica el armado de tarjetas.
 Aislamiento multi-tenant: SIEMPRE por el header X-Estok-Id.
 """
 
+import logging
+
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from ....models import DecisionVotacion, Objeto
+from ....models import DecisionVotacion, Mensaje, Objeto
 from ....api.tenant_activo import estok_id_de_request
 from ....services import descarte_service, decisiones_service
 from ....services import mercadolibre_estado
@@ -51,12 +53,58 @@ from ....services.espejo_contenedor import (
 # históricas/importaciones, para que ningún objeto quede fuera del bloque.
 DECISIONES_VENTA = ('vender', 'para_vender')
 
+# Mensaje ÚNICO del 403 patrimonial: el objeto tiene dueño y el usuario
+# autenticado NO es ese dueño. Lo consume el modal «Avisar al propietario».
+MOTIVO_403_DECISION_AJENA = (
+    'No tienes permisos para decidir sobre un objeto propiedad de otro usuario.'
+)
+
+logger = logging.getLogger(__name__)
+
 
 def nombre_mostrable(usuario):
     """Nombre legible de un usuario (o None si no hay usuario)."""
     if not usuario:
         return None
     return usuario.get_full_name() or usuario.username
+
+
+def texto_aviso_propietario(objeto, usuario):
+    """
+    Texto ÚNICO del aviso interno al PROPIETARIO de un objeto ajeno.
+
+    Es el mensaje que queda registrado en el chat del Estok (modelo `Mensaje`)
+    cuando un miembro sin propiedad sobre el objeto pide que el dueño decida:
+
+        «El usuario <Nombre> te solicita tomar una decisión sobre el objeto
+         "<Nombre Objeto>".»
+    """
+    nombre = nombre_mostrable(usuario) or 'Un miembro del Estok'
+    return (
+        f'El usuario {nombre} te solicita tomar una decisión sobre el objeto '
+        f'"{objeto.nombre}".'
+    )
+
+
+def _despachar_email_propietario(objeto):
+    """
+    Intento BEST-EFFORT del correo con los 3 enlaces firmados de decisión remota.
+
+    Nunca interrumpe el aviso interno ya registrado: si el dueño no tiene
+    correo (DRFValidationError) o el SMTP falla, sólo devuelve False.
+    El import es DIFERIDO para no arrastrar el módulo de correo al cargar el
+    viewset de objetos.
+    """
+    try:
+        from ...services import usuario_auth_service
+        enviado, _aviso = usuario_auth_service.enviar_email_notificacion_dueno(objeto)
+        return bool(enviado)
+    except Exception:
+        logger.warning(
+            "No se pudo despachar el correo de aviso al propietario del objeto %s",
+            objeto.id, exc_info=True,
+        )
+        return False
 
 
 def _estado_publicacion(objeto):
@@ -85,9 +133,9 @@ def payload_objeto_decision(obj, request):
 
     usuario_id = getattr(request.user, 'id', None)
     # El objeto "espera al usuario" cuando él es el dueño original o el
-    # beneficiario designado: ese caso usa el endpoint dedicado
-    # POST /api/objetos/{id}/owner_action/ (regla del dueño original).
-    # El resto de la grilla fija la decisión por el CRUD (PUT del objeto).
+    # beneficiario designado. INFORMATIVO: la UI decide los botones con la
+    # regla de PROPIEDAD (lib/decisionesPropiedad.ts) y persiste con
+    # POST /api/objetos/{id}/tomar_decision/, que vuelve a validar el dueño.
     es_decision_propia = bool(usuario_id) and usuario_id in (
         obj.dueno_original_id, obj.beneficiario_id,
     )
@@ -141,6 +189,12 @@ def payload_objeto_decision(obj, request):
         "dueno_original": (
             str(obj.dueno_original_id) if obj.dueno_original_id else None
         ),
+        # DUEÑO REGISTRADO del objeto (mismo dato, nombre canónico del contrato
+        # patrimonial): `null` ⇒ el objeto NO tiene propietario asignado, por lo
+        # que la decisión se PROPONE al grupo (votación) en vez de tomarla un
+        # individuo. La tarjeta de Decisiones compara este id con el usuario
+        # autenticado (lib/decisionesPropiedad.ts) para elegir los botones.
+        "dueno_id": str(obj.dueno_original_id) if obj.dueno_original_id else None,
         "dueno_original_nombre": nombre_mostrable(obj.dueno_original),
         "dueno_externo_nombre": (obj.dueno_externo_nombre or '').strip() or None,
         "beneficiario": (
@@ -171,13 +225,17 @@ def payload_objeto_decision(obj, request):
     }
 
 
-def respuesta_decision_denegada(objeto, request):
+def respuesta_decision_denegada(objeto, request, motivo_403=None):
     """
     Guardia ÚNICA de las decisiones directas (vender / conservar / tirar).
 
     Delega en `decisiones_service.validar_decision_directa` y traduce el
     veredicto a HTTP, para que TODOS los puntos de entrada (endpoint dedicado,
     CRUD y limpieza) compartan una sola regla sin duplicarla.
+
+    `motivo_403` permite que el endpoint patrimonial (`tomar_decision`) use el
+    texto explícito del contrato («No tienes permisos para decidir sobre un
+    objeto propiedad de otro usuario»); el resto conserva el mensaje histórico.
 
     Devuelve `None` cuando la acción PROCEDE, o una `Response` lista para
     retornar:
@@ -202,7 +260,8 @@ def respuesta_decision_denegada(objeto, request):
             status=status.HTTP_202_ACCEPTED,
         )
     return Response(
-        {'error': resultado.motivo}, status=status.HTTP_403_FORBIDDEN
+        {'error': motivo_403 or resultado.motivo},
+        status=status.HTTP_403_FORBIDDEN,
     )
 
 
@@ -293,6 +352,156 @@ class DecisionesActionsMixin:
         return DecisionVotacion.objects.filter(
             estado=DecisionVotacion.ESTADO_PENDIENTE
         ).values('objeto_id')
+
+    # ------------------------------------------------------------------
+    # DECISIÓN PATRIMONIAL DEL OBJETO (los 3 casos de la tarjeta)
+    # ------------------------------------------------------------------
+    # Caso A · el objeto es del usuario  → POST tomar_decision
+    # Caso B · el objeto no tiene dueño  → POST iniciar_votacion
+    # Caso C · el objeto es de otro      → POST avisar_propietario
+    # La UI (lib/decisionesPropiedad.ts) elige el botón; el backend REPITE la
+    # validación para que la regla no dependa del navegador.
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=['post'], url_path='tomar_decision')
+    def tomar_decision(self, request, pk=None):
+        """
+        Decisión INDIVIDUAL del propietario sobre su propio objeto.
+
+        POST /api/objetos/{id}/tomar_decision/   { "action": "vender" | "conservar" | "tirar" }
+
+        Blindaje (endpoint ÚNICO de la decisión patrimonial):
+          · objeto con dueño USUARIO ≠ usuario autenticado → HTTP 403
+            «No tienes permisos para decidir sobre un objeto propiedad de otro
+            usuario.» (la tarjeta del Caso C ni siquiera ofrece estos botones).
+          · dueño EXTERNO/fallecido → HTTP 202: la decisión se deriva a la
+            votación del Estok (período de herencia FOMO).
+          · sin dueño registrado → se acepta (Caso B propone votación en la UI).
+        """
+        objeto = self.get_object()
+        action_val = str(request.data.get('action', '')).strip().lower()
+
+        valid_actions = [c[0] for c in Objeto.OWNER_ACTION_CHOICES]
+        if action_val not in valid_actions:
+            return Response(
+                {
+                    "error": (
+                        f"Acción no válida. Opciones: {', '.join(valid_actions)}"
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # GUARDIA ÚNICA de la decisión directa: dueño ajeno → 403 con el texto
+        # del contrato patrimonial; dueño externo → votación (202).
+        denegada = respuesta_decision_denegada(
+            objeto, request, motivo_403=MOTIVO_403_DECISION_AJENA,
+        )
+        if denegada is not None:
+            return denegada
+
+        objeto.owner_action = action_val
+        objeto.save(update_fields=['owner_action'])
+
+        action_labels = dict(Objeto.OWNER_ACTION_CHOICES)
+        return Response({
+            "mensaje": f"Acción '{action_labels[action_val]}' registrada correctamente",
+            "owner_action": action_val,
+        })
+
+    @action(detail=True, methods=['post'], url_path='iniciar_votacion')
+    def iniciar_votacion(self, request, pk=None):
+        """
+        Caso B · propone la decisión COMPARTIDA al grupo familiar/Estok.
+
+        POST /api/objetos/{id}/iniciar_votacion/
+
+        Sólo aplica a objetos SIN propietario asignado (la decisión individual
+        no tiene a quién pertenecer). Abre la votación pendiente del Estok
+        reutilizando `decisiones_service.abrir_votacion`; el objeto sale de la
+        grilla de pendientes y aparece en «Votaciones pendientes del Estok».
+        """
+        objeto = self.get_object()
+
+        if decisiones_service.tiene_dueno(objeto):
+            return Response(
+                {
+                    'error': 'Este objeto tiene un propietario registrado: '
+                             'la decisión le corresponde a él.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        votacion = decisiones_service.abrir_votacion(
+            objeto, creado_por=request.user,
+        )
+        if votacion is None:
+            return Response(
+                {'error': 'No se pudo abrir la votación del Estok para este objeto.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                'success': True,
+                'votacion_id': str(votacion.id),
+                'mensaje': (
+                    f'🗳️ Se abrió la votación de "{objeto.nombre}" para todo el '
+                    'Estok. La decisión se toma entre todos los miembros.'
+                ),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='avisar_propietario')
+    def avisar_propietario(self, request, pk=None):
+        """
+        Caso C · avisa al PROPIETARIO registrado (objeto ajeno).
+
+        POST /api/objetos/{id}/avisar_propietario/
+
+        Registra un MENSAJE INTERNO en el chat del Estok dirigido al dueño
+        («El usuario <Nombre> te solicita tomar una decisión sobre el objeto
+        "<Nombre Objeto>"») y, como refuerzo, intenta despachar el correo con
+        los enlaces firmados de decisión remota. El correo es BEST-EFFORT: si
+        el dueño no tiene email o el SMTP falla, el aviso interno queda igual.
+        """
+        objeto = self.get_object()
+        dueno = objeto.dueno_original
+
+        if dueno is None:
+            return Response(
+                {'error': 'Este objeto no tiene un propietario usuario registrado.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if str(dueno.id) == str(getattr(request.user, 'id', None)):
+            return Response(
+                {'error': 'Sos el propietario de este objeto: la decisión es tuya.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        estok_id = objeto.estok_id or self._estok_id(request)
+        if not estok_id:
+            return Response(
+                {'error': 'El objeto no pertenece a ningún Estok.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        texto = texto_aviso_propietario(objeto, request.user)
+        Mensaje.objects.create(
+            estok_id=estok_id,
+            remitente=request.user,
+            contenido=texto,
+        )
+
+        return Response(
+            {
+                'success': True,
+                'mensaje': texto,
+                'destinatario': nombre_mostrable(dueno),
+                'email_enviado': _despachar_email_propietario(objeto),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     # ------------------------------------------------------------------
     # Bloque 1: objetos SIN decisión

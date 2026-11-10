@@ -20,6 +20,10 @@ import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 // Lote 31 · punto 1: las votaciones ACTIVAS/pendientes se leen arriba y las
 // resueltas/canceladas quedan relegadas al fondo (regla compartida y pura).
 import { ordenarVotaciones } from './decisionesOrden';
+// AVISO EN CALIENTE entre islas: el botón «Iniciar votación» del Caso B (y
+// cualquier decisión persistida) puede abrir o cerrar votaciones, así que este
+// panel se recarga solo, sin esperar a que el usuario refresque la página.
+import { EVENTO_DECISION_CAMBIADA } from './eventosDecisiones';
 // ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
 import { escapeHtml as escapar } from './escapeHtml';
 
@@ -378,6 +382,12 @@ export function iniciarVotacionesPendientes(): void {
 
   host.addEventListener('change', (evento) => {
     aplicarSeleccion(evento);
+  });
+
+  // Recarga en caliente: «Iniciar votación» (Caso B) abre una votación nueva y
+  // esta lista debe mostrarla de inmediato.
+  window.addEventListener(EVENTO_DECISION_CAMBIADA, () => {
+    void cargarDatos().then(render);
   });
 
   void cargarDatos().then(render);

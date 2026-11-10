@@ -75,6 +75,46 @@ def crear_votacion_pendiente(objeto, creado_por=None, forzar=False):
     return votacion
 
 
+def abrir_votacion(objeto, creado_por=None):
+    """
+    Devuelve la votación PENDIENTE del objeto, abriéndola si hace falta.
+
+    Punto ÚNICO de la apertura BAJO DEMANDA (la usan la guardia de decisión
+    directa cuando el dueño es externo/fallecido y el botón «Iniciar
+    votación» del Caso B de la tarjeta cuando el objeto no tiene propietario):
+
+      1. si ya hay una votación pendiente → esa misma (idempotente);
+      2. si nunca hubo → `crear_votacion_pendiente(..., forzar=True)`;
+      3. si la anterior ya estaba CERRADA → se abre una nueva para reactivar
+         el período de decisión del Estok (período de herencia FOMO).
+
+    Devuelve `DecisionVotacion` o `None` sólo si la creación falló.
+    """
+    votacion = (
+        DecisionVotacion.objects
+        .filter(objeto=objeto, estado=DecisionVotacion.ESTADO_PENDIENTE)
+        .first()
+    )
+    if votacion is not None:
+        return votacion
+
+    votacion = crear_votacion_pendiente(objeto, creado_por=creado_por, forzar=True)
+    if votacion is not None:
+        return votacion
+
+    votacion = DecisionVotacion.objects.create(
+        objeto=objeto,
+        estok=objeto.estok,
+        motivo=DecisionVotacion.MOTIVO_SIN_BENEFICIARIO,
+        estado=DecisionVotacion.ESTADO_PENDIENTE,
+        creada_por=creado_por,
+    )
+    logger.info(
+        "Votación REABIERTA para el objeto %s (Estok %s)", objeto.id, objeto.estok_id
+    )
+    return votacion
+
+
 # =============================================================================
 # GUARDIA DE DECISIÓN DIRECTA (vender / conservar / tirar)
 # =============================================================================
@@ -124,25 +164,9 @@ def validar_decision_directa(objeto, usuario, creado_por=None):
         return ResultadoDecision(DECISION_PERMITIDA, None, '')
 
     if dueno_es_externo(objeto):
-        votacion = (
-            DecisionVotacion.objects
-            .filter(objeto=objeto, estado=DecisionVotacion.ESTADO_PENDIENTE)
-            .first()
-        )
-        if votacion is None:
-            votacion = crear_votacion_pendiente(
-                objeto, creado_por=creado_por or usuario, forzar=True
-            )
-        if votacion is None:
-            # La votación previa ya estaba cerrada: se REABRE una nueva para
-            # reactivar el período de decisión (Alerta FOMO del inquilinato).
-            votacion = DecisionVotacion.objects.create(
-                objeto=objeto,
-                estok=objeto.estok,
-                motivo=DecisionVotacion.MOTIVO_SIN_BENEFICIARIO,
-                estado=DecisionVotacion.ESTADO_PENDIENTE,
-                creada_por=creado_por or usuario,
-            )
+        # Apertura (o reapertura) de la votación: punto ÚNICO en `abrir_votacion`,
+        # compartido con el botón «Iniciar votación» del Caso B.
+        votacion = abrir_votacion(objeto, creado_por=creado_por or usuario)
         logger.info(
             "Decisión directa derivada a votación (objeto %s, votación %s)",
             objeto.id, votacion.id,

@@ -59,12 +59,16 @@ export interface ObjetoDecision {
    */
   url_publicacion?: string | null;
   dueno_original: string | null;
+  /**
+   * DUEÑO REGISTRADO (contrato patrimonial): `null` ⇒ el objeto no tiene
+   * propietario asignado y la decisión se PROPONE al grupo (votación).
+   * La comparación con el usuario autenticado vive en lib/decisionesPropiedad.ts.
+   */
+  dueno_id?: string | null;
   dueno_original_nombre: string | null;
   dueno_externo_nombre: string | null;
   beneficiario: string | null;
   beneficiario_nombre: string | null;
-  /** True si el objeto espera la decisión de ESTE usuario (dueño/beneficiario). */
-  es_decision_propia: boolean;
   ubicacion: string | null;
   ubicacion_nombre: string | null;
   contenedor: string | null;

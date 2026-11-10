@@ -12,6 +12,9 @@ import '../../../styles/almacenamiento-portales.css';
 // resuelve la ruta jerárquica hacia arriba desde el ID y dibuja la sucesión
 // horizontal de minimapas asimétricos: reemplaza a la implementación inline.
 import MinimapaModuloUnificado from '../../../components/MinimapaModuloUnificado.astro';
+// MODAL del aviso al propietario (Caso C: el objeto es de otro usuario). El
+// mismo modal cubre el puente del 403 si el backend rechaza una decisión.
+import ModalNotificarDueno from '../../../components/ModalNotificarDueno.astro';
 
 // Ruta dinámica: se renderiza en servidor (hybrid mode)
 export const prerender = false;
@@ -230,11 +233,12 @@ export const prerender = false;
             <p id="beneficiarioObj" class="text-gray-800 font-medium">—</p>
           </div>
         </div>
-        <!-- Acción del dueño original -->
+        <!-- Acción patrimonial del objeto (según quién es el propietario) -->
         <div id="ownerActionSection" class="hidden mt-4 border-t border-gray-100 pt-4">
-          <h3 class="text-sm font-semibold text-gray-700 mb-3">Decisión del dueño original</h3>
+          <h3 class="text-sm font-semibold text-gray-700 mb-3">Decisión patrimonial</h3>
+          <!-- Caso A · el objeto es del usuario autenticado -->
           <div id="ownerActionPending" class="hidden">
-            <p class="text-sm text-gray-500 mb-3">Eres el dueño original de este objeto. ¿Qué deseas hacer con él?</p>
+            <p class="text-sm text-gray-500 mb-3">Eres el propietario de este objeto. ¿Qué deseas hacer con él?</p>
             <div class="flex flex-wrap gap-2">
               <button class="owner-action-btn px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-base text-sm font-medium" data-action="vender">
                 💰 Vender
@@ -243,7 +247,7 @@ export const prerender = false;
                 🔄 Conservar
               </button>
               <button class="owner-action-btn px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-base text-sm font-medium" data-action="tirar">
-                🗑️ Tirar / Desechar
+                🗑️ Tirar / Donar
               </button>
             </div>
           </div>
@@ -258,8 +262,25 @@ export const prerender = false;
               </button>
             </div>
           </div>
-          <div id="ownerActionNotOwner" class="hidden">
-            <p class="text-sm text-gray-400 italic">Solo el dueño original puede tomar una decisión sobre este objeto.</p>
+          <!-- Caso C · el objeto pertenece a OTRO usuario: sólo se puede avisar -->
+          <div id="ownerActionAjeno" class="hidden">
+            <p class="text-sm text-gray-500 mb-3">
+              Este objeto pertenece a otro usuario del Estok: la decisión le corresponde a él.
+            </p>
+            <button id="btnAvisarPropietarioObjeto" type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-900 rounded-lg hover:bg-orange-200 transition-base text-sm font-semibold">
+              📩 Avisar al propietario
+            </button>
+          </div>
+          <!-- Caso B · objeto SIN propietario asignado: decisión compartida -->
+          <div id="ownerActionSinDueno" class="hidden">
+            <p class="text-sm text-gray-500 mb-3">
+              Este objeto no tiene propietario asignado: la decisión se propone al grupo familiar.
+            </p>
+            <button id="btnIniciarVotacionObjeto" type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-base text-sm font-semibold shadow-sm disabled:opacity-40">
+              🗳️ Iniciar votación
+            </button>
           </div>
         </div>
       </div>
@@ -278,6 +299,9 @@ export const prerender = false;
       </div>
     </div>
   </div>
+
+  <!-- Modal del aviso al propietario (Caso C: objeto de otro usuario) -->
+  <ModalNotificarDueno />
 </BaseLayout>
 
 <script>
@@ -294,7 +318,7 @@ export const prerender = false;
   const retryBtn = document.getElementById('retryBtn')!;
   const detailContent = document.getElementById('detailContent')!;
 
-  import {getAuthHeaders, getToken, API_BASE_URL} from '../../../services/auth';
+  import {getAuthHeaders, API_BASE_URL} from '../../../services/auth';
   // MÓDULO UNIFICADO DE MINIMAPAS (modo visor): ruta jerárquica + sección interna
   // del contenedor, ambos con el MISMO estándar visual. La página ya NO usa el
   // `minimapaHtml` rígido ni inyecta CSS propia de minimapas.
@@ -315,6 +339,15 @@ export const prerender = false;
     renderPublicacionML,
     verificarPublicacionML,
   } from '../../../lib/objetos/objetoDetallePublicacion';
+  // DECISIÓN PATRIMONIAL DE LA FICHA: los 3 casos (propietario / sin dueño /
+  // objeto ajeno) con sus endpoints (tomar_decision, iniciar_votacion,
+  // avisar_propietario) y la regla ÚNICA de propiedad (lib/decisionesPropiedad).
+  import {
+    iniciarDecisionDetalleObjeto,
+    renderDecisionDetalleObjeto,
+  } from '../../../lib/objetos/objetoDetalleDecision';
+  // Modal del aviso interno al propietario (Caso C / puente del 403).
+  import { iniciarModalNotificarDueno } from '../../../lib/notificacionDueno';
 
   // ===========================================================================
   // MAPEOS VISUALES
@@ -432,135 +465,13 @@ export const prerender = false;
   }
 
   // ===========================================================================
-  // ACCIÓN DEL DUEÑO ORIGINAL
+  // ACCIÓN PATRIMONIAL DEL OBJETO
   // ===========================================================================
-
-  const OWNER_ACTION_LABELS: Record<string, string> = {
-    vender: '💰 Vender',
-    conservar: '🔄 Conservar',
-    tirar: '🗑️ Tirar / Desechar',
-  };
-
-  async function handleOwnerAction(action: string) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/owner_action/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ action: action }),
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      // 202: el dueño es EXTERNO/fallecido y la decisión se derivó a la
-      // votación del inquilinato (período FOMO). Se avisa explícitamente para
-      // que el usuario no crea que el objeto quedó marcado para vender.
-      if (response.status === 202) {
-        const data = await response.json().catch(() => ({}));
-        alert(`🗳️ ${data.mensaje || 'La decisión quedó derivada a la votación del inquilinato.'}`);
-        cargarDetalle();
-        return;
-      }
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        alert(`❌ Error: ${err.detail || err.error || 'No se pudo registrar la acción'}`);
-        return;
-      }
-
-      // Recargar detalle para reflejar el cambio
-      cargarDetalle();
-    } catch {
-      alert('❌ Error de conexión al registrar la acción.');
-    }
-  }
-
-  async function handleClearOwnerAction() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/clear_owner_action/`, {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-
-      if (response.status === 401) {
-        window.location.href = '/login';
-        return;
-      }
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        alert(`❌ Error: ${err.detail || err.error || 'No se pudo limpiar la acción'}`);
-        return;
-      }
-
-      cargarDetalle();
-    } catch {
-      alert('❌ Error de conexión al limpiar la acción.');
-    }
-  }
-
-  function renderOwnerAction(obj: any) {
-    const section = document.getElementById('ownerActionSection')!;
-    const pendingDiv = document.getElementById('ownerActionPending')!;
-    const doneDiv = document.getElementById('ownerActionDone')!;
-    const notOwnerDiv = document.getElementById('ownerActionNotOwner')!;
-    const actionLabel = document.getElementById('ownerActionLabel')!;
-
-    // Si no tiene dueño original, ocultar toda la sección
-    if (!obj.dueno_original) {
-      section.classList.add('hidden');
-      return;
-    }
-
-    section.classList.remove('hidden');
-
-    // Obtener el usuario actual desde el token
-    const token = getToken();
-    let currentUserId: string | null = null;
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        currentUserId = payload.user_id || null;
-      } catch {}
-    }
-
-    const isOwner = currentUserId === obj.dueno_original;
-    const hasAction = obj.owner_action && obj.owner_action !== null;
-
-    if (!isOwner) {
-      // No es el dueño original - mostrar mensaje
-      pendingDiv.classList.add('hidden');
-      doneDiv.classList.add('hidden');
-      notOwnerDiv.classList.remove('hidden');
-      if (hasAction) {
-        actionLabel.textContent = `${OWNER_ACTION_LABELS[obj.owner_action] || obj.owner_action} (decidido por el dueño)`;
-        doneDiv.classList.remove('hidden');
-        notOwnerDiv.classList.add('hidden');
-      }
-      return;
-    }
-
-    // Es el dueño original
-    notOwnerDiv.classList.add('hidden');
-
-    if (hasAction) {
-      // Ya tomó una decisión
-      pendingDiv.classList.add('hidden');
-      doneDiv.classList.remove('hidden');
-      actionLabel.textContent = OWNER_ACTION_LABELS[obj.owner_action] || obj.owner_action;
-    } else {
-      // Pendiente de decisión
-      pendingDiv.classList.remove('hidden');
-      doneDiv.classList.add('hidden');
-    }
-  }
+  // Los TRES casos (propietario / sin dueño / objeto ajeno) y sus endpoints
+  // viven en lib/objetos/objetoDetalleDecision.ts, que comparte la regla de
+  // propiedad con las tarjetas de /alertas-stock (lib/decisionesPropiedad.ts).
+  // Acá sólo se dibuja el bloque (abajo, en cargarDetalle) y se cablean los
+  // botones al inicializar la página.
 
   // ===========================================================================
   // CARGA DEL DETALLE
@@ -664,8 +575,8 @@ export const prerender = false;
       // === Renderizar historial de precios ===
       renderHistorial(obj.historial_precios);
 
-      // === Renderizar sección de acción del dueño original ===
-      renderOwnerAction(obj);
+      // === Bloque de decisión patrimonial (los 3 casos de propiedad) ===
+      renderDecisionDetalleObjeto(obj);
 
       // === Mostrar contenido ===
       loadingState.classList.add('hidden');
@@ -760,17 +671,16 @@ export const prerender = false;
 
 
   // ===========================================================================
-  // EVENTOS: ACCIÓN DEL DUEÑO ORIGINAL
+  // EVENTOS: DECISIÓN PATRIMONIAL DEL OBJETO (los 3 casos de propiedad)
   // ===========================================================================
+  // El cableado y las acciones viven en lib/objetos/objetoDetalleDecision.ts:
+  //   · propietario → tomar_decision (Vender / Conservar / Tirar y Donar)
+  //   · sin dueño   → iniciar_votacion (decisión compartida del grupo)
+  //   · objeto ajeno → aviso interno al propietario (modal)
+  // Cada acción recarga el detalle para refrescar la decisión persistida.
 
-  document.querySelectorAll('.owner-action-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const action = btn.getAttribute('data-action');
-      if (action) handleOwnerAction(action);
-    });
-  });
-
-  document.getElementById('clearOwnerActionBtn')?.addEventListener('click', handleClearOwnerAction);
+  iniciarModalNotificarDueno();
+  iniciarDecisionDetalleObjeto({ objetoId: objetoId!, recargar: cargarDetalle });
 
   // ===========================================================================
   // INICIALIZAR
