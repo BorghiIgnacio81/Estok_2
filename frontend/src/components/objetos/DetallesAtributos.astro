@@ -1,0 +1,52 @@
+---
+// =============================================================================
+// «DETALLES» — ACORDEÓN DE ATRIBUTOS INTRÍNSECOS DEL OBJETO
+// -----------------------------------------------------------------------------
+// Envuelve el markup de los campos técnicos por categoría (marca, modelo,
+// N.º de serie, ISBN/ISSN, material, dimensiones, artista/fabricante, talla…)
+// en un colapsable NATIVO (<details>/<summary>): accesible por teclado y para
+// lectores de pantalla sin JS, y —al arrancar CERRADO— recorta el largo vertical
+// del formulario en móvil (los campos secundarios no ocupan scroll).
+//
+// Lo usan las DOS pantallas que editan atributos intrínsecos:
+//   · components/objetos/ObjetoFormFields.astro → /objetos/nuevo y Paso 4 del
+//     asistente de bienvenida (components/onboarding/ObjetoFormTutorial.astro).
+//   · pages/objetos/[id]/editar/index.astro → edición del objeto.
+//
+// El comportamiento NO cambia: el markup sigue siendo el de
+// lib/objetos/objetoCamposEspecificos.ts (ids `especifico-<clave>`,
+// `data-familia-especifica`, `#camposEspecificosHint`), así que
+// lib/objetos/objetoCamposEspecificosForm.ts muestra/oculta y habilita/deshabilita
+// las familias exactamente igual que antes. Un <details> cerrado no impide el
+// envío: los controles siguen en el DOM y en el FormData/JSON del payload.
+// =============================================================================
+
+import { camposEspecificosHtml } from '../../lib/objetos/objetoCamposEspecificos';
+
+interface Props {
+  /** Abre el acordeón al renderizar (por defecto queda cerrado: menos scroll). */
+  abierto?: boolean;
+}
+
+const { abierto = false } = Astro.props as Props;
+---
+
+<details class="group rounded-lg border border-gray-200 bg-gray-50" open={abierto}>
+  <summary
+    class="flex cursor-pointer select-none list-none items-center justify-between gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-gray-700 transition-base hover:bg-gray-100 [&::-webkit-details-marker]:hidden"
+  >
+    <span class="flex min-w-0 items-center gap-2">
+      <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
+      </svg>
+      Detalles
+      <span class="truncate text-xs font-normal text-gray-400">Marca, modelo, ISBN, medidas…</span>
+    </span>
+    <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </summary>
+  <div class="border-t border-gray-200 px-4 py-3">
+    <Fragment set:html={camposEspecificosHtml()} />
+  </div>
+</details>
