@@ -1,32 +1,36 @@
 ---
 // =============================================================================
-// PÁGINA DE DECISIONES (pestaña del menú) · ORDEN ESTRICTO DE BLOQUES
+// PÁGINA DE DECISIONES (/alertas-stock) · CUATRO SECCIONES COLAPSABLES
 // -----------------------------------------------------------------------------
-// Todo el tablero se lee de ARRIBA hacia ABAJO priorizando LO URGENTE primero:
-//   BLOQUE 0 (cima) · 🏷️ Objetos con Decisión de Venta / Listos para Publicar
-//              → lib/ventasDestacadas.ts (GET /api/objetos/en_venta/)
-//   BLOQUE 1 · 🗳️ Votaciones pendientes del Estok + 🚨 ALERTA ROJO con el
-//              contador Días:Horas:Minutos:Segundos de los objetos que serán
-//              tirados a la basura (período de gracia vigente) y el enlace para
-//              reclamarlos → components/VotacionesPendientes.astro +
-//              lib/descarteGracia.ts
-//   BLOQUE 2 · 🧭 Objetos pendientes de decisión (sin decisión tomada y sin
-//              votación abierta) → lib/decisionesPendientes.ts
-//   BLOQUE 3 · 💰 Con decisión de Vender: arriba los SIN PUBLICAR (botón para
-//              armar el formulario de Mercado Libre), abajo los YA PUBLICADOS
-//              (con su link 🔗)
-//   BLOQUE 4 · 🗑️ Con decisión de Tirar (en espera de la ejecución física o del
-//              fin del tiempo de reclamo; el descarte final solo lo confirma el
-//              Administrador Físico)
-//   BLOQUE 5 · 📦 Con decisión de Conservar (lista de protección)
+// El tablero se lee de ARRIBA hacia ABAJO, priorizando lo que espera al usuario:
 //
-// Los Bloques 3, 4 y 5 los renderiza src/lib/decisionesGrupos.ts con el
-// endpoint único GET /api/objetos/panel_decisiones/; los modales del descarte
-// (tiempo de gracia) y del reclamo viven en components/ModalDescarteGracia.astro
-// + src/lib/descarteModales.ts. Esta página es únicamente el host y el arranque
-// (disciplina de modularidad: ningún archivo de UI supera las 400 líneas).
+//   SECCIÓN 1 · ✅ Decisiones tomadas (En proceso)
+//     Objetos con decisión tomada cuyo ciclo todavía no terminó:
+//       💰 Vender      → «Marcar como Vendido»: registra el ingreso financiero
+//                        (usuario_vendedor) y archiva el objeto.
+//       🗑️ Tirar/Donar → «Marcar como Tirado/Donado»: sale del Estok activo.
+//       📦 Conservar   → resolución instantánea: el objeto queda protegido.
+//     → lib/decisionesGrupos.ts + lib/decisionesCierre.ts
+//     Endpoint: GET /api/objetos/panel_decisiones/
 //
-// Auth 100% centralizada (services/auth): nunca se arma el header a mano.
+//   SECCIÓN 2 · 🏷️ Objetos con Decisión de Venta / Listos para Publicar
+//     → lib/ventasDestacadas.ts (GET /api/objetos/en_venta/)
+//
+//   SECCIÓN 3 · 🗳️ Votaciones pendientes del Estok (+ 🚨 Alerta Rojo)
+//     → components/VotacionesPendientes.astro + lib/descarteGracia.ts
+//
+//   SECCIÓN 4 · ⏳ Objetos pendientes de decisión (DOS sub-acordeones)
+//     a) Pendientes de MI decisión           (objeto.dueno_id === usuario)
+//     b) Pendientes de la decisión de OTROS  (incluye «Avisar al propietario»)
+//     → lib/decisionesPendientes.ts (GET /api/objetos/pendientes_decision/)
+//
+// Cada sección es un acordeón (components/decisiones/SeccionAcordeon.astro) con
+// ícono, título, badge del total de ítems y flecha de colapsado/desplegado.
+//
+// Modales: publicación (Mercado Libre / Facebook), descarte con período de
+// gracia y aviso al dueño. Auth 100% centralizada en services/auth.
+// Esta página es sólo el host y el arranque (ningún archivo de UI supera 400
+// líneas).
 // =============================================================================
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
@@ -38,6 +42,9 @@ import VotacionesPendientes from '../../components/VotacionesPendientes.astro';
 import PublicarObjetoModal from '../../components/PublicarObjetoModal.astro';
 import ModalDescarteGracia from '../../components/ModalDescarteGracia.astro';
 import ModalNotificarDueno from '../../components/ModalNotificarDueno.astro';
+// Sección colapsable (acordeón) con ícono + título + badge + flecha: la misma
+// barra para las cuatro secciones y para los dos sub-acordeones de pendientes.
+import SeccionAcordeon from '../../components/decisiones/SeccionAcordeon.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas:
 // único archivo compartido con Almacenamiento y Objetos, no se duplican reglas.
 import '../../styles/almacenamiento-portales.css';
@@ -53,7 +60,10 @@ export const prerender = false;
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
       <div>
         <h1 class="text-3xl font-bold text-gray-900">Decisiones de Objetos</h1>
-        <p class="mt-1 text-gray-500">Objetos del Estok que esperan decisión: Vender, Conservar o Tirar</p>
+        <p class="mt-1 text-gray-500">
+          Objetos del Estok que esperan decisión: Vender, Conservar o Tirar.
+          Desplegá cada sección para ver su contenido.
+        </p>
       </div>
       <a
         href="/objetos"
@@ -67,33 +77,133 @@ export const prerender = false;
     </div>
 
     <!-- ============================================================== -->
-    <!-- BLOQUE 0 (CIMA) · 🏷️ OBJETOS CON DECISIÓN DE VENTA              -->
-    <!-- Acceso rápido a TODO objeto marcado para vender (publicado o    -->
-    <!-- no): foto, nombre, valor estimado, ubicación actual y estado de -->
-    <!-- publicación, con «Publicar / Generar Anuncio» (Mercado Libre /  -->
-    <!-- Facebook) y «Ver detalle». Lo alimenta GET /api/objetos/        -->
-    <!-- en_venta/ desde lib/ventasDestacadas.ts.                        -->
+    <!-- SECCIÓN 1 · ✅ DECISIONES TOMADAS (EN PROCESO)                  -->
+    <!-- Objetos con decisión tomada cuyo ciclo todavía no terminó:      -->
+    <!--   💰 Vender      → «Marcar como Vendido» (ingreso financiero)   -->
+    <!--   🗑️ Tirar/Donar → «Marcar como Tirado/Donado» (baja lógica)    -->
+    <!--   📦 Conservar   → resolución instantánea (protegido)           -->
+    <!-- Lo alimenta GET /api/objetos/panel_decisiones/                  -->
+    <!-- (lib/decisionesGrupos.ts) y los cierres los resuelve            -->
+    <!-- lib/decisionesCierre.ts.                                        -->
     <!-- ============================================================== -->
-    <section id="ventaDestacada"
-      class="mb-10 rounded-2xl border-2 border-emerald-300 bg-emerald-50/60 p-4 sm:p-5">
-      <div class="flex flex-wrap items-center gap-2 mb-1">
-        <h2 class="text-lg font-bold text-emerald-900">
-          🏷️ Objetos con Decisión de Venta / Listos para Publicar
-        </h2>
-        <span id="ventaDestacadaCount"
-          class="hidden px-2 py-0.5 rounded-full bg-emerald-600 text-white text-xs font-bold">0</span>
-        <button id="btnRefrescarVenta" type="button"
-          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition-base">
+    <SeccionAcordeon
+      id="seccionEnProceso"
+      emoji="✅"
+      titulo="Decisiones tomadas (En proceso)"
+      badgeId="decisionesEnProcesoCount"
+      detalleId="decisionesEnProcesoDetalle"
+      detalle="Los objetos con decisión permanecen acá hasta cerrar su ciclo."
+      tono="emerald"
+      abierto={true}
+    >
+      <p id="panelDecisionesAviso" class="hidden"></p>
+      <p id="panelDecisionesCargando" class="text-sm text-gray-500">Cargando decisiones tomadas...</p>
+      <div id="panelDecisionesError" class="hidden mb-4 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
+        ⚠️ No se pudo cargar el tablero de decisiones tomadas.
+      </div>
+
+      <div id="panelDecisiones">
+        <section id="seccionDecisionesTomadas" class="hidden">
+          <div class="flex flex-wrap items-center gap-2 mb-4">
+            <button id="btnRefrescarPanel" type="button" data-acordeon-accion
+              class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-base">
+              ↻ Actualizar
+            </button>
+          </div>
+
+          <!-- 💰 Con decisión de Vender (espera «Marcar como Vendido») -->
+          <div class="mb-10">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <h2 class="text-base font-semibold text-gray-900">💰 Con decisión de Vender</h2>
+              <span id="venderCount"
+                class="hidden px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-bold">0</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-3">
+              Publicá el objeto y, cuando la venta se concrete, confirmá con
+              <strong>«✅ Marcar como Vendido»</strong>: el objeto sale del Estok activo y
+              el ingreso queda registrado con el usuario que lo vendió.
+            </p>
+
+            <div id="venderSinPublicarBloque" class="mb-4">
+              <h3 class="text-sm font-semibold text-gray-600 mb-2">📢 Sin publicar</h3>
+              <div id="venderSinPublicarGrid"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+
+            <div id="venderPublicadosBloque">
+              <h3 class="text-sm font-semibold text-gray-600 mb-2">🔗 Ya publicados</h3>
+              <div id="venderPublicadosGrid"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+          </div>
+
+          <!-- 🗑️ Con decisión de Tirar / Donar -->
+          <div class="mb-10">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <h2 class="text-base font-semibold text-gray-900">🗑️ Con decisión de Tirar / Donar</h2>
+              <span id="tirarCount"
+                class="hidden px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold">0</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-2">
+              En espera de la ejecución física o del fin del tiempo de reclamo. Al confirmar
+              <strong>«🗑️ Marcar como Tirado/Donado»</strong> el objeto abandona el Estok activo.
+            </p>
+            <div id="tirarGrid"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            <p id="tirarVacio" class="hidden text-sm text-gray-400">
+              No hay objetos esperando el descarte físico.
+            </p>
+          </div>
+
+          <!-- 📦 Con decisión de Conservar (resolución instantánea) -->
+          <div>
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+              <h2 class="text-base font-semibold text-gray-900">📦 Con decisión de Conservar</h2>
+              <span id="conservarCount"
+                class="hidden px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">0</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-2">
+              Resolución instantánea: el objeto ya quedó protegido en el Estok (incluye los
+              reclamados para mudanza antes de que venciera el descarte).
+            </p>
+            <div id="conservarGrid"
+              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            <p id="conservarVacio" class="hidden text-sm text-gray-400">
+              Todavía no hay objetos protegidos.
+            </p>
+          </div>
+        </section>
+      </div>
+    </SeccionAcordeon>
+
+    <!-- ============================================================== -->
+    <!-- SECCIÓN 2 · 🏷️ OBJETOS CON DECISIÓN DE VENTA / LISTOS PARA     -->
+    <!-- PUBLICAR: acceso rápido a TODO objeto marcado para vender      -->
+    <!-- (publicado o no) con «Publicar / Generar Anuncio» (Mercado      -->
+    <!-- Libre / Facebook) y «Ver publicación».                          -->
+    <!-- Lo alimenta GET /api/objetos/en_venta/ (lib/ventasDestacadas).  -->
+    <!-- ============================================================== -->
+    <SeccionAcordeon
+      id="ventaDestacada"
+      emoji="🏷️"
+      titulo="Objetos con Decisión de Venta / Listos para Publicar"
+      badgeId="ventaDestacadaCount"
+      detalleId="ventaDestacadaResumen"
+      detalle="Listos para publicar en Mercado Libre o canales comerciales."
+      tono="emerald"
+      abierto={true}
+    >
+      <span slot="extra" class="ml-1">
+        <button id="btnRefrescarVenta" type="button" data-acordeon-accion
+          class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition-base">
           ↻ Actualizar
         </button>
-      </div>
-      <p class="text-xs text-emerald-900/70 mb-2">
-        Acceso rápido a los objetos que el Estok decidió vender: los
-        <strong>listos para publicar</strong> aparecen primero con el botón
-        directo a <strong>Publicar / Generar Anuncio</strong> (Mercado Libre /
-        Facebook Marketplace); los ya publicados muestran su link.
+      </span>
+
+      <p class="text-xs text-emerald-900/70 mb-3">
+        Los <strong>listos para publicar</strong> aparecen primero con el botón directo a
+        <strong>Publicar / Generar Anuncio</strong>; los ya publicados muestran su link.
       </p>
-      <p id="ventaDestacadaResumen" class="text-xs font-semibold text-emerald-800 mb-3"></p>
       <p id="ventaDestacadaLoading" class="text-sm text-gray-600">Cargando objetos marcados para vender...</p>
       <p id="ventaDestacadaError"
         class="hidden mb-3 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
@@ -105,35 +215,55 @@ export const prerender = false;
       </p>
       <div id="ventaDestacadaGrid"
         class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-    </section>
+    </SeccionAcordeon>
 
     <!-- ============================================================== -->
-    <!-- BLOQUE 1 · 🗳️ VOTACIONES PENDIENTES DEL ESTOK            -->
-    <!-- Lo URGENTE primero: se abren solas cuando un objeto tiene Dueño -->
-    <!-- y Beneficiario vacío (todo el Estok vota el destino). A la      -->
-    <!-- derecha del cabezal vive el 🚨 ALERTA ROJO con el contador      -->
-    <!-- regresivo Días:Horas:Minutos:Segundos de los descartes en       -->
+    <!-- SECCIÓN 3 · 🗳️ VOTACIONES PENDIENTES DEL ESTOK                 -->
+    <!-- Se abren solas cuando un objeto tiene Dueño y Beneficiario      -->
+    <!-- vacío (todo el Estok vota el destino). En el encabezado vive    -->
+    <!-- el 🚨 ALERTA ROJO con el contador regresivo de los descartes en -->
     <!-- período de gracia (reclamar → Conservar / Mudar).               -->
     <!-- ============================================================== -->
-    <section class="mb-10">
+    <SeccionAcordeon
+      id="seccionVotaciones"
+      emoji="🗳️"
+      titulo="Votaciones pendientes del Estok"
+      badgeId="votacionesCount"
+      detalle="Encuestas familiares abiertas para decidir el destino de los objetos."
+      tono="orange"
+      abierto={true}
+    >
+      <!-- ALERTA ROJO · descartes con período de gracia vigente (lo llena
+           lib/descarteGracia.ts con el contador Días:Horas:Minutos:Segundos en
+           vivo, refrescado cada 1000 ms). -->
+      <span slot="extra" id="alertaDescarte" class="hidden ml-auto flex items-center gap-0 text-sm"></span>
+
       <VotacionesPendientes />
-    </section>
+    </SeccionAcordeon>
 
     <!-- ============================================================== -->
-    <!-- BLOQUE 2 · 🧭 OBJETOS PENDIENTES DE DECISIÓN                    -->
-    <!-- Grilla simétrica: foto, título, ubicación actual y botonera     -->
-    <!-- in-place Vender / Conservar / Tirar por tarjeta.                -->
+    <!-- SECCIÓN 4 · ⏳ OBJETOS PENDIENTES DE DECISIÓN                   -->
+    <!-- Dos sub-acordeones con la REGLA DE PROPIEDAD como fuente única: -->
+    <!--   a) Pendientes de MI decisión      (dueno_id === usuario)      -->
+    <!--   b) Pendientes de la decisión de OTROS (incluye «Avisar al     -->
+    <!--      propietario» y los objetos sin dueño, que se votan)        -->
+    <!-- Grilla: foto, título, ubicación actual y botonera in-place.     -->
     <!-- ============================================================== -->
-    <section class="mb-10">
-      <div class="flex flex-wrap items-center gap-2 mb-3">
-        <h2 class="text-lg font-semibold text-gray-900">🧭 Objetos pendientes de decisión</h2>
-        <span id="pendientesCount"
-          class="hidden px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">0</span>
-        <button id="btnRefrescarPendientes" type="button"
-          class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
+    <SeccionAcordeon
+      id="seccionPendientes"
+      emoji="⏳"
+      titulo="Objetos pendientes de decisión"
+      badgeId="pendientesCount"
+      detalle="Objetos sin decisión tomada y sin votación abierta."
+      tono="blue"
+      abierto={true}
+    >
+      <span slot="extra" class="ml-1">
+        <button id="btnRefrescarPendientes" type="button" data-acordeon-accion
+          class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-blue-200 text-blue-800 text-xs font-semibold rounded-lg hover:bg-blue-100 transition-base">
           ↻ Actualizar
         </button>
-      </div>
+      </span>
 
       <div id="pendientesAviso" class="hidden"></div>
 
@@ -145,88 +275,42 @@ export const prerender = false;
         icono="✅"
       />
 
-      <div id="pendientesGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-    </section>
+      <!-- a) PENDIENTES DE MI DECISIÓN -->
+      <SeccionAcordeon
+        id="subseccionPendientesPropios"
+        nivel="secundario"
+        emoji="🙋"
+        titulo="Pendientes de MI decisión"
+        badgeId="pendientesPropiosCount"
+        detalle="Objetos que te pertenecen y todavía no tienen decisión."
+        tono="blue"
+        abierto={true}
+      >
+        <p id="pendientesPropiosVacio" class="hidden text-sm text-gray-400">
+          No tenés objetos pendientes de tu decisión.
+        </p>
+        <div id="pendientesPropiosGrid"
+          class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+      </SeccionAcordeon>
 
-    <!-- ============================================================== -->
-    <!-- BLOQUES 3, 4 y 5 · OBJETOS YA DECIDIDOS                        -->
-    <!-- Renderizados por src/lib/decisionesGrupos.ts desde el endpoint  -->
-    <!-- GET /api/objetos/panel_decisiones/.                             -->
-    <!-- ============================================================== -->
-    <div id="panelDecisiones">
-      <div id="panelDecisionesAviso" class="hidden"></div>
-      <p id="panelDecisionesCargando" class="text-sm text-gray-500">Cargando decisiones tomadas...</p>
-      <div id="panelDecisionesError" class="hidden mb-4 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
-        ⚠️ No se pudo cargar el tablero de decisiones tomadas.
-      </div>
-
-      <section id="seccionDecisionesTomadas" class="hidden">
-        <div class="flex flex-wrap items-center gap-2 mb-4">
-          <h2 class="text-lg font-semibold text-gray-900">📋 Decisiones tomadas</h2>
-          <button id="btnRefrescarPanel" type="button"
-            class="ml-auto inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-base">
-            ↻ Actualizar
-          </button>
-        </div>
-
-        <!-- BLOQUE 3 · 💰 Con decisión de Vender -->
-        <div class="mb-10">
-          <div class="flex flex-wrap items-center gap-2 mb-2">
-            <h3 class="text-base font-semibold text-gray-900">💰 Con decisión de Vender</h3>
-            <span id="venderCount"
-              class="hidden px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-bold">0</span>
-          </div>
-
-          <div id="venderSinPublicarBloque" class="mb-4">
-            <h4 class="text-sm font-semibold text-gray-600 mb-2">📢 Sin publicar</h4>
-            <div id="venderSinPublicarGrid"
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-          </div>
-
-          <div id="venderPublicadosBloque">
-            <h4 class="text-sm font-semibold text-gray-600 mb-2">🔗 Ya publicados</h4>
-            <div id="venderPublicadosGrid"
-              class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-          </div>
-        </div>
-
-        <!-- BLOQUE 4 · 🗑️ Con decisión de Tirar -->
-        <div class="mb-10">
-          <div class="flex flex-wrap items-center gap-2 mb-1">
-            <h3 class="text-base font-semibold text-gray-900">🗑️ Con decisión de Tirar</h3>
-            <span id="tirarCount"
-              class="hidden px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold">0</span>
-          </div>
-          <p class="text-xs text-gray-500 mb-2">
-            En espera de la ejecución física o del fin del tiempo de reclamo. El descarte
-            definitivo solo lo confirma el Administrador Físico del almacén.
-          </p>
-          <div id="tirarGrid"
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-          <p id="tirarVacio" class="hidden text-sm text-gray-400">
-            No hay objetos esperando el descarte físico.
-          </p>
-        </div>
-
-        <!-- BLOQUE 5 · 📦 Con decisión de Conservar -->
-        <div>
-          <div class="flex flex-wrap items-center gap-2 mb-1">
-            <h3 class="text-base font-semibold text-gray-900">📦 Con decisión de Conservar</h3>
-            <span id="conservarCount"
-              class="hidden px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">0</span>
-          </div>
-          <p class="text-xs text-gray-500 mb-2">
-            Lista de protección: objetos que el Estok decidió guardar (incluye los
-            reclamados para mudanza antes de que venciera el descarte).
-          </p>
-          <div id="conservarGrid"
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-          <p id="conservarVacio" class="hidden text-sm text-gray-400">
-            Todavía no hay objetos protegidos.
-          </p>
-        </div>
-      </section>
-    </div>
+      <!-- b) PENDIENTES DE LA DECISIÓN DE OTROS -->
+      <SeccionAcordeon
+        id="subseccionPendientesAjenos"
+        nivel="secundario"
+        emoji="👥"
+        titulo="Pendientes de la decisión de OTROS"
+        badgeId="pendientesAjenosCount"
+        detalle="Objetos de otros miembros del Estok: podés avisarles para que decidan."
+        tono="amber"
+        abierto={true}
+      >
+        <p id="pendientesAjenosVacio" class="hidden text-sm text-gray-400">
+          No hay decisiones pendientes de otros miembros.
+        </p>
+        <div id="pendientesAjenosGrid"
+          class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+      </SeccionAcordeon>
+    </SeccionAcordeon>
   </div>
 
   <!-- Modal de publicación (Mercado Libre / Facebook Marketplace) -->
@@ -248,20 +332,21 @@ export const prerender = false;
     // cambió (publicación pausada, finalizada o eliminada en ML).
     import { iniciarSincronizacionPublicaciones } from '../../lib/sincronizacionPublicaciones';
     // Clic en el CUERPO/TÍTULO de cualquier tarjeta → ficha interna del objeto.
-    // Los botones (publicar, «Ver publicación», despacho, reclamo…) y la ruta
-    // geográfica conservan su propia acción y NO navegan.
+    // Los botones (publicar, «Ver publicación», despacho, cierre, reclamo…) y la
+    // ruta geográfica conservan su propia acción y NO navegan.
     import { initNavegacionTarjetasDecisiones } from '../../lib/decisionesTarjeta';
     // ACCIÓN RÁPIDA de las tarjetas: «⏸ Pausar publicación» / «▶️ Reactivar
-    // publicación» → PUT /items/{id} de Mercado Libre desde el backend
-    // (POST /api/mercadolibre/cambiar_estado/) y refresco en caliente de la
-    // insignia de estado (lógica en lib/accionesPublicacionML.ts).
+    // publicación» → PUT /items/{id} de Mercado Libre desde el backend.
     import { iniciarAccionesEstadoPublicacion } from '../../lib/accionesPublicacionML';
 
     initNavegacionTarjetasDecisiones();
     iniciarAccionesEstadoPublicacion();
-    iniciarVentasDestacadas();
-    iniciarDecisionesPendientes();
+    // Sección 1 · ✅ Decisiones tomadas (En proceso) + cierre del ciclo.
     iniciarPanelDecisiones();
+    // Sección 2 · 🏷️ Listos para publicar.
+    iniciarVentasDestacadas();
+    // Sección 4 · ⏳ Pendientes (dos sub-acordeones por propiedad).
+    iniciarDecisionesPendientes();
     iniciarModalPublicar();
     iniciarModalesDescarte();
     iniciarModalNotificarDueno();

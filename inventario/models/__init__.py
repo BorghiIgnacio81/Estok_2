@@ -29,6 +29,7 @@ from .permisos_botones import (
 )
 from .chat import Mensaje
 from .decisiones import DecisionVotacion, VotoDecision
+from .ventas import VentaObjeto
 
 __all__ = [
     'Role',
@@ -51,4 +52,5 @@ __all__ = [
     'Mensaje',
     'DecisionVotacion',
     'VotoDecision',
+    'VentaObjeto',
 ]

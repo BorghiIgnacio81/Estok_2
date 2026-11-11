@@ -16,7 +16,7 @@
 // backend vuelve a validarlo en cada endpoint (403 si no corresponde).
 // =============================================================================
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
-import { botonPublicacionExternaHtml, escapar, estadoPublicacionInfo, tarjetaObjetoHtml } from './decisionesTarjeta';
+import { escapar, tarjetaObjetoHtml } from './decisionesTarjeta';
 import type { ObjetoDecision } from './decisionesTarjeta';
 import {
   EVENTO_CAMBIO_DESCARTE,
@@ -35,8 +35,13 @@ import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 // Lote 31 · punto 1: dentro de cada grilla, los casos TODAVÍA ACTIVOS se leen
 // arriba y los ya CERRADOS (despachados / plazo vencido) quedan al fondo.
-import { ordenarGrupoDecisiones, estaPublicado } from './decisionesOrden';
+import { ordenarGrupoDecisiones } from './decisionesOrden';
 import { EVENTO_DECISION_CAMBIADA, EVENTO_PUBLICACION_ACTUALIZADA } from './eventosDecisiones';
+// CIERRE DEL CICLO (Sección 1): «Marcar como Vendido» registra el ingreso
+// financiero y «Marcar como Tirado/Donado» archiva el objeto. El markup y las
+// llamadas viven en un módulo aparte (lib/decisionesCierre.ts).
+import { accionesCierreHtml, manejarClickCierre } from './decisionesCierre';
+import { renderVender } from './decisionesGruposVender';
 
 /** Respuesta completa del tablero de la pestaña Decisiones. */
 interface PanelDecisiones {
@@ -128,6 +133,18 @@ function renderPanel(panel: PanelDecisiones): void {
   actualizarContador('tirarCount', panel.tirar?.length || 0);
   actualizarContador('conservarCount', (panel.conservar?.length || 0)
     + (panel.en_mudanza?.length || 0));
+  // BADGE del acordeón de la Sección 1: total de objetos con decisión tomada
+  // cuyo ciclo todavía no terminó (vender + tirar + conservar + mudanza).
+  actualizarContador('decisionesEnProcesoCount', total);
+  const detalle = el('decisionesEnProcesoDetalle');
+  if (detalle) {
+    detalle.textContent = total === 0
+      ? 'Todavía no hay decisiones en proceso.'
+      : `💰 ${panel.vender_sin_publicar?.length || 0} sin publicar · `
+        + `🔗 ${panel.vender_publicados?.length || 0} publicados · `
+        + `🗑️ ${panel.tirar?.length || 0} por tirar · `
+        + `📦 ${(panel.conservar?.length || 0) + (panel.en_mudanza?.length || 0)} protegidos`;
+  }
 }
 
 function actualizarContador(id: string, valor: number): void {
@@ -152,106 +169,6 @@ export function avisoPanel(mensaje: string, exito = true): void {
   host.classList.toggle('hidden', !mensaje);
 }
 
-// -----------------------------------------------------------------------------
-// BLOQUE 3 · Con decisión de Vender (sin publicar / ya publicados)
-// -----------------------------------------------------------------------------
-
-function renderVender(panel: PanelDecisiones): void {
-  // Orden del tablero: los casos que todavía admiten acción (publicar) arriba;
-  // los ya despachados, al fondo. El bloque «Sin publicar» se lee antes que
-  // «Ya publicados» por markup de la página.
-  const sinPublicar = ordenarGrupoDecisiones(panel.vender_sin_publicar || [], 'vender');
-  const publicados = ordenarGrupoDecisiones(panel.vender_publicados || [], 'vender');
-
-  const gridSinPublicar = el('venderSinPublicarGrid');
-  if (gridSinPublicar) gridSinPublicar.innerHTML = sinPublicar.map(cardVender).join('');
-  const gridPublicados = el('venderPublicadosGrid');
-  if (gridPublicados) gridPublicados.innerHTML = publicados.map(cardVender).join('');
-
-  el('venderSinPublicarBloque')?.classList.toggle('hidden', sinPublicar.length === 0);
-  el('venderPublicadosBloque')?.classList.toggle('hidden', publicados.length === 0);
-}
-
-function cardVender(obj: ObjetoDecision): string {
-  // El estado REAL manda: una publicación pausada/finalizada en Mercado Libre
-  // NO es «publicado» para el inventario (ver decisionesTarjeta).
-  const publicado = estaPublicado(obj);
-  return tarjetaObjetoHtml(obj, {
-    pie: pieDespachoHtml(obj),
-    acciones: publicado ? accionesPublicadoHtml(obj) : accionesSinPublicarHtml(obj),
-    atributos: 'data-grupo="vender"',
-  });
-}
-
-/** Botón para armar el formulario de publicación (objeto decidido sin publicar). */
-function accionesSinPublicarHtml(obj: ObjetoDecision): string {
-  return `
-    <div class="mt-auto flex flex-col gap-1.5">
-      <span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
-        💰 Para vender · sin publicar
-      </span>
-      <button type="button" data-publicar="${escapar(obj.id)}"
-        class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-base">
-        📢 Armar formulario de Mercado Libre
-      </button>
-    </div>`;
-}
-
-/** Veredicto + link 🔗 de un objeto ya publicado (y despacho si corresponde). */
-function accionesPublicadoHtml(obj: ObjetoDecision): string {
-  // DESTINOS SEPARADOS: «Ver publicación» lleva EXCLUSIVAMENTE a la publicación
-  // externa de Mercado Libre (pestaña nueva) y solo existe cuando el objeto
-  // tiene una URL activa. La ficha interna se abre desde el cuerpo/título de la
-  // tarjeta, no desde este botón (antes caía a `/objetos/<id>`).
-  //
-  // ESTADO REAL: si Mercado Libre la pausó, el veredicto deja de decir
-  // «Publicado para vender» y se advierte cómo reactivarla.
-  const info = estadoPublicacionInfo(obj);
-  const veredicto = info.vendiendo
-    ? `<span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-green-100 text-green-800 text-xs font-bold">
-        💰 Publicado para vender
-      </span>`
-    : `<span class="inline-flex items-center justify-center px-2 py-1 rounded-lg ${info.clases} text-xs font-bold">
-        ⏸️ ${escapar(info.label)}
-      </span>
-      ${info.aviso ? `<p class="text-[11px] text-amber-700">${escapar(info.aviso)}</p>` : ''}`;
-  return `
-    <div class="mt-auto flex flex-col gap-1.5">
-      ${veredicto}
-      ${botonPublicacionExternaHtml(obj)}
-      ${botonDespachoHtml(obj)}
-    </div>`;
-}
-
-/**
- * Despacho del envío: solo visible para el Administrador Físico del Estok
- * (el backend responde 403 a cualquier otro usuario).
- */
-function botonDespachoHtml(obj: ObjetoDecision): string {
-  if (obj.despachado_en) {
-    const por = obj.despachado_por_nombre ? ` por ${escapar(obj.despachado_por_nombre)}` : '';
-    return `
-      <span class="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-semibold">
-        📦 Envío despachado${por}
-      </span>`;
-  }
-  if (!puedeAdministrarFisico()) return '';
-  return `
-    <button type="button" data-despachar-envio="${escapar(obj.id)}"
-      class="inline-flex items-center justify-center gap-1 px-2 py-2 text-xs font-semibold text-white bg-slate-700 hover:bg-slate-800 rounded-lg shadow-sm transition-base">
-      📦 Despachar envío (Admin. Físico)
-    </button>`;
-}
-
-/** Chip de despacho en la tarjeta (pie) para los objetos vendidos. */
-function pieDespachoHtml(obj: ObjetoDecision): string {
-  if (!obj.despachado_en) return '';
-  const por = obj.despachado_por_nombre ? ` · ${escapar(obj.despachado_por_nombre)}` : '';
-  return `
-    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[11px] text-slate-600">
-      📦 Despachado el ${new Date(obj.despachado_en).toLocaleDateString('es-AR')}${por}
-    </div>`;
-}
 
 // -----------------------------------------------------------------------------
 // BLOQUE 4 · Con decisión de Tirar
@@ -268,9 +185,14 @@ function renderTirar(panel: PanelDecisiones): void {
 }
 
 function cardTirar(obj: ObjetoDecision): string {
+  // El cierre del descarte lo ofrece el Administrador Físico (confirmación
+  // física) o, en su defecto, el propietario con «Marcar como Tirado/Donado».
+  const cierre = puedeAdministrarFisico()
+    ? accionesDescarteHtml(obj)
+    : accionesCierreHtml(obj, 'tirar');
   return tarjetaObjetoHtml(obj, {
     pie: pieDescarteHtml(obj),
-    acciones: accionesDescarteHtml(obj),
+    acciones: cierre,
     atributos: 'data-grupo="tirar"',
     extraClases: obj.en_periodo_gracia ? 'ring-1 ring-red-200' : '',
   });
@@ -368,6 +290,10 @@ async function ejecutarAccion(
 }
 
 async function onPanelClick(evento: Event): Promise<void> {
+  // CIERRE DEL CICLO (Sección 1): «Marcar como Vendido» / «Marcar como
+  // Tirado/Donado». Si el clic fue en uno de esos botones, ya quedó atendido.
+  if (await manejarClickCierre(evento, objetoDe, avisoPanel)) return;
+
   const objetivo = evento.target as HTMLElement | null;
 
   const publicar = objetivo?.closest<HTMLElement>('[data-publicar]');

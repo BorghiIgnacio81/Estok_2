@@ -179,7 +179,7 @@ function renderAlerta(): void {
   host.classList.remove('hidden');
   host.innerHTML = `
     <span id="alertaDescarteTexto" class="font-bold text-red-600"></span>
-    <button type="button" id="alertaDescarteLink"
+    <button type="button" id="alertaDescarteLink" data-acordeon-accion
       class="ml-1 underline font-bold text-red-700 hover:text-red-800">ingresá aquí</button>`;
   actualizarTextoAlerta();
   el('alertaDescarteLink')?.addEventListener('click', () => {

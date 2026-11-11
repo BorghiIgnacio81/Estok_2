@@ -7,6 +7,7 @@ para mantener compatibilidad total con config/urls.py y viewsets/__init__.py.
 """
 
 from .base import ObjetoViewSetBase
+from .cierre_actions import CierreActionsMixin
 from .decisiones_actions import DecisionesActionsMixin
 from .descarte_actions import DescarteActionsMixin
 from .export_actions import ExportActionsMixin
@@ -18,6 +19,7 @@ from .utils_actions import UtilsActionsMixin
 
 class ObjetoViewSet(
     DecisionesActionsMixin,
+    CierreActionsMixin,
     DescarteActionsMixin,
     ExportActionsMixin,
     IAActionsMixin,

@@ -8,6 +8,7 @@ from .models import (
     FotoObjeto,
     FeatureFlag,
     SuscripcionPago,
+    VentaObjeto,
 )
 
 # Panel de Permisos y Cuotas Granulares por Botón (BotonPermiso / CuotaUsoUsuario).
@@ -191,6 +192,18 @@ class ObjetoAdmin(admin.ModelAdmin):
         if request.GET.get('deleted'):
             return qs
         return qs.filter(deleted_at__isnull=True)
+
+
+# =============================================================================
+# ADMIN: VENTAS (ingreso financiero del cierre de decisiones)
+# =============================================================================
+@admin.register(VentaObjeto)
+class VentaObjetoAdmin(admin.ModelAdmin):
+    list_display = ['objeto_nombre', 'precio_venta', 'moneda', 'canal',
+                    'usuario_vendedor', 'vendido_en']
+    list_filter = ['canal', 'moneda', 'vendido_en']
+    search_fields = ['objeto_nombre', 'usuario_vendedor__username']
+    readonly_fields = ['created_at']
 
 
 # =============================================================================

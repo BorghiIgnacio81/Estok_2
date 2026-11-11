@@ -50,6 +50,13 @@ import { notificarDecisionCambiada } from './eventosDecisiones';
 // Lote 31 · punto 1: los objetos todavía SIN decisión se leen arriba; los ya
 // decididos (si el endpoint devolviera alguno) caen al fondo de la grilla.
 import { ordenarPendientesDecision } from './decisionesOrden';
+// REGLA DE PROPIEDAD (fuente única): decide si el objeto cae en «Pendientes de
+// MI decisión» o en «Pendientes de la decisión de OTROS».
+import {
+  actualizarContadores,
+  dividirPorPropiedad,
+  renderPendientes,
+} from './decisionesPendientesVista';
 
 // -----------------------------------------------------------------------------
 // Tipos
@@ -129,36 +136,11 @@ function tarjetaHtml(obj: ObjetoPendiente): string {
   });
 }
 
-function actualizarContador(): void {
-  const contador = el('pendientesCount');
-  if (!contador) return;
-  contador.textContent = String(estado.objetos.length);
-  contador.classList.toggle('hidden', estado.objetos.length === 0);
-}
-
+/** Pintado de la sección: delegado en lib/decisionesPendientesVista.ts. */
 function render(): void {
-  const host = el('pendientesGrid');
-  if (!host) return;
-
-  const visibles = estado.objetos.length;
-  const ocupado = estado.cargando || Boolean(estado.error);
-
-  el('loadingState')?.classList.toggle('hidden', !estado.cargando);
-  el('errorState')?.classList.toggle('hidden', !estado.error);
-  el('emptyState')?.classList.toggle('hidden', ocupado || visibles > 0);
-  host.classList.toggle('hidden', ocupado || visibles === 0);
-
-  const mensajeError = el('errorMessage');
-  if (mensajeError && estado.error) mensajeError.textContent = estado.error;
-
-  actualizarContador();
-
-  if (ocupado) {
-    host.innerHTML = '';
-    return;
-  }
-  host.innerHTML = estado.objetos.map(tarjetaHtml).join('');
+  renderPendientes(estado, tarjetaHtml);
 }
+
 
 function mostrarAviso(mensaje: string, exito = true): void {
   const host = el('pendientesAviso');
@@ -215,7 +197,13 @@ async function guardarDecision(obj: ObjetoPendiente, accion: string): Promise<vo
 async function tirarTarjeta(obj: ObjetoPendiente): Promise<void> {
   const card = document.querySelector<HTMLElement>(`[data-objeto-card="${obj.id}"]`);
   estado.objetos = estado.objetos.filter((o) => o.id !== obj.id);
-  actualizarContador();
+  // Badges y mensajes de vacío de los DOS sub-acordeones, sin esperar al
+  // siguiente render (la tarjeta todavía se está desvaneciendo).
+  actualizarContadores(estado.objetos);
+  const { propios, ajenos } = dividirPorPropiedad(estado.objetos);
+  el('pendientesPropiosVacio')?.classList.toggle('hidden', propios.length > 0);
+  el('pendientesAjenosVacio')?.classList.toggle('hidden', ajenos.length > 0);
+  el('emptyState')?.classList.toggle('hidden', estado.objetos.length > 0);
   if (!card) return;
   card.classList.add('decision-card-saliendo');
   await new Promise((resolver) => {
@@ -374,9 +362,9 @@ function onClickTarjeta(evento: Event): void {
 // API pública
 // -----------------------------------------------------------------------------
 
-/** Inicializa la grilla de objetos pendientes (idempotente). */
+/** Inicializa la sección de objetos pendientes (dos sub-acordeones). */
 export function iniciarDecisionesPendientes(): void {
-  const host = el('pendientesGrid');
+  const host = el('seccionPendientes');
   if (!host || host.dataset.activo === 'true') return;
   host.dataset.activo = 'true';
 

@@ -1,0 +1,171 @@
+---
+// =============================================================================
+// SECCIÓN COLAPSABLE (ACORDEÓN) DE LA PESTAÑA DECISIONES (/alertas-stock)
+// -----------------------------------------------------------------------------
+// Barra desplegable reutilizable por las CUATRO secciones del tablero y por los
+// dos sub-acordeones de «Objetos pendientes de decisión»:
+//
+//   encabezado: emoji + título + BADGE con el total de ítems + flecha de
+//               colapsado/desplegado (rota 180° al abrir) + acciones extra.
+//
+// El cuerpo es un <slot>: cada sección inyecta su contenido (grillas, estados
+// de carga/error/vacío, sub-acordeones). Este componente NO tiene lógica de
+// negocio: los contadores los actualiza el controlador de cada sección.
+//
+// IMPORTANTE (markup válido): el contenido del <summary> admite únicamente
+// contenido de tipo phrasing. El slot `extra` debe recibir <span> o <button>
+// (NUNCA <div> ni <p>), igual que la barra de /objetos.
+// =============================================================================
+
+interface Props {
+  /** id de la <section> (host de los controladores JS). */
+  id: string;
+  /** Título visible de la sección. */
+  titulo: string;
+  /** Emoji/ícono representativo de la sección. */
+  emoji?: string;
+  /** id del badge con el total de ítems (lo actualiza el controlador). */
+  badgeId?: string;
+  /** id del resumen secundario del encabezado. */
+  detalleId?: string;
+  /** Texto inicial del resumen secundario. */
+  detalle?: string;
+  /** Arranca desplegado (true) o colapsado (false). */
+  abierto?: boolean;
+  /** Nivel visual: secciones principales del tablero o sub-secciones. */
+  nivel?: 'principal' | 'secundario';
+  /** Paleta del encabezado (coincide con el ícono de la sección). */
+  tono?: 'amber' | 'emerald' | 'orange' | 'blue' | 'red';
+}
+
+const {
+  id,
+  titulo,
+  emoji = '',
+  badgeId,
+  detalleId,
+  detalle = '',
+  abierto = true,
+  nivel = 'principal',
+  tono = 'amber',
+} = Astro.props;
+
+const TONOS: Record<string, { caja: string; badge: string; flecha: string }> = {
+  amber: {
+    caja: 'border-amber-200 bg-amber-50/70',
+    badge: 'bg-amber-100 text-amber-900 border-amber-300',
+    flecha: 'text-amber-700',
+  },
+  emerald: {
+    caja: 'border-emerald-200 bg-emerald-50/70',
+    badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    flecha: 'text-emerald-700',
+  },
+  orange: {
+    caja: 'border-orange-200 bg-orange-50/70',
+    badge: 'bg-orange-100 text-orange-900 border-orange-300',
+    flecha: 'text-orange-700',
+  },
+  blue: {
+    caja: 'border-blue-200 bg-blue-50/70',
+    badge: 'bg-blue-100 text-blue-900 border-blue-300',
+    flecha: 'text-blue-700',
+  },
+  red: {
+    caja: 'border-red-200 bg-red-50/70',
+    badge: 'bg-red-100 text-red-900 border-red-300',
+    flecha: 'text-red-700',
+  },
+};
+
+const paleta = TONOS[tono] || TONOS.amber;
+const esPrincipal = nivel === 'principal';
+---
+
+<section id={id} class={esPrincipal ? 'mb-6' : 'mb-4'}>
+  <details
+    class:list={[
+      'acordeon-decisiones rounded-2xl border shadow-sm',
+      esPrincipal ? 'border-2' : 'border',
+      esPrincipal ? paleta.caja : 'border-gray-200 bg-white/85',
+    ]}
+    open={abierto}
+  >
+    <summary
+      class:list={[
+        'flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none transition-base rounded-2xl hover:bg-white/70',
+        esPrincipal ? 'flex-wrap' : '',
+      ]}
+    >
+      <span class="flex items-center gap-2 min-w-0 flex-1">
+        <span class={esPrincipal ? 'text-2xl shrink-0' : 'text-xl shrink-0'} aria-hidden="true">{emoji}</span>
+        <span class="flex flex-wrap items-center gap-2 min-w-0">
+          <span class:list={[
+            'font-bold text-gray-900',
+            esPrincipal ? 'text-lg sm:text-xl' : 'text-base',
+          ]}>{titulo}</span>
+          {badgeId && (
+            <span
+              id={badgeId}
+              class:list={[
+                'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold',
+                paleta.badge,
+              ]}
+            >0</span>
+          )}
+        </span>
+        <slot name="extra" />
+      </span>
+      <span class:list={['acordeon-decisiones-flecha shrink-0', paleta.flecha]} aria-hidden="true">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </span>
+      {detalleId && (
+        <span id={detalleId} class="order-last w-full text-xs text-gray-500 sm:w-auto sm:flex-1">
+          {detalle}
+        </span>
+      )}
+    </summary>
+    <div class="px-3 sm:px-4 pb-4">
+      <slot />
+    </div>
+  </details>
+</section>
+
+<style>
+  /* Oculta el triángulo nativo: la flecha del encabezado es la única señal. */
+  .acordeon-decisiones > summary {
+    list-style: none;
+  }
+  .acordeon-decisiones > summary::-webkit-details-marker {
+    display: none;
+  }
+  .acordeon-decisiones-flecha svg {
+    transition: transform 0.18s ease;
+  }
+  .acordeon-decisiones[open] > summary .acordeon-decisiones-flecha svg {
+    transform: rotate(180deg);
+  }
+</style>
+
+<script>
+  // Los controles del encabezado («↻ Actualizar», etc.) NO deben plegar el
+  // acordeón: se cancela la acción por defecto del <summary> en fase de captura
+  // —antes de que el navegador alterne el <details>— sin frenar el manejador
+  // propio del botón. Idempotente: el listener se registra UNA sola vez.
+  const MARCA = 'acordeonDecisionesEnganchado';
+  const ventana = window as unknown as Record<string, boolean>;
+  if (!ventana[MARCA]) {
+    ventana[MARCA] = true;
+    document.addEventListener(
+      'click',
+      (evento) => {
+        const objetivo = evento.target as HTMLElement | null;
+        if (!objetivo || typeof objetivo.closest !== 'function') return;
+        if (objetivo.closest('[data-acordeon-accion]')) evento.preventDefault();
+      },
+      true,
+    );
+  }
+</script>
