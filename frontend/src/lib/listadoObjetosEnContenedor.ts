@@ -25,7 +25,6 @@ import {
   chipPublicado,
   esc,
   fotoDe,
-  numerico,
 } from './listadoObjetosPiezas';
 // RUTA JERÁRQUICA COMPLETA de la tarjeta: MISMO widget que la sección de cajas
 // (texto con flechas + despliegue de minimapas + acceso directo al mapa de
@@ -127,9 +126,3 @@ export function seccionObjetosEnContenedorHtml(items: ObjetoEnContenedor[]): str
   return lista.map(tarjetaHtml).join('');
 }
 
-/** Contador legible para el encabezado («12 objetos almacenados»). */
-export function contadorObjetosEnContenedor(items: ObjetoEnContenedor[]): string {
-  const total = numerico((items || []).length);
-  if (total === 0) return '';
-  return total + (total === 1 ? ' objeto almacenado' : ' objetos almacenados');
-}

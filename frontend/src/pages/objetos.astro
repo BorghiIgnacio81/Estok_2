@@ -1,13 +1,15 @@
 ---
 // Listado jerárquico de objetos (inventario en cascada).
 // La pantalla se divide en secciones descendentes que heredan de forma continua
-// la misma textura y paleta corporativa. ORDEN VISUAL (Lote 32), de arriba a
-// abajo:
-//   SECCIÓN 1    · 🧸 Objetos Sueltos o sin Caja
-//   SECCIÓN 2    · 📦 Cajas e Inventario Interno (mini-guía analítica asimétrica)
-//   SECCIÓN 2bis · 📦 Objetos en Contenedor (lista plana con insignia de
+// la misma textura y paleta corporativa. Cada sección es un ACORDEÓN colapsable
+// (colapsado por defecto) cuya barra muestra el título con su ícono, un badge con
+// el total de objetos, un resumen secundario y el indicador desplegado/colapsado.
+// ORDEN VISUAL (Lote 32), de arriba a abajo:
+//   SECCIÓN 1    · Objetos Sueltos o sin Caja (ícono /fluffy-objeto.webp)
+//   SECCIÓN 2    · Cajas e Inventario Interno (mini-guía analítica asimétrica)
+//   SECCIÓN 2bis · Objetos en Contenedor (lista plana con insignia de
 //                  ubicación: ningún ítem queda oculto detrás de un acordeón)
-//   SECCIÓN 3    · 🗄 Muebles y Estructuras Móviles
+//   SECCIÓN 3    · Muebles y Estructuras Móviles (ícono /mueble.webp)
 // La lógica vive en src/lib/listadoJerarquicoObjetos.ts.
 // Payload: GET /api/contenedores/arbol/ (backend optimizado, cero N+1).
 
@@ -37,10 +39,20 @@ import '../styles/ruta-geografica.css';
 // usa EXACTAMENTE el mismo host canónico que el componente (lib/minimapaRutaHost.ts).
 import '../styles/minimapa-ruta.css';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_BOTON_QR, ASSET_NUEVO_OBJETO } from '../lib/assetsUi';
+// · ASSET_FOTO_OBJETO → /fluffy-objeto.webp (ícono de «Objetos Sueltos»).
+// · ASSET_MUEBLE      → /mueble.webp       (ícono de «Muebles y Estructuras»).
+import {
+  ASSET_BOTON_QR,
+  ASSET_FOTO_OBJETO,
+  ASSET_MUEBLE,
+  ASSET_NUEVO_OBJETO,
+} from '../lib/assetsUi';
 // Modal de cámara del escáner QR: al escanear muestra el contenido y la ruta de
 // ubicación completa de la caja/objeto (lógica en lib/escanerQrModal.ts).
 import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
+// Sección colapsable (acordeón) reutilizable por las cuatro secciones del
+// inventario: ícono + título + badge de objetos + resumen secundario + flecha.
+import SeccionAcordeon from '../components/objetos/SeccionAcordeon.astro';
 ---
 
 <AuthGuard />
@@ -96,6 +108,18 @@ import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
           <option value="">Todas</option>
         </select>
       </div>
+      <div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+        <label for="filtroUbicacion" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtro por Ubicación</label>
+        <!-- Opciones DINÁMICAS: «Habitaciones y espacios» (optgroup) y
+             «Contenedores padre» (muebles y piezas que alojan otras piezas).
+             Se pueblan con el contexto geográfico del Estok activo (lógica en
+             lib/filtroUbicacionListado.ts) y filtran el listado EN EL ACTO,
+             sin refetch, actualizando los contadores de los acordeones. -->
+        <select id="filtroUbicacion"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer">
+          <option value="">Todas las ubicaciones</option>
+        </select>
+      </div>
       <div class="flex flex-col gap-1.5 flex-1 min-w-[180px]">
         <label for="filtroPublicado" class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Publicación</label>
         <select id="filtroPublicado"
@@ -110,8 +134,9 @@ import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
         <input id="searchInput" type="search" placeholder="Buscar por nombre o descripción…"
           class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base" />
       </div>
-      <!-- Blanqueo reactivo: resetea búsqueda + los tres selects y repinta todo el
-           inventario del Estok activo (lógica en lib/listadoJerarquicoObjetos.ts). -->
+      <!-- Blanqueo reactivo: resetea búsqueda + los cuatro selects (incluido el
+           Filtro por Ubicación) y repinta todo el inventario del Estok activo
+           (lógica en lib/listadoJerarquicoObjetos.ts). -->
       <div class="flex items-end w-full sm:w-auto">
         <button id="btnLimpiarFiltros" type="button"
           class="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-3 py-2.5 rounded-lg text-sm font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-900 active:scale-95 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base cursor-pointer"
@@ -142,66 +167,73 @@ import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
     <div id="resumenInventario" class="hidden mb-6"></div>
 
     <!-- =====================================================================
-         INVENTARIO JERÁRQUICO · tres bloques secuenciales descendentes que
-         heredan la MISMA textura y paleta corporativa (lienzo continuo).
-         ORDEN VISUAL (Lote 24), de arriba a abajo:
-           SECCIÓN 1 (ARRIBA) · 🧸 Objetos Sueltos o sin Caja
-           SECCIÓN 2 (CENTRO) · 📦 Cajas e Inventario Interno
-           SECCIÓN 3 (ABAJO)  · 🗄 Muebles y Estructuras Móviles
-         El HTML lo inyecta src/lib/listadoJerarquicoObjetos.ts.
+         INVENTARIO JERÁRQUICO · cuatro ACORDEONES secuenciales descendentes
+         que heredan la MISMA textura y paleta corporativa (lienzo continuo).
+         Cada barra desplegable muestra: ícono + título, badge con el total de
+         objetos, resumen secundario (sub-ítems / valor estimado) y la flecha
+         de estado. Todos arrancan COLAPSADOS para evitar la sobrecarga visual.
+         ORDEN VISUAL (Lote 32), de arriba a abajo:
+           SECCIÓN 1     · Objetos Sueltos o sin Caja
+           SECCIÓN 2     · Cajas e Inventario Interno
+           SECCIÓN 2bis  · Objetos en Contenedor
+           SECCIÓN 3     · Muebles y Estructuras Móviles
+         El HTML de las tarjetas lo inyecta src/lib/listadoJerarquicoObjetos.ts.
          ===================================================================== -->
     <div id="seccionesInventario" class="hidden secciones-inventario">
 
-      <!-- SECCIÓN 1 (ARRIBA) · Objetos Sueltos o sin Caja -->
-      <section id="seccionSueltos" class="hidden mb-10">
-        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">🧸 Objetos Sueltos o sin Caja</h2>
-            <p class="text-sm text-gray-500">Ítems que no residen dentro de una caja/mueble · incluye los asignados a un espacio (Planta › Habitación › Espacio) con su ruta jerárquica</p>
-          </div>
-        </div>
-        <div id="objetosGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-      </section>
+      <!-- SECCIÓN 1 · Objetos Sueltos o sin Caja (ícono /fluffy-objeto.webp) -->
+      <SeccionAcordeon
+        id="seccionSueltos"
+        titulo="Objetos Sueltos o sin Caja"
+        iconoSrc={ASSET_FOTO_OBJETO}
+        iconoAlt="Objetos Sueltos"
+        badgeId="badgeSueltos"
+        detalleId="detalleSueltos"
+        detalle="Ítems que no residen dentro de una caja/mueble"
+        detalleTitle="Ítems que no residen dentro de una caja/mueble · incluye los asignados a un espacio (Planta › Habitación › Espacio) con su ruta jerárquica"
+        bodyId="objetosGrid"
+        bodyClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+      />
 
-      <!-- SECCIÓN 2 (CENTRO) · Cajas e Inventario Interno -->
-      <section id="seccionCajas" class="hidden mb-10">
-        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">📦 Cajas e Inventario Interno</h2>
-            <p class="text-sm text-gray-500">Cajas del Estok activo (incluidas las guardadas dentro de muebles), con la ruta de minimapas Piso → Habitación → Mueble y su contenido cerrado por defecto</p>
-          </div>
-        </div>
-        <div id="cajasContainer" class="space-y-6"></div>
-      </section>
+      <!-- SECCIÓN 2 · Cajas e Inventario Interno -->
+      <SeccionAcordeon
+        id="seccionCajas"
+        titulo="Cajas e Inventario Interno"
+        emoji="📦"
+        badgeId="badgeCajas"
+        detalleId="detalleCajas"
+        detalle="Cajas del Estok activo con su ruta Piso → Habitación → Mueble"
+        detalleTitle="Cajas del Estok activo (incluidas las guardadas dentro de muebles), con la ruta de minimapas Piso → Habitación → Mueble y su contenido cerrado por defecto"
+        bodyId="cajasContainer"
+        bodyClass="space-y-6"
+      />
 
-      <!-- SECCIÓN 1bis · Objetos en Contenedor (ningún ítem queda oculto) -->
-      <section id="seccionObjetosEnContenedor" class="hidden mb-10">
-        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">📦 Objetos en Contenedor</h2>
-            <p class="text-sm text-gray-500">Todo ítem guardado DENTRO de una caja, mueble o espacio lógico · la insignia indica su ubicación (ej. 📦 En Caja 02)</p>
-          </div>
-          <span id="objetosEnContenedorResumen"
-            class="text-xs font-semibold text-amber-900 bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-full"></span>
-        </div>
-        <!-- GRILLA DEL MISMO TAMAÑO QUE EL INVENTARIO GENERAL: la sección es la
-             ÚNICA dueña de la grilla (auto-fill de 240 px). El helper devuelve
-             SÓLO las tarjetas: anidar otra grilla adentro comprimía cada tarjeta
-             a una columna de la externa y dejaba los títulos e insignias
-             («📦 En Caja 02») ilegibles. -->
-        <div id="objetosEnContenedorGrid" class="grilla-objetos-contenedor"></div>
-      </section>
+      <!-- SECCIÓN 2bis · Objetos en Contenedor (ningún ítem queda oculto) -->
+      <SeccionAcordeon
+        id="seccionObjetosEnContenedor"
+        titulo="Objetos en Contenedor"
+        emoji="📦"
+        badgeId="badgeObjetosEnContenedor"
+        detalleId="detalleObjetosEnContenedor"
+        detalle="Ítems guardados dentro de cajas, muebles o espacios · la insignia indica su ubicación"
+        detalleTitle="Todo ítem guardado DENTRO de una caja, mueble o espacio lógico · la insignia indica su ubicación (ej. 📦 En Caja 02)"
+        bodyId="objetosEnContenedorGrid"
+        bodyClass="grilla-objetos-contenedor"
+      />
 
-      <!-- SECCIÓN 3 (ABAJO) · Muebles y Estructuras Móviles -->
-      <section id="seccionMuebles" class="hidden">
-        <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
-          <div>
-            <h2 class="text-2xl font-bold text-gray-900">🗄 Muebles y Estructuras Móviles</h2>
-            <p class="text-sm text-gray-500">Muebles móviles y espacios contenedores declarados · los muebles fijos (es_inmueble) y la arquitectura (checkbox destildado) quedan excluidos</p>
-          </div>
-        </div>
-        <div id="mueblesContainer" class="space-y-6"></div>
-      </section>
+      <!-- SECCIÓN 3 · Muebles y Estructuras Móviles (ícono /mueble.webp) -->
+      <SeccionAcordeon
+        id="seccionMuebles"
+        titulo="Muebles y Estructuras Móviles"
+        iconoSrc={ASSET_MUEBLE}
+        iconoAlt="Muebles"
+        badgeId="badgeMuebles"
+        detalleId="detalleMuebles"
+        detalle="Muebles móviles y espacios contenedores declarados"
+        detalleTitle="Muebles móviles y espacios contenedores declarados · los muebles fijos (es_inmueble) y la arquitectura (checkbox destildado) quedan excluidos"
+        bodyId="mueblesContainer"
+        bodyClass="space-y-6"
+      />
     </div>
   </div>
 
@@ -225,6 +257,23 @@ import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
     #seccionesInventario summary::marker {
       content: '';
     }
+    /* ACORDEÓN DE SECCIÓN: barra desplegable con la flecha de estado.
+       La flecha rota 180° al abrir (indicador visual desplegado/colapsado) y
+       el cuerpo hereda el revelado suave de .estok-cuerpo-detalle. */
+    #seccionesInventario details.acordeon-seccion > summary {
+      cursor: pointer;
+    }
+    #seccionesInventario details.acordeon-seccion > summary:focus-visible {
+      outline: 2px solid #f59e0b;
+      outline-offset: 2px;
+    }
+    #seccionesInventario .acordeon-chevron {
+      display: inline-flex;
+      transition: transform 0.2s ease;
+    }
+    #seccionesInventario details.acordeon-seccion[open] .acordeon-chevron {
+      transform: rotate(180deg);
+    }
     #seccionesInventario details .estok-cuerpo-detalle {
       overflow: hidden;
     }
@@ -232,8 +281,9 @@ import EscanerQrModal from '../components/escaner/EscanerQrModal.astro';
       animation: estok-reveal 0.22s ease-out;
     }
 
-    /* Textura y paleta corporativa CONTINUA compartida por las tres secciones
-       del inventario (cajas · sueltos · muebles): un único lienzo ámbar. */
+    /* Textura y paleta corporativa CONTINUA compartida por las cuatro secciones
+       del inventario (sueltos · cajas · objetos en contenedor · muebles): un
+       único lienzo ámbar. */
     .secciones-inventario {
       background-image:
         radial-gradient(circle at 18% 30%, rgba(255, 255, 255, 0.5) 0 1.5px, transparent 2.5px),

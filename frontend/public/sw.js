@@ -15,7 +15,7 @@
 // en el frontend. Esto fuerza al browser a detectar un nuevo Service Worker
 // y descargar los assets frescos desde la red.
 // =============================================================================
-const CACHE_VERSION = 20;
+const CACHE_VERSION = 21;
 const CACHE_NAME = 'estok-cache-v' + CACHE_VERSION;
 
 // =============================================================================

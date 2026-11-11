@@ -1,0 +1,82 @@
+---
+// =============================================================================
+// SECCIÓN COLAPSABLE (ACORDEÓN) DEL LISTADO DE OBJETOS (/objetos)
+// -----------------------------------------------------------------------------
+// Barra desplegable reutilizable por las CUATRO secciones del inventario:
+// ícono + título + badge con el total de objetos + resumen secundario + flecha
+// de estado (rota 180° al abrir). Arranca COLAPSADA para no sobrecargar la
+// pantalla al cargar.
+//
+// El cuerpo es un host vacío con id: el controlador
+// (src/lib/listadoJerarquicoObjetos.ts) inyecta ahí las tarjetas y actualiza
+// `badgeId` / `detalleId` en cada render (contadores en tiempo real, incluido el
+// filtro por ubicación).
+// =============================================================================
+
+interface Props {
+  /** id de la <section> que el controlador muestra u oculta. */
+  id: string;
+  /** Título de la sección. */
+  titulo: string;
+  /** Ícono WebP local de la sección (tiene prioridad sobre `emoji`). */
+  iconoSrc?: string;
+  /** Texto alternativo del ícono WebP. */
+  iconoAlt?: string;
+  /** Emoji de respaldo para las secciones sin ilustración. */
+  emoji?: string;
+  /** id del badge con el total de objetos («12 objetos»). */
+  badgeId: string;
+  /** id del resumen secundario (sub-ítems + valor estimado acumulado). */
+  detalleId: string;
+  /** Texto inicial del resumen secundario (el controlador lo reemplaza). */
+  detalle: string;
+  /** Tooltip con la descripción completa de la sección. */
+  detalleTitle: string;
+  /** id del host donde se inyectan las tarjetas. */
+  bodyId: string;
+  /** Clases del host de tarjetas (grilla, espaciado, etc.). */
+  bodyClass: string;
+}
+
+const {
+  id,
+  titulo,
+  iconoSrc,
+  iconoAlt = '',
+  emoji = '',
+  badgeId,
+  detalleId,
+  detalle,
+  detalleTitle,
+  bodyId,
+  bodyClass,
+} = Astro.props;
+---
+
+<section id={id} class="hidden mb-6">
+  <details class="acordeon-seccion bg-white/85 border border-amber-200 rounded-2xl shadow-sm">
+    <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none hover:bg-white/70 transition-base rounded-2xl">
+      <div class="flex items-center gap-3 min-w-0">
+        {iconoSrc
+          ? <img src={iconoSrc} alt={iconoAlt} class="w-6 h-6 inline-block mr-2 shrink-0" />
+          : <span class="text-2xl shrink-0" aria-hidden="true">{emoji}</span>}
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-xl sm:text-2xl font-bold text-gray-900">{titulo}</h2>
+            <span id={badgeId}
+              class="inline-flex items-center rounded-full bg-amber-100 text-amber-900 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold"></span>
+          </div>
+          <p id={detalleId} class="text-sm text-gray-500" title={detalleTitle}>{detalle}</p>
+        </div>
+      </div>
+      <span class="acordeon-chevron shrink-0 text-amber-700" aria-hidden="true">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </span>
+    </summary>
+    <div class="estok-cuerpo-detalle px-4 pb-4">
+      <div id={bodyId} class={bodyClass}></div>
+    </div>
+  </details>
+</section>

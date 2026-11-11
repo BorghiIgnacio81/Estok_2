@@ -38,6 +38,15 @@ import {
   renderInventario,
 } from './listadoJerarquicoVista';
 import type { RefsInventario } from './listadoJerarquicoVista';
+// FILTRO POR UBICACIÓN (combo + recorte en memoria del payload). El combo se
+// puebla con el contexto geográfico ya cargado (cero consultas extra) y al
+// cambiar la selección el listado se re-pinta en el acto.
+import {
+  aplicarFiltroUbicacion,
+  initFiltroUbicacionListado,
+  limpiarFiltroUbicacion,
+  repintarFiltroUbicacion,
+} from './filtroUbicacionListado';
 
 // Re-export del contrato del payload para consumidores externos.
 export type { ObjetoArbol, NodoContenedor, GrupoEstructura, PayloadArbol } from './listadoObjetosRender';
@@ -63,6 +72,8 @@ let refsInventario: RefsInventario | null = null;
 let filtroDecision: HTMLSelectElement | null = null;
 let filtroCategoria: HTMLSelectElement | null = null;
 let filtroPublicado: HTMLSelectElement | null = null;
+// Combo «Filtro por Ubicación» (habitaciones/espacios + contenedores padre).
+let filtroUbicacion: HTMLSelectElement | null = null;
 let searchInput: HTMLInputElement | null = null;
 let btnLimpiarFiltros: HTMLElement | null = null;
 
@@ -99,7 +110,14 @@ async function cargar(): Promise<void> {
       throw new Error('Error al consultar el árbol de inventario (' + res.status + ').');
     }
     const payload = (await res.json()) as PayloadArbol;
-    if (refsInventario) renderInventario(refsInventario, payload);
+    // FILTRO POR UBICACIÓN: el payload CRUDO queda guardado en el módulo de
+    // filtro; acá se pinta ya recortado (sin filtro devuelve el payload intacto).
+    const recorte = aplicarFiltroUbicacion(payload);
+    if (refsInventario) {
+      renderInventario(refsInventario, recorte.payload, {
+        filtroUbicacionActivo: recorte.activo,
+      });
+    }
   } catch (err: any) {
     if (errorMsgEl) {
       errorMsgEl.textContent = err && err.message
@@ -130,8 +148,22 @@ function aplicarFiltros(): void {
 }
 
 /**
+ * Re-pinta el listado con la ubicación elegida SIN volver a consultar la API:
+ * el módulo del filtro conserva el último payload crudo y devuelve el recorte.
+ * Los badges de las secciones colapsables se recalculan en el acto.
+ */
+function repintarConFiltroUbicacion(): void {
+  if (!refsInventario) return;
+  const recorte = repintarFiltroUbicacion();
+  if (!recorte) return;
+  renderInventario(refsInventario, recorte.payload, {
+    filtroUbicacionActivo: recorte.activo,
+  });
+}
+
+/**
  * Blanqueo reactivo de la botonera: devuelve TODOS los controles de filtrado a su
- * valor inicial ('Todas' en los tres selects, búsqueda vacía), espeja ese estado en
+ * valor inicial ('Todas' en los cuatro selects, búsqueda vacía), espeja ese estado en
  * el objeto `filtros` y reevalúa el listado en el acto para que vuelvan a verse las
  * Cajas, Objetos Sueltos y Muebles del Estok activo (barriendo el aviso de lista vacía).
  */
@@ -139,6 +171,7 @@ function limpiarFiltros(): void {
   if (filtroDecision) filtroDecision.value = '';
   if (filtroCategoria) filtroCategoria.value = '';
   if (filtroPublicado) filtroPublicado.value = '';
+  limpiarFiltroUbicacion();
   if (searchInput) searchInput.value = '';
   filtros.decision = '';
   filtros.categoria = '';
@@ -279,12 +312,18 @@ export function initListadoJerarquicoObjetos(): void {
   filtroDecision = document.getElementById('filtroDecision') as HTMLSelectElement | null;
   filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
   filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
+  filtroUbicacion = document.getElementById('filtroUbicacion') as HTMLSelectElement | null;
   searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
   btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
   mostrar(sinResultadosEl, false);
   if (refsInventario) ocultarSecciones(refsInventario);
   enlazarEventos();
+
+  // FILTRO POR UBICACIÓN: el combo se puebla con el contexto geográfico del
+  // Estok (habitaciones/espacios + contenedores padre) y cada cambio re-pinta
+  // el listado en el acto, recalculando los badges de los acordeones.
+  void initFiltroUbicacionListado(filtroUbicacion, repintarConFiltroUbicacion);
 
   // REFRESCO REACTIVO DEL COMBOBOX DE CATEGORÍAS: al crear una categoría desde
   // el modal «Nueva Categoría» (CategoriaCreator.astro), su evento de éxito

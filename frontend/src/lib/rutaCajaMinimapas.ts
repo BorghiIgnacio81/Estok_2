@@ -65,7 +65,7 @@ import { urlMapaContenedor } from './mapa/rutaMapaAlmacenamiento';
 // =============================================================================
 
 /** Contenedor crudo normalizado (incluye los anidados dentro de muebles). */
-interface ContenedorRuta {
+export interface ContenedorRuta {
   id: string;
   nombre: string;
   /** Taxonomía estricta del contenedor: MUEBLE | CAJA | ESTANTE. */
@@ -203,6 +203,27 @@ export function cargarContextoRutaCaja(): Promise<void> {
 // =============================================================================
 // CADENA DE MINIMAPAS (Piso → Habitación → Mueble)
 // =============================================================================
+
+/**
+ * CONTEXTO GEOGRÁFICO YA CARGADO (sólo lectura).
+ *
+ * Consumidores que necesitan resolver la ubicación física de una entidad sin
+ * repetir consultas —p. ej. el «Filtro por Ubicación» del listado /objetos— leen
+ * estas copias: el estado interno del módulo queda protegido.
+ *
+ * Requiere haber esperado `cargarContextoRutaCaja()`; si el contexto aún no se
+ * cargó devuelve colecciones vacías (el filtro cae a la ubicación propia de
+ * cada objeto, nunca rompe).
+ */
+export function contextoGeograficoCargado(): {
+  ubicaciones: UbicacionPlano[];
+  contenedores: ContenedorRuta[];
+} {
+  return {
+    ubicaciones: [...ubicaciones],
+    contenedores: [...contenedoresPorId.values()],
+  };
+}
 
 /**
  * Datos mínimos que necesita la ruta para ubicar geográficamente CUALQUIER
