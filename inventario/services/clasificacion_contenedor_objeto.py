@@ -12,10 +12,17 @@ PROBLEMA QUE RESUELVE
 REGLA ÚNICA (idempotente, no destructiva)
     Un Objeto es CAJA/CONTENEDOR cuando cumple AL MENOS una condición:
       1. `es_contenedor = True` (disyuntor «Caja / Mueble» del alta).
-      2. Su categoría es «Cajas y Contenedores» (categoría base del Estok).
+      2. Su categoría es EXPLÍCITAMENTE de bultos contenedores: «Cajas y
+         Contenedores», «Cajas», «Baúles», «Organizadores» (nombres canónicos en
+         `taxonomia_contenedor.es_categoria_que_declara_contenedor`).
       3. Su rótulo EMPIEZA por «Caja» («Caja 02», «Cajas 03», «Caja de
          herramientas»): el nombre es señal suficiente, sin checkbox manual.
       4. El alta rápida lo declaró caja (`especificaciones.alta_rapida='caja'`).
+
+    El flag `Categoria.es_contenedor` NO participa: significa «categoría de
+    Mercado Libre con subcategorías» y está en True para TODAS las categorías
+    sembradas, por lo que clasificaba como caja a cualquier objeto con categoría
+    (bug: una escalera de «Materiales» y una mesa de «Muebles»).
 
     Para todo Objeto que cumpla la regla se garantiza:
       · `es_contenedor = True` (el flag de contenedor NUNCA se pierde).
@@ -36,12 +43,9 @@ Se invoca desde:
 import logging
 
 from ..models import Categoria
-from .arbol_inventario_objetos_contenedor import (
-    CATEGORIAS_OBJETO_CONTENEDOR,
-    es_nombre_de_caja,
-)
+from .arbol_inventario_objetos_contenedor import es_nombre_de_caja
 from .categorias_meli import CATEGORIAS_BASE_ADICIONALES
-from .taxonomia_contenedor import es_categoria_de_caja
+from .taxonomia_contenedor import es_categoria_que_declara_contenedor
 
 logger = logging.getLogger(__name__)
 
@@ -103,20 +107,24 @@ def categoria_contenedor_del_estok(estok):
 
 def es_categoria_contenedor(categoria) -> bool:
     """
-    True si la `Categoria` declara bultos contenedores («Cajas y Contenedores»).
+    True si la `Categoria` declara sus OBJETOS como bultos contenedores.
 
-    Acepta la instancia del modelo (o None). Tolera las variantes manuales del
-    nombre («Cajas / Contenedores», «Cajas/Contenedor») y la marca
-    `Categoria.es_contenedor` con la que se siembra la categoría base.
+    REGLA ÚNICA: sólo por NOMBRE («Cajas y Contenedores», «Cajas», «Baúles»,
+    «Organizadores», «Maletas»…). Fuente: `taxonomia_contenedor.
+    es_categoria_que_declara_contenedor`.
+
+    ⚠️ NO se consulta `Categoria.es_contenedor`: ese campo significa «categoría
+    de Mercado Libre que contiene subcategorías» y la siembra oficial lo deja en
+    True para TODAS las categorías del Estok (Muebles, Materiales, Electrónica,
+    Herramientas…). Usarlo acá convertía en caja a cualquier objeto con
+    categoría: una escalera de «Materiales» y una mesa de «Muebles» terminaban
+    en «📦 Cajas e Inventario Interno» con `es_contenedor=True`.
     """
     if categoria is None:
         return False
-    nombre = str(getattr(categoria, 'nombre', '') or '').strip().casefold()
-    if nombre in CATEGORIAS_OBJETO_CONTENEDOR:
-        return True
-    if es_categoria_de_caja(nombre):
-        return True
-    return bool(getattr(categoria, 'es_contenedor', False))
+    return es_categoria_que_declara_contenedor(
+        getattr(categoria, 'nombre', '')
+    )
 
 
 def declara_contenedor(nombre=None, categoria=None, especificaciones=None) -> bool:

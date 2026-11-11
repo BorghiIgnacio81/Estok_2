@@ -307,10 +307,14 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
     El aislamiento multi-tenant se respeta: `estok` se toma del header
     `X-Estok-Id` del request (nunca se recibe del cliente).
 
-    AUTO-ACTIVACIÓN DE CONTENEDOR: un objeto de la categoría «Cajas y
-    Contenedores» (o con rótulo que empieza por «Caja») se guarda SIEMPRE con
-    `es_contenedor = True`, sin casilla manual (ver
-    `_forzar_marca_contenedor`).
+    CLASIFICACIÓN DE CONTENEDOR (regla única, ver `_forzar_marca_contenedor`):
+      · `es_contenedor` es **False por defecto** en todo objeto nuevo.
+      · Se enciende SOLO si el operador marcó el disyuntor del alta
+        (`especificaciones.alta_rapida = 'caja' | 'mueble'`), si el rótulo
+        EMPIEZA por «Caja» o si la categoría es explícitamente de bultos
+        contenedores («Cajas y Contenedores», «Cajas», «Baúles»,
+        «Organizadores», «Maletas»…). Un objeto de «Muebles», «Materiales» o
+        «Herramientas» NUNCA nace contenedor.
     """
     class Meta:
         model = Objeto
@@ -333,17 +337,23 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
 
     def _forzar_marca_contenedor(self, attrs):
         """
-        Fuerza `es_contenedor = True` cuando el registro declara ser CAJA.
+        Resuelve `es_contenedor` en cada guardado (backend = única autoridad).
 
-        REGLA (fuente única en `services.clasificacion_contenedor_objeto.
-        declara_contenedor`): categoría «Cajas y Contenedores», rótulo que
-        EMPIEZA por «Caja» o alta rápida marcada como caja.
+        REGLA (fuente única en `services/clasificacion_contenedor_objeto.
+        declara_contenedor`):
+          · Se ENCIENDE cuando el registro declara ser CAJA: categoría
+            «Cajas / Baúles / Organizadores», rótulo que EMPIEZA por «Caja» o
+            alta rápida marcada como caja.
+          · En POST se APAGA cualquier otra marca: el flag sólo puede venir de
+            una declaración MANUAL del operador (disyuntores del alta, que
+            viajan como `especificaciones.alta_rapida = 'caja' | 'mueble'`).
+            Así un cliente —o la IA— no puede convertir una mesa, una escalera
+            o una heladera en caja; el DEFAULT de todo objeto nuevo es False.
+          · En PUT/PATCH parcial NUNCA se apaga: un guardado que sólo reubica
+            la caja no debe degradarla a «Objeto Suelto».
 
         · En POST resuelve la categoría del propio payload.
-        · En PUT/PATCH parcial usa la del registro ya guardado, así un guardado
-          que sólo reubica la caja no la degrada a «Objeto Suelto».
-        · NUNCA apaga el flag: sólo lo enciende. Los espejos de dualidad de un
-          Contenedor quedan excluidos (su caja real ya es un chip propio).
+        · En PUT/PATCH parcial usa la del registro ya guardado.
         """
         instancia = self.instance
         categoria = attrs.get('categoria', getattr(instancia, 'categoria', None))
@@ -353,6 +363,12 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         )
         if declara_contenedor(nombre, categoria, especificaciones):
             attrs['es_contenedor'] = True
+            return attrs
+
+        if instancia is None and 'alta_rapida' not in (especificaciones or {}):
+            # Objeto NUEVO sin marca manual ni categoría de contenedor:
+            # `es_contenedor` es False, lo pida o no el cliente.
+            attrs['es_contenedor'] = False
         return attrs
 
     def validate(self, attrs):
@@ -372,12 +388,13 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         objeto.
         """
         # ------------------------------------------------------------------
-        # AUTO-ACTIVACIÓN OBLIGATORIA DE `es_contenedor`
+        # CLASIFICACIÓN DE CONTENEDOR (`es_contenedor`)
         # ------------------------------------------------------------------
-        # La clasificación de CAJA no depende de un checkbox del operador: si
-        # el objeto pertenece a la categoría «Cajas y Contenedores», su rótulo
-        # empieza por «Caja» o el alta rápida lo declaró caja, el flag viaja
-        # FORZADO en `True` en este mismo guardado (backend = única autoridad).
+        # El flag NO se hereda de la categoría: la categoría sólo lo enciende
+        # cuando es EXPLÍCITAMENTE de bultos contenedores («Cajas y
+        # Contenedores», «Cajas», «Baúles», «Organizadores»…). En POST, sin
+        # marca manual del operador ni categoría contenedora, queda en False
+        # (backend = única autoridad). Ver `_forzar_marca_contenedor`.
         self._forzar_marca_contenedor(attrs)
 
         # ------------------------------------------------------------------

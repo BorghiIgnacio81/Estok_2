@@ -283,16 +283,53 @@ export function esBultoMovibleDeBandeja(pieza: PiezaEnBandeja | null | undefined
 // OBJETOS CONTENEDOR («📦 Cajas e Inventario Interno»)
 // =============================================================================
 /**
- * Categoría base que declara un Objeto como bulto contenedor. Espejo exacto de
- * `CATEGORIAS_OBJETO_CONTENEDOR` en
- * `inventario/services/arbol_inventario_objetos_contenedor.py`.
+ * Nombre de categoría comparable: sin espacios extremos, minúsculas y SIN
+ * ACENTOS («Baúles» → «baules»). Espejo de
+ * `taxonomia_contenedor.normalizar_nombre_categoria` del backend.
+ */
+export function normalizarNombreCategoria(nombre?: string | null): string {
+  return String(nombre ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Categorías que declaran un Objeto como bulto contenedor. Espejo EXACTO de
+ * `CATEGORIAS_QUE_DECLARAN_CONTENEDOR` en
+ * `inventario/services/taxonomia_contenedor.py` (fuente única del backend).
+ *
+ * Sólo estos nombres autorizan `es_contenedor = true` sin checkbox manual: un
+ * objeto de «Muebles», «Materiales», «Herramientas» o «Electrónica» NUNCA es
+ * contenedor, aunque su categoría tenga marcado `es_contenedor` (ese flag del
+ * backend significa «categoría de Mercado Libre con subcategorías»).
  */
 const CATEGORIAS_OBJETO_CONTENEDOR = [
   'cajas y contenedores',
+  'cajas y contenedor',
   'cajas / contenedores',
   'cajas/contenedores',
-  'cajas y contenedor',
+  'cajas',
+  'caja',
+  'contenedores',
+  'contenedor',
+  'baules',
+  'baul',
+  'organizadores',
+  'organizador',
+  'maletas',
+  'maleta',
+  'valijas',
+  'valija',
+  'canastos',
+  'canasto',
 ];
+
+/** ¿El NOMBRE de la categoría declara bultos contenedores? (espejo backend). */
+export function esCategoriaQueDeclaraContenedor(nombre?: string | null): boolean {
+  return CATEGORIAS_OBJETO_CONTENEDOR.includes(normalizarNombreCategoria(nombre));
+}
 
 /**
  * RÓTULO DE CAJA («Caja 02», «Cajas 03», «Caja de herramientas»). Espejo
@@ -330,7 +367,6 @@ export interface ObjetoClasificable {
  */
 export function esObjetoContenedor(objeto: ObjetoClasificable | null | undefined): boolean {
   if (objeto?.es_contenedor === true) return true;
-  const nombreCategoria = String(objeto?.categoria_nombre ?? '').trim().toLowerCase();
-  if (CATEGORIAS_OBJETO_CONTENEDOR.includes(nombreCategoria)) return true;
+  if (esCategoriaQueDeclaraContenedor(objeto?.categoria_nombre)) return true;
   return esNombreDeCaja(objeto?.nombre);
 }

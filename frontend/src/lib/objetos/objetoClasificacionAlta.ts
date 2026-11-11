@@ -17,8 +17,16 @@
 //     DRF parsea el string del multipart en su JSONField (JSONField.get_value
 //     envuelve el valor de los formularios HTML como JSONString → json.loads).
 //
-// Ninguna casilla marcada → se envía `es_contenedor=false` (objeto simple:
-// comportamiento histórico del alta, sin cambios).
+// Ninguna casilla marcada → se envía `es_contenedor=false` (objeto simple).
+//
+// REGLA DE `es_contenedor` (única, aplicada también por el backend en
+// `ObjetoCreateSerializer` + `clasificacion_contenedor_objeto.declara_contenedor`):
+//   · DEFAULT de todo objeto nuevo: `es_contenedor = false`. Una mesa o una
+//     escalera JAMÁS nacen cajas.
+//   · Sólo lo pone en `true` la marca MANUAL del operador (estos disyuntores) o
+//     una categoría EXPLÍCITA de bultos contenedores («Cajas y Contenedores»,
+//     «Cajas», «Baúles», «Organizadores»). El frontend no infiere nada por su
+//     cuenta: la categoría la evalúa el backend al guardar.
 // =============================================================================
 
 const SELECTOR = '[data-alta-clasificacion]';

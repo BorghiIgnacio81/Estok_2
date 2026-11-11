@@ -95,8 +95,10 @@ RE_NOMBRE_CAJA = re.compile(PATRON_NOMBRE_CAJA, re.IGNORECASE)
 
 # Categoría organizativa de los bultos contenedores («Cajas y Contenedores» y
 # sus variantes manuales: «Cajas / Contenedores», «Cajas/Contenedor»…).
+# El patrón VIGENTE es `PATRON_CATEGORIA_CONTENEDOR` (más abajo): cubre también
+# «Cajas», «Baúles», «Organizadores», «Maletas»… Este se conserva por
+# compatibilidad con los módulos que lo importan como referencia.
 PATRON_CATEGORIA_CAJA = r'^cajas?\s*(?:y|/)\s*contenedores?$'
-RE_CATEGORIA_CAJA = re.compile(PATRON_CATEGORIA_CAJA, re.IGNORECASE)
 
 
 def es_nombre_de_mueble(nombre):
@@ -119,9 +121,94 @@ def es_nombre_de_caja(nombre) -> bool:
     return bool(RE_NOMBRE_CAJA.match(str(nombre or '').strip()))
 
 
+# =====================================================================
+# CATEGORÍAS QUE DECLARAN SUS OBJETOS COMO CONTENEDOR
+# =====================================================================
+# Nombres (normalizados: minúsculas y sin acentos) de las categorías que
+# autorizan a marcar `Objeto.es_contenedor = True` SIN checkbox manual (ver
+# `clasificacion_contenedor_objeto.declara_contenedor`).
+#
+# Además de la categoría organizativa completa se aceptan los nombres cortos
+# que el operador crea a mano («Cajas», «Baúles», «Organizadores», «Maletas»…):
+# son las ÚNICAS categorías que declaran bultos contenedores.
+#
+# ⚠️ NO usar `Categoria.es_contenedor` para esta decisión: ese campo significa
+# «categoría de Mercado Libre que contiene subcategorías» y la siembra oficial
+# lo deja en True para TODAS las categorías (Muebles, Materiales, Electrónica…).
+# Leerlo acá convertía cualquier objeto con categoría en caja
+# (bug real: una escalera y una mesa aparecieron en «📦 Cajas e Inventario
+# Interno»). Ver `management/commands/corregir_es_contenedor.py`.
+NOMBRES_CATEGORIA_CONTENEDOR = (
+    'cajas y contenedores',
+    'cajas y contenedor',
+    'cajas / contenedores',
+    'cajas/contenedores',
+    'contenedores',
+    'contenedor',
+    'organizadores',
+    'organizador',
+    'cajas',
+    'caja',
+    'baules',
+    'baul',
+    'maletas',
+    'maleta',
+    'valijas',
+    'valija',
+    'canastos',
+    'canasto',
+)
+CATEGORIAS_QUE_DECLARAN_CONTENEDOR = frozenset(NOMBRES_CATEGORIA_CONTENEDOR)
+
+# Cada vocal admite su versión acentuada, así «Baúles»/«Baules» y
+# «Organización»… se reconocen sin depender de `unaccent` (PostgreSQL/SQLite).
+_VOCAL_TOLERANTE = {
+    'a': '[aá]', 'e': '[eé]', 'i': '[ií]', 'o': '[oó]', 'u': '[uú]',
+}
+
+
+def _variante_regex(nombre):
+    """Regex de un nombre normalizado, tolerante a tildes («baules» → «ba[uú]les»)."""
+    partes = []
+    for caracter in nombre:
+        if caracter == ' ':
+            # Cualquier cantidad de espacios: «Cajas  y  Contenedores».
+            partes.append(r'\s+')
+            continue
+        partes.append(_VOCAL_TOLERANTE.get(caracter, re.escape(caracter)))
+    return ''.join(partes)
+
+
+# Patrón ÚNICO de categoría contenedora: lo usan el predicado de Python
+# (`es_categoria_que_declara_contenedor`) y el filtro ORM (`qe_categoria_de_caja`),
+# así la regla no puede divergir entre el listado y la validación.
+PATRON_CATEGORIA_CONTENEDOR = r'^\s*(?:%s)\s*$' % '|'.join(
+    _variante_regex(nombre) for nombre in NOMBRES_CATEGORIA_CONTENEDOR
+)
+RE_CATEGORIA_CONTENEDOR = re.compile(
+    PATRON_CATEGORIA_CONTENEDOR, re.IGNORECASE,
+)
+
+
+def es_categoria_que_declara_contenedor(nombre) -> bool:
+    """
+    True si el NOMBRE de la categoría declara bultos contenedores.
+
+    Regla ÚNICA compartida por el serializer, la señal post_save, el listado
+    jerárquico, el filtro ORM de cajas y el comando de reparación de datos.
+    """
+    return bool(RE_CATEGORIA_CONTENEDOR.match(str(nombre or '').strip()))
+
+
 def es_categoria_de_caja(nombre) -> bool:
-    """True si la categoría es la de bultos contenedores («Cajas y Contenedores»)."""
-    return bool(RE_CATEGORIA_CAJA.match(str(nombre or '').strip()))
+    """
+    [ALIAS] Misma regla que `es_categoria_que_declara_contenedor`.
+
+    Se conserva el nombre histórico para los importadores existentes, pero
+    ahora cubre TODAS las categorías contenedoras («Cajas», «Baúles»,
+    «Organizadores», «Maletas»…) y no sólo «Cajas y Contenedores».
+    """
+    return es_categoria_que_declara_contenedor(nombre)
 
 
 def qe_nombre_de_caja(campo='nombre'):
@@ -137,8 +224,14 @@ def qe_nombre_de_caja(campo='nombre'):
 
 
 def qe_categoria_de_caja(campo='categoria__nombre'):
-    """Q ORM de «la categoría del registro es Cajas y Contenedores»."""
-    return Q(**{f'{campo}__iregex': PATRON_CATEGORIA_CAJA})
+    """
+    Q ORM de «la categoría del registro declara bultos contenedores».
+
+    Usa el MISMO patrón que el predicado de Python (categorías contenedoras
+    explícitas, tolerante a tildes), para que el filtro del listado y la
+    validación del alta no puedan divergir.
+    """
+    return Q(**{f'{campo}__iregex': PATRON_CATEGORIA_CONTENEDOR})
 
 
 def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):

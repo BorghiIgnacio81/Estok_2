@@ -27,16 +27,19 @@ POR QUÉ UN MÓDULO APARTE
     /objetos/{id} en vez del visor de contenedores.
 """
 
-from .taxonomia_contenedor import TIPO_CAJA, es_nombre_de_caja
+from .taxonomia_contenedor import (
+    CATEGORIAS_QUE_DECLARAN_CONTENEDOR,
+    TIPO_CAJA,
+    es_categoria_que_declara_contenedor,
+    es_nombre_de_caja,
+)
 
-# Categorías (normalizadas: minúsculas, sin espacios extremos) que declaran un
-# Objeto como bulto contenedor. Las variantes toleran renombres manuales mínimos.
-CATEGORIAS_OBJETO_CONTENEDOR = frozenset({
-    'cajas y contenedores',
-    'cajas / contenedores',
-    'cajas/contenedores',
-    'cajas y contenedor',
-})
+# Categorías (normalizadas: minúsculas, sin acentos ni espacios extremos) que
+# declaran un Objeto como bulto contenedor. La lista canónica vive en
+# `taxonomia_contenedor` (fuente ÚNICA, compartida con el serializer, la señal
+# post_save y el comando de reparación): acá sólo se reexporta para los
+# importadores históricos.
+CATEGORIAS_OBJETO_CONTENEDOR = CATEGORIAS_QUE_DECLARAN_CONTENEDOR
 
 # RÓTULO NUMERADO DE CAJA del flujo de alta («Caja 02», «Cajas 03», «Caja 4»).
 # Es la tercera vía de declaración: el operador crea la caja desde la botonera y
@@ -62,7 +65,7 @@ def es_caja_declarada_por_naturaleza(objeto_data):
     nombre_categoria = str(
         objeto_data.get('categoria_nombre') or ''
     ).strip().casefold()
-    if nombre_categoria in CATEGORIAS_OBJETO_CONTENEDOR:
+    if es_categoria_que_declara_contenedor(nombre_categoria):
         return True
     return es_nombre_de_caja(objeto_data.get('nombre'))
 

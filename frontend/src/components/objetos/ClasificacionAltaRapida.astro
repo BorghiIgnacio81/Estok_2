@@ -1,9 +1,10 @@
 ---
 // =============================================================================
-// ALTA RÁPIDA · CLASIFICACIÓN OPCIONAL DEL OBJETO (Lote 31 · punto 4)
+// ALTA RÁPIDA · ¿ES UNA CAJA O CONTENEDOR? (Lote 31 · punto 4)
 // -----------------------------------------------------------------------------
 // Dos disyuntores OPCIONALES y mutuamente excluyentes para clasificar el objeto
-// en el mismo momento del alta:
+// en el mismo momento del alta. Sólo una marca MANUAL del operador pone
+// `Objeto.es_contenedor = true`:
 //   · 📦 Caja   → contenedor transportable (se muda con su contenido).
 //   · 🚪 Mueble → contenedor fijo del ambiente (estantería, armario, cómoda).
 //
@@ -11,8 +12,9 @@
 //   · `es_contenedor = true` en Objeto.
 //   · `especificaciones.alta_rapida = 'caja' | 'mueble'` (JSON libre del objeto),
 //     que conserva la DISTINCIÓN elegida.
-// Sin ninguna casilla marcada el objeto se crea como objeto simple (comportamiento
-// histórico del alta, idéntico).
+// Sin ninguna casilla marcada el objeto se crea como objeto simple
+// (`es_contenedor = false`): es el DEFAULT de todo objeto nuevo, aunque su
+// categoría sea Muebles, Materiales o Herramientas.
 //
 // El control NO lleva `name` a propósito: no viaja en el FormData del formulario
 // ni en la persistencia de sessionStorage. El módulo lee su estado del DOM en el
@@ -25,7 +27,7 @@ export interface Props {
 }
 
 const {
-  ayuda = 'Opcional: marcá una casilla para que el objeto nazca ya clasificado como Caja o Mueble contenedor. Sin marcar nada se carga como objeto simple.',
+  ayuda = 'Opcional: marcá una casilla SOLO si este objeto es un contenedor de otros objetos (caja, baúl, maleta, organizador) o un mueble que los aloja. Sin marcar nada se guarda como objeto simple: es_contenedor = false.',
 } = Astro.props as Props;
 
 // Tarjetas de opción: UN solo bloque de marcado parametrizado para las dos
@@ -48,7 +50,7 @@ const opciones = [
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
   <div class="flex flex-wrap items-center gap-2 mb-4">
-    <h2 class="text-lg font-semibold text-gray-900">Clasificación rápida</h2>
+    <h2 class="text-lg font-semibold text-gray-900">¿Es una caja o contenedor?</h2>
     <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold">opcional</span>
   </div>
 

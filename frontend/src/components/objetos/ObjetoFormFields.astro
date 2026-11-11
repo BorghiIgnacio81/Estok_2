@@ -134,10 +134,11 @@ const { ubicacion = '', contenedor = '' } = Astro.props as Props;
       </div>
 
       <!-- ============================================================================== -->
-      <!-- SECCION: CLASIFICACION RAPIDA (Lote 31 · punto 4)
+      <!-- SECCION: ¿ES UNA CAJA O CONTENEDOR? (Lote 31 · punto 4)
            Disyuntores opcionales y mutuamente excluyentes: el objeto puede nacer
-           clasificado como Caja o Mueble contenedor. Sin marcar nada se carga como
-           objeto simple (comportamiento histórico). -->
+           clasificado como Caja o Mueble contenedor SOLO si el operador lo marca a
+           mano. Sin marcar nada se guarda como objeto simple (es_contenedor = false),
+           aunque su categoría sea Muebles, Materiales o Herramientas. -->
       <!-- ============================================================================== -->
       <ClasificacionAltaRapida />
 

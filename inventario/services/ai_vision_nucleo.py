@@ -154,6 +154,11 @@ class VisionResult:
     color: str = ""
     categoria: str = ""  # categoría legada (libro, tecnologia, mueble, ropa, otro)
     meli_category_id: str = ""  # categoría oficial de Mercado Libre (MLAxxxxx)
+    # El objeto ES un contenedor de almacenamiento (caja, baúl, maleta,
+    # organizador). Lo sugiere la IA pero el backend lo Sanea con
+    # `normalizar_es_contenedor_ia`: NUNCA es True para muebles, materiales,
+    # herramientas, electrónica, indumentaria, etc.
+    es_contenedor: bool = False
     confianza_general: float = 0.0
     campos_pendientes: List[str] = field(default_factory=list)
     raw_response: str = ""
@@ -171,6 +176,44 @@ class VisionResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if k != 'raw_response'}
+
+
+# =============================================================================
+# FLAG `es_contenedor` SUGERIDO POR LA IA (REGLA RESTRICTIVA)
+# =============================================================================
+# Un objeto es contenedor SÓLO si es una caja, un baúl, una maleta/valija, un
+# organizador, un canasto, un arcón/cofre o un contenedor de almacenamiento
+# (algo donde se guardan otros objetos). Un mueble, una escalera, una
+# herramienta, un electrodoméstico o una prenda NUNCA lo son.
+#
+# El rótulo es la única evidencia aceptable: así el flag no depende de que el
+# modelo obedezca el prompt (una alucinación de "es_contenedor": true sobre una
+# mesa se descarta acá).
+PATRON_ROTULO_CONTENEDOR = re.compile(
+    r'\b(cajas?|ba[uú]l(?:es)?|maletas?|valijas?|contenedores?|organizadores?|'
+    r'canastos?|arc[oó]n|cofres?|cajoneras?)\b',
+    re.IGNORECASE,
+)
+
+
+def normalizar_es_contenedor_ia(valor, nombre='') -> bool:
+    """
+    Sanea el `es_contenedor` devuelto por la IA (autoridad del backend).
+
+    Acepta el True del modelo SÓLO si el rótulo del objeto lo describe como
+    contenedor de almacenamiento. Cualquier otro objeto —aunque el modelo
+    insista— queda en False, igual que ante un valor ausente o inválido.
+
+    La usan `AIVisionService._mapear_resultado` (los dos motores, Gemini y el
+    failover, pasan por ahí) y la creación directa de objetos.
+    """
+    if isinstance(valor, str):
+        marcado = valor.strip().casefold() in ('true', '1', 'si', 'sí', 'yes')
+    else:
+        marcado = bool(valor)
+    if not marcado:
+        return False
+    return bool(PATRON_ROTULO_CONTENEDOR.search(str(nombre or '')))
 
 
 # =============================================================================
@@ -194,6 +237,7 @@ PROMPT_SISTEMA_CATALOGACION = (
     '  "color": "Color predominante",\n'
     '  "categoria": "libro|tecnologia|mueble|ropa|arte|computacion|otro",\n'
     '  "meli_category_id": "MLAXXXXX",\n'
+    '  "es_contenedor": false,\n'
     '  "confianza_general": 0.85,\n'
     '  "nombre_serie": "Serie si es cómic",\n'
     '  "titulo_tomo": "Título del tomo",\n'
@@ -224,6 +268,14 @@ PROMPT_SISTEMA_CATALOGACION = (
     "categoria='libro'. Si ves ISBN en la portada o lomo, ponlo en 'isbn_issn'.\n"
     "- Si es CÓMIC: además pon 'nombre_serie', 'titulo_tomo', 'numero_tomo'.\n"
     "- Si es TECNOLOGÍA: pon 'marca', categoria='tecnologia' o 'computacion'.\n"
+    "- 'es_contenedor': pon true ÚNICAMENTE si el objeto ES un contenedor de "
+    "almacenamiento donde se guardan otros objetos: una caja, un baúl, una "
+    "maleta o valija, un organizador, un canasto, un arcón o un cofre. En "
+    "CUALQUIER otro caso devolvé 'es_contenedor': false. En particular SIEMPRE "
+    "false para Muebles (mesa, silla, placard, estantería), Materiales "
+    "(escalera, hierro, madera), Herramientas, Electrónica, Computación, "
+    "Cocina, Jardín, Arte, Coleccionables, Ropa, Libros y Antigüedades: esos "
+    "objetos NO son contenedores.\n"
     "- 'precio_estimado_mercado' SIEMPRE en pesos argentinos (ARS) del mercado "
     "local actual, como número sin símbolo ni separadores (ej: 150000.00).\n"
     "- Si no puedes determinar un campo, déjalo vacío o null.\n"

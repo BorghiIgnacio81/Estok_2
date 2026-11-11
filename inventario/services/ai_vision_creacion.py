@@ -73,6 +73,9 @@ class AIVisionCreacionMixin:
                     ubicacion=ubicacion,
                     contenedor=contenedor,
                     categoria=categoria,
+                    # Ya viene SANEADO por `normalizar_es_contenedor_ia`: false
+                    # salvo que el objeto sea realmente una caja/baúl/maleta.
+                    es_contenedor=bool(vision_result.es_contenedor),
                     estado_conservacion=vision_result.estado_conservacion or 'bueno',
                     valor_estimado=(
                         Decimal(str(vision_result.precio_estimado_mercado))

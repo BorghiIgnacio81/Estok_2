@@ -29,6 +29,7 @@ from .ai_vision_nucleo import (  # noqa: F401
     MENSAJE_LIMITE_IA, AIQuotaExceededError, es_error_cuota_excedida,
     CATEGORIAS_MELI_OFICIALES, MAPEO_CATEGORIA_LEGADA_A_MELI, VisionResult,
     PROMPT_SISTEMA_CATALOGACION, TEXTO_USUARIO_ANALISIS, _extraer_json_de_respuesta,
+    normalizar_es_contenedor_ia,
 )
 from .ai_vision_gemini import GeminiClient  # noqa: F401
 from .ai_vision_creacion import AIVisionCreacionMixin
@@ -210,6 +211,14 @@ class AIVisionService(AIVisionCreacionMixin):
             color=raw_result.get("color", ""),
             categoria=categoria_legada,
             meli_category_id=str(meli_category_id) if meli_category_id else "",
+            # REGLA RESTRICTIVA: el flag de contenedor sólo sobrevive si el
+            # propio rótulo del objeto lo declara (caja, baúl, maleta…). Una
+            # mesa o una escalera NUNCA quedan como contenedor, aunque el motor
+            # de IA devuelva `es_contenedor: true`.
+            es_contenedor=normalizar_es_contenedor_ia(
+                raw_result.get("es_contenedor"),
+                raw_result.get("nombre", ""),
+            ),
             confianza_general=raw_result.get("confianza_general", 0.0),
             raw_response=json.dumps(raw_result),
             isbn_issn=raw_result.get("isbn_issn", ""),
