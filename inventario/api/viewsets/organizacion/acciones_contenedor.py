@@ -103,9 +103,13 @@ class AccionesContenedorMixin:
         sueltos/sin ubicación en `sueltos` (SECCIÓN 2). `objetos_en_contenedor`
         es la LISTA PLANA de los ítems que viven dentro de un contenedor (con
         su `contenedor_etiqueta`), para que ninguna tarjeta quede oculta al
-        quitar los filtros o al filtrar por categoría. Los `tipo='CONJUNTO'`
-        (estructura interna del mueble) y los `tipo='MUEBLE_INMUEBLE'` (fijos)
-        quedan estrictamente EXCLUIDOS de toda consulta y renderizado.
+        quitar los filtros o al filtrar por categoría. `muebles_objetos` son
+        los OBJETOS de categoría «Muebles» que NO son cajas
+        (`es_contenedor=False`): se pintan en la sección «🗄 Muebles y
+        Estructuras Móviles», nunca en la bandeja de sueltos. Los
+        `tipo='CONJUNTO'` (estructura interna del mueble) y los
+        `tipo='MUEBLE_INMUEBLE'` (fijos) quedan estrictamente EXCLUIDOS de toda
+        consulta y renderizado.
 
         Consulta optimizada para PostgreSQL: 1 query de contenedores
         (select_related) + 1 query de objetos (select_related + prefetch de
@@ -121,6 +125,7 @@ class AccionesContenedorMixin:
                 'cajas': [],
                 'sueltos': [],
                 'objetos_en_contenedor': [],
+                'muebles_objetos': [],
                 'filtros_activos': False,
                 'resumen': {
                     'contenedores': 0,

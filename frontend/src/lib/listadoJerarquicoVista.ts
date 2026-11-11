@@ -8,7 +8,8 @@
 //   1. 🧸 Objetos Sueltos o sin Caja
 //   2. 📦 Cajas e Inventario Interno
 //   3. 📦 Objetos en Contenedor (lista plana con insignia «📦 En Caja 02»)
-//   4. 🗄 Muebles y Estructuras Móviles
+//   4. 🗄 Muebles y Estructuras Móviles (+ `muebles_objetos`: Objetos de
+//      categoría «Muebles» que no son cajas)
 // La construcción del HTML no vive acá: se delega en listadoObjetosRender.ts y
 // listadoObjetosEnContenedor.ts (capas 100% puras).
 // =============================================================================
@@ -20,6 +21,9 @@ import {
   seccionSueltosHtml,
 } from './listadoObjetosRender';
 import type { PayloadArbol } from './listadoObjetosRender';
+// OBJETOS de categoría «Muebles» sin caja: bloque propio dentro de la sección
+// de muebles (capa pura separada para sostener el límite de 400 líneas).
+import { seccionMueblesObjetosHtml } from './listadoMueblesObjetosRender';
 import {
   contadorObjetosEnContenedor,
   seccionObjetosEnContenedorHtml,
@@ -79,6 +83,10 @@ export function renderInventario(refs: RefsInventario, payload: PayloadArbol): v
   const cajas = payload.cajas || [];
   const sueltos = payload.sueltos || [];
   const objetosDentro = payload.objetos_en_contenedor || [];
+  // OBJETOS de categoría «Muebles» sin caja: el backend los separa de
+  // `sueltos` para que se pinten en la sección de muebles, no en la bandeja
+  // de huérfanos.
+  const mueblesObjetos = payload.muebles_objetos || [];
   const resumen = payload.resumen
     || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
 
@@ -86,8 +94,9 @@ export function renderInventario(refs: RefsInventario, payload: PayloadArbol): v
   const cajasHtml = seccionCajasHtml(cajas);
   // SECCIÓN 3 · 📦 Objetos en Contenedor (lista plana con insignia).
   const objetosEnContenedorHtml = seccionObjetosEnContenedorHtml(objetosDentro);
-  // SECCIÓN 4 · 🗄 Muebles y Estructuras Móviles (excluye inmuebles fijos).
-  const mueblesHtml = seccionMueblesHtml(estructuras);
+  // SECCIÓN 4 · 🗄 Muebles y Estructuras Móviles (excluye inmuebles fijos) +
+  // los Objetos de categoría «Muebles» que no son cajas.
+  const mueblesHtml = seccionMueblesHtml(estructuras) + seccionMueblesObjetosHtml(mueblesObjetos);
   // SECCIÓN 1 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
   const sueltosHtml = seccionSueltosHtml(sueltos);
 

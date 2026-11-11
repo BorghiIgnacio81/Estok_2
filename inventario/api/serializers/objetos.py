@@ -18,6 +18,7 @@ from rest_framework.exceptions import PermissionDenied
 from ...models import Objeto
 from ...services import decisiones_service
 from ...services.clasificacion_contenedor_objeto import declara_contenedor
+from ...services.categorias_clasificacion import normalizar_nombre_categoria
 from ...services.transito_interno import esta_en_transito_interno
 from ...services.ubicacion_objeto import (
     TEXTO_CONTENEDOR_AUSENTE,
@@ -65,6 +66,14 @@ class ObjetoListSerializer(serializers.ModelSerializer):
     # RUTA COMPLETA de la ubicación (nunca None si el objeto está ubicado).
     ubicacion_display = serializers.SerializerMethodField()
     categoria_nombre = serializers.CharField(source='categoria.nombre', read_only=True, default=None)
+    # NOMBRE NORMALIZADO de la categoría (minúsculas, sin tildes: «Muebles y
+    # Estructuras Móviles» → «muebles y estructuras moviles»). Es el «slug»
+    # lógico del catálogo (la tabla Categoria no tiene campo slug) y permite
+    # que el cliente clasifique los ítems sin depender de coincidencias
+    # exactas ni caer en un fallback genérico. `categoria` (PK) y
+    # `categoria_nombre` (texto original) viajan SIEMPRE; ambos quedan en null
+    # únicamente cuando el Objeto no tiene categoría asignada.
+    categoria_slug = serializers.SerializerMethodField()
     # Familia de atributos técnicos de la categoría (libro | tecnologia |
     # mueble_arte | ropa): el frontend la usa para la ficha técnica y para
     # mostrar Talla/Tamaño sin depender del nombre de la categoría.
@@ -84,7 +93,7 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'valor_estimado', 'color', 'foto_principal',
             'ubicacion_nombre', 'contenedor_nombre', 'ubicacion_display',
             'parent_grid_row', 'parent_grid_col',
-            'categoria', 'categoria_nombre', 'categoria_subtipo',
+            'categoria', 'categoria_nombre', 'categoria_slug', 'categoria_subtipo',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action', 'en_transito_interno', 'es_espejo_contenedor',
@@ -96,6 +105,18 @@ class ObjetoListSerializer(serializers.ModelSerializer):
         """True si el Objeto es el espejo de dualidad de un Contenedor."""
         especificaciones = obj.especificaciones or {}
         return bool(especificaciones.get('es_espejo_contenedor'))
+
+    def get_categoria_slug(self, obj):
+        """
+        Nombre de la categoría normalizado (o None si el Objeto no tiene).
+
+        Fuente ÚNICA de la normalización: `services/categorias_clasificacion`
+        (la misma que usa el agrupamiento del listado `/objetos`), para que
+        backend y cliente clasifiquen con el MISMO criterio.
+        """
+        categoria = getattr(obj, 'categoria', None)
+        nombre = getattr(categoria, 'nombre', None) if categoria is not None else None
+        return normalizar_nombre_categoria(nombre) or None
 
     def get_contenedor_nombre(self, obj):
         """Contenedor/espacio/ubicación con fallback (nunca None)."""

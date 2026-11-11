@@ -11,6 +11,8 @@
 //      ubicación («📦 En Caja 02»). Garantiza que ningún objeto quede oculto.
 //   3. SECCIÓN 2 · 🧸 Objetos Sueltos o sin Caja (bandeja de huérfanos).
 //   4. SECCIÓN 3 · 🗄 Muebles y Estructuras Móviles (excluye `es_inmueble`).
+//      Incluye `muebles_objetos`: Objetos de categoría «Muebles» que NO son
+//      cajas (`es_contenedor=False`), separados por el backend de `sueltos`.
 //   Los `tipo='ESTANTE'` quedan EXCLUIDOS de toda consulta y renderizado.
 // La construcción de HTML vive en listadoObjetosRender.ts +
 // listadoObjetosEnContenedor.ts (capas puras), el volcado en el DOM en

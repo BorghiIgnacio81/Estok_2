@@ -263,7 +263,8 @@ function grupoEstructurasHtml(
 }
 
 /** Tarjeta de objeto individual suelto (sección inferior). */
-function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
+/** Tarjeta de un OBJETO suelto (reutilizada por la sección de muebles-objeto). */
+export function objetoSueltoTarjetaHtml(obj: ObjetoArbol): string {
   const tieneAusencia = Boolean(obj.contenedor_ausente);
   // `ubicacion_display` es la RUTA COMPLETA que devuelve ObjetoSerializer
   // (Habitación · Mueble · Caja): si por algún motivo falta `ubicacion_nombre`,

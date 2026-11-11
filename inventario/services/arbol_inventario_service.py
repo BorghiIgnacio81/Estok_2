@@ -18,6 +18,11 @@ Reúne en UNA sola respuesta la TAXONOMÍA VÁLIDA del Estok activo:
     objetos con `contenedor_id IS NULL`, tengan o no un espacio/ubicación
     asignada, más los objetos apoyados en un ESPACIO/arquitectura del cuarto
     (p. ej. «Setup PC»), que la tarjeta dibuja con su ruta jerárquica completa.
+  - SECCIÓN 3bis (`muebles_objetos`): OBJETOS de categoría «Muebles» (o
+    «Muebles y Estructuras Móviles») que NO son cajas (`es_contenedor=False`).
+    Un sillón, una mesa o una silla registrada como Objeto es mobiliario del
+    Estok: se lista junto a los muebles y NUNCA en «Objetos Sueltos o sin Caja»
+    (`arbol_inventario_muebles_objetos`).
   - SECCIÓN «📦 Objetos en Contenedor» (`objetos_en_contenedor`): LISTA PLANA de
     los objetos que viven dentro de una caja, mueble o espacio lógico, cada uno
     con la etiqueta del contenedor que lo aloja. Garantiza que ningún ítem
@@ -59,6 +64,10 @@ from .arbol_inventario_objetos_contenedor import (
 from .arbol_inventario_objetos_en_contenedor import (
     objetos_en_contenedor as _objetos_en_contenedor,
 )
+# SECCIÓN «🗄 Muebles y Estructuras Móviles»: los OBJETOS de categoría
+# «Muebles» que NO son cajas (`es_contenedor=False`) se listan con los muebles,
+# nunca en la bandeja de huérfanos.
+from .arbol_inventario_muebles_objetos import separar_muebles_objetos
 
 # Capa de DATOS del árbol de inventario (consultas ORM con la taxonomía estricta
 # y utilidades puras de serialización). Se importa con los nombres PRIVADOS del
@@ -96,6 +105,8 @@ def construir_arbol_estok(
     {
       "estructuras": [ { ubicacion_id, ubicacion_nombre, contenedores: [Nodo] } ],
       "sueltos": [ ObjetoListSerializer ... ],
+      "objetos_en_contenedor": [ ObjetoListSerializer + contenedor_etiqueta ... ],
+      "muebles_objetos": [ ObjetoListSerializer de categoría «Muebles» ... ],
       "filtros_activos": bool,
       "resumen": { "contenedores": N, "objetos_ubicados": N, "objetos_sueltos": N }
     }
@@ -519,6 +530,24 @@ def construir_arbol_estok(
         ),
         key=lambda o: (o.get('fecha_registro') or ''), reverse=True,
     )
+
+    # ------------------------------------------------------------------
+    # 7bis) SECCIÓN 3bis · 🗄 MUEBLES Y ESTRUCTURAS MÓVILES (OBJETOS)
+    # Los Objetos de categoría «Muebles» que NO son cajas (`es_contenedor =
+    # False`) son mobiliario del Estok y se listan en la sección de muebles,
+    # NUNCA en la bandeja de huérfanos. La partición se hace sobre la bandeja
+    # YA depurada: un ítem guardado dentro de una caja/mueble/objeto
+    # contenedor listado sigue viviendo en el contenido de ese contenedor y no
+    # se duplica acá.
+    # ------------------------------------------------------------------
+    muebles_objetos, sueltos = separar_muebles_objetos(sueltos)
+    muebles_objetos.sort(
+        key=lambda o: (
+            str(o.get('ubicacion_nombre') or ''),
+            _clave_orden_natural(o.get('nombre') or ''),
+        )
+    )
+
     # Objetos realmente ubicados (containers existentes del Estok), sin contar
     # dos veces los que viven en una caja anidada dentro de un mueble.
     total_objetos_ubicados = sum(
@@ -533,6 +562,9 @@ def construir_arbol_estok(
         # SECCIÓN «📦 Objetos en Contenedor»: lista plana con `contenedor_tipo`
         # y `contenedor_etiqueta` («Caja 02», «Mueble Escritorio»…).
         'objetos_en_contenedor': objetos_en_contenedor_nodos,
+        # SECCIÓN «🗄 Muebles y Estructuras Móviles»: OBJETOS de categoría
+        # «Muebles» que no son cajas (mobiliario registrado como Objeto).
+        'muebles_objetos': muebles_objetos,
         'filtros_activos': filtros_activos,
         'resumen': {
             'contenedores': (

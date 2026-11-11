@@ -48,6 +48,12 @@ export interface PayloadArbol {
    * `contenedor_etiqueta` resueltos por el backend (cero N+1).
    */
   objetos_en_contenedor?: ObjetoArbol[];
+  /**
+   * SECCIÓN «🗄 Muebles y Estructuras Móviles»: OBJETOS de categoría «Muebles»
+   * (o «Muebles y Estructuras Móviles») que NO son cajas (`es_contenedor`
+   * False). El backend los separa de `sueltos`; se pintan junto a los muebles.
+   */
+  muebles_objetos?: ObjetoArbol[];
   filtros_activos: boolean;
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
 }
