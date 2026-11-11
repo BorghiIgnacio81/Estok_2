@@ -20,6 +20,8 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
+// Latido de inventario: evento local + marca cross-tab + vuelta por bfcache.
+import { escucharObjetosCambiados } from './latidoInventario';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { initCajaOperativa } from './cajaOperativa';
@@ -233,7 +235,10 @@ function enlazarEventos(): void {
   // /objetos/nuevo o en el tutorial, edición, movimiento o borrado) emite
   // `estok:objetos-cambiados`. La tarjeta se re-pinta sola, sin F5 y sin
   // depender del latido espacial (`estok:espacios-cambiados`).
-  window.addEventListener('estok:objetos-cambiados', () => void cargar());
+  // La MISMA puerta cubre la mutación desde OTRA pestaña (marca en
+  // localStorage) y la vuelta por historial (bfcache): así una reclasificación
+  // `es_contenedor` true ⇄ false mueve la tarjeta de sección al instante.
+  escucharObjetosCambiados(() => void cargar());
 
   // Delegación global para botones "Eliminar" dentro de viñetas y tarjetas.
   document.addEventListener('click', (event) => {

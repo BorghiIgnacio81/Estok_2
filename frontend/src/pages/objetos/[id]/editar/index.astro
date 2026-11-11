@@ -16,6 +16,9 @@ import AuthGuard from '../../../../components/AuthGuard.astro';
 import ImageEditor from '../../../../components/ImageEditor.astro';
 import MinimapaModuloUnificado from '../../../../components/MinimapaModuloUnificado.astro';
 import BotonAutocompletarIA from '../../../../components/objetos/BotonAutocompletarIA.astro';
+// Switch «¿Es una caja o contenedor?»: rectifica `Objeto.es_contenedor` en
+// cualquier momento (el alta rápida Caja/Mueble no existe fuera de /nuevo).
+import ClasificacionContenedorEdicion from '../../../../components/objetos/ClasificacionContenedorEdicion.astro';
 // «DETALLES»: acordeón colapsable con los atributos intrínsecos según la
 // categoría del objeto (Libro/Revista, Tecnología, Mueble/Arte, Ropa). Arranca
 // CERRADO para no estirar el formulario en móvil; qué familia se ve lo resuelve
@@ -165,6 +168,14 @@ export const prerender = false;
           </div>
         </div>
       </div>
+
+      <!-- ================================================================ -->
+      <!-- SECCIÓN: ¿ES UNA CAJA O CONTENEDOR? (reclasificación manual)      -->
+      <!-- El switch escribe `es_contenedor` en el PUT completo: al apagarlo  -->
+      <!-- el objeto deja de listarse en «📦 Cajas e Inventario Interno» y    -->
+      <!-- pasa al bloque que le corresponde en /objetos (sin F5).           -->
+      <!-- ================================================================ -->
+      <ClasificacionContenedorEdicion />
 
       <!-- ================================================================ -->
       <!-- SECCIÓN: UBICACIÓN DE ALMACENAMIENTO (MINIMAPAS INTERACTIVOS)     -->

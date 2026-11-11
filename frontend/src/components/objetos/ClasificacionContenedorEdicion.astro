@@ -1,0 +1,60 @@
+---
+// =============================================================================
+// EDICIÓN · «¿ES UNA CAJA O CONTENEDOR?» (switch manual de `es_contenedor`)
+// -----------------------------------------------------------------------------
+// El alta rápida (ClasificacionAltaRapida.astro) sólo existe en /objetos/nuevo:
+// una vez creado el objeto NO había forma de rectificar esa clasificación. Este
+// control cubre ese hueco en /objetos/[id]/editar y persiste el MISMO campo del
+// modelo (`Objeto.es_contenedor`), sin inventar un endpoint nuevo.
+//
+// CONTRATO CON EL ORQUESTADOR (lib/editarObjetoForm.ts):
+//   · `cargarObjeto` hidrata `checked` con el valor REAL que devuelve la API.
+//   · `enviarFormulario` envía el booleano SIEMPRE (true/false) en el PUT: una
+//     casilla desmarcada no viaja en el FormData y el flag quedaría intacto.
+//
+// AUTORIDAD FINAL DEL BACKEND: si la categoría del objeto es EXPLÍCITAMENTE
+// contenedora («Cajas y Contenedores», «Cajas», «Baúles»…) o su rótulo EMPIEZA
+// por «Caja», el objeto se conserva como contenedor aunque se apague el switch
+// (regla de `services/clasificacion_contenedor_objeto.declara_contenedor`). El
+// aviso tras guardar lo informa con el valor real persistido.
+// =============================================================================
+---
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+  <div class="flex flex-wrap items-center gap-2 mb-4">
+    <h2 class="text-lg font-semibold text-gray-900">¿Es una caja o contenedor?</h2>
+    <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold">reclasificable</span>
+  </div>
+
+  <label
+    for="es_contenedor"
+    class="flex items-start gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-orange-300 has-[:checked]:border-orange-400 has-[:checked]:bg-orange-50 cursor-pointer transition-base"
+  >
+    <!-- Switch accesible: checkbox real (role="switch") + pista visual. Sin
+         `checked` fijo: el estado lo escribe lib/editarObjetoForm.ts cuando la
+         API devuelve el objeto. -->
+    <input
+      id="es_contenedor"
+      name="es_contenedor"
+      type="checkbox"
+      role="switch"
+      value="true"
+      aria-describedby="esContenedorAyuda"
+      class="peer sr-only"
+    />
+    <span
+      aria-hidden="true"
+      class="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-gray-300 transition-colors peer-checked:bg-orange-600 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-400 peer-focus-visible:ring-offset-2 after:absolute after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"
+    ></span>
+    <span class="min-w-0">
+      <span class="block text-sm font-semibold text-gray-900">📦 Sí, es una caja o contenedor</span>
+      <span id="esContenedorAyuda" class="block text-xs text-gray-500">
+        Puede alojar otros objetos dentro (caja, baúl, maleta, organizador o mueble contenedor).
+      </span>
+    </span>
+  </label>
+
+  <p id="esContenedorEstado" class="mt-3 text-xs font-medium text-gray-500">
+    Cargando clasificación actual…
+  </p>
+</div>

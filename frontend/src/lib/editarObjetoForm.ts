@@ -18,6 +18,17 @@ import { getAuthHeaders, getToken, API_BASE_URL } from '../services/auth';
 import { fijarSeleccionMinimapa, obtenerSeleccionMinimapa } from './selectorMinimapaNuevoObjeto';
 import { ref } from './dom';
 import { showToast } from './toast';
+// Latido único de inventario: evento local + marca cross-tab (localStorage) para
+// que /objetos mueva la tarjeta de sección sin recarga completa.
+import { notificarObjetosCambiados } from './latidoInventario';
+// Switch «¿Es una caja o contenedor?»: hidratación, lectura del DOM y aviso del
+// valor persistido (lógica en su propio módulo por la regla de modularización).
+import {
+  avisoClasificacionPersistida,
+  contenedorSeleccionado,
+  hidratarSwitchContenedor,
+  iniciarSwitchContenedor,
+} from './objetos/objetoContenedorEdicion';
 import { inicializarFotos, cargarFotos } from './editarObjetoFotos';
 import { inicializarIaEdicion } from './editarObjetoIa';
 import { inicializarPrecioReferencia } from './editarObjetoPrecio';
@@ -82,6 +93,11 @@ async function cargarObjeto(): Promise<void> {
     // Dueño EXTERNO (metadata plana fuera de las subclases): la página ahora
     // comparte el campo con el formulario unificado de espacios/muebles.
     setFieldValue('dueno_externo_nombre', obj.dueno_externo_nombre);
+
+    // === Clasificación CAJA ⇄ OBJETO SIMPLE (switch manual) ===
+    // El valor REAL persistido manda: el switch arranca como el backend lo dejó
+    // y el operador puede rectificarlo en cualquier momento.
+    hidratarSwitchContenedor(obj.es_contenedor);
 
     // === Cargar categorías (11 oficiales) y seleccionar la del objeto ===
     await cargarCategorias(obj.categoria);
@@ -268,6 +284,11 @@ async function enviarFormulario(evento: Event): Promise<void> {
     // acá); si la familia activa no es Tecnología, se conserva el JSON guardado.
     agregarEspecificacionesAlPayload(payload);
 
+    // CLASIFICACIÓN CAJA ⇄ OBJETO SIMPLE: el booleano viaja SIEMPRE. Una casilla
+    // desmarcada no existe en el FormData y el PUT parcial conservaría el flag
+    // anterior, así que la tarjeta nunca cambiaría de sección en /objetos.
+    payload['es_contenedor'] = contenedorSeleccionado();
+
     const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
@@ -284,10 +305,10 @@ async function enviarFormulario(evento: Event): Promise<void> {
       });
       // LATIDO GLOBAL: la canasta, las tarjetas de caja y los visores de
       // Almacenamiento re-consultan PostgreSQL al instante, así el contador de la
-      // caja deja de mostrar «0 objetos» sin esperar un F5.
-      window.dispatchEvent(
-        new CustomEvent('estok:objetos-cambiados', { detail: guardado }),
-      );
+      // caja deja de mostrar «0 objetos» sin esperar un F5. La marca cross-tab de
+      // `lib/latidoInventario` permite además que /objetos (misma u otra pestaña)
+      // mueva la tarjeta de sección sin recarga completa.
+      notificarObjetosCambiados(guardado);
       window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
       // PRECIO → MERCADO LIBRE: si cambió el valor estimado y el objeto tiene
       // publicación vigente, el backend ya empujó el precio (PUT /items/{id}).
@@ -295,9 +316,12 @@ async function enviarFormulario(evento: Event): Promise<void> {
       const precioEnML = guardado?.['ml_precio_sincronizado'] === true
         ? ' · 💲 precio sincronizado en Mercado Libre'
         : '';
+      // CLASIFICACIÓN: el backend es la autoridad final. El aviso refleja el
+      // valor REALMENTE persistido (ver objetos/objetoContenedorEdicion).
+      const avisoClasificacion = avisoClasificacionPersistida(guardado);
       showToast(
         contenedorOk
-          ? `✅ Objeto actualizado correctamente${precioEnML}`
+          ? `✅ Objeto actualizado correctamente${precioEnML}${avisoClasificacion}`
           : '⚠️ El objeto se guardó, pero la caja no quedó asignada. Volvé a elegirla desde «Contenedor / Caja».',
         contenedorOk ? 'success' : 'error',
       );
@@ -353,6 +377,7 @@ export function iniciarEdicionObjeto(): void {
   // El filtrado por categoría se arranca ANTES: deja todos los bloques técnicos
   // ocultos hasta que la API devuelva la categoría del objeto.
   iniciarCamposEspecificos();
+  iniciarSwitchContenedor();
   inicializarFotos(objetoId);
   inicializarIaEdicion(objetoId);
   inicializarPrecioReferencia();
