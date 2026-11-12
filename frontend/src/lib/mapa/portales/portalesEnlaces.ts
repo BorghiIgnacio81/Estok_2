@@ -349,6 +349,54 @@ function alCambiarEspacios(): void {
   void refrescarNivel();
 }
 
+// -----------------------------------------------------------------------------
+// TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES (breadcrumb navegable)
+// -----------------------------------------------------------------------------
+
+/**
+ * BREADCRUMB NAVEGABLE: un toque sobre una miniatura de la TIRA
+ * (`#minimapasAnidados`, emitida por lib/minimapasAnidados.ts con
+ * `data-minimapa-nivel`) desapila la cascada hasta ESA profundidad.
+ * `nivel` = cantidad de nodos de la pila que quedan:
+ *   0 = plano general de las plantas · 1 = habitación · N = contenedor N.
+ * Inocuo si ya estamos en ese nivel (no re-renderiza).
+ */
+async function navegarAMiga(nivel: number): Promise<void> {
+  const destino = Math.max(0, Math.min(profundidad(), Math.floor(Number(nivel) || 0)));
+  if (destino === profundidad()) return;
+  if (destino === 0) {
+    await volverARaiz();
+    return;
+  }
+  desapilarHasta(destino);
+  await refrescarNivel();
+}
+
+/**
+ * Delegación de la TIRA de minimapas: cada `.mini-anidado[data-minimapa-nivel]`
+ * es un botón (el motor ya lo emite con `role="button"` y `tabindex="0"`). El
+ * gesto se aísla del Panel Izquierdo para que no se interprete como una
+ * selección in-place de un vecino del ancla.
+ */
+function conectarTiraMinimapas(): void {
+  const host = el('minimapasAnidados');
+  if (!host) return;
+  const migaDe = (ev: Event): HTMLElement | null =>
+    (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-minimapa-nivel]') ?? null;
+  const navegar = (ev: Event): void => {
+    const miga = migaDe(ev);
+    if (!miga) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    void navegarAMiga(Number(miga.dataset.minimapaNivel));
+  };
+  host.addEventListener('click', navegar);
+  host.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    navegar(ev);
+  });
+}
+
 export function iniciarPortalesAlmacenamiento(): void {
   window.addEventListener('estok:planta-seleccionada', alSeleccionarPlanta);
   window.addEventListener('estok:habitacion-seleccionada', alSeleccionarHabitacion);
@@ -360,6 +408,7 @@ export function iniciarPortalesAlmacenamiento(): void {
   conectarPortalesPorDelegacion();
   vigilarOrigenDelClic();
   conectarDropTarjetas();
+  conectarTiraMinimapas();
   const izquierda = slotIzq();
   if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);
   // ARRANQUE: nivel raíz (plano de la planta + habitaciones con mini-mapas) y,

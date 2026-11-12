@@ -24,6 +24,10 @@ import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro
 // markup del modal dedicado (Nombre · Foto · Dimensiones · Descripción ·
 // Ubicación). Su lógica vive en lib/nuevaCajaModal.ts.
 import NuevaCajaModal from '../components/NuevaCajaModal.astro';
+// TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: host canónico del COMPONENTE
+// GLOBAL (formato `cadena`). Lo rellena lib/mapa/portales/minimapasAnidadosContexto.ts
+// con el ÚNICO motor de minimapas (lib/minimapasAnidados.ts → lib/minimapa.ts).
+import MinimapaRuta from '../components/MinimapaRuta.astro';
 import '../styles/mapa-espacial.css';
 import '../styles/mapa-casita.css';
 import '../styles/almacenamiento-escenas.css';
@@ -33,10 +37,10 @@ import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
-// MINIMAPA PADRE 100% GRÁFICO: hoja DEDICADA del cuadrante izquierdo cuando la
-// cascada ya tiene padre (apaga fichas, migas de pan, leyendas y rótulos; deja
-// sólo las siluetas con el nodo activo relleno en NARANJA).
-import '../styles/almacenamiento-minimapa-padre.css';
+// TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: hoja DEDICADA del cuadrante
+// izquierdo (fila compacta de mini-thumbnails de 64×64 + reglas del contexto
+// gráfico puro: sin leyendas largas, nodo activo con relleno NARANJA).
+import '../styles/almacenamiento-minimapas-niveles.css';
 // Acción del contenedor activo («🔎 Abrir ficha completa») y canasta del Panel
 // Derecho cuando se inspecciona una caja. Mover la caja se hace arrastrándola.
 import '../styles/almacenamiento-acciones-caja.css';
@@ -118,20 +122,20 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             </div>
           </div>
           <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Edición en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrá las tarjetas para reacomodarlas entre cuadrantes y tirá de su esquina para estirarlas. Tocá una planta para desplegar el plano de sus habitaciones.</p>
-          <!-- MINIMAPA PADRE · RECORDATORIO VISUAL JERÁRQUICO (100% GRÁFICO):
-               este cuadrante dibuja SIEMPRE el minimapa del nivel INMEDIATAMENTE
-               SUPERIOR (Casa → Planta → Habitación → Mueble → Caja) con el nodo
-               donde está parado el operador resaltado en NARANJA (#f97316).
-               Sin carteles de texto: ni título, ni leyenda, ni ayudas. La vista
-               raíz de la Casa no tiene padre y conserva su cabecera normal.
+          <!-- CONTEXTO GRÁFICO PURO DEL CUADRANTE IZQUIERDO:
+               este cuadrante dibuja el mapa del NIVEL SUPERIOR (Casa → Planta →
+               Habitación → Mueble → Caja) con el nodo donde está parado el
+               operador resaltado en NARANJA (#f97316) y, en su cima, la TIRA
+               ACUMULADA de minimapas de todos los niveles anteriores.
+               Sin carteles de texto: ni título, ni leyenda, ni ayudas.
                Lo gobierna lib/mapa/portales/panelesPortales.ts (esMinimapaPadre). -->
           <div id="contenidoPanelIzquierdo" class="mt-1">
-            <!-- MINIMAPA GRÁFICO PADRE · ZONA SUPERIOR DE CONTEXTO:
-                 dibuja el vector/SVG del NIVEL ANTERIOR (silueta real del
-                 contenedor padre) con el piso/cuarto/mueble activo relleno en
-                 NARANJA (#f97316). Lo gobierna lib/mapa/portales/
-                 minimapaPadreContexto.ts y convive con el título del nivel. -->
-            <div id="minimapaPadreContexto" class="hidden"></div>
+            <!-- TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: mini-thumbnails
+                 acumulados (Casa → Planta → Habitación → Mueble/Espacio → …) con
+                 la zona activa en NARANJA. Cada uno vuelve a su nivel con un
+                 toque (data-minimapa-nivel → portalesEnlaces.ts). En la raíz
+                 queda oculto. El host es el COMPONENTE GLOBAL (formato cadena). -->
+            <MinimapaRuta id="minimapasAnidados" class="hidden flex flex-row items-center gap-2 overflow-x-auto pb-1" />
             <!-- SIN FICHA DE TEXTO EN EL CONTEXTO: la ficha con migas de pan
                  escritas («Living › Ropero › Caja 01») y listas de atributos ya
                  no se pinta. Los NOMBRES de los espacios/habitaciones siguen

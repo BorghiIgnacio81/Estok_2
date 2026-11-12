@@ -1,80 +1,131 @@
 /* =============================================================================
-   ALMACENAMIENTO · MINIMAPA PADRE Y CONTEXTO GRÁFICO DEL NIVEL SUPERIOR
+   ALMACENAMIENTO · TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES Y CONTEXTO
    -----------------------------------------------------------------------------
-   Hoja DEDICADA del cuadrante izquierdo (contexto del espacio). Se importa
+   Hoja DEDICADA del cuadrante izquierdo de /almacenamiento. Se importa
    únicamente en src/pages/almacenamiento.astro, después de
-   almacenamiento-portales.css, mapa-casita y almacenamiento-escenas.
+   almacenamiento-portales.css, minimapa-ruta.css, mapa-casita y
+   almacenamiento-escenas.
 
-   REGLA DE CONTENIDO (corregida):
-   · Se ocultan SÓLO las leyendas explicativas largas / instructivos de ayuda
-     («arrastrá y soltá…», «rectángulos elásticos…», estados vacíos largos).
-   · Los NOMBRES y TÍTULOS de espacios, habitaciones, muebles, estantes y cajas
-     NUNCA se ocultan: viven en los encabezados, en las tarjetas del lienzo y
-     sobre las siluetas del plano.
-   · El nodo activo se pinta con RELLENO naranja (#f97316).
+   BLOQUES:
+     1. TIRA HORIZONTAL COMPACTA (`#minimapasAnidados`): los minimapas de los
+        niveles anteriores se acumulan de izquierda a derecha como
+        mini-thumbnails de 64×64 px (w-16 h-16), cada uno navegable.
+     2. LEYENDAS LARGAS: se ocultan SÓLO los instructivos de ayuda.
+     3. RELLENO NARANJA del elemento activo (convención global #f97316).
+     4. CABECERAS que `transicionar()` apaga con `.hidden`.
+
+   REGLA DE CONTENIDO: los NOMBRES y TÍTULOS de espacios, habitaciones,
+   muebles, estantes y cajas NUNCA se ocultan.
    ============================================================================= */
 
 /* -----------------------------------------------------------------------------
-   1 · MINIMAPA GRÁFICO PADRE (zona superior del contexto)
+   1 · TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES (host `#minimapasAnidados`)
    -----------------------------------------------------------------------------
-   Lo pinta lib/mapa/portales/minimapaPadreContexto.ts con la geometría REAL del
-   nivel anterior (hijos con ui_*) y el hijo activo en naranja. Convive con el
-   título del nivel actual: no lo reemplaza ni lo oculta.
+   El host lo declara el COMPONENTE GLOBAL `components/MinimapaRuta.astro`
+   (formato cadena) y lo rellena lib/mapa/portales/minimapasAnidadosContexto.ts
+   con el MISMO motor puro de toda la app (lib/minimapasAnidados.ts →
+   lib/minimapa.ts). Acá SÓLO se gobierna el maquetado en fila y el tamaño
+   miniatura; ninguna silueta se dibuja por CSS.
    -------------------------------------------------------------------------- */
-.minimapa-padre-contexto {
+#minimapasAnidados {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 0 12px;
-  padding: 10px 12px;
-  border: 1px solid #fdba74;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #fffdf8 0%, #fff7ed 100%);
-}
-
-.minimapa-padre-cab {
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
   min-width: 0;
+  /* Fila compacta con scroll horizontal: la tira nunca se envuelve ni empuja
+     el layout del cuadrante (los niveles se acumulan a la derecha). */
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
 }
 
-.minimapa-padre-ico {
-  font-size: 14px;
+/* El componente arranca oculto (`.hidden`) hasta que hay niveles que mostrar. */
+#minimapasAnidados.hidden {
+  display: none !important;
+}
+
+/* La barra interna del motor hereda la FILA: sin marco propio, sin wrap y sin
+   centrado (la acumulación siempre empieza a la izquierda). */
+#minimapasAnidados > .mini-anidados-barra {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  width: max-content;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+/* MINIATURA COMPACTA: caja de 64 px (w-16 h-16) por nivel anterior. La ruta se
+   lee de un vistazo (sin atenuar ningún nivel). */
+#minimapasAnidados .mini-anidado {
+  flex: 0 0 auto;
+  width: 64px;
+  max-width: 64px;
+  opacity: 1;
+  filter: none;
+}
+
+#minimapasAnidados .mini-anidado-ico {
+  font-size: 10px;
   line-height: 1;
 }
 
-.minimapa-padre-nombre {
-  font-size: 12px;
-  font-weight: 700;
-  color: #9a3412;
+/* Lienzo: la caja fija el TAMAÑO MÁXIMO y el SVG vectorial conserva su aspecto
+   (viewBox + `preserveAspectRatio` del motor: jamás se deforma). */
+#minimapasAnidados .mini-anidado-lienzo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  max-width: 64px;
+  max-height: 64px;
+}
+
+#minimapasAnidados .mini-anidado-lienzo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 64px;
+  max-height: 64px;
+}
+
+/* TRAZOS NEGROS NÍTIDOS a escala miniatura: los atributos de presentación del
+   motor (0.5-0.7 unidades) quedan en ~0.5 px reales a 64 px. Los `fill` NO se
+   tocan: el sector actual sigue en NARANJA #f97316. */
+#minimapasAnidados .mini-anidado-lienzo svg rect,
+#minimapasAnidados .mini-anidado-lienzo svg path {
+  stroke: #0a0a0a;
+  stroke-width: 1.1;
+}
+
+#minimapasAnidados .mini-anidado-nombre {
+  max-width: 64px;
+  font-size: 9px;
+  line-height: 1.15;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Marco del plano: el SVG elástico se amolda al ancho disponible sin deformar
-   las proporciones (el `aspect-ratio` real lo inyecta el módulo inline). */
-.minimapa-padre-marco {
-  width: 100%;
-  max-width: 260px;
-  overflow: hidden;
-}
-
-.minimapa-padre-marco svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* La casita tiene tamaño intrínseco (viewBox propio): se escala por ancho. */
-.minimapa-padre-marco-casa {
-  max-width: 180px;
-}
-
-.minimapa-padre-marco-casa svg {
-  width: 100%;
-  height: auto;
+#minimapasAnidados .mini-anidado-flecha {
+  align-self: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #9ca3af;
 }
 
 /* -----------------------------------------------------------------------------
@@ -133,3 +184,4 @@
 #mapaJerarquicoBadge.hidden {
   display: none !important;
 }
+

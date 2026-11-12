@@ -153,8 +153,9 @@ export function cabecerasDe(ctx: ContextoNivel, paneles: Paneles): CabeceraPanel
   if (!esMinimapaPadre(ctx)) return cab;
   // MINIMAPA PADRE: se CONSERVA el título del nivel (nombre del espacio donde
   // está parado el operador) y sólo se retira la leyenda explicativa larga.
-  // El minimapa gráfico del nivel superior vive en `#minimapaPadreContexto`
-  // (lib/mapa/portales/minimapaPadreContexto.ts) y convive con este título.
+  // La tira acumulada de minimapas de los niveles superiores vive en
+  // `#minimapasAnidados` (lib/mapa/portales/minimapasAnidadosContexto.ts) y
+  // convive con este título.
   return { ...cab, descIzq: '' };
 }
 
