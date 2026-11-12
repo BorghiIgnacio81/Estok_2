@@ -136,7 +136,6 @@ function montarEditorHabitacionesDerecha(): void {
 
   host.innerHTML = renderHabitacionesHtml({
     fila,
-    total: totalPlantas(estado.estok, estado.divisiones),
     divisiones: estado.divisiones,
     habitaciones: estado.habitaciones,
   });
@@ -145,18 +144,6 @@ function montarEditorHabitacionesDerecha(): void {
   host.querySelectorAll<HTMLElement>('[data-casita-volver]').forEach((el) => {
     el.addEventListener('click', () => {
       estado.filaActiva = null;
-      render();
-      enlazar();
-      notificarPlanta();
-    });
-  });
-
-  // Salto de planta desde el minimapa ultra-mini de la casita.
-  host.querySelectorAll<HTMLElement>('[data-mini-fila]').forEach((el) => {
-    el.addEventListener('click', () => {
-      const filaDestino = Number(el.getAttribute('data-mini-fila'));
-      if (!filaDestino || filaDestino === estado.filaActiva) return;
-      estado.filaActiva = filaDestino;
       render();
       enlazar();
       notificarPlanta();

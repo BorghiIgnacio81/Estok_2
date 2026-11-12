@@ -148,18 +148,15 @@
    3. CADENA DE MINIATURAS (barra analítica de orientación)
    Nada de anchos fijos: cada nodo se encoge antes que desbordar el padre.
    ALCANCE ESTRICTO (combinadores `>`): estas reglas gobiernan SOLO la barra
-   propia de la cadena. Las tarjetas de planta (`.visor-default-minimapas`
-   dentro de `.minimapa-ruta-plantas`) conservan sus reglas de
-   styles/almacenamiento-escenas.css: sin colisiones de especificidad.
+   propia de la cadena. Las tarjetas de planta (`.minimapa-ruta-plantas` →
+   `.visor-default-minimapas`) se retiraron junto con el bloque «Minimapas de
+   las plantas» de Almacenamiento, así que sus reglas quedaron sin uso.
    --------------------------------------------------------------------------- */
-.minimapa-ruta-cadena,
-.minimapa-ruta-plantas {
-  width: 100%;
-}
 /* Centrado elástico del contenido de la cadena (antes utilidades Tailwind
    `flex items-center justify-center h-full` del componente): el contenido se
    centra y se encoge antes que desbordar su contenedor. */
 .minimapa-ruta-cadena {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -178,42 +175,6 @@
   flex: 0 1 84px;
   min-width: 0;
   max-width: 100%;
-}
-/* Rejilla de tarjetas de planta: nunca excede el ancho del host del componente. */
-.minimapa-ruta-plantas > .visor-default-minimapas {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-/* Tarjetas de planta de la barra lateral («MINIMAPAS DE LAS PLANTAS» de
-   Almacenamiento): contienen la barra que emite tarjetaPlantaHtml y su lienzo
-   elástico DENTRO del recuadro lateral, sin anchos fijos y sin desborde
-   horizontal. El plano de cada tarjeta es el mismo del componente global
-   (crema + borde negro de puntas redondeadas + ambiente actual en naranja). */
-.minimapa-ruta-plantas .mini-anidados-barra {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  justify-content: center;
-  overflow: hidden;
-}
-.minimapa-ruta-plantas .visor-minimapa-planta {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  /* La tarjeta deja de aportar su propio marco punteado naranja: dentro del
-     componente global el ÚNICO contenedor estilizado es la LÁMINA canónica del
-     plano (puntas redondeadas + borde negro externo + fondo crema suave). */
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-}
-.minimapa-ruta-plantas .mini-anidado-lienzo svg {
-  max-width: 100%;
-  height: auto;
 }
 /* Celda del lienzo: ocupa el ancho disponible y el SVG la llena al 100%
    conservando su aspecto (`height:auto`, jamás un ancho en px). */

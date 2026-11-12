@@ -24,7 +24,6 @@ export { iniciarPortalesAlmacenamiento } from './mapa/portales/portalesEnlaces';
 export {
   portalANodo,
   refrescarNivel,
-  renderMinimapaDelNivel,
   transicionar,
   volverARaiz,
   volverNivel,

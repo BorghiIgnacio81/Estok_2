@@ -90,6 +90,18 @@
   border-radius: 10px;
 }
 
+/* CARTEL DE GUÍA CONDICIONAL («Editor de espacios»): nace OCULTO y sólo se
+   muestra cuando el operador presiona «✏️ Editar». El modo vigente lo declara
+   lib/modoLienzo.ts con la clase `modo-edicion` sobre <body>, así que la
+   visibilidad se resuelve sin re-renderizar el lienzo. */
+.planta-unica-tip--edicion {
+  display: none;
+}
+
+body.modo-edicion .planta-unica-tip--edicion {
+  display: block;
+}
+
 /* --- Contenedor del departamento (perímetro continuo, SIN techo) ----------- */
 
 .planta-unica-lienzo {

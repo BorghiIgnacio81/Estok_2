@@ -332,12 +332,20 @@ function sueltasHtml(sueltas: ItemElastico[], permiteDuplicar = false): string {
  *  - etiquetaCrear: texto del botón de creación (data-lienzo-crear). Opcional.
  *  - textoVacio:   mensaje cuando el lienzo no tiene ítems.
  *  - tip:          ayuda contextual opcional bajo la cabecera.
+ *  - tipSoloEnEdicion: el cartel de ayuda nace OCULTO y sólo aparece cuando el
+ *    operador presiona «✏️ Editar» (body.modo-edicion, lib/modoLienzo.ts).
  */
 export function renderLienzoElastico(opts: {
   items: ItemElastico[];
   etiquetaCrear?: string;
   textoVacio?: string;
   tip?: string;
+  /**
+   * Oculta el cartel de ayuda en modo navegación: se muestra ÚNICAMENTE en modo
+   * edición. Lo pide el editor de habitaciones de Almacenamiento para no invadir
+   * el espacio de trabajo con el cartel «Editor de espacios».
+   */
+  tipSoloEnEdicion?: boolean;
   /**
    * Habilita la acción «Duplicar» (⧉) en cada tarjeta suelta del lienzo. Sólo la
    * enciende el editor de sub-divisiones de Almacenamiento, que inyecta el
@@ -357,6 +365,7 @@ export function renderLienzoElastico(opts: {
     etiquetaCrear,
     textoVacio,
     tip,
+    tipSoloEnEdicion,
     permiteDuplicar,
     excluirSinGeometria,
   } = opts;
@@ -380,7 +389,7 @@ export function renderLienzoElastico(opts: {
       <button type="button" class="planta-unica-fusionar" data-fusionar disabled title="Seleccioná 2 o más espacios para fusionarlos en un único espacio en «L»">🔗 Fusionar Espacios</button>
       <span class="planta-unica-contador" data-fusion-contador>0 seleccionados</span>
     </div>
-    ${tip ? `<p class="planta-unica-tip">${tip}</p>` : ''}
+    ${tip ? `<p class="planta-unica-tip${tipSoloEnEdicion === true ? ' planta-unica-tip--edicion' : ''}">${tip}</p>` : ''}
     <div class="planta-unica-lienzo" data-lienzo-pu>
       ${vacio}
       ${gruposHtml(grupos)}

@@ -16,9 +16,6 @@
 import { aplicarModo } from '../../modoLienzo';
 // VIEWPORT CONGELADO: el re-render del nivel conserva scroll, foco y caret.
 import { conservarViewportAsync } from '../../edicionEspacioActiva';
-import { renderMinimapasAnidados } from '../../minimapasAnidados';
-import type { NodoRuta } from '../../minimapasAnidados';
-import { sectoresDeItems } from '../../sectoresMinimapa';
 import {
   cargarHabitacionesDePlanta,
   contenedoresRaizDeUbicacion,
@@ -32,7 +29,6 @@ import {
   desapilarHasta,
   estadoPortales,
   limpiarRuta,
-  migas,
   nodoActual,
   nodoPadre,
   profundidad,
@@ -58,7 +54,6 @@ import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPorta
 // datos reales + objetos almacenados, arriba del ancla del nivel superior.
 import { ocultarFichaContenedor, pintarFichaContenedor } from './fichaContenedorPanel';
 import {
-  aspectoDelLienzo,
   el,
   moverPanel,
   resaltarSeleccionIzquierda,
@@ -123,58 +118,6 @@ export async function nodoDeHabitacion(id: string): Promise<NodoPortal | null> {
 // NOTA: `roomDeCache` ahora vive en nivelRaizPortales.ts (se importa arriba).
 
 // -----------------------------------------------------------------------------
-// MINIMAPAS ANIDADOS DE LA CADENA (migas reales de la pila)
-// -----------------------------------------------------------------------------
-
-function renderMinimapa(): void {
-  const cont = el('minimapasAnidados');
-  if (!cont) return;
-  const aspecto = aspectoDelLienzo();
-  const nodos: NodoRuta[] = [];
-  const planta = estadoPortales.planta;
-  if (planta?.fila) {
-    nodos.push({
-      tipo: 'estok',
-      nombre: planta.nombre || 'Estok',
-      filaActiva: planta.fila,
-      totalPlantas: planta.total,
-      // Plano de la PLANTA: excluye limbo «En Tránsito» y espacios sin geometría.
-      sectores: sectoresDeItems(planta.hermanas, null, undefined, {
-        excluirSinGeometria: true,
-      }),
-      aspecto,
-      // ÍCONO DE LA PLANTA ACTIVA: la barra superior de minimapas dibuja la
-      // silueta de la casa (techo a dos aguas) con el PISO ACTIVO en naranja.
-      // Su lienzo es el plano proporcional de las habitaciones de esa planta y
-      // por sí solo NO dice en qué piso está el usuario: el icono lo resuelve.
-      iconoPlanta: true,
-      // Nivel 0 = plano general de las plantas: tocar la casa vuelve a la raíz.
-      nivel: 0,
-    });
-  }
-  migas().forEach((miga, indice) => {
-    nodos.push({
-      tipo: miga.tipo === 'habitacion' ? 'habitacion' : 'mueble',
-      nombre: miga.nombre,
-      id: miga.id,
-      filas: miga.filas,
-      columnasPorFila: miga.columnasPorFila,
-      sectores: sectoresDeItems(miga.hijos, miga.id),
-      aspecto,
-      // BREADCRUMB NAVEGABLE: N = cantidad de nodos de la pila que quedan al
-      // volver a esta miniatura (planta → habitación → mueble → caja).
-      nivel: indice + 1,
-    });
-  });
-  // RESALTE NARANJA DE LA RUTA (migas de pan): el nodo activo de la pila
-  // (`ruta: NodoPortal[]`) se marca por IDENTIDAD → su miniatura va en naranja
-  // (#f97316) y, dentro del minimapa de su padre, el sector REAL también.
-  const activoId = nodoActual()?.id ?? null;
-  cont.innerHTML = renderMinimapasAnidados(nodos, { activoId });
-  cont.classList.toggle('hidden', nodos.length === 0);
-}
-
-// -----------------------------------------------------------------------------
 // TRANSICIÓN DE PANTALLA (física dual asimétrica)
 // -----------------------------------------------------------------------------
 
@@ -204,7 +147,6 @@ export function transicionar(): void {
     firmaNivel = firma;
     aplicarModo('navegacion');
   }
-  renderMinimapa();
   syncBotones();
   // Barra de comandos: el «✏️ Editar» se re-sincroniza en CADA nivel (visible y
   // operativo a cualquier profundidad de la pila de nodos).
@@ -288,29 +230,6 @@ function syncBotones(): void {
 // -----------------------------------------------------------------------------
 // DESCENSO Y VUELTA DE NIVEL
 // -----------------------------------------------------------------------------
-
-/** Repinta la guía de minimapas del nivel activo (latido de la planta). */
-export function renderMinimapaDelNivel(): void {
-  renderMinimapa();
-}
-
-/**
- * BREADCRUMB NAVEGABLE: un toque sobre una miniatura de la red (o sobre la
- * casita del Estok) desapila la cascada hasta ESA profundidad. `nivel` es la
- * cantidad de nodos de la pila que deben quedar: 0 = plano general de Plantas,
- * 1 = primera habitación/planta elegida, N = el nodo que ocupa esa miniatura.
- * Inocuo si ya estamos en ese nivel (no re-renderiza).
- */
-export async function navegarAMiga(nivel: number): Promise<void> {
-  const destino = Math.max(0, Math.min(profundidad(), Math.floor(Number(nivel) || 0)));
-  if (destino === profundidad()) return;
-  if (destino === 0) {
-    await volverARaiz();
-    return;
-  }
-  desapilarHasta(destino);
-  await refrescarNivel();
-}
 
 /**
  * PORTAL GENÉRICO N → N+1: el nodo elegido pasa al Panel Izquierdo y la derecha

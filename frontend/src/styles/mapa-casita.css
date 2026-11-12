@@ -134,30 +134,12 @@
    .casita-volver / .casita-nivel2-titulo quedaron sin uso. */
 
 
-/* --- Minimapa ultra-mini de la casita -------------------------------------- */
-
-.casita-minimapa-wrap {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  background: #fffbeb;
-  border: 1px dashed #f97316;
-  border-radius: 12px;
-  padding: 10px 14px;
-  margin: 8px 0 12px;
-}
-
-.casita-minimapa-casilla {
-  flex-shrink: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 6px 7px;
-}
+/* --- Minimapa de la casita ------------------------------------------------
+   RETIRADO de la pantalla de Almacenamiento: el minimapa ultra-mini del editor
+   de habitaciones duplicaba el minimapa principal de la planta (cuadrante
+   izquierdo). Se conservan únicamente las reglas del SVG que el motor
+   (lib/minimapa.ts → minimapaCasitaSvg) sigue emitiendo como icono de planta
+   en la barra de minimapas de otras pantallas. */
 
 .casita-minimapa-svg {
   display: block;
@@ -170,35 +152,6 @@
 
 .casita-minimapa-svg rect:hover {
   filter: brightness(0.92);
-}
-
-.casita-minimapa-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.casita-minimapa-leyenda {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #9ca3af;
-}
-
-.casita-minimapa-info strong {
-  font-size: 13px;
-  font-weight: 800;
-  color: #ea580c;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.casita-minimapa-hint {
-  font-size: 10px;
-  color: #b45309;
 }
 
 /* --- Grilla de habitaciones (Nivel 2) -------------------------------------- */

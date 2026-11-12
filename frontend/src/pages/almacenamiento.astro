@@ -15,9 +15,6 @@ import AuthGuard from '../components/AuthGuard.astro';
 import OnboardingBienvenida from '../components/OnboardingBienvenida.astro';
 import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
-// COMPONENTE GLOBAL de la mini-guía analítica superior: unifica en un único
-// render las siluetas asimétricas proporcionales (mismo motor puro que Objetos).
-import MinimapaRuta from '../components/MinimapaRuta.astro';
 // Botón "+" unificado: variante flotante móvil (sobre la bandeja inferior fija).
 import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
 // Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2:
@@ -49,11 +46,7 @@ import '../styles/almacenamiento-espera.css';
 // explorador) y refuerzo del resaltado NARANJA del nodo seleccionado.
 import '../styles/almacenamiento-fuelle.css';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import {
-  ASSET_CAJA,
-  ASSET_CONTENEDOR_GRANDE,
-  ASSET_FOTO_OBJETO,
-} from '../lib/assetsUi';
+import { ASSET_CAJA } from '../lib/assetsUi';
 ---
 
 <AuthGuard />
@@ -92,23 +85,6 @@ import {
           class="block h-20 w-auto md:h-24 md:w-auto max-w-none object-contain object-center select-none pointer-events-none"
         />
       </button>
-    </div>
-
-    <!-- Leyenda de iconografía local del Lienzo de Mapeo Espacial -->
-    <div class="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5">
-      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Iconografía del lienzo</span>
-      <span class="flex items-center gap-2 text-xs text-gray-600">
-        <img src={ASSET_CONTENEDOR_GRANDE} class="h-16 w-auto draggable" alt="Contenedor grande" />
-        Contenedor grande (contiene contenedores)
-      </span>
-      <span class="flex items-center gap-2 text-xs text-gray-600">
-        <img src={ASSET_CAJA} class="h-16 w-auto draggable" alt="Contenedor pequeño" />
-        Contenedor pequeño (solo objetos)
-      </span>
-      <span class="flex items-center gap-2 text-xs text-gray-600">
-        <img src={ASSET_FOTO_OBJETO} class="h-12 w-12 rounded-full draggable" alt="Objeto individual" />
-        Objeto individual
-      </span>
     </div>
 
     <LoadingState mensaje="Cargando espacios de almacenamiento..." />
@@ -177,31 +153,19 @@ import {
               </button>
             </div>
           </div>
-          <!-- MINI-GUÍA ANALÍTICA SUPERIOR: componente global autocontenido
-               (cadena de minimapas asimétricos proporcionales + sector activo
-               en naranja #f97316). El host arranca vacío y
-               portalesAlmacenamiento.ts lo rellena en vivo con el MISMO motor
-               puro (src/lib/minimapasAnidados.ts) que usa Objetos. -->
-          <MinimapaRuta id="minimapasAnidados" class="hidden" />
+          <!-- MINIMAPAS PRINCIPALES (sólo DOS en pantalla): el minimapa de la
+               planta vive en el cuadrante IZQUIERDO (#mapaEstokPanel) y el de las
+               habitaciones en el DERECHO (#listaHabitacionesPanel). Se retiraron
+               la mini-guía analítica superior (#minimapasAnidados) y el bloque
+               «Minimapas de las plantas» (#visorPlantas) por ser duplicados del
+               mismo nivel. -->
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1 min-w-0">
-            <div id="visorHabitacion" class="min-h-[180px] min-w-0">
-              <!-- 🚪 BLOQUE COMPACTO «MINIMAPAS DE LAS PLANTAS» (estándar visual
-                   único del proyecto): una tarjeta por planta del Estok activo,
-                   dibujada por el COMPONENTE GLOBAL <MinimapaRuta /> (motor puro
-                   lib/minimapasAnidados.ts + siluetas REALES con los trazos
-                   negros nítidos). El host del componente queda MONTADO de forma
-                   permanente (no se destruye al re-renderizar) y
-                   visorHabitacion.ts solo rellena su interior: al ser un
-                   contenedor elástico y autocontenido, el bloque no puede
-                   desbordarse de esta barra lateral. -->
-              <div id="visorPlantas" class="visor-default w-full min-w-0">
-                <div class="visor-default-encabezado">
-                  <span class="visor-titulo">🗺️ Minimapas de las plantas</span>
-                  <span class="visor-default-sub">Seleccioná una habitación encastrada en el Mapa Estok para inspeccionarla en este Visor.</span>
-                </div>
-                <MinimapaRuta id="minimapaPlantasIniciales" class="minimapa-ruta-plantas" />
-              </div>
+            <!-- HOST DEL VISOR DE HABITACIÓN (ancla izquierda cuando el activo es un
+                 contenedor). Sin la habitación abierta queda COLAPSADO (`min-h-0`):
+                 el bloque «Minimapas de las plantas» que lo rellenaba se retiró por
+                 duplicar los dos minimapas principales. -->
+            <div id="visorHabitacion" class="min-h-0 min-w-0">
               <!-- Visor de la habitación abierta (Nivel 2): montaje en vivo -->
               <div id="visorRoom" class="hidden w-full min-w-0"></div>
             </div>

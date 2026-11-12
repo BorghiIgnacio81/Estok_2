@@ -25,51 +25,14 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Visor de Habitación - estado inicial: TARJETAS unificadas de las plantas
-   ("Planta Alta" y "Planta Baja") en paralelo. Cada tarjeta la dibuja el
-   COMPONENTE GLOBAL `<MinimapaRuta />` (motor puro lib/minimapasAnidados.ts →
-   `.mini-anidado` + SVG de sectores reales), así que acá no queda ningún estilo
-   de plano: solo la caja de la tarjeta y el escalado del lienzo al panel.
+   Visor de Habitación - minimapa del casillero inspeccionado
+   ---------------------------------------------------------------------------
+   El bloque «Minimapas de las plantas» (#visorPlantas) y su grilla elástica de
+   tarjetas (.visor-default / .visor-default-minimapas) se RETIRARON: duplicaban
+   el minimapa principal de la planta y el de las habitaciones del mismo nivel.
+   Sólo sobrevive la caja del minimapa de la grilla de la habitación abierta
+   (lib/visorHabitacionHtml.ts → minimapaHabitacionHtml).
    --------------------------------------------------------------------------- */
-.visor-default {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-}
-
-/* El bloque compacto «Minimapas de las plantas» se apaga con `.hidden` cuando
-   el Visor pasa a mostrar la habitación abierta. La utilidad `.hidden` de
-   Tailwind pierde contra el `display:flex` de `.visor-default`, así que la
-   precedencia se declara acá (mismo criterio que styles/almacenamiento-
-   portales.css §1 con los botones de modo). */
-#visorPlantas.hidden {
-  display: none !important;
-}
-
-.visor-default-encabezado {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.visor-default-sub {
-  font-size: 12px;
-  color: #6b7280;
-}
-
-/* Grilla elástica de tarjetas de planta: `minmax(min(100%, 220px), 1fr)` impide
-   que una tarjeta empuje el panel cuando el ancho disponible es menor a 220px
-   (barra lateral angosta / móvil): la rejilla nunca desborda su contenedor. */
-.visor-default-minimapas {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 12px;
-  width: 100%;
-  min-width: 0;
-}
-
 .visor-minimapa-planta {
   flex-direction: column;
   align-items: flex-start;
@@ -77,77 +40,6 @@
 
 .visor-minimapa-planta svg {
   margin: 0 auto;
-}
-
-/* ---------------------------------------------------------------------------
-   MINIATURA DE PLANTA NAVEGABLE
-   ---------------------------------------------------------------------------
-   `tarjetaPlantaHtml` emite cada planta del bloque «Minimapas de las plantas»
-   con `data-planta-fila` + `role="button"`: un toque (o Enter/Espacio) fija esa
-   planta como activa y despliega sus habitaciones. El cursor y el anillo de
-   foco lo declaran como control, sin alterar el marco ámbar existente.
-   --------------------------------------------------------------------------- */
-.visor-minimapa-planta[data-planta-fila] {
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.visor-minimapa-planta[data-planta-fila]:hover {
-  transform: translateY(-1px);
-}
-
-.visor-minimapa-planta[data-planta-fila]:focus-visible {
-  outline: 2px solid #f97316;
-  outline-offset: 2px;
-}
-
-/* Miniatura unificada dentro de la tarjeta: el MISMO markup `.mini-anidado` del
-   bar analítico, agrandado al ancho real de la tarjeta y SIN el marco punteado
-   propio de la barra (la caja ámbar de `.visor-minimapa-planta` ya es el marco).
-   La tarjeta muestra el mapa principal del nivel, no una migaja de la cadena:
-   por eso va a plena opacidad, sin el filtro de atenuación de los nodos previos. */
-.visor-default-minimapas .visor-minimapa-planta {
-  align-items: stretch;
-}
-
-.visor-default-minimapas .mini-anidados-barra {
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  overflow: visible;
-}
-
-.visor-default-minimapas .mini-anidado {
-  width: 100%;
-  max-width: none;
-  opacity: 1;
-  filter: none;
-}
-
-.visor-default-minimapas .mini-anidado-lienzo {
-  width: 100%;
-}
-
-.visor-default-minimapas .mini-anidado-ico {
-  font-size: 12px;
-}
-
-.visor-default-minimapas .mini-anidado-nombre {
-  font-size: 11px;
-  white-space: normal;
-  text-align: center;
-}
-
-/* Trazo de la miniatura: el lienzo de la tarjeta es ~6× el del bar analítico
-   (40px), así que el grosor se reescala para conservar el MISMO peso óptico de
-   1px del bar sobre el negro nítido zinc-950 (#0a0a0a) heredado por herencia
-   directa del componente (`.mini-anidados-barra`). El `path` es el contorno de
-   un espacio FUSIONADO: un solo trazo, nunca una línea divisoria interna. */
-.visor-default-minimapas .mini-anidado-lienzo svg rect,
-.visor-default-minimapas .mini-anidado-lienzo svg path {
-  stroke-width: 0.4;
 }
 
 /* ---------------------------------------------------------------------------

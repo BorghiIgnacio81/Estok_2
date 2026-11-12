@@ -32,12 +32,10 @@ import type { NodoPortal } from './estadoPortales';
 import {
   estaRefrescando,
   interiorDelNivel,
-  navegarAMiga,
   nodoDeContenedor,
   nodoDeHabitacion,
   portalANodo,
   refrescarNivel,
-  renderMinimapaDelNivel,
   seleccionarNodo,
   volverARaiz,
   volverNivel,
@@ -267,11 +265,10 @@ function alSeleccionarPlanta(e: Event): void {
     hermanas: detalle.hermanas ?? [],
   });
   // PERSISTENCIA DE NIVEL: un re-latido (estok:espacios-cambiados) con la cascada
-  // abierta NO devuelve al operador al plano: sólo refresca planta y minimapa.
-  if (profundidad() > 0) {
-    renderMinimapaDelNivel();
-    return;
-  }
+  // abierta NO devuelve al operador al plano. La guía de minimapas del nivel ya
+  // no existe (se retiró por duplicar los dos minimapas principales), así que
+  // sólo se confirma la planta vigente.
+  if (profundidad() > 0) return;
   if (!detalle.fila) {
     void volverARaiz();
     return;
@@ -352,42 +349,6 @@ function alCambiarEspacios(): void {
   void refrescarNivel();
 }
 
-/**
- * BREADCRUMB NAVEGABLE (red de minimapas del nivel): cada miniatura de la barra
- * `#minimapasAnidados` que trae `data-minimapa-nivel` es un acceso DIRECTO a esa
- * planta/habitación/mueble de la pila. También responde al teclado (Enter/Space)
- * porque el render la emite como `role="button" tabindex="0"`.
- */
-function conectarBreadcrumbNavegable(): void {
-  const host = el('minimapasAnidados');
-  if (!host) return;
-  const destinoDe = (ev: Event): number | null => {
-    const objetivo = (ev.target as HTMLElement | null)?.closest<HTMLElement>(
-      '[data-minimapa-nivel]',
-    );
-    if (!objetivo) return null;
-    const nivel = Number(objetivo.dataset.minimapaNivel);
-    return Number.isFinite(nivel) ? nivel : null;
-  };
-  host.addEventListener('click', (ev) => {
-    const nivel = destinoDe(ev);
-    if (nivel === null) return;
-    ev.preventDefault();
-    void navegarAMiga(nivel);
-  });
-  host.addEventListener('keydown', (ev) => {
-    if (ev.key !== 'Enter' && ev.key !== ' ') return;
-    const nivel = destinoDe(ev);
-    if (nivel === null) return;
-    ev.preventDefault();
-    void navegarAMiga(nivel);
-  });
-}
-
-// -----------------------------------------------------------------------------
-// ENTRADA
-// -----------------------------------------------------------------------------
-
 export function iniciarPortalesAlmacenamiento(): void {
   window.addEventListener('estok:planta-seleccionada', alSeleccionarPlanta);
   window.addEventListener('estok:habitacion-seleccionada', alSeleccionarHabitacion);
@@ -398,7 +359,6 @@ export function iniciarPortalesAlmacenamiento(): void {
   el('btnOrganizarEscena4')?.addEventListener('click', () => organizarContenido());
   conectarPortalesPorDelegacion();
   vigilarOrigenDelClic();
-  conectarBreadcrumbNavegable();
   conectarDropTarjetas();
   const izquierda = slotIzq();
   if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);

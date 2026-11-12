@@ -24,11 +24,8 @@ import {
   columnasInternasDe,
   columnasDeFilaInterna,
   guardarUbicacion,
-  esDivisionUbicacion,
 } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-// Espacios VIRTUALES (limbo «En Tránsito»): no son habitaciones del Visor.
-import { esEspacioVirtual, filtrarEspaciosDePlano } from './ubicacionesVirtuales';
 import {
   conectarRenombradoEnVivo,
   conectarResizeElastico,
@@ -48,7 +45,6 @@ import {
   paletaPuertaHtml,
   medidasDe,
   minimapaHabitacionHtml,
-  tarjetaPlantaHtml,
   iconoContenedorVisor,
 } from './visorHabitacionHtml';
 
@@ -94,14 +90,6 @@ let objetosRoom: ObjetoVisor[] = [];
 /** Tipo de elemento arrastrándose sobre el Visor (para las Drop Zones de pared). */
 let dragTipoVisor: 'contenedor' | 'objeto' | 'puerta' | null = null;
 
-/** Divisiones (plantas) del Estok activo para el estado inicial del Visor. */
-let divisionesIniciales: UbicacionPlano[] = [];
-/**
- * Habitaciones REALES del Estok activo (todas las plantas), con su geometría
- * nativa ui_left/ui_top/ui_width/ui_height: alimentan el plano proporcional de
- * cada minimapa inicial (Planta Alta / Planta Baja) del Visor.
- */
-let habitacionesIniciales: UbicacionPlano[] = [];
 /** Casillero exacto de la grilla que el usuario está inspeccionando (guía naranja). */
 let celdaInspeccionada: { fila: number; col: number } | null = null;
 /** Mueble activo (ESCENA 3): resaltado en el Visor y abierto en el panel derecho. */
@@ -147,35 +135,8 @@ async function cargarContenido(): Promise<void> {
 }
 
 // =============================================================================
-// ESTADO INICIAL DEL VISOR - minimapas de las plantas en paralelo
+// MINIMAPA DEL CASILLERO INSPECCIONADO
 // =============================================================================
-
-/** Carga las divisiones (plantas) del Estok activo y sus habitaciones encastradas
- *  para el estado inicial del Visor: sus planos proporcionales se pintan en
- *  paralelo apenas carga la página. */
-async function cargarDivisionesIniciales(): Promise<void> {
-  try {
-    const data = await fetchTodos(`${API_BASE_URL}/ubicaciones/?page_size=1000`);
-    const todas = data as unknown as UbicacionPlano[];
-    divisionesIniciales = todas
-      .filter((u) => esDivisionUbicacion(u) && !esEspacioVirtual(u))
-      .sort((a, b) => (a.parent_grid_row || 1) - (b.parent_grid_row || 1));
-    // Habitaciones dibujables del plano: sin limbo «En Tránsito» y CON geometría
-    // física válida (una caja inventada taparía los ambientes reales).
-    habitacionesIniciales = filtrarEspaciosDePlano(
-      todas.filter((u) => !esDivisionUbicacion(u)),
-    );
-  } catch {
-    divisionesIniciales = [];
-    habitacionesIniciales = [];
-  }
-  if (!roomActual) renderVisor();
-}
-
-/** Habitaciones encastradas en una división (planta) por su relación padre. */
-function habitacionesDeDivision(divisionId: string): UbicacionPlano[] {
-  return habitacionesIniciales.filter((h) => h.parent_ubicacion === divisionId);
-}
 
 /** Actualiza en caliente SOLO el minimapa del Visor con el casillero inspeccionado. */
 function refrescarMinimapa(): void {
@@ -207,46 +168,21 @@ function aplicarMuebleActivo(): void {
 // =============================================================================
 
 /**
- * Rellena el HOST del componente global <MinimapaRuta /> del bloque compacto
- * «Minimapas de las plantas» (#minimapaPlantasIniciales): una tarjeta por
- * división (planta) del Estok activo, dibujada con el MISMO motor de siluetas
- * asimétricas proporcionales (lib/visorHabitacionHtml.ts → tarjetaPlantaHtml).
- * El host lo declara la página y NO se destruye nunca: solo se rellena.
+ * Dibuja el Visor: apaga el montaje cuando no hay habitación abierta y lo pinta
+ * cuando la hay (Nivel 2). Los minimapas secundarios de plantas se retiraron de
+ * la pantalla: al seleccionar una planta quedan sólo el minimapa de la planta
+ * (cuadrante izquierdo) y el de las habitaciones (cuadrante derecho).
  */
-function renderPlantasIniciales(): void {
-  const host = document.getElementById('minimapaPlantasIniciales');
-  if (!host) return;
-  if (!divisionesIniciales.length) {
-    host.innerHTML = `<div class="visor-placeholder">
-      <div class="visor-placeholder-ico">🏠</div>
-      <p class="visor-placeholder-texto">Cargando minimapas de las plantas del Estok activo...</p>
-    </div>`;
-    return;
-  }
-  host.innerHTML = `<div class="visor-default-minimapas w-full">${divisionesIniciales
-    .map((d) => tarjetaPlantaHtml(d, habitacionesDeDivision(d.id)))
-    .join('')}</div>`;
-}
-
-/** Dibuja el Visor: estado inicial (plantas) o la habitación abierta (Nivel 2). */
 function renderVisor(): void {
-  const bloquePlantas = document.getElementById('visorPlantas');
   const montajeRoom = document.getElementById('visorRoom');
-  if (!bloquePlantas || !montajeRoom) return;
+  if (!montajeRoom) return;
 
   if (!roomActual) {
-    // ESTADO INICIAL: el bloque compacto del COMPONENTE GLOBAL ya está montado
-    // por la página — no se reescribe el contenedor (antes se hacía
-    // `cont.innerHTML = ''`, lo que destruía el host y volvía a inflar el DOM).
-    // Solo se rellena su lienzo y se apaga el montaje de la habitación.
-    bloquePlantas.classList.remove('hidden');
     montajeRoom.classList.add('hidden');
     montajeRoom.innerHTML = '';
-    renderPlantasIniciales();
     return;
   }
 
-  bloquePlantas.classList.add('hidden');
   montajeRoom.classList.remove('hidden');
   // Purga absoluta del montaje en caliente: el navegador destruye los
   // minimapas residuales viejos ANTES de iterar y re-dibujar los actualizados.
@@ -877,20 +813,17 @@ export function initVisor(): void {
   });
   // Refresco en caliente ante cambios externos (movimientos/eliminaciones).
   window.addEventListener('estok:espacios-cambiados', () => {
-    if (!roomActual) {
-      // Sin habitación seleccionada: re-pintar los minimapas iniciales de plantas.
-      void cargarDivisionesIniciales();
-      return;
-    }
+    // Sin habitación seleccionada no hay lienzo que repintar: los minimapas de
+    // plantas (duplicados) ya no viven en este Visor.
+    if (!roomActual) return;
     // FRENO DE EDICIÓN DE ESPACIO: repintar el lienzo por `innerHTML` destruiría
     // el `<input>` con el nombre a medio escribir y descartaría el gesto en curso.
     // Se difiere hasta que el operador termine (Enter/blur o puntero suelto).
     if (hayEdicionEspacioActiva()) refrescarVisorDiferido();
     else refrescarVisor();
   });
-  // Estado inicial: planos proporcionales de "Planta Alta" y "Planta Baja" en
-  // paralelo (cada ambiente con su silueta real ui_width/ui_height + icono).
-  void cargarDivisionesIniciales();
+  // El Visor arranca apagado: sólo se enciende cuando el operador elige una
+  // habitación (Nivel 2). Los minimapas de plantas duplicados ya no se montan.
   renderVisor();
 }
 

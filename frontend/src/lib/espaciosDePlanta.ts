@@ -23,8 +23,7 @@
 // y el ambiente actual en NARANJA (#f97316).
 //
 // Espejo canónico de: lib/mapaCasitaNavegable.ts (cargarDatos /
-// habitacionesDePlanta / apartamentoDePlantaUnica / roomsDePlantaUnica) y
-// lib/visorHabitacion.ts (cargarDivisionesIniciales / habitacionesDeDivision).
+// habitacionesDePlanta / apartamentoDePlantaUnica / roomsDePlantaUnica).
 //
 // DEUDA TÉCNICA (no tocar sin pedido explícito): mapaCasitaNavegable.ts conserva
 // copias locales equivalentes de estas derivaciones. Migrarlas a este módulo es

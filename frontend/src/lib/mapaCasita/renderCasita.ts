@@ -6,15 +6,15 @@
 //
 //   Nivel 1 → silueta perimetral de la casa (techo puntiagudo) con la PLANTA
 //             SELECCIONADA resaltada en naranja (.casita-piso-activo).
-//   Nivel 2 → Editor Elástico de Habitaciones: minimapa de la casita (planta
-//             activa en naranja) + lienzo elástico con botón «➕ Habitación»,
-//             comandos y el disyuntor canónico «Espacio Único» en la cabecera.
+//   Nivel 2 → Editor Elástico de Habitaciones: lienzo elástico con botón
+//             «➕ Habitación», comandos y el disyuntor canónico «Espacio Único»
+//             en la cabecera. El minimapa de la planta NO se repite acá: vive
+//             únicamente en el cuadrante izquierdo.
 // =============================================================================
 
 import { escapeHtml } from '../mapaJerarquico';
 import type { UbicacionPlano } from '../mapaJerarquico';
 import type { ItemElastico } from '../lienzoElastico';
-import { minimapaCasitaSvg } from '../minimapa';
 import { renderLienzoElastico } from '../mapaPlantaUnica';
 import { inyectarPerimetroElastico } from '../perimetroElastico';
 import { iconoDeHabitacion } from '../planoHabitaciones';
@@ -71,14 +71,21 @@ export function renderCasaHtml(params: {
   </div>`;
 }
 
-/** Nivel 2: minimapa ultra-mini de la casita + plano elástico + disyuntor del sub-nivel. */
+/**
+ * Nivel 2: plano elástico de las habitaciones de la planta activa + disyuntor
+ * del sub-nivel.
+ *
+ * MINIMAPA SECUNDARIO RETIRADO: acá vivía la «casita ultra-mini» con el salto
+ * de piso. Dicho mapa duplicaba el minimapa principal de la planta (cuadrante
+ * izquierdo) y el cambio de planta sigue disponible en esa silueta; el cuadrante
+ * derecho conserva únicamente el minimapa de las habitaciones.
+ */
 export function renderHabitacionesHtml(params: {
   fila: number;
-  total: number;
   divisiones: UbicacionPlano[];
   habitaciones: UbicacionPlano[];
 }): string {
-  const { fila, total, divisiones, habitaciones } = params;
+  const { fila, divisiones, habitaciones } = params;
   const nombre = nombreDePlanta(divisiones, fila);
   const habs = habitacionesDePlanta(divisiones, habitaciones, fila);
   const div = divisiones.find((d) => d.parent_grid_row === fila) ?? null;
@@ -115,7 +122,10 @@ export function renderHabitacionesHtml(params: {
             'Esta planta no tiene habitaciones todavía. En modo «✏️ Editar» usá «➕ Habitación» para inyectar la primera.',
           // HOMOLOGACIÓN DEL EDITOR: misma guía contextual que el editor premium del
           // Onboarding (idéntico motor 2D), para que la interfaz se vea consistente.
+          // CARTEL CONDICIONAL: «Editor de espacios» nace OCULTO y sólo aparece
+          // cuando el operador presiona «✏️ Editar» (body.modo-edicion).
           tip: '🧩 <strong>Editor de espacios</strong> · inyectá cada habitación con «➕ Habitación», arrastrala para acomodarla, estirá de su esquina para cambiar su tamaño y <strong>seleccioná 2+ para fusionarlas</strong> en un único bloque en «L».',
+          tipSoloEnEdicion: true,
         }),
         div,
       )
@@ -140,14 +150,6 @@ export function renderHabitacionesHtml(params: {
         <span class="nav-jerarquica__titulo">🏠 ${escapeHtml(nombre)}</span>
         ${disyuntor}
       </span>
-    </div>
-    <div class="casita-minimapa-wrap" title="Minimapa de la casita: la planta activa está en naranja">
-      <div class="casita-minimapa-casilla">${minimapaCasitaSvg({ filas: total, filaActiva: fila })}</div>
-      <div class="casita-minimapa-info">
-        <span class="casita-minimapa-leyenda">Estás en</span>
-        <strong>${escapeHtml(nombre)}</strong>
-        <span class="casita-minimapa-hint">Tocá un piso del minimapa para saltar</span>
-      </div>
     </div>
     <div class="casita-plano">${plano}</div>
   </div>`;

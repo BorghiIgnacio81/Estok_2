@@ -10,16 +10,7 @@
 
 import { escapeHtml, filasInternasDe, columnasDeFilaInterna } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
-import { ASPECTO_LIENZO, minimapaRectangularSvg } from './minimapa';
-// COMPONENTE GLOBAL: la tarjeta de planta se dibuja con el MISMO motor puro que
-// alimenta a components/MinimapaRuta.astro (siluetas asimétricas reales + trazos
-// negros de .mini-anidados-barra). No se dibuja ningún plano por fuera del motor.
-import { renderMinimapasAnidados } from './minimapasAnidados';
-import { sectoresDeItems } from './sectoresMinimapa';
-import { iconoDeHabitacion } from './planoHabitaciones';
-// FILTRO CENTRAL DEL PLANO: la tarjeta de planta jamás dibuja el limbo
-// «En Tránsito» ni espacios sin geometría física válida.
-import { filtrarEspaciosDePlano } from './ubicacionesVirtuales';
+import { minimapaRectangularSvg } from './minimapa';
 // ICONOGRAFÍA FÍSICA ÚNICA: el icono de un contenedor mueble se resuelve con la
 // MISMA fuente que el lienzo de edición de Almacenamiento (subtipo por nombre +
 // taxonomía). Si no hay subtipo reconocido se devuelve '' y el visor cae a la
@@ -135,63 +126,8 @@ export function minimapaHabitacionHtml(
   </div>`;
 }
 
-/** TARJETA de planta del estado inicial del Visor (base del panel derecho).
- *
- *  REGLA DE UNIFICACIÓN: se eliminó de raíz el plano HTML propio con cajas
- *  absolutas y líneas tenues. La miniatura de cada planta la dibuja el MOTOR
- *  GLOBAL (el mismo que alimenta a components/MinimapaRuta.astro →
- *  renderMinimapasAnidados): cada ambiente de la planta se lee con su SILUETA
- *  REAL (ui_left/ui_top/ui_width/ui_height persistidos en PostgreSQL), con los
- *  bordes negros bien definidos que el bar analítico impone a escala reducida y
- *  su icono contextual (🚽 🛏️ 🗄️ 🏠) en miniatura.
- *
- *  HERMANAS Y NO CADENA: las plantas son niveles paralelos del Estok, no pasos
- *  de una descendencia → `hermanas: true` (sin resalte naranja ni flechas `→`).
- *
- *  HERENCIA DE LA REGLA DE FUSIONES: los ambientes con el mismo `fusion_grupo`
- *  (ej. «Pasillo Escalera») viajan como UN ÚNICO sector con la caja de su unión
- *  y sus partes ya fundidas por adyacencia (lib/sectoresMinimapa.ts →
- *  lib/plantaFusionSilueta.ts), de modo que acá también se ven como un solo
- *  ambiente continuo, sin ninguna línea divisoria interna.
- *
- *  Ambas plantas ("Planta Alta" y "Planta Baja") se renderizan en paralelo
- *  apenas carga la página para dar feedback analítico inmediato al operador. */
-export function tarjetaPlantaHtml(
-  division: UbicacionPlano | null,
-  habitaciones: UbicacionPlano[] | null | undefined,
-): string {
-  if (!division) return '';
-  // Filtro central del plano antes de proyectar los sectores del SVG.
-  const rooms = filtrarEspaciosDePlano(habitaciones);
-  // Sectores con geometría real (y fusiones ya unificadas) + icono contextual.
-  const sectores = sectoresDeItems(
-    rooms,
-    null,
-    (item) => iconoDeHabitacion(String(item.nombre ?? '')),
-    { excluirSinGeometria: true },
-  );
-  const detalle = sectores.length
-    ? `${sectores.length} ambiente${sectores.length === 1 ? '' : 's'} · silueta real`
-    : 'Sin ambientes todavía';
-  // Dimensión elástica del lienzo (alto/ancho): el mismo aspecto por defecto del
-  // motor, para que la silueta no se deforme en la miniatura.
-  const miniatura = renderMinimapasAnidados(
-    [
-      {
-        tipo: 'planta',
-        nombre: division.nombre,
-        id: String(division.id),
-        sectores,
-        aspecto: ASPECTO_LIENZO,
-      },
-    ],
-    { hermanas: true },
-  );
-  const fila = division.parent_grid_row || 1;
-  return `<div class="visor-minimapa-planta" data-planta-fila="${fila}" data-planta-nombre="${escapeHtml(division.nombre)}"
-    role="button" tabindex="0"
-    title="Planta «${escapeHtml(division.nombre)}»: ${detalle} (proporciones reales ui_width × ui_height). Tocá para fijarla como planta activa.">
-    ${miniatura}
-    <span class="visor-minimapa-detalle">${detalle}</span>
-  </div>`;
-}
+/**
+ * TARJETA de planta del estado inicial del Visor: RETIRADA junto con el bloque
+ * «Minimapas de las plantas» (#visorPlantas), que duplicaba los minimapas
+ * principales de la pantalla de Almacenamiento.
+ */
