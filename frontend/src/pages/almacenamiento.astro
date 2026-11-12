@@ -33,6 +33,10 @@ import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
+// MINIMAPA PADRE 100% GRÁFICO: hoja DEDICADA del cuadrante izquierdo cuando la
+// cascada ya tiene padre (apaga fichas, migas de pan, leyendas y rótulos; deja
+// sólo las siluetas con el nodo activo relleno en NARANJA).
+import '../styles/almacenamiento-minimapa-padre.css';
 // Acción del contenedor activo («🔎 Abrir ficha completa») y canasta del Panel
 // Derecho cuando se inspecciona una caja. Mover la caja se hace arrastrándola.
 import '../styles/almacenamiento-acciones-caja.css';
@@ -122,13 +126,12 @@ import { ASSET_CAJA } from '../lib/assetsUi';
                raíz de la Casa no tiene padre y conserva su cabecera normal.
                Lo gobierna lib/mapa/portales/panelesPortales.ts (esMinimapaPadre). -->
           <div id="contenidoPanelIzquierdo" class="mt-1">
-            <!-- FICHA DEL CONTENEDOR ACTIVO (nivel interno de la caja): al tocar una
-                 caja/espacio del lienzo se pinta acá arriba su ficha (datos reales
-                 de PostgreSQL), la lista de objetos almacenados y sus acciones
-                 («🔎 Abrir ficha completa»). Mover la caja se hace arrastrándola. El mapa
-                 del nivel superior sigue debajo, así la navegación no se pierde.
-                 La gobierna lib/mapa/portales/fichaContenedorPanel.ts. -->
-            <div id="fichaContenedorPanel" class="hidden mb-3"></div>
+            <!-- SIN FICHA DE TEXTO EN EL CONTEXTO: la posición donde estaba la
+                 ficha del contenedor (nombre, migas de pan «Living › Ropero ›
+                 Caja 01», badges, medidas y listas de atributos) la ocupa ahora
+                 ÚNICAMENTE el minimapa gráfico del nivel superior con el nodo
+                 activo relleno en NARANJA (#f97316). Los datos completos siguen
+                 en «🔎 Abrir ficha completa» del panel derecho. -->
             <div id="mapaEstokPanel">
               <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
             </div>

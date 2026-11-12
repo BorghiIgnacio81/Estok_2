@@ -509,41 +509,6 @@ body [data-grupo-resize] {
 
 
 /* -----------------------------------------------------------------------------
-   MINIMAPA PADRE · 100% GRÁFICO (SIN CARTELES DE TEXTO)
-   -----------------------------------------------------------------------------
-   En cuanto el operador desciende (Planta → Habitación → Mueble → Estante/Caja)
-   el cuadrante izquierdo es el MINIMAPA del nivel INMEDIATAMENTE SUPERIOR y
-   funciona como recordatorio visual de ubicación: se apagan los carteles,
-   leyendas y ayudas que traen los visores históricos, y queda sólo el plano con
-   el nodo activo resaltado en NARANJA (#f97316).
-
-   El marcador `.minimapa-padre` lo pone `transicionar()`
-   (lib/mapa/portales/portalesAlmacenamiento.ts) SÓLO cuando hay padre: la vista
-   raíz de la Casa (Nivel 1) NO lo recibe y conserva su cabecera normal.
-
-   En pantallas angostas las dos columnas se apilan y el minimapa padre queda
-   ARRIBA del mapa del nivel actual.
-   -------------------------------------------------------------------------- */
-#contenidoPanelIzquierdo.minimapa-padre .portal-lienzo-tip,
-#contenidoPanelIzquierdo.minimapa-padre .planta-unica-tip,
-#contenidoPanelIzquierdo.minimapa-padre .visor-encabezado,
-#contenidoPanelIzquierdo.minimapa-padre .visor-ayuda,
-#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-titulo,
-#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-detalle,
-#contenidoPanelIzquierdo.minimapa-padre .cg-sub {
-  display: none !important;
-}
-
-/* Cabecera del cuadrante izquierdo: cuando es minimapa puro no muestra título,
-   leyenda ni badge (los oculta `transicionar()`); el display se fuerza acá para
-   que las utilidades `flex` de Tailwind no pisen el `.hidden`. */
-#tituloPanelIzquierdo.hidden,
-#descPanelIzquierdo.hidden,
-#mapaJerarquicoBadge.hidden {
-  display: none !important;
-}
-
-/* -----------------------------------------------------------------------------
    ACORDEÓN «🧱 Divisiones de «X»» (justo debajo del mapa del Panel Derecho)
    -----------------------------------------------------------------------------
    Sustituye la cabecera fija del nivel: el mapa elástico queda PRIMERO y la
@@ -602,4 +567,3 @@ body [data-grupo-resize] {
   border-top: 1px dashed #fdba74;
   padding: 10px 12px 12px;
 }
-

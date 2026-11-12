@@ -50,9 +50,6 @@ import {
 // inventario interno, con la zona de suelta que recibe los objetos arrastrados
 // desde la bandeja del mismo panel. Mover la caja ya no tiene botón propio.
 import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
-// FICHA DEL CONTENEDOR ACTIVO en el Panel Izquierdo (nivel interno de la caja):
-// datos reales + objetos almacenados, arriba del ancla del nivel superior.
-import { ocultarFichaContenedor, pintarFichaContenedor } from './fichaContenedorPanel';
 import {
   el,
   moverPanel,
@@ -205,12 +202,6 @@ export function transicionar(): void {
   const mostrarCanastaCaja = Boolean(
     nodoDelNivel && nodoDelNivel.tipo === 'contenedor' && !nodoDelNivel.espacioUnico,
   );
-  // FICHA DEL CONTENEDOR EN EL PANEL IZQUIERDO: sólo existe mientras el nodo
-  // activo sea una caja/contenedor (la pinta refrescarNivelInterno). Al subir a
-  // una habitación o a la raíz se apaga, para que el ancla quede limpia.
-  if (!nodoDelNivel || nodoDelNivel.tipo !== 'contenedor') {
-    ocultarFichaContenedor(el('fichaContenedorPanel'));
-  }
   const hostBandejaCaja = el('bandejaCajaHost');
   if (hostBandejaCaja) {
     hostBandejaCaja.classList.toggle('hidden', !mostrarCanastaCaja);
@@ -402,12 +393,9 @@ async function refrescarNivelInterno(): Promise<void> {
     await pintarNivel(actual, interiorActual);
     transicionar();
     resaltarSeleccionIzquierda(actual.id);
-    // 4-bis) NIVEL INTERNO EN EL PANEL IZQUIERDO: si el nodo activo es una caja /
-    //     contenedor, arriba del ancla se pinta su FICHA (datos reales) con la
-    //     lista de objetos almacenados y sus acciones. Se re-ejecuta en cada
-    //     refresco, así el contador sube en el acto tras soltar un objeto encima.
-    await pintarFichaContenedor(el('fichaContenedorPanel'), actual, interiorActual);
-    // El Visor de Habitación (cuando oficia de ancla) destaca la silueta elegida.
+    // 4-bis) El Visor de Habitación (cuando oficia de ancla) destaca la silueta
+    //     elegida en NARANJA. El cuadrante izquierdo NO pinta fichas de texto:
+    //     es el MINIMAPA gráfico del nivel superior (ver transicionar).
     if (paneles.izquierdo === 'visorHabitacion') {
       window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: { id: actual.id } }));
     }

@@ -35,6 +35,26 @@ async function plantaIdActiva(): Promise<string | null> {
   return div ? String(div.id) : null;
 }
 
+/**
+ * Id de la división raíz que oficia de PLANTA para el MINIMAPA del cuadrante
+ * izquierdo (ancla del nivel superior).
+ *
+ *   · Con una planta fijada por fila → esa división raíz.
+ *   · PLANTA ÚNICA (una sola división raíz y ninguna fila elegida) → esa única
+ *     división ES la planta del minimapa. Sin este fallback el ancla quedaba
+ *     vacía al entrar a una habitación de un Estok de una sola planta, cuando
+ *     la regla exige SIEMPRE el gráfico de la planta con el cuarto en naranja.
+ */
+async function plantaIdAncla(): Promise<string | null> {
+  const fila = estadoPortales.planta?.fila ?? null;
+  const plantas = await cargarPlantas();
+  if (fila) {
+    const div = plantas.find((p) => (p.parent_grid_row || 1) === fila);
+    return div ? String(div.id) : null;
+  }
+  return plantas.length === 1 ? String(plantas[0].id) : null;
+}
+
 /** Dibuja el mapa de habitaciones de una planta en el host indicado. */
 async function pintarHabitacionesEn(
   hostId: string,
@@ -101,7 +121,7 @@ export async function pintarAncla(
   cacheUbicacionesLocal = await cargarUbicaciones();
 
   if (izquierdo === 'plantaConHabitaciones') {
-    const plantaId = await plantaIdActiva();
+    const plantaId = await plantaIdAncla();
     if (plantaId) await pintarHabitacionesEn(HOSTS.plantaConHabitaciones, plantaId, activo.id);
     return;
   }

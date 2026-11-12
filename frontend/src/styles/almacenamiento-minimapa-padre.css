@@ -1,0 +1,135 @@
+/* =============================================================================
+   ALMACENAMIENTO · MINIMAPA PADRE 100% GRÁFICO (CERO TEXTO)
+   -----------------------------------------------------------------------------
+   Hoja DEDICADA del cuadrante izquierdo cuando la cascada ya tiene padre.
+   Extraída de almacenamiento-portales.css para sostener la disciplina de
+   modularidad (ningún archivo de UI por encima de las 400 líneas).
+   Se importa únicamente en src/pages/almacenamiento.astro DESPUÉS de
+   almacenamiento-portales.css (y de mapa-casita / almacenamiento-escenas), para
+   que las reglas de las siluetas ganen en cascada.
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   MINIMAPA PADRE · 100% GRÁFICO (CERO TEXTO)
+   -----------------------------------------------------------------------------
+   En cuanto el operador desciende (Planta → Habitación → Mueble → Estante/Caja)
+   el cuadrante izquierdo es el MINIMAPA del nivel INMEDIATAMENTE SUPERIOR y
+   funciona como recordatorio visual de ubicación. Acá se apagan TODOS los
+   carteles: fichas, migas de pan escritas («Living › Ropero › Caja 01»),
+   badges, leyendas, ayudas, nombres y contadores. Queda sólo la silueta del
+   contenedor padre con el nodo activo RELLENO en NARANJA (#f97316).
+
+   El marcador `.minimapa-padre` lo pone `transicionar()`
+   (lib/mapa/portales/portalesAlmacenamiento.ts) SÓLO cuando hay padre: la vista
+   raíz de la Casa (Nivel 1) NO lo recibe y conserva su cabecera normal.
+
+   En pantallas angostas las dos columnas se apilan y el minimapa padre queda
+   ARRIBA del mapa del nivel actual.
+   -------------------------------------------------------------------------- */
+
+/* 1 · FICHAS Y CABECERAS DE LOS VISORES HISTÓRICOS
+   · Visor de Habitación: foto + nombre + «División: …» + medidas, encabezado,
+     ayuda, minimapa rotulado y paleta de la puerta.
+   · Visor Contenedor Grande: cabecera («Distribución interna de …»), conmutador
+     de espacios con nombres, botón «← Ver todos los espacios» y ficha del
+     mueble (nombre, meta, insignias, «🔍 Abrir ficha»).
+   · Estados vacíos explicativos de ambos visores. */
+#contenidoPanelIzquierdo.minimapa-padre .visor-ficha,
+#contenidoPanelIzquierdo.minimapa-padre .visor-encabezado,
+#contenidoPanelIzquierdo.minimapa-padre .visor-ayuda,
+#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-titulo,
+#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-detalle,
+#contenidoPanelIzquierdo.minimapa-padre .visor-puerta-paleta,
+#contenidoPanelIzquierdo.minimapa-padre .visor-puerta-label,
+#contenidoPanelIzquierdo.minimapa-padre .cg-cabecera,
+#contenidoPanelIzquierdo.minimapa-padre .cg-conmutador,
+#contenidoPanelIzquierdo.minimapa-padre .cg-atras,
+#contenidoPanelIzquierdo.minimapa-padre .cg-mueble-abrir,
+#contenidoPanelIzquierdo.minimapa-padre .cg-vacio-texto,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-nombre,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-meta,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-inmueble,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-objetos-titulo,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-item-nombre,
+#contenidoPanelIzquierdo.minimapa-padre .pu-vacio,
+#contenidoPanelIzquierdo.minimapa-padre .portal-vacio {
+  display: none !important;
+}
+
+/* 2 · LEYENDAS DE AYUDA Y RÓTULOS ESCRITOS SOBRE LAS SILUETAS
+   (el plano de la planta deja de imprimir «Baño», «Cocina · 2 espacios», …). */
+#contenidoPanelIzquierdo.minimapa-padre .portal-lienzo-tip,
+#contenidoPanelIzquierdo.minimapa-padre .planta-unica-tip,
+#contenidoPanelIzquierdo.minimapa-padre .minimapa-etiquetas {
+  display: none !important;
+}
+
+/* 3 · RÓTULOS Y CONTROLES DE EDICIÓN DE LAS TARJETAS ELÁSTICAS
+   La silueta (borde + relleno) y su icono SIEMPRE quedan: sólo se van el
+   nombre, la meta, el contador, los chips de contenido y las asas de edición
+   (checkbox de fusión, 🗑️, ⧉, tiradores y asa de arrastre) junto con la
+   cabecera de creación («➕ …» · «Fusionar Espacios» · «0 seleccionados»). */
+#contenidoPanelIzquierdo.minimapa-padre .planta-unica-cab,
+#contenidoPanelIzquierdo.minimapa-padre .pu-nombre,
+#contenidoPanelIzquierdo.minimapa-padre .pu-grupo-nombre,
+#contenidoPanelIzquierdo.minimapa-padre .pu-meta,
+#contenidoPanelIzquierdo.minimapa-padre .pu-conteo,
+#contenidoPanelIzquierdo.minimapa-padre .pu-contenido,
+#contenidoPanelIzquierdo.minimapa-padre .pu-check,
+#contenidoPanelIzquierdo.minimapa-padre .pu-celda-eliminar,
+#contenidoPanelIzquierdo.minimapa-padre .pu-celda-duplicar,
+#contenidoPanelIzquierdo.minimapa-padre .pu-grupo-eliminar,
+#contenidoPanelIzquierdo.minimapa-padre .pu-resize,
+#contenidoPanelIzquierdo.minimapa-padre .pu-grupo-resize,
+#contenidoPanelIzquierdo.minimapa-padre .pu-asa-arrastre,
+#contenidoPanelIzquierdo.minimapa-padre .mueble-celda-crear {
+  display: none !important;
+}
+
+/* 4 · CASA (Nivel 2): la silueta identifica cada planta por su nombre; el
+   contador de habitaciones («3 habs ›») es texto de atributos y se retira.
+   La planta activa sigue en NARANJA (.casita-piso-activo). */
+#contenidoPanelIzquierdo.minimapa-padre .casita-piso-meta {
+  display: none !important;
+}
+
+/* 5 · RELLENO NARANJA DEL ELEMENTO ACTIVO
+   La convención global marca el nodo elegido con `.portal-seleccion-naranja`
+   (contorno). En el minimapa padre el nodo activo va con RELLENO naranja pleno,
+   tal como pide la regla gráfica (silueta con relleno naranja). Los sectores SVG
+   ya reciben `fill: #f97316` por la regla existente. */
+#contenidoPanelIzquierdo.minimapa-padre .portal-seleccion-naranja,
+#contenidoPanelIzquierdo.minimapa-padre .visor-mueble-activo {
+  background: #f97316 !important;
+  border-color: #c2410c !important;
+  outline-color: #c2410c !important;
+}
+
+/* Casa (Nivel 2): la planta activa va con RELLENO naranja visible, no con un
+   tinte tenue (la silueta se lee de un vistazo). */
+#contenidoPanelIzquierdo.minimapa-padre .casita-piso-activo {
+  background: #fdba74 !important;
+  box-shadow: inset 4px 0 0 #c2410c !important;
+}
+
+/* 6 · CAJAS / OBJETOS GUARDADOS EN EL MUEBLE: sin su nombre quedan como
+   siluetas rectangulares (borde negro + relleno crema) que se pintan naranjas
+   cuando son el nodo activo del nivel. */
+#contenidoPanelIzquierdo.minimapa-padre .mueble-item {
+  min-width: 28px;
+  min-height: 20px;
+  max-width: none;
+  padding: 6px 10px;
+  border: 1px solid #0a0a0a;
+  border-radius: 6px;
+  background: #fef3c7;
+}
+
+/* Cabecera del cuadrante izquierdo: cuando es minimapa puro no muestra título,
+   leyenda ni badge (los oculta `transicionar()`); el display se fuerza acá para
+   que las utilidades `flex` de Tailwind no pisen el `.hidden`. */
+#tituloPanelIzquierdo.hidden,
+#descPanelIzquierdo.hidden,
+#mapaJerarquicoBadge.hidden {
+  display: none !important;
+}
