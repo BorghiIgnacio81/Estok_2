@@ -17,6 +17,13 @@
 // con un MutationObserver debounced: una tarjeta inyectada después NUNCA queda
 // sin filtrar ni se muestra fuera del filtro activo.
 //
+// 🔴 CÍRCULO DE COINCIDENCIAS POR ACORDEÓN (indicador tipo notificación móvil):
+// cada encabezado de sección colapsable muestra cuántos objetos DE ESA SECCIÓN
+// coinciden con el filtro activo; sin coincidencias el círculo se oculta y la
+// barra queda atenuada. Sin filtro activo el círculo no se muestra (el badge
+// del total ya informa el tamaño de la sección). Lo pinta este módulo en el
+// <span data-coincidencias-acordeon> de components/decisiones/SeccionAcordeon.
+//
 // Auth centralizada: los propietarios se leen con `cargarUsuariosEstok()`
 // (lib/catalogosEstok.ts), que usa services/auth. Este módulo no define headers.
 // =============================================================================
@@ -32,6 +39,12 @@ const ID_RESULTADO = 'filtroResultadoDecisiones';
 
 /** Selector de TODO elemento filtrable (tarjetas del tablero y filas). */
 const SELECTOR_FILTRABLE = '[data-filtro-objeto]';
+
+/** Círculo rojo de coincidencias del encabezado de cada acordeón. */
+const SELECTOR_COINCIDENCIAS = '[data-coincidencias-acordeon]';
+
+/** Atributo del <details> que atenúa la barra de una sección sin coincidencias. */
+const ATRIBUTO_SIN_COINCIDENCIAS = 'data-filtro-sin-coincidencias';
 
 /** Datos del objeto que alimentan el filtro. */
 export interface DatosFiltroObjeto {
@@ -90,19 +103,86 @@ function coincide(elemento: HTMLElement, buscado: string): boolean {
 }
 
 /** Resumen «X de N objetos coinciden» de la barra (sólo con filtro activo). */
-function actualizarResumen(visibles: number, total: number): void {
+function actualizarResumen(visibles: number, total: number, activo: boolean): void {
   const resumen = document.getElementById(ID_RESULTADO);
   if (!resumen) return;
-  const activo = Boolean(texto.trim() || propietario);
-  resumen.textContent = activo
+  const nuevo = activo
     ? `${visibles} de ${total} objeto(s) coinciden con el filtro`
     : '';
+  // Guarda contra bucles: reasignar el MISMO texto reemplaza el nodo hijo y
+  // despertaría al MutationObserver en cada frame (ver `observarRepintados`).
+  if (resumen.textContent !== nuevo) resumen.textContent = nuevo;
   resumen.classList.toggle('hidden', !activo);
+}
+
+/**
+ * Pinta (o esconde) el círculo rojo de un acordeón.
+ *
+ * `visible` es el estado del filtro (texto o propietario). Con el filtro
+ * apagado el círculo NUNCA se muestra: el badge del total de la sección ya
+ * informa cuántos ítems tiene.
+ */
+function pintarCoincidencias(badge: HTMLElement, coincidencias: number, activo: boolean): void {
+  const mostrar = activo && coincidencias > 0;
+  // Atributo NATIVO `hidden` (no la clase `hidden`): Tailwind v4 emite
+  // `.hidden` antes de `.inline-flex`, así que la clase NO ocultaría el badge.
+  // La regla `[data-coincidencias-acordeon][hidden]` de SeccionAcordeon.astro
+  // resuelve el empate de especificidad.
+  badge.toggleAttribute('hidden', !mostrar);
+  if (!mostrar) return;
+  const texto = String(coincidencias);
+  // Igual que en `actualizarResumen`: sólo se escribe si el valor cambió.
+  if (badge.textContent !== texto) badge.textContent = texto;
+  const etiqueta = `${coincidencias} coincidencia(s) con el filtro`;
+  if (badge.title !== etiqueta) {
+    badge.title = etiqueta;
+    badge.setAttribute('aria-label', etiqueta);
+  }
+}
+
+/**
+ * Actualiza el círculo rojo de coincidencias de CADA acordeón.
+ *
+ * Cada acordeón es la <section> que contiene su círculo
+ * (components/decisiones/SeccionAcordeon.astro). Se cuentan los elementos
+ * marcados con `atributosFiltroObjeto()` que el filtro dejó visibles; las
+ * sub-secciones de «Objetos pendientes de decisión» cuentan también dentro de
+ * su acordeón padre, porque el padre las contiene.
+ *
+ * Sección sin elementos filtrables (p. ej. Votaciones, cuyas tarjetas no pasan
+ * por la barra de filtros): el círculo se oculta y la barra NO se atenúa, para
+ * no informar «0 coincidencias» de algo que el filtro no toca.
+ */
+function actualizarCoincidenciasAcordeones(activo: boolean): void {
+  const badges = Array.from(document.querySelectorAll<HTMLElement>(SELECTOR_COINCIDENCIAS));
+  for (const badge of badges) {
+    const seccion = badge.closest('section');
+    if (!seccion) continue;
+    const detalles = badge.closest('details');
+    const items = Array.from(seccion.querySelectorAll<HTMLElement>(SELECTOR_FILTRABLE));
+    if (items.length === 0) {
+      pintarCoincidencias(badge, 0, false);
+      detalles?.removeAttribute(ATRIBUTO_SIN_COINCIDENCIAS);
+      continue;
+    }
+    let coincidencias = 0;
+    for (const item of items) {
+      if (!item.classList.contains('hidden')) coincidencias += 1;
+    }
+    pintarCoincidencias(badge, coincidencias, activo);
+    // Sin coincidencias la sección queda atenuada (el círculo ya está oculto).
+    if (activo && coincidencias === 0) {
+      detalles?.setAttribute(ATRIBUTO_SIN_COINCIDENCIAS, 'true');
+    } else {
+      detalles?.removeAttribute(ATRIBUTO_SIN_COINCIDENCIAS);
+    }
+  }
 }
 
 /** Muestra u oculta cada elemento filtrable según el estado actual. */
 function aplicarFiltros(): void {
   const buscado = normalizar(texto);
+  const activo = Boolean(texto.trim() || propietario);
   const elementos = Array.from(
     document.querySelectorAll<HTMLElement>(SELECTOR_FILTRABLE),
   );
@@ -112,7 +192,8 @@ function aplicarFiltros(): void {
     elemento.classList.toggle('hidden', oculto);
     if (!oculto) visibles += 1;
   }
-  actualizarResumen(visibles, elementos.length);
+  actualizarResumen(visibles, elementos.length, activo);
+  actualizarCoincidenciasAcordeones(activo);
 }
 
 /**

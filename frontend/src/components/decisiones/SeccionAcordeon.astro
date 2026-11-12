@@ -5,8 +5,17 @@
 // Barra desplegable reutilizable por las CUATRO secciones del tablero y por los
 // dos sub-acordeones de «Objetos pendientes de decisión»:
 //
-//   encabezado: emoji + título + BADGE con el total de ítems + flecha de
-//               colapsado/desplegado (rota 180° al abrir) + acciones extra.
+//   encabezado: emoji + título + BADGE con el total de ítems + 🔴 CÍRCULO DE
+//               COINCIDENCIAS del filtro + flecha de colapsado/desplegado
+//               (rota 180° al abrir) + acciones extra.
+//
+// 🔴 CÍRCULO ROJO DE COINCIDENCIAS (indicador tipo notificación móvil): vive
+// junto al título, OCULTO por defecto, y lo maneja lib/filtrosDecisiones.ts.
+// Con la barra de búsqueda vacía no se muestra (el badge del total ya informa
+// el tamaño de la sección); con un filtro activo muestra el número EXACTO de
+// objetos de esta sección que coinciden, y cuando no queda ninguno el círculo
+// se oculta y la barra del acordeón queda ATENUADA (atributo
+// `data-filtro-sin-coincidencias` en el <details>).
 //
 // El cuerpo es un <slot>: cada sección inyecta su contenido (grillas, estados
 // de carga/error/vacío, sub-acordeones). Este componente NO tiene lógica de
@@ -114,6 +123,16 @@ const esPrincipal = nivel === 'principal';
               ]}
             >0</span>
           )}
+          <!-- 🔴 Coincidencias del filtro activo en ESTA sección (badge tipo
+               notificación móvil). Arranca oculto (atributo nativo `hidden`,
+               que la regla de <style> hace ganar sobre `inline-flex`) y lo
+               enciende lib/filtrosDecisiones.ts sólo con filtro activo y
+               coincidencias > 0 dentro del acordeón. -->
+          <span
+            data-coincidencias-acordeon
+            hidden
+            class="inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold px-2 py-0.5 shadow"
+          >0</span>
         </span>
         <slot name="extra" />
       </span>
@@ -147,6 +166,22 @@ const esPrincipal = nivel === 'principal';
   }
   .acordeon-decisiones[open] > summary .acordeon-decisiones-flecha svg {
     transform: rotate(180deg);
+  }
+  /* SECCIÓN SIN COINCIDENCIAS: con un filtro activo la barra queda ATENUADA
+     (el círculo rojo se oculta). La transición la aporta `transition-base` del
+     propio <summary>. El atributo lo pone lib/filtrosDecisiones.ts. */
+  .acordeon-decisiones[data-filtro-sin-coincidencias='true'] > summary {
+    opacity: 0.45;
+    filter: grayscale(1);
+  }
+  /* 🔴 CÍRCULO DE COINCIDENCIAS: se apaga con el ATRIBUTO NATIVO `hidden`
+     (semántica y accesibilidad correctas). Hace falta esta regla porque
+     Tailwind v4 emite `.hidden` ANTES de `.inline-flex` (las utilidades de
+     display se ordenan alfabéticamente), así que la clase `hidden` NO alcanza
+     para ocultar un badge `inline-flex`. La especificidad (clase + atributo +
+     atributo) le gana a `inline-flex` sin recurrir a `!important`. */
+  .acordeon-decisiones [data-coincidencias-acordeon][hidden] {
+    display: none;
   }
 </style>
 
