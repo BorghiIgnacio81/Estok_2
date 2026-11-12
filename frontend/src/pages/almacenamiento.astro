@@ -126,12 +126,17 @@ import { ASSET_CAJA } from '../lib/assetsUi';
                raíz de la Casa no tiene padre y conserva su cabecera normal.
                Lo gobierna lib/mapa/portales/panelesPortales.ts (esMinimapaPadre). -->
           <div id="contenidoPanelIzquierdo" class="mt-1">
-            <!-- SIN FICHA DE TEXTO EN EL CONTEXTO: la posición donde estaba la
-                 ficha del contenedor (nombre, migas de pan «Living › Ropero ›
-                 Caja 01», badges, medidas y listas de atributos) la ocupa ahora
-                 ÚNICAMENTE el minimapa gráfico del nivel superior con el nodo
-                 activo relleno en NARANJA (#f97316). Los datos completos siguen
-                 en «🔎 Abrir ficha completa» del panel derecho. -->
+            <!-- MINIMAPA GRÁFICO PADRE · ZONA SUPERIOR DE CONTEXTO:
+                 dibuja el vector/SVG del NIVEL ANTERIOR (silueta real del
+                 contenedor padre) con el piso/cuarto/mueble activo relleno en
+                 NARANJA (#f97316). Lo gobierna lib/mapa/portales/
+                 minimapaPadreContexto.ts y convive con el título del nivel. -->
+            <div id="minimapaPadreContexto" class="hidden"></div>
+            <!-- SIN FICHA DE TEXTO EN EL CONTEXTO: la ficha con migas de pan
+                 escritas («Living › Ropero › Caja 01») y listas de atributos ya
+                 no se pinta. Los NOMBRES de los espacios/habitaciones siguen
+                 visibles en la cabecera, en las tarjetas del lienzo y sobre las
+                 siluetas del plano (nunca se ocultan). -->
             <div id="mapaEstokPanel">
               <p class="text-sm text-gray-400 text-center py-6">Cargando mapa espacial...</p>
             </div>

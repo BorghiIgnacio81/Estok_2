@@ -45,7 +45,7 @@ async function plantaIdActiva(): Promise<string | null> {
  *     vacía al entrar a una habitación de un Estok de una sola planta, cuando
  *     la regla exige SIEMPRE el gráfico de la planta con el cuarto en naranja.
  */
-async function plantaIdAncla(): Promise<string | null> {
+export async function plantaIdAncla(): Promise<string | null> {
   const fila = estadoPortales.planta?.fila ?? null;
   const plantas = await cargarPlantas();
   if (fila) {

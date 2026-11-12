@@ -58,6 +58,10 @@ import {
   slotDer,
   slotIzq,
 } from './domPortales';
+// MINIMAPA GRÁFICO PADRE: vector/SVG del nivel anterior (silueta del contenedor
+// padre con el hijo activo en naranja) en la zona superior del contexto. El
+// módulo es dueño de su host (`#minimapaPadreContexto`).
+import { pintarMinimapaPadreContexto } from './minimapaPadreContexto';
 // Canasta derecha: refresco EXPLÍCITO del fin de cadena («Espacio Único», Ley 4).
 import { refrescarBandeja } from '../../bandejaSinUbicar';
 
@@ -132,15 +136,19 @@ export function transicionar(): void {
   setTexto('descPanelIzquierdo', cab.descIzq);
   setTexto('tituloPanelDerecho', cab.tituloDer);
   setTexto('descPanelDerecho', cab.descDer);
-  // MINIMAPA PADRE 100% GRÁFICO: en cuanto hay padre (Planta, Habitación, Mueble,
-  // Estante/Caja) el cuadrante izquierdo es un recordatorio visual y NO muestra
-  // título, leyenda ni rótulos de texto. En la vista raíz de la Casa (sin padre)
-  // recupera su cabecera normal. `cabecerasDe` ya devolvió vacíos ambos textos.
+  // MINIMAPA PADRE: el cuadrante izquierdo conserva su TÍTULO (nombre del nivel
+  // donde está parado el operador) y sólo se retira la leyenda larga. El
+  // minimapa gráfico del nivel superior se monta en `#minimapaPadreContexto`.
   const enMinimapaPadre = esMinimapaPadre(ctx);
   slotIzq()?.classList.toggle('minimapa-padre', enMinimapaPadre);
   el('tituloPanelIzquierdo')?.classList.toggle('hidden', cab.tituloIzq.trim().length === 0);
   el('descPanelIzquierdo')?.classList.toggle('hidden', cab.descIzq.trim().length === 0);
-  el('mapaJerarquicoBadge')?.classList.toggle('hidden', enMinimapaPadre);
+  // El badge de nivel («Nivel 2 · Planta Alta») es un TÍTULO de contexto: se
+  // conserva visible a cualquier profundidad (antes se apagaba en el minimapa).
+  el('mapaJerarquicoBadge')?.classList.remove('hidden');
+  // MINIMAPA GRÁFICO PADRE: se (re)dibuja en CADA transición con la geometría
+  // real del nivel anterior y el nodo activo en naranja.
+  void pintarMinimapaPadreContexto();
 
   // LEY 5 · ARRANQUE SIEMPRE EN NAVEGACIÓN: cada SALTO de la pila (cambio de
   // profundidad, de nodo activo o de planta) devuelve el lienzo a modo
