@@ -507,3 +507,97 @@ body [data-grupo-resize] {
   stroke: #c2410c !important;
 }
 
+
+/* -----------------------------------------------------------------------------
+   MINIMAPA PADRE · RÓTULO EXPLÍCITO DEL NIVEL SUPERIOR
+   -----------------------------------------------------------------------------
+   El cuadrante izquierdo dibuja SIEMPRE el minimapa del nivel INMEDIATAMENTE
+   SUPERIOR (Casa → Planta → Habitación → Mueble → Caja) con el nodo donde está
+   parado el operador resaltado en naranja. Este rótulo lo nombra de forma
+   explícita en cada transición de la cascada
+   (lib/mapa/portales/panelesPortales.ts → contextoMinimapaPadre).
+   -------------------------------------------------------------------------- */
+.minimapa-padre-rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Precedencia sobre `display: inline-flex` cuando el nivel raíz no tiene padre. */
+.minimapa-padre-rotulo.hidden {
+  display: none !important;
+}
+
+/* -----------------------------------------------------------------------------
+   ACORDEÓN «🧱 Divisiones de «X»» (justo debajo del mapa del Panel Derecho)
+   -----------------------------------------------------------------------------
+   Sustituye la cabecera fija del nivel: el mapa elástico queda PRIMERO y la
+   configuración del nivel (Espacio Único, movilidad y guía) se despliega desde
+   este bloque colapsable, cerrado por defecto.
+   -------------------------------------------------------------------------- */
+.portal-divisiones-acordeon {
+  margin-top: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fffdf8;
+  overflow: hidden;
+}
+
+.portal-divisiones-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+/* El triángulo nativo del <summary> se reemplaza por el chevron propio. */
+.portal-divisiones-cab::-webkit-details-marker {
+  display: none;
+}
+
+.portal-divisiones-cab:hover {
+  background: #fff7ed;
+}
+
+.portal-divisiones-cab:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: -2px;
+}
+
+.portal-divisiones-chevron {
+  margin-left: auto;
+  color: #c2410c;
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.portal-divisiones-acordeon[open] .portal-divisiones-chevron {
+  transform: rotate(180deg);
+}
+
+.portal-divisiones-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed #fdba74;
+  padding: 10px 12px 12px;
+}
+

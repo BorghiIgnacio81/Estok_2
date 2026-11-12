@@ -58,6 +58,16 @@ import {
 const TIP_DIVISIONES =
   '🧱 <strong>Divisiones del cuarto</strong> · inyectá cada zona con «➕ Crear Espacio», arrastrala para acomodarla, estirá de su esquina y seleccioná 2+ para fusionarlas. Tocá una silueta para bajar a su interior jerárquico.';
 
+/**
+ * Estado del ACORDEÓN «🧱 Divisiones de «X»» entre repintados del nivel.
+ *
+ * El panel derecho se redibuja por `innerHTML` en cada refresco (geometría,
+ * «Espacio Único», movilidad, latido `estok:espacios-cambiados`), así que un
+ * `<details>` sin memoria se cerraría solo después de cada guardado. Esta bandera
+ * de sesión conserva lo que el operador dejó abierto.
+ */
+let acordeonDivisionesAbierto = false;
+
 /** Traduce la geometría real de los hijos a los rectángulos elásticos del editor. */
 function itemsEditor(interior: InteriorNodo): ItemElastico[] {
   // Contadores y división interna por pieza: alimentan el badge «📦 N» de cada
@@ -83,18 +93,39 @@ function itemsEditor(interior: InteriorNodo): ItemElastico[] {
 }
 
 /**
- * Cabecera del nivel con los DOS disyuntores del espacio activo, apilados en
- * este orden EXACTO (Lote 26): «Espacio Único» arriba y «🎒 Declarar como Mueble
- * Móvil / Objeto» justo debajo, para que el operador configure la pieza en
- * caliente MIENTRAS modela los ambientes de la habitación.
+ * CUERPO del bloque de divisiones: los DOS disyuntores del espacio activo,
+ * apilados en este orden EXACTO (Lote 26): «Espacio Único» arriba y «🎒 Declarar
+ * como Mueble Móvil / Objeto» justo debajo, para que el operador configure la
+ * pieza en caliente MIENTRAS modela los ambientes de la habitación.
+ *
+ * Vive DENTRO del acordeón y nunca en el `<summary>`: el encabezado plegable sólo
+ * admite contenido de tipo phrasing y el tilde debe quedar fuera para que tocar
+ * el control no abra/cierre la sección.
  */
-function cabeceraHtml(nodo: NodoPortal): string {
+function cuerpoDivisionesHtml(nodo: NodoPortal): string {
   return `<div class="portal-grilla-cab">
-    <span class="portal-grilla-titulo">🧱 Divisiones de «${escapeHtml(nodo.nombre)}»</span>
-    ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnicoEditor', marcado: nodo.espacioUnico, valor: nodo.id })}
-  </div>
-  ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovilEditor')}
-  <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>`;
+      ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnicoEditor', marcado: nodo.espacioUnico, valor: nodo.id })}
+    </div>
+    ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovilEditor')}
+    <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>`;
+}
+
+/**
+ * ACORDEÓN «🧱 Divisiones de «X»» · componente COLAPSABLE que se monta JUSTO
+ * DEBAJO del mapa principal del nivel (el lienzo elástico). Arranca CERRADO: el
+ * mapa manda en pantalla y la configuración del nivel (Espacio Único, movilidad
+ * y guía) se despliega sólo cuando el operador la necesita. La persistencia
+ * sigue siendo la misma: los listeners se enganchan por `data-*` dentro del host,
+ * así que el orden y el plegado no alteran ningún contrato.
+ */
+function acordeonDivisionesHtml(nodo: NodoPortal): string {
+  return `<details class="portal-divisiones-acordeon" data-portal-divisiones>
+    <summary class="portal-divisiones-cab" title="Abrir la configuración de este nivel: Espacio Único, movilidad y guía de subdivisiones">
+      <span class="portal-grilla-titulo">🧱 Divisiones de «${escapeHtml(nodo.nombre)}»</span>
+      <span class="portal-divisiones-chevron" aria-hidden="true">▾</span>
+    </summary>
+    <div class="portal-divisiones-cuerpo">${cuerpoDivisionesHtml(nodo)}</div>
+  </details>`;
 }
 
 /**
@@ -239,14 +270,22 @@ export function pintarEditorDivisiones(
       etiquetaCrear: 'Crear Espacio',
       textoVacio:
         'Este nivel todavía no tiene divisiones internas. Usá «➕ Crear Espacio» para subdividirlo en zonas físicas.',
+      // LEYENDA SÓLO EN MODO EDICIÓN: el cartel «🧱 Divisiones del cuarto …» nace
+      // OCULTO y aparece únicamente al presionar «✏️ Editar» (body.modo-edicion,
+      // lib/modoLienzo.ts), igual que el cartel «Editor de espacios» del editor de
+      // habitaciones. En navegación el mapa queda limpio.
       tip: TIP_DIVISIONES,
+      tipSoloEnEdicion: true,
       // ⧉ «Duplicar» en cada tarjeta: copia exacta contigua del cajón/estante.
       permiteDuplicar: true,
     }),
     nodo,
   );
   host.innerHTML =
-    cabeceraHtml(nodo) +
+    // 1) MAPA PRINCIPAL DEL NIVEL: el lienzo elástico de divisiones va PRIMERO.
+    plano +
+    // 2) ACORDEÓN «🧱 Divisiones de «X»» JUSTO DEBAJO del mapa (colapsado).
+    acordeonDivisionesHtml(nodo) +
     barraAccionesCajaHtml(nodo) +
     zonaDropCajaHtml(nodo) +
     // SELECTOR LIMPIO DE CAJAS CONTENIDAS: lista plana de las piezas internas
@@ -254,8 +293,16 @@ export function pintarEditorDivisiones(
     // dibujan una encima de otra en el lienzo y sólo la de arriba recibe el
     // clic) y habilita la suelta de objetos sobre la caja elegida.
     selectorPiezasHtml(interior.piezas) +
-    plano +
     contenidoInternoHtml(nodo, interior.objetos);
+  // ACORDEÓN: repone el estado de plegado que tenía el operador antes del repintado
+  // y memoriza cada toggle, para que un guardado no cierre la configuración.
+  const acordeon = host.querySelector<HTMLDetailsElement>('[data-portal-divisiones]');
+  if (acordeon) {
+    acordeon.open = acordeonDivisionesAbierto;
+    acordeon.addEventListener('toggle', () => {
+      acordeonDivisionesAbierto = acordeon.open;
+    });
+  }
   host.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {
     void alternarEspacioUnico(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });

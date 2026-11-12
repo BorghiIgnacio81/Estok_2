@@ -36,7 +36,7 @@ import {
   empujarNodo,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
-import { cabecerasDe, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { cabecerasDe, contextoMinimapaPadre, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
 import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
@@ -57,6 +57,7 @@ import {
   el,
   moverPanel,
   resaltarSeleccionIzquierda,
+  rotularMinimapaPadre,
   setTexto,
   slotDer,
   slotIzq,
@@ -135,6 +136,14 @@ export function transicionar(): void {
   setTexto('descPanelIzquierdo', cab.descIzq);
   setTexto('tituloPanelDerecho', cab.tituloDer);
   setTexto('descPanelDerecho', cab.descDer);
+  // Sin leyenda, el <p> del ancla se oculta (nivel «cuarto»: se explica solo).
+  el('descPanelIzquierdo')?.classList.toggle('hidden', cab.descIzq.trim().length === 0);
+  // MINIMAPA PADRE: el cuadrante izquierdo muestra SIEMPRE el nivel inmediatamente
+  // superior (Casa → Planta → Habitación → Mueble → Caja) con el nodo activo en
+  // naranja; la barra de contexto lo rotula explícitamente en cada salto.
+  rotularMinimapaPadre(
+    contextoMinimapaPadre(paneles.izquierdo, ctx.superior, estadoPortales.planta?.nombre ?? null),
+  );
 
   // LEY 5 · ARRANQUE SIEMPRE EN NAVEGACIÓN: cada SALTO de la pila (cambio de
   // profundidad, de nodo activo o de planta) devuelve el lienzo a modo

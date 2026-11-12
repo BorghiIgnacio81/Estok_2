@@ -152,8 +152,10 @@ export function cabecerasDe(ctx: ContextoNivel, paneles: Paneles): CabeceraPanel
     return {
       tituloIzq: '🧭 Plano de la planta (ancla)',
       tituloDer: '📦 Espacios, Muebles y Cajas del cuarto',
-      descIzq:
-        'Ancla quieta: el cuarto seleccionado queda resaltado en naranja entre sus hermanos de la planta.',
+      // SIN LEYENDA explicativa: el cuadrante izquierdo es el MINIMAPA PADRE y se
+      // explica solo (rótulo `contextoMinimapaPadre` + resalte naranja del cuarto
+      // activo). El `<p>` de la cabecera se oculta cuando llega vacío.
+      descIzq: '',
       descDer:
         'Interior jerárquico del cuarto. Tocá un espacio para bajar a su interior fino.',
     };
@@ -200,4 +202,51 @@ export const TODOS_LOS_HOSTS: string[] = Object.values(HOSTS);
 /** Par [hostIzquierdo, hostDerecho] del nivel activo, ya resuelto a ids DOM. */
 export function hostsDe(paneles: Paneles): [string, string] {
   return [HOSTS[paneles.izquierdo], HOSTS[paneles.derecho]];
+}
+
+// -----------------------------------------------------------------------------
+// MINIMAPA PADRE (Contexto Visual Jerárquico)
+// -----------------------------------------------------------------------------
+
+/**
+ * LEY 1 · RÓTULO EXPLÍCITO DEL MINIMAPA PADRE.
+ *
+ * El cuadrante izquierdo NUNCA dibuja el nivel actual: dibuja SIEMPRE el minimapa
+ * del nivel INMEDIATAMENTE SUPERIOR (Casa → Planta → Habitación → Mueble →
+ * Caja) con el nodo donde está parado el operador resaltado en naranja. Ese
+ * minimapa es el mismo en toda la cascada, así que lo único que cambia por nivel
+ * es su NOMBRE: esta función lo resuelve para que la barra de contexto lo rotule
+ * de forma explícita (nunca queda un cuadrante anónimo).
+ *
+ * Devuelve `''` en el nivel raíz sin planta elegida, donde el cuadrante es el
+ * plano general del Estok (todavía no hay padre que mostrar).
+ *
+ * @param izquierdo    Panel izquierdo resuelto por `panelesDe`.
+ * @param superior     Nodo PADRE (nivel N-1) de la pila. `null` = es la PLANTA.
+ * @param nombrePlanta Nombre real de la planta fijada (`estadoPortales.planta`).
+ */
+export function contextoMinimapaPadre(
+  izquierdo: PanelIzquierdo,
+  superior: NodoPortal | null,
+  nombrePlanta: string | null,
+): string {
+  const planta = String(nombrePlanta ?? '').trim();
+  switch (izquierdo) {
+    // Estamos en la PLANTA: el padre es la CASA completa (techo a dos aguas) con
+    // la planta activa resaltada. Sin planta elegida todavía no hay padre: el
+    // propio plano general ES el nivel actual.
+    case 'planoPlanta':
+      return planta ? `🏠 Minimapa padre · Casa completa (planta «${planta}» en naranja)` : '';
+    // Estamos dentro de un CUARTO: el padre es la PLANTA (sus habitaciones).
+    case 'plantaConHabitaciones':
+      return `🧭 Minimapa padre · Planta «${planta || 'activa'}» (cuarto en naranja)`;
+    // Estamos dentro de un MUEBLE/ESPACIO: el padre es la HABITACIÓN.
+    case 'visorHabitacion':
+      return `🚪 Minimapa padre · Habitación «${superior?.nombre ?? 'activa'}» (espacio en naranja)`;
+    // Estamos dentro de una CAJA/CONTENEDOR: el padre es el MUEBLE/ESPACIO.
+    case 'grillaNodo':
+      return `🗄️ Minimapa padre · Espacio «${superior?.nombre ?? 'activo'}» (caja en naranja)`;
+    default:
+      return '';
+  }
 }
