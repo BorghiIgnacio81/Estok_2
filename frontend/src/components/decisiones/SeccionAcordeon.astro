@@ -30,7 +30,8 @@ interface Props {
   detalleId?: string;
   /** Texto inicial del resumen secundario. */
   detalle?: string;
-  /** Arranca desplegado (true) o colapsado (false). */
+  /** Arranca desplegado (true) o colapsado (false). Por defecto CERRADO: la
+   *  pantalla carga limpia y el usuario abre sólo la sección que necesita. */
   abierto?: boolean;
   /** Nivel visual: secciones principales del tablero o sub-secciones. */
   nivel?: 'principal' | 'secundario';
@@ -45,7 +46,7 @@ const {
   badgeId,
   detalleId,
   detalle = '',
-  abierto = true,
+  abierto = false,
   nivel = 'principal',
   tono = 'amber',
 } = Astro.props;

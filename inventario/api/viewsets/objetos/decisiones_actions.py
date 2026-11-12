@@ -170,6 +170,10 @@ def payload_objeto_decision(obj, request):
         "estado_conservacion": obj.estado_conservacion,
         "valor_estimado": str(obj.valor_estimado) if obj.valor_estimado else None,
         "categoria_nombre": obj.categoria.nombre if obj.categoria else None,
+        # Marca del objeto: la usa el BUSCADOR por texto de /alertas-stock
+        # (nombre, marca o categoría) sobre el contrato data-filtro-* de la
+        # tarjeta (lib/filtrosDecisiones.ts).
+        "marca": obj.marca or '',
         # --- Publicación (Bloque 3 + sección destacada de venta) ---
         "plataformas_publicadas": plataformas,
         "publicado": publicado,

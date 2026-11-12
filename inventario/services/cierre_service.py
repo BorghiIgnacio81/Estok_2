@@ -23,7 +23,7 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from ..models import VentaObjeto
+from ..models import Objeto, VentaObjeto
 from . import descarte_service
 
 logger = logging.getLogger(__name__)
@@ -196,3 +196,55 @@ def resumen_por_vendedor(estok_id=None):
         .annotate(total=Sum('precio_venta'), cantidad=Count('id'))
         .order_by('-total')
     )
+
+
+# =============================================================================
+# HISTÓRICO PATRIMONIAL (objetos que completaron su ciclo)
+# -----------------------------------------------------------------------------
+# Alimenta la sección «📜 Histórico: Objetos Vendidos y Tirados» de
+# /alertas-stock. Un objeto entra al histórico EN CUANTO se cierra su ciclo:
+#   · VENDIDO  → asiento `VentaObjeto` (precio, fecha y usuario que vendió).
+#   · TIRADO / DONADO → baja lógica con la decisión `tirar` conservada.
+# =============================================================================
+
+# Decisión patrimonial que deja al objeto en el histórico de descartes.
+DECISION_TIRAR = 'tirar'
+
+
+def ventas_del_estok_con_objeto(estok_id=None):
+    """
+    Ventas del Estok con los datos del objeto YA precargados (histórico).
+
+    A diferencia de `ventas_del_estok()` (contabilidad pura), el histórico de la
+    pestaña Decisiones pinta la foto, la marca, la categoría y el propietario de
+    cada objeto vendido: se precargan acá para no disparar una consulta por
+    asiento.
+    """
+    return (
+        ventas_del_estok(estok_id)
+        .select_related('objeto__categoria', 'objeto__dueno_original')
+        .prefetch_related('objeto__fotos')
+    )
+
+
+def objetos_tirados_del_estok(estok_id=None):
+    """
+    Objetos que completaron su ciclo patrimonial por DESCARTE (tirados o
+    donados): conservan la decisión `tirar` y ya tienen baja lógica
+    (`deleted_at`), por lo que salieron del Estok activo.
+
+    El descarte más reciente queda primero. Los objetos VENDIDOS no entran acá:
+    su asiento financiero los representa en `ventas_del_estok_con_objeto()`.
+    """
+    qs = (
+        Objeto.objects.filter(
+            deleted_at__isnull=False,
+            owner_action=DECISION_TIRAR,
+        )
+        .select_related('categoria', 'dueno_original', 'beneficiario')
+        .prefetch_related('fotos')
+        .order_by('-deleted_at')
+    )
+    if estok_id:
+        qs = qs.filter(estok_id=estok_id)
+    return qs

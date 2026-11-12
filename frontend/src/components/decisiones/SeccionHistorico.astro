@@ -1,0 +1,75 @@
+---
+// =============================================================================
+// SECCIÓN 5 · 📜 HISTÓRICO: OBJETOS VENDIDOS Y TIRADOS (/alertas-stock)
+// -----------------------------------------------------------------------------
+// Objetos que COMPLETARON su ciclo patrimonial:
+//
+//   💰 Vendidos         → precio final, fecha, canal y la ETIQUETA del usuario
+//                         que concretó la venta.
+//   🗑️ Tirados/Donados  → fecha del descarte/donación definitivos.
+//
+// El acordeón arranca COLAPSADO (la pantalla carga limpia) y se llena solo:
+// al cerrar el ciclo desde «Decisiones tomadas» el objeto se mueve acá al
+// instante (lib/historicoDecisiones.ts escucha los eventos de cierre).
+//
+// Este componente aporta SÓLO el markup; el comportamiento y el render de las
+// filas viven en src/lib/historicoDecisiones.ts (GET /api/objetos/historico/).
+// =============================================================================
+
+import SeccionAcordeon from './SeccionAcordeon.astro';
+---
+
+<SeccionAcordeon
+  id="seccionHistorico"
+  emoji="📜"
+  titulo="Histórico: Objetos Vendidos y Tirados"
+  badgeId="historicoCount"
+  detalleId="historicoResumen"
+  detalle="Objetos que completaron su ciclo patrimonial."
+  tono="blue"
+  abierto={false}
+>
+  <span slot="extra" class="ml-1">
+    <button id="btnRefrescarHistorico" type="button" data-acordeon-accion
+      class="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-blue-200 text-blue-800 text-xs font-semibold rounded-lg hover:bg-blue-100 transition-base">
+      ↻ Actualizar
+    </button>
+  </span>
+
+  <p id="historicoLoading" class="text-sm text-gray-500">Cargando histórico...</p>
+  <p id="historicoError"
+    class="hidden mb-3 px-4 py-2 rounded-lg bg-red-50 text-red-700 text-sm">
+    ⚠️ No se pudo cargar el histórico.
+  </p>
+  <p id="historicoVacio"
+    class="hidden text-sm text-gray-400 bg-white border border-dashed border-gray-300 rounded-xl px-4 py-6 text-center">
+    Todavía no hay objetos vendidos ni tirados: al cerrar el ciclo de una decisión,
+    el objeto aparece acá.
+  </p>
+
+  <!-- 💰 VENDIDOS · precio final + fecha + usuario que vendió -->
+  <div id="historicoVendidosBloque" class="hidden mb-8">
+    <div class="flex flex-wrap items-center gap-2 mb-1">
+      <h2 class="text-base font-semibold text-gray-900">💰 Vendidos</h2>
+      <span id="historicoVendidosCount"
+        class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">0</span>
+    </div>
+    <p class="text-xs text-gray-500 mb-3">
+      Precio final de venta, fecha y el miembro del Estok que concretó la venta.
+    </p>
+    <div id="historicoVendidosGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
+  </div>
+
+  <!-- 🗑️ TIRADOS / DONADOS · fecha del descarte definitivo -->
+  <div id="historicoTiradosBloque" class="hidden">
+    <div class="flex flex-wrap items-center gap-2 mb-1">
+      <h2 class="text-base font-semibold text-gray-900">🗑️ Tirados / Donados</h2>
+      <span id="historicoTiradosCount"
+        class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-bold">0</span>
+    </div>
+    <p class="text-xs text-gray-500 mb-3">
+      Objetos descartados o donados: se muestra la fecha en que se ejecutó la baja.
+    </p>
+    <div id="historicoTiradosGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-3"></div>
+  </div>
+</SeccionAcordeon>

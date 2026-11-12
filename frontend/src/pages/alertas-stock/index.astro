@@ -1,28 +1,25 @@
 ---
 // =============================================================================
-// PÁGINA DE DECISIONES (/alertas-stock) · CUATRO SECCIONES COLAPSABLES
+// PÁGINA DE DECISIONES (/alertas-stock) · CINCO SECCIONES COLAPSABLES
 // -----------------------------------------------------------------------------
-// El tablero se lee de ARRIBA hacia ABAJO, priorizando lo que espera al usuario:
+// El tablero se lee de ARRIBA hacia ABAJO (lo urgente primero) y TODAS las
+// secciones arrancan COLAPSADAS: la pantalla carga limpia y el usuario despliega
+// sólo lo que necesita.
 //
-//   SECCIÓN 1 · ✅ Decisiones tomadas (En proceso)
-//     Objetos con decisión tomada cuyo ciclo todavía no terminó:
-//       💰 Vender      → «Marcar como Vendido»: registra el ingreso financiero
-//                        (usuario_vendedor) y archiva el objeto.
-//       🗑️ Tirar/Donar → «Marcar como Tirado/Donado»: sale del Estok activo.
-//       📦 Conservar   → resolución instantánea: el objeto queda protegido.
+//   BARRA DE FILTROS · 🔍 texto (nombre/marca/categoría) + 👤 propietario
+//     → components/decisiones/BarraFiltrosDecisiones.astro + lib/filtrosDecisiones.ts
+//   SECCIÓN 1 · ✅ Decisiones tomadas (En proceso): 💰 Vender (cierra con el
+//     ingreso registrado), 🗑️ Tirar/Donar (sale del Estok) y 📦 Conservar.
 //     → lib/decisionesGrupos.ts + lib/decisionesCierre.ts
-//     Endpoint: GET /api/objetos/panel_decisiones/
-//
-//   SECCIÓN 2 · 🏷️ Objetos con Decisión de Venta / Listos para Publicar
-//     → lib/ventasDestacadas.ts (GET /api/objetos/en_venta/)
-//
-//   SECCIÓN 3 · 🗳️ Votaciones pendientes del Estok (+ 🚨 Alerta Rojo)
-//     → components/VotacionesPendientes.astro + lib/descarteGracia.ts
-//
-//   SECCIÓN 4 · ⏳ Objetos pendientes de decisión (DOS sub-acordeones)
-//     a) Pendientes de MI decisión           (objeto.dueno_id === usuario)
-//     b) Pendientes de la decisión de OTROS  (incluye «Avisar al propietario»)
-//     → lib/decisionesPendientes.ts (GET /api/objetos/pendientes_decision/)
+//       (GET /api/objetos/panel_decisiones/)
+//   SECCIÓN 2 · 🏷️ Listos para publicar → lib/ventasDestacadas.ts
+//   SECCIÓN 3 · 🗳️ Votaciones + 🚨 Alerta Rojo → VotacionesPendientes.astro +
+//     lib/descarteGracia.ts
+//   SECCIÓN 4 · ⏳ Pendientes (MI decisión / decisión de OTROS) →
+//     lib/decisionesPendientes.ts
+//   SECCIÓN 5 · 📜 Histórico: Vendidos y Tirados →
+//     components/decisiones/SeccionHistorico.astro + lib/historicoDecisiones.ts
+//       (GET /api/objetos/historico/)
 //
 // Cada sección es un acordeón (components/decisiones/SeccionAcordeon.astro) con
 // ícono, título, badge del total de ítems y flecha de colapsado/desplegado.
@@ -45,6 +42,10 @@ import ModalNotificarDueno from '../../components/ModalNotificarDueno.astro';
 // Sección colapsable (acordeón) con ícono + título + badge + flecha: la misma
 // barra para las cuatro secciones y para los dos sub-acordeones de pendientes.
 import SeccionAcordeon from '../../components/decisiones/SeccionAcordeon.astro';
+// BARRA DE FILTROS (búsqueda por texto + propietario) y SECCIÓN 5 «📜 Histórico»:
+// markup propio para que esta página quede por debajo del límite de 400 líneas.
+import BarraFiltrosDecisiones from '../../components/decisiones/BarraFiltrosDecisiones.astro';
+import SeccionHistorico from '../../components/decisiones/SeccionHistorico.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas:
 // único archivo compartido con Almacenamiento y Objetos, no se duplican reglas.
 import '../../styles/almacenamiento-portales.css';
@@ -62,7 +63,7 @@ export const prerender = false;
         <h1 class="text-3xl font-bold text-gray-900">Decisiones de Objetos</h1>
         <p class="mt-1 text-gray-500">
           Objetos del Estok que esperan decisión: Vender, Conservar o Tirar.
-          Desplegá cada sección para ver su contenido.
+          Usá los filtros y desplegá cada sección para ver su contenido.
         </p>
       </div>
       <a
@@ -75,6 +76,11 @@ export const prerender = false;
         Volver a Objetos
       </a>
     </div>
+
+    <!-- BARRA DE FILTROS · 🔍 texto (nombre / marca / categoría) + 👤 propietario.
+         Markup en components/decisiones/BarraFiltrosDecisiones.astro y
+         comportamiento en lib/filtrosDecisiones.ts (contrato data-filtro-*). -->
+    <BarraFiltrosDecisiones />
 
     <!-- ============================================================== -->
     <!-- SECCIÓN 1 · ✅ DECISIONES TOMADAS (EN PROCESO)                  -->
@@ -94,7 +100,7 @@ export const prerender = false;
       detalleId="decisionesEnProcesoDetalle"
       detalle="Los objetos con decisión permanecen acá hasta cerrar su ciclo."
       tono="emerald"
-      abierto={true}
+      abierto={false}
     >
       <p id="panelDecisionesAviso" class="hidden"></p>
       <p id="panelDecisionesCargando" class="text-sm text-gray-500">Cargando decisiones tomadas...</p>
@@ -191,7 +197,7 @@ export const prerender = false;
       detalleId="ventaDestacadaResumen"
       detalle="Listos para publicar en Mercado Libre o canales comerciales."
       tono="emerald"
-      abierto={true}
+      abierto={false}
     >
       <span slot="extra" class="ml-1">
         <button id="btnRefrescarVenta" type="button" data-acordeon-accion
@@ -231,7 +237,7 @@ export const prerender = false;
       badgeId="votacionesCount"
       detalle="Encuestas familiares abiertas para decidir el destino de los objetos."
       tono="orange"
-      abierto={true}
+      abierto={false}
     >
       <!-- ALERTA ROJO · descartes con período de gracia vigente (lo llena
            lib/descarteGracia.ts con el contador Días:Horas:Minutos:Segundos en
@@ -256,7 +262,7 @@ export const prerender = false;
       badgeId="pendientesCount"
       detalle="Objetos sin decisión tomada y sin votación abierta."
       tono="blue"
-      abierto={true}
+      abierto={false}
     >
       <span slot="extra" class="ml-1">
         <button id="btnRefrescarPendientes" type="button" data-acordeon-accion
@@ -284,7 +290,7 @@ export const prerender = false;
         badgeId="pendientesPropiosCount"
         detalle="Objetos que te pertenecen y todavía no tienen decisión."
         tono="blue"
-        abierto={true}
+        abierto={false}
       >
         <p id="pendientesPropiosVacio" class="hidden text-sm text-gray-400">
           No tenés objetos pendientes de tu decisión.
@@ -302,7 +308,7 @@ export const prerender = false;
         badgeId="pendientesAjenosCount"
         detalle="Objetos de otros miembros del Estok: podés avisarles para que decidan."
         tono="amber"
-        abierto={true}
+        abierto={false}
       >
         <p id="pendientesAjenosVacio" class="hidden text-sm text-gray-400">
           No hay decisiones pendientes de otros miembros.
@@ -311,6 +317,11 @@ export const prerender = false;
           class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
       </SeccionAcordeon>
     </SeccionAcordeon>
+
+    <!-- SECCIÓN 5 · 📜 HISTÓRICO: OBJETOS VENDIDOS Y TIRADOS.
+         Markup en components/decisiones/SeccionHistorico.astro y render/carga en
+         lib/historicoDecisiones.ts (GET /api/objetos/historico/). -->
+    <SeccionHistorico />
   </div>
 
   <!-- Modal de publicación (Mercado Libre / Facebook Marketplace) -->
@@ -338,6 +349,11 @@ export const prerender = false;
     // ACCIÓN RÁPIDA de las tarjetas: «⏸ Pausar publicación» / «▶️ Reactivar
     // publicación» → PUT /items/{id} de Mercado Libre desde el backend.
     import { iniciarAccionesEstadoPublicacion } from '../../lib/accionesPublicacionML';
+    // BARRA DE FILTROS: búsqueda en vivo por nombre/marca/categoría + filtro por
+    // propietario sobre TODAS las tarjetas y filas de la página.
+    import { iniciarFiltrosDecisiones } from '../../lib/filtrosDecisiones';
+    // Sección 5 · 📜 Histórico de objetos vendidos y tirados/donados.
+    import { iniciarHistoricoDecisiones } from '../../lib/historicoDecisiones';
 
     initNavegacionTarjetasDecisiones();
     iniciarAccionesEstadoPublicacion();
@@ -347,6 +363,10 @@ export const prerender = false;
     iniciarVentasDestacadas();
     // Sección 4 · ⏳ Pendientes (dos sub-acordeones por propiedad).
     iniciarDecisionesPendientes();
+    // Sección 5 · 📜 Histórico (se mueve solo al cerrar el ciclo de una decisión).
+    iniciarHistoricoDecisiones();
+    // Barra de filtros (se inicializa al final: las tarjetas ya están montadas).
+    iniciarFiltrosDecisiones();
     iniciarModalPublicar();
     iniciarModalesDescarte();
     iniciarModalNotificarDueno();

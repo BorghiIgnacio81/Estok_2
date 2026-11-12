@@ -25,6 +25,10 @@ import { botonEstadoPublicacionHtml } from './accionesPublicacionML';
 // (lib/ventasDestacadas.ts importa `formatUSD` desde acá).
 import { escapeHtml as escapar } from './escapeHtml';
 import { formatearMoneda as formatUSD } from './formatoMoneda';
+// CONTRATO DEL FILTRO: los atributos data-filtro-* que leen la barra de filtros
+// de /alertas-stock (lib/filtrosDecisiones.ts) viven en un ÚNICO lugar y se
+// aplican acá a TODAS las tarjetas del tablero.
+import { atributosFiltroObjeto } from './filtrosDecisiones';
 
 export { escapar, formatUSD };
 
@@ -36,6 +40,8 @@ export interface ObjetoDecision {
   estado_conservacion: string;
   valor_estimado: string | null;
   categoria_nombre: string | null;
+  /** Marca del objeto (aparece en el buscador de /alertas-stock). */
+  marca?: string | null;
   plataformas_publicadas: string[];
   /** True si el objeto ya fue publicado en alguna plataforma de venta. */
   publicado?: boolean;
@@ -224,9 +230,16 @@ export function tarjetaObjetoHtml(
     ubicacion: obj.ubicacion ?? null,
     contenedor: obj.contenedor ?? null,
   });
+  // HAYSTACK de la barra de filtros (nombre, marca, categoría y propietario).
+  const filtro = atributosFiltroObjeto({
+    nombre: obj.nombre,
+    marca: obj.marca,
+    categoria: obj.categoria_nombre,
+    duenoId: obj.dueno_id,
+  });
 
   return `
-    <article data-objeto-card="${escapar(obj.id)}" data-ficha-url="/objetos/${escapar(obj.id)}" ${opciones.atributos || ''}
+    <article data-objeto-card="${escapar(obj.id)}" data-ficha-url="/objetos/${escapar(obj.id)}" ${filtro} ${opciones.atributos || ''}
       class="decision-card cursor-pointer bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col ${opciones.extraClases || ''}">
       <div class="relative">
         <img src="${foto}" alt="" class="h-40 w-full object-cover bg-slate-100" loading="lazy" />
