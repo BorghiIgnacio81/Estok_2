@@ -509,35 +509,37 @@ body [data-grupo-resize] {
 
 
 /* -----------------------------------------------------------------------------
-   MINIMAPA PADRE · RÓTULO EXPLÍCITO DEL NIVEL SUPERIOR
+   MINIMAPA PADRE · 100% GRÁFICO (SIN CARTELES DE TEXTO)
    -----------------------------------------------------------------------------
-   El cuadrante izquierdo dibuja SIEMPRE el minimapa del nivel INMEDIATAMENTE
-   SUPERIOR (Casa → Planta → Habitación → Mueble → Caja) con el nodo donde está
-   parado el operador resaltado en naranja. Este rótulo lo nombra de forma
-   explícita en cada transición de la cascada
-   (lib/mapa/portales/panelesPortales.ts → contextoMinimapaPadre).
+   En cuanto el operador desciende (Planta → Habitación → Mueble → Estante/Caja)
+   el cuadrante izquierdo es el MINIMAPA del nivel INMEDIATAMENTE SUPERIOR y
+   funciona como recordatorio visual de ubicación: se apagan los carteles,
+   leyendas y ayudas que traen los visores históricos, y queda sólo el plano con
+   el nodo activo resaltado en NARANJA (#f97316).
+
+   El marcador `.minimapa-padre` lo pone `transicionar()`
+   (lib/mapa/portales/portalesAlmacenamiento.ts) SÓLO cuando hay padre: la vista
+   raíz de la Casa (Nivel 1) NO lo recibe y conserva su cabecera normal.
+
+   En pantallas angostas las dos columnas se apilan y el minimapa padre queda
+   ARRIBA del mapa del nivel actual.
    -------------------------------------------------------------------------- */
-.minimapa-padre-rotulo {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  margin: 0 0 10px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  border: 1px solid #fed7aa;
-  background: #fff7ed;
-  color: #9a3412;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+#contenidoPanelIzquierdo.minimapa-padre .portal-lienzo-tip,
+#contenidoPanelIzquierdo.minimapa-padre .planta-unica-tip,
+#contenidoPanelIzquierdo.minimapa-padre .visor-encabezado,
+#contenidoPanelIzquierdo.minimapa-padre .visor-ayuda,
+#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-titulo,
+#contenidoPanelIzquierdo.minimapa-padre .visor-minimapa-detalle,
+#contenidoPanelIzquierdo.minimapa-padre .cg-sub {
+  display: none !important;
 }
 
-/* Precedencia sobre `display: inline-flex` cuando el nivel raíz no tiene padre. */
-.minimapa-padre-rotulo.hidden {
+/* Cabecera del cuadrante izquierdo: cuando es minimapa puro no muestra título,
+   leyenda ni badge (los oculta `transicionar()`); el display se fuerza acá para
+   que las utilidades `flex` de Tailwind no pisen el `.hidden`. */
+#tituloPanelIzquierdo.hidden,
+#descPanelIzquierdo.hidden,
+#mapaJerarquicoBadge.hidden {
   display: none !important;
 }
 

@@ -36,7 +36,7 @@ import {
   empujarNodo,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
-import { cabecerasDe, contextoMinimapaPadre, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { cabecerasDe, esMinimapaPadre, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
 import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
@@ -57,7 +57,6 @@ import {
   el,
   moverPanel,
   resaltarSeleccionIzquierda,
-  rotularMinimapaPadre,
   setTexto,
   slotDer,
   slotIzq,
@@ -89,8 +88,8 @@ export function interiorDelNivel(): InteriorNodo | null {
 /**
  * LEY 1 · CONTEXTO RELACIONAL DEL NIVEL: aísla los DOS contextos que nunca deben
  * mezclarse. `activo` (tope de la pila) lo dibuja el Panel Derecho; `superior`
- * (nivel N-1) lo mantiene el Panel Izquierdo como ancla quieta. Cuando la pila
- * tiene un solo nodo, el SUPERIOR es la PLANTA (`null`).
+ * (nivel N-1) lo mantiene el Panel Izquierdo como MINIMAPA PADRE (gráfico puro).
+ * Cuando la pila tiene un solo nodo, el SUPERIOR es la PLANTA (`null`).
  */
 export function contextoDeNivel(): ContextoNivel {
   return {
@@ -136,14 +135,15 @@ export function transicionar(): void {
   setTexto('descPanelIzquierdo', cab.descIzq);
   setTexto('tituloPanelDerecho', cab.tituloDer);
   setTexto('descPanelDerecho', cab.descDer);
-  // Sin leyenda, el <p> del ancla se oculta (nivel «cuarto»: se explica solo).
+  // MINIMAPA PADRE 100% GRÁFICO: en cuanto hay padre (Planta, Habitación, Mueble,
+  // Estante/Caja) el cuadrante izquierdo es un recordatorio visual y NO muestra
+  // título, leyenda ni rótulos de texto. En la vista raíz de la Casa (sin padre)
+  // recupera su cabecera normal. `cabecerasDe` ya devolvió vacíos ambos textos.
+  const enMinimapaPadre = esMinimapaPadre(ctx);
+  slotIzq()?.classList.toggle('minimapa-padre', enMinimapaPadre);
+  el('tituloPanelIzquierdo')?.classList.toggle('hidden', cab.tituloIzq.trim().length === 0);
   el('descPanelIzquierdo')?.classList.toggle('hidden', cab.descIzq.trim().length === 0);
-  // MINIMAPA PADRE: el cuadrante izquierdo muestra SIEMPRE el nivel inmediatamente
-  // superior (Casa → Planta → Habitación → Mueble → Caja) con el nodo activo en
-  // naranja; la barra de contexto lo rotula explícitamente en cada salto.
-  rotularMinimapaPadre(
-    contextoMinimapaPadre(paneles.izquierdo, ctx.superior, estadoPortales.planta?.nombre ?? null),
-  );
+  el('mapaJerarquicoBadge')?.classList.toggle('hidden', enMinimapaPadre);
 
   // LEY 5 · ARRANQUE SIEMPRE EN NAVEGACIÓN: cada SALTO de la pila (cambio de
   // profundidad, de nodo activo o de planta) devuelve el lienzo a modo

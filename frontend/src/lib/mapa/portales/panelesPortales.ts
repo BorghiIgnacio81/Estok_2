@@ -3,8 +3,8 @@
 // -----------------------------------------------------------------------------
 // LEY 1 (ASIMETRÍA RÍGIDA · el fuelle de Ignacio):
 //   · El Panel IZQUIERDO CONSERVA SIEMPRE el mapa del NIVEL SUPERIOR (`superior`)
-//     y pinta al HIJO activo en NARANJA (#f97316). Es un ANCLA QUIETA: nunca
-//     dibuja el interior del nodo activo.
+//     y pinta al HIJO activo en NARANJA (#f97316). Es el MINIMAPA PADRE: nunca
+//     dibuja el interior del nodo activo y jamás lleva carteles de texto.
 //   · El Panel DERECHO AVANZA SIEMPRE al interior del nodo ACTIVO (`activo`), N+1.
 //   Como cada columna mira a un nodo DISTINTO, es imposible que compartan mapa.
 //   Además, cada panel tiene un HOST DOM EXCLUSIVO por lado (ver HOSTS): un
@@ -76,6 +76,23 @@ export function panelesDe(ctx: ContextoNivel): Paneles {
 }
 
 /**
+ * LEY 1 · ¿El Panel Izquierdo es el MINIMAPA PADRE?
+ *
+ * El cuadrante izquierdo NUNCA dibuja el nivel actual: dibuja el minimapa del
+ * nivel INMEDIATAMENTE SUPERIOR (Casa → Planta → Habitación → Mueble → Caja) con
+ * el nodo donde está parado el operador resaltado en NARANJA (#f97316).
+ *
+ * En esos niveles el minimapa es PURAMENTE GRÁFICO: sin título, sin leyenda, sin
+ * ayudas y sin rótulos de texto (recordatorio visual de ubicación y nada más).
+ *
+ * La vista raíz de la Casa (Nivel 1, sin planta fijada) NO tiene padre: el
+ * cuadrante izquierdo es el plano general del Estok y conserva su cabecera.
+ */
+export function esMinimapaPadre(ctx: ContextoNivel): boolean {
+  return Boolean(ctx.activo) || ctx.plantaFijada;
+}
+
+/**
  * LEY 1 · ¿Qué monta el Panel DERECHO? El interior del ACTIVO. TODO nodo NO
  * monolítico —planta, habitación, mueble, estante, caja o pieza VACÍA recién
  * creada— expone su EDITOR ELÁSTICO de divisiones (aunque todavía no tenga
@@ -123,8 +140,22 @@ export interface CabeceraPaneles {
   descDer: string;
 }
 
-/** Cabeceras (títulos + micro-ayudas) del nivel activo (física asimétrica). */
+/**
+ * Cabeceras (títulos + micro-ayudas) del nivel activo (física asimétrica).
+ *
+ * REGLA DE LIMPIEZA VISUAL: cuando el Panel Izquierdo es el MINIMAPA PADRE (todo
+ * nivel por debajo de la vista raíz de la Casa), NO lleva título ni leyenda: es
+ * un recordatorio visual puro. El texto explicativo se reserva para el Panel
+ * Derecho, que es el mapa del nivel ACTUAL.
+ */
 export function cabecerasDe(ctx: ContextoNivel, paneles: Paneles): CabeceraPaneles {
+  const cab = cabecerasDelNivel(ctx, paneles);
+  if (!esMinimapaPadre(ctx)) return cab;
+  return { ...cab, tituloIzq: '', descIzq: '' };
+}
+
+/** Cabeceras por nivel (antes de aplicar la limpieza visual del minimapa padre). */
+function cabecerasDelNivel(ctx: ContextoNivel, paneles: Paneles): CabeceraPaneles {
   const nodo = ctx.activo;
   if (!nodo) {
     return {
@@ -141,30 +172,30 @@ export function cabecerasDe(ctx: ContextoNivel, paneles: Paneles): CabeceraPanel
   }
   if (paneles.derecho === 'grillaObjetos') {
     return {
-      tituloIzq: '🧱 Ancla del contenedor (nivel superior)',
+      tituloIzq: '🧱 Plano del contenedor',
       tituloDer: `🔎 Objetos guardados en «${nodo.nombre}»`,
-      descIzq: `Ancla quieta: el mapa del nivel superior con «${nodo.nombre}» resaltado en naranja. Es un bloque monolítico (Espacio Único): no se subdivide.`,
+      // SIN LEYENDA: el cuadrante izquierdo es el MINIMAPA PADRE (gráfico puro).
+      descIzq: '',
       descDer:
         'Lista de objetos guardados directamente acá. Arrastrá uno desde la canasta para guardarlo sin celda fina.',
     };
   }
   if (paneles.izquierdo === 'plantaConHabitaciones') {
     return {
-      tituloIzq: '🧭 Plano de la planta (ancla)',
+      tituloIzq: '🧭 Plano de la planta',
       tituloDer: '📦 Espacios, Muebles y Cajas del cuarto',
-      // SIN LEYENDA explicativa: el cuadrante izquierdo es el MINIMAPA PADRE y se
-      // explica solo (rótulo `contextoMinimapaPadre` + resalte naranja del cuarto
-      // activo). El `<p>` de la cabecera se oculta cuando llega vacío.
+      // SIN LEYENDA explicativa: el cuadrante izquierdo es el MINIMAPA PADRE
+      // (gráfico puro) y se explica solo con el resalte naranja del cuarto activo.
       descIzq: '',
       descDer:
         'Interior jerárquico del cuarto. Tocá un espacio para bajar a su interior fino.',
     };
   }
   return {
-    tituloIzq: '🧭 Plano del contenedor (ancla)',
+    tituloIzq: '🧭 Plano del nivel superior',
     tituloDer: `🧺 Interior de «${nodo.nombre}»`,
-    descIzq:
-      'Ancla quieta: el mapa del nivel superior con la pieza seleccionada resaltada en naranja.',
+    // SIN LEYENDA: el cuadrante izquierdo es el MINIMAPA PADRE (gráfico puro).
+    descIzq: '',
     descDer:
       'Interior jerárquico de la pieza activa. Tocá un elemento para abrir su interior de forma recursiva.',
   };
@@ -204,49 +235,3 @@ export function hostsDe(paneles: Paneles): [string, string] {
   return [HOSTS[paneles.izquierdo], HOSTS[paneles.derecho]];
 }
 
-// -----------------------------------------------------------------------------
-// MINIMAPA PADRE (Contexto Visual Jerárquico)
-// -----------------------------------------------------------------------------
-
-/**
- * LEY 1 · RÓTULO EXPLÍCITO DEL MINIMAPA PADRE.
- *
- * El cuadrante izquierdo NUNCA dibuja el nivel actual: dibuja SIEMPRE el minimapa
- * del nivel INMEDIATAMENTE SUPERIOR (Casa → Planta → Habitación → Mueble →
- * Caja) con el nodo donde está parado el operador resaltado en naranja. Ese
- * minimapa es el mismo en toda la cascada, así que lo único que cambia por nivel
- * es su NOMBRE: esta función lo resuelve para que la barra de contexto lo rotule
- * de forma explícita (nunca queda un cuadrante anónimo).
- *
- * Devuelve `''` en el nivel raíz sin planta elegida, donde el cuadrante es el
- * plano general del Estok (todavía no hay padre que mostrar).
- *
- * @param izquierdo    Panel izquierdo resuelto por `panelesDe`.
- * @param superior     Nodo PADRE (nivel N-1) de la pila. `null` = es la PLANTA.
- * @param nombrePlanta Nombre real de la planta fijada (`estadoPortales.planta`).
- */
-export function contextoMinimapaPadre(
-  izquierdo: PanelIzquierdo,
-  superior: NodoPortal | null,
-  nombrePlanta: string | null,
-): string {
-  const planta = String(nombrePlanta ?? '').trim();
-  switch (izquierdo) {
-    // Estamos en la PLANTA: el padre es la CASA completa (techo a dos aguas) con
-    // la planta activa resaltada. Sin planta elegida todavía no hay padre: el
-    // propio plano general ES el nivel actual.
-    case 'planoPlanta':
-      return planta ? `🏠 Minimapa padre · Casa completa (planta «${planta}» en naranja)` : '';
-    // Estamos dentro de un CUARTO: el padre es la PLANTA (sus habitaciones).
-    case 'plantaConHabitaciones':
-      return `🧭 Minimapa padre · Planta «${planta || 'activa'}» (cuarto en naranja)`;
-    // Estamos dentro de un MUEBLE/ESPACIO: el padre es la HABITACIÓN.
-    case 'visorHabitacion':
-      return `🚪 Minimapa padre · Habitación «${superior?.nombre ?? 'activa'}» (espacio en naranja)`;
-    // Estamos dentro de una CAJA/CONTENEDOR: el padre es el MUEBLE/ESPACIO.
-    case 'grillaNodo':
-      return `🗄️ Minimapa padre · Espacio «${superior?.nombre ?? 'activo'}» (caja en naranja)`;
-    default:
-      return '';
-  }
-}

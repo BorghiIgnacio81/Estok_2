@@ -114,14 +114,13 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             </div>
           </div>
           <p id="descPanelIzquierdo" class="text-xs text-gray-500 mb-3">Edición en vivo sobre el lienzo: clic en un nombre para renombrar, arrastrá las tarjetas para reacomodarlas entre cuadrantes y tirá de su esquina para estirarlas. Tocá una planta para desplegar el plano de sus habitaciones.</p>
-          <!-- MINIMAPA PADRE · CONTEXTO VISUAL JERÁRQUICO: este cuadrante dibuja
-               SIEMPRE el minimapa del nivel INMEDIATAMENTE SUPERIOR (Casa →
-               Planta → Habitación → Mueble → Caja) con el nodo donde está parado
-               el operador resaltado en NARANJA (#f97316). El rótulo lo nombra de
-               forma explícita y lo reescribe cada transición de nivel
-               (lib/mapa/portales/panelesPortales.ts → contextoMinimapaPadre y
-               lib/mapa/portales/portalesAlmacenamiento.ts → transicionar). -->
-          <p id="contextoMinimapaPadre" class="minimapa-padre-rotulo hidden" aria-live="polite"></p>
+          <!-- MINIMAPA PADRE · RECORDATORIO VISUAL JERÁRQUICO (100% GRÁFICO):
+               este cuadrante dibuja SIEMPRE el minimapa del nivel INMEDIATAMENTE
+               SUPERIOR (Casa → Planta → Habitación → Mueble → Caja) con el nodo
+               donde está parado el operador resaltado en NARANJA (#f97316).
+               Sin carteles de texto: ni título, ni leyenda, ni ayudas. La vista
+               raíz de la Casa no tiene padre y conserva su cabecera normal.
+               Lo gobierna lib/mapa/portales/panelesPortales.ts (esMinimapaPadre). -->
           <div id="contenidoPanelIzquierdo" class="mt-1">
             <!-- FICHA DEL CONTENEDOR ACTIVO (nivel interno de la caja): al tocar una
                  caja/espacio del lienzo se pinta acá arriba su ficha (datos reales
@@ -162,10 +161,10 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             </div>
           </div>
           <!-- MINIMAPA DEL NIVEL PADRE: el cuadrante IZQUIERDO dibuja SIEMPRE el
-               minimapa del nivel inmediatamente superior con el nodo activo en
-               naranja (Casa → Planta → Habitación → Mueble → Caja) y la barra
-               #contextoMinimapaPadre lo rotula; el DERECHO muestra el interior
-               del nivel actual. -->
+               minimapa gráfico del nivel inmediatamente superior con el nodo
+               activo en naranja (Casa → Planta → Habitación → Mueble → Caja),
+               SIN carteles de texto; el DERECHO muestra el interior del nivel
+               actual. En pantallas angostas el minimapa padre queda ARRIBA. -->
           <p id="descPanelDerecho" class="text-xs text-gray-500 mb-3">El detalle del nivel actual: los casilleros reciben elementos por Drag &amp; Drop. En ESCENA 3 podés inspeccionar cada mueble en caliente y ajustar sus sub-divisiones internas con los botones + y −.</p>
           <div id="contenidoPanelDerecho" class="mt-1 min-w-0">
             <!-- HOST DEL VISOR DE HABITACIÓN (ancla izquierda cuando el activo es un

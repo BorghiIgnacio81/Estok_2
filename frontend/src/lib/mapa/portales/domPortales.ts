@@ -32,18 +32,6 @@ export function setTexto(id: string, valor: string): void {
   if (nodo) nodo.textContent = valor;
 }
 
-/**
- * MINIMAPA PADRE · Escribe (y oculta si no hay padre) el rótulo de la barra de
- * contexto del cuadrante izquierdo. El texto lo resuelve el módulo puro
- * panelesPortales.ts → contextoMinimapaPadre.
- */
-export function rotularMinimapaPadre(texto: string): void {
-  const nodo = el('contextoMinimapaPadre');
-  if (!nodo) return;
-  nodo.textContent = texto;
-  nodo.classList.toggle('hidden', texto.length === 0);
-}
-
 /** Aspecto elástico (alto/ancho) del lienzo visible, para los minimapas. */
 export function aspectoDelLienzo(): number {
   const lienzo = Array.from(document.querySelectorAll<HTMLElement>('[data-lienzo-pu]')).find(
