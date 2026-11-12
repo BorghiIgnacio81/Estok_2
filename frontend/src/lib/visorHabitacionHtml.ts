@@ -87,19 +87,6 @@ export function paletaPuertaHtml(): string {
     </div>`;
 }
 
-/** Formatea las medidas "Alto × Ancho × Largo (cm)" de una habitación. */
-export function medidasDe(room: {
-  alto?: string | number | null;
-  ancho?: string | number | null;
-  largo?: string | number | null;
-}): string | null {
-  const valores = [room.alto, room.ancho, room.largo].filter(
-    (v) => v !== null && v !== undefined && v !== '',
-  ) as Array<string | number>;
-  if (!valores.length) return null;
-  return `${valores.map((v) => String(Number(v))).join(' × ')} cm`;
-}
-
 /** Grilla asimétrica (filas × columnas por fila) de una Ubicación, en vivo. */
 function columnasPorFilaDe(room: UbicacionPlano): number[] {
   const filas = filasInternasDe(room);

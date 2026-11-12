@@ -4,10 +4,9 @@
 // Reemplaza el listado estático lateral de habitaciones. Al hacer clic sobre
 // una habitación encastrada en el Mapa Estok (evento estok:habitacion-seleccionada),
 // la columna derecha muestra:
-//   1. Ficha: nombre, dimensión (Alto × Ancho × Largo) y foto.
-//   2. Su propio lienzo de sub-grilla matricial (Filas Internas × Columnas por
+//   1. Su propio lienzo de sub-grilla matricial (Filas Internas × Columnas por
 //      fila, asimétricas) con controles numéricos independientes de la habitación.
-//   3. Celdas Drop Zone que reciben Contenedores Grandes (/contenedor-grande.webp),
+//   2. Celdas Drop Zone que reciben Contenedores Grandes (/contenedor-grande.webp),
 //      Contenedores Pequeños (/nuevo-contenedor.webp) y Objetos
 //      (/mueble.webp).
 // Persistencia multi-tenant estricta (JWT + X-Estok-Id):
@@ -18,7 +17,6 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import {
-  escapeHtml,
   toast,
   filasInternasDe,
   columnasInternasDe,
@@ -43,7 +41,6 @@ import {
   ETIQUETAS_PARED,
   cuerpoConParedesHtml,
   paletaPuertaHtml,
-  medidasDe,
   minimapaHabitacionHtml,
   iconoContenedorVisor,
 } from './visorHabitacionHtml';
@@ -192,7 +189,6 @@ function renderVisor(): void {
   const cont = montajeRoom;
 
   const room = roomActual;
-  const med = medidasDe(room);
   const puerta = room.posicion_puerta || null;
 
   const items: ItemElastico[] = contenedoresRoom.map((c) => ({
@@ -230,14 +226,6 @@ function renderVisor(): void {
 
   cont.innerHTML = `
   <div class="visor-habitacion">
-    <div class="visor-ficha">
-      ${room.foto ? `<img src="${escapeHtml(room.foto)}" alt="${escapeHtml(room.nombre)}" class="visor-foto" />` : '<div class="visor-foto visor-foto-vacia">🏠</div>'}
-      <div class="visor-ficha-info">
-        <h3 class="visor-nombre">${escapeHtml(room.nombre)}</h3>
-        <p class="visor-sub">${room.parent_ubicacion_nombre ? `División: ${escapeHtml(room.parent_ubicacion_nombre)}` : 'Habitación suelta'}</p>
-        ${med ? `<p class="visor-medidas">📐 ${escapeHtml(med)}</p>` : ''}
-      </div>
-    </div>
     <div id="visorMinimapaSlot"></div>
     <div class="visor-encabezado">
       <span class="visor-titulo">Lienzo 2D de la habitación</span>

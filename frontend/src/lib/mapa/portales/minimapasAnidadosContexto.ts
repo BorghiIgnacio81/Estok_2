@@ -62,7 +62,8 @@ async function habitacionesDeLaPlanta(): Promise<ItemGeometria[]> {
  * `renderMinimapasAnidados`).
  *
  * Profundidad D de la cascada → D miniaturas (una por nivel ANTERIOR):
- *   0 · Casa        → casita con el piso activo en naranja (vuelve a la raíz).
+ *   0 · Nivel raíz  → casita con el piso activo en naranja (vuelve a la raíz),
+ *                     rotulada con el NOMBRE REAL de la planta activa.
  *   1 · Planta      → plano de habitaciones con la habitación elegida en naranja.
  *   k · ruta[k-1]   → plano del padre (ruta[k-2]) con ruta[k-1] en naranja.
  *
@@ -78,9 +79,14 @@ export async function resolverMinimapasNiveles(aspecto: number): Promise<NodoRut
   const nodos: NodoRuta[] = [];
 
   // ── NIVEL 0 · CASA: silueta a dos aguas con el PISO ACTIVO en naranja. ──────
+  // ETIQUETA DINÁMICA DEL NIVEL: la miniatura se rotula con el NOMBRE REAL del
+  // nivel desde el que se descendió («Planta Alta», «Planta Baja», …) y no con el
+  // genérico «Casa», para que la tira se lea como la ruta verdadera
+  // (Planta Alta → Habitación Frente → …). Sin nombre de planta cae a «Casa».
+  const nombreNivel0 = String(planta.nombre ?? '').trim() || 'Casa';
   nodos.push({
     tipo: 'estok',
-    nombre: 'Casa',
+    nombre: nombreNivel0,
     filaActiva: planta.fila,
     totalPlantas: total,
     // Planta única: perímetro continuo sin tejado (misma regla que el lienzo).

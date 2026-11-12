@@ -13,6 +13,7 @@
      2. LEYENDAS LARGAS: se ocultan SÓLO los instructivos de ayuda.
      3. RELLENO NARANJA del elemento activo (convención global #f97316).
      4. CABECERAS que `transicionar()` apaga con `.hidden`.
+     5. NOMBRE COMPLETO del espacio sobre el plano (dos renglones, sin «…»).
 
    REGLA DE CONTENIDO: los NOMBRES y TÍTULOS de espacios, habitaciones,
    muebles, estantes y cajas NUNCA se ocultan.
@@ -39,6 +40,11 @@
      el layout del cuadrante (los niveles se acumulan a la derecha). */
   overflow-x: auto;
   overflow-y: hidden;
+  /* DESPLAZAMIENTO A LA DERECHA: la tira arranca separada del borde del panel
+     (12px ≈ `ml-3`/`pl-3`) para que las miniaturas no queden pegadas a la pared
+     del cuadrante. El padding viaja DENTRO del host con scroll, así el gesto
+     horizontal sigue funcionando sobre toda la fila. */
+  padding-left: 12px;
   padding-bottom: 4px;
   scrollbar-width: thin;
 }
@@ -185,3 +191,31 @@
   display: none !important;
 }
 
+/* -----------------------------------------------------------------------------
+   5 · NOMBRE COMPLETO DEL ESPACIO SOBRE EL PLANO (sin truncado «Habitación…»)
+   -----------------------------------------------------------------------------
+   Los rótulos de lectura del motor (lib/minimapaEtiquetas.ts → CLASES_NOMBRE)
+   nacen con la utilidad Tailwind `truncate`: UNA sola línea con puntos
+   suspensivos, así que un nombre compuesto como «Habitación Frente» se leía
+   «Habitación…». Acá —y SÓLO dentro de la cascada de /almacenamiento— el nombre
+   se permite en DOS renglones equilibrados («Habitación» arriba y «Frente»
+   abajo) cuando no entra en un solo renglón, cosa habitual en pantallas
+   angostas. Esto cumple la REGLA DE CONTENIDO de la cabecera de esta hoja: los
+   NOMBRES de espacios y habitaciones NUNCA se ocultan.
+   El recorte dentro de la silueta lo sigue imponiendo el marco del motor
+   (`.minimapa-etiqueta` → `overflow: hidden`): el texto jamás desborda su
+   sector ni pisa al ambiente vecino, y el resto de las pantallas (Objetos,
+   Mudanza) conserva intacto el rótulo de una línea.
+   -------------------------------------------------------------------------- */
+#seccionCascada .minimapa-etiqueta-nombre {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  /* Equivalente a `break-words`: corta entre palabras y, si una palabra fuera
+     más ancha que el sector, la quiebra para no perder el nombre. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  /* Reparte el texto en renglones parejos (soporte nativo; degrada a normal). */
+  text-wrap: balance;
+  line-height: 1.1;
+}
