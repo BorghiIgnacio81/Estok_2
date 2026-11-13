@@ -7,10 +7,12 @@
 //
 // LEY 1 (Asimetría): el Panel Izquierdo CONSERVA el mapa del NIVEL SUPERIOR (el
 // padre) con el hijo seleccionado resaltado en naranja; el derecho avanza al
-// interior del seleccionado. LEY 4: «Espacio Único» → derecha a la grilla directa
-// de objetos. Los visores históricos (mapa Estok, Visor de Habitación y Visor
-// Contenedor Grande) siguen siendo el PLANO del Panel Izquierdo por sus eventos
-// públicos, pero ahora viven en un host EXCLUSIVO de la izquierda.
+// interior del seleccionado. LEY 4: «Espacio Final» (nivel terminal sin
+// sub-espacios arquitectónicos) → el lienzo 2D se OCULTA y la derecha monta el
+// Panel de Contenido (tarjetas + zona de suelta). Los visores históricos (mapa
+// Estok, Visor de Habitación y Visor Contenedor Grande) siguen siendo el PLANO
+// del Panel Izquierdo por sus eventos públicos, pero viven en un host EXCLUSIVO
+// de la izquierda.
 // =============================================================================
 
 import { aplicarModo } from '../../modoLienzo';
@@ -26,6 +28,7 @@ import {
 } from './datosNodosPortales';
 import type { InteriorNodo } from './datosNodosPortales';
 import {
+  contarSubEspaciosArquitectonicos,
   desapilarHasta,
   estadoPortales,
   limpiarRuta,
@@ -36,34 +39,22 @@ import {
   empujarNodo,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
-import { cabecerasDe, esMinimapaPadre, hostsDe, HOSTS, panelesDe, TODOS_LOS_HOSTS } from './panelesPortales';
+import { cabecerasDe, esMinimapaPadre, HOSTS, panelesDe } from './panelesPortales';
 import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
-import { alternarEspacioUnico, alternarMuebleMovil, pintarEditorDivisiones } from './editorDivisionesPortales';
-import {
-  bloqueMonoliticoHtml,
-  grillaObjetosDirectosHtml,
-  initGrillaObjetosDirectos,
-} from './grillaObjetosDirectos';
-// Barra DESTACADA del contenedor activo: «🔎 Abrir ficha completa» del
-// inventario interno, con la zona de suelta que recibe los objetos arrastrados
-// desde la bandeja del mismo panel. Mover la caja ya no tiene botón propio.
-import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
-import {
-  el,
-  moverPanel,
-  resaltarSeleccionIzquierda,
-  setTexto,
-  slotDer,
-  slotIzq,
-} from './domPortales';
+import { pintarEditorDivisiones } from './editorDivisionesPortales';
+// PANEL DE CONTENIDO DEL ESPACIO FINAL: reemplaza al lienzo/mapa 2D en los
+// niveles terminales (Estantes, Cajones, Cajas) con tarjetas + zona de suelta.
+import { conectarPanelEspacioFinal, panelEspacioFinalHtml } from './panelEspacioFinal';
+// FÍSICA DE PANTALLA: hosts, columnas (ocultación del lienzo 2D), tira de
+// minimapas y canastas del nivel.
+import { aplicarFisicaDePaneles } from './fisicaPantallaPortales';
+import { el, resaltarSeleccionIzquierda, setTexto, slotIzq } from './domPortales';
 // TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: host `#minimapasAnidados` (el
 // COMPONENTE GLOBAL en formato cadena). El módulo es dueño de su host y dibuja
 // con el ÚNICO motor de minimapas (lib/minimapasAnidados.ts → lib/minimapa.ts).
 import { pintarMinimapasNiveles } from './minimapasAnidadosContexto';
-// Canasta derecha: refresco EXPLÍCITO del fin de cadena («Espacio Único», Ley 4).
-import { refrescarBandeja } from '../../bandejaSinUbicar';
 
 /** Interior (hijos + objetos) del nodo activo, cacheado para los botones. */
 let interiorActual: InteriorNodo | null = null;
@@ -126,10 +117,9 @@ export async function nodoDeHabitacion(id: string): Promise<NodoPortal | null> {
 export function transicionar(): void {
   const ctx = contextoDeNivel();
   const paneles = panelesDe(ctx);
-  for (const id of TODOS_LOS_HOSTS) el(id)?.classList.add('hidden');
-  const [idIzq, idDer] = hostsDe(paneles);
-  moverPanel(el(idIzq), slotIzq());
-  moverPanel(el(idDer), slotDer());
+  // HOSTS + COLUMNAS + CANASTAS (incluye la ocultación del lienzo 2D cuando el
+  // nivel activo es un ESPACIO FINAL).
+  aplicarFisicaDePaneles(paneles);
 
   const cab = cabecerasDe(ctx, paneles);
   setTexto('tituloPanelIzquierdo', cab.tituloIzq);
@@ -165,59 +155,6 @@ export function transicionar(): void {
   // Barra de comandos: el «✏️ Editar» se re-sincroniza en CADA nivel (visible y
   // operativo a cualquier profundidad de la pila de nodos).
   sincronizarBarraComandos();
-  // ---------------------------------------------------------------------------
-  // LEY 4 · LA CANASTA NUNCA SE APAGA EN EL ESPACIO ÚNICO (Lote 29)
-  // ---------------------------------------------------------------------------
-  // El fin de cadena («Espacio Único» o nodo todavía sin divisiones) es
-  // justamente el nivel donde el operador MÁS necesita la canasta: es la FUENTE
-  // del arrastre hacia la grilla directa de objetos. El motor la ocultaba con la
-  // clase `portales-canasta-oculta` (ver styles/portales-recursivos.css), así
-  // que el panel derecho quedaba vacío y no había nada que soltar sobre el
-  // bloque monolítico. Ahora la canasta queda SIEMPRE viva —el contenedor ya
-  // reserva su ancho con `md:pr-80`— y en este nivel se repinta de forma
-  // EXPLÍCITA (llamado directo, sin el latido global que re-dispara el motor)
-  // para que no arrastre el estado del nivel anterior.
-  document.body.classList.remove('portales-canasta-oculta');
-  if (paneles.derecho === 'grillaObjetos') refrescarBandeja();
-  // ---------------------------------------------------------------------------
-  // LOTE 31 · PUNTO 2 · CANASTA DEL CUADRANTE DERECHO («Espacio Único»)
-  // ---------------------------------------------------------------------------
-  // En el fin de cadena la canasta no sólo sigue viva (Lote 29): se INTEGRA al
-  // cuadrante derecho del visor, junto al bloque monolítico y a la grilla directa
-  // de objetos, para que un ambiente sin muebles internos se lea con la MISMA
-  // consistencia que el lienzo habitual. La clase en <html> mueve la canasta al
-  // host `#canastaCuadranteDerecho` y libera el `md:pr-80` reservado al panel
-  // flotante (styles/almacenamiento-canasta-cuadrante.css): sigue habiendo UNA
-  // sola canasta en pantalla, nunca dos.
-  document.documentElement.classList.toggle(
-    'portales-canasta-cuadrante',
-    paneles.derecho === 'grillaObjetos',
-  );
-  // El host de la canasta del cuadrante se mantiene SIEMPRE último del cuadrante
-  // derecho: los hosts de portales se reinsertan con `appendChild` en cada nivel
-  // (moverPanel) y, sin este reordenamiento, la canasta quedaría por ENCIMA del
-  // bloque monolítico y de su grilla directa de objetos.
-  const hostCanastaCuadrante = el('canastaCuadranteDerecho');
-  if (hostCanastaCuadrante) slotDer()?.appendChild(hostCanastaCuadrante);
-  // CANASTA DEL PANEL DERECHO PARA LA CAJA / CONTENEDOR ACTIVO (inspección
-  // interna): al abrir «Caja 01» el operador ve, debajo de su ficha y de la
-  // lista de objetos guardados, la bandeja de objetos DISPONIBLES para
-  // arrastrar adentro. Es el MISMO módulo de canasta montado sobre un host
-  // estático (`#bandejaCajaContenido`): no hay estado ni lógica duplicada.
-  // En «Espacio Único» la canasta ya vive en el cuadrante derecho, así que este
-  // host se apaga para que nunca haya dos canastas en pantalla.
-  const nodoDelNivel = nodoActual();
-  const mostrarCanastaCaja = Boolean(
-    nodoDelNivel && nodoDelNivel.tipo === 'contenedor' && !nodoDelNivel.espacioUnico,
-  );
-  const hostBandejaCaja = el('bandejaCajaHost');
-  if (hostBandejaCaja) {
-    hostBandejaCaja.classList.toggle('hidden', !mostrarCanastaCaja);
-    // ORDEN DEL CUADRANTE: `moverPanel` reinserta el host activo con
-    // `appendChild`, así que la canasta de la caja se re-ancla al FINAL para
-    // quedar SIEMPRE debajo de su ficha y del editor (nunca arriba).
-    if (mostrarCanastaCaja) slotDer()?.appendChild(hostBandejaCaja);
-  }
 }
 
 /** Habilita/oculta los botones de navegación según la profundidad activa. */
@@ -295,52 +232,41 @@ export async function volverARaiz(): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------
-// RENDER DEL INTERIOR (Panel Derecho recursivo + bloque monolítico)
+// RENDER DEL INTERIOR (Panel Derecho recursivo / Panel de Contenido final)
 // -----------------------------------------------------------------------------
 
 /**
- * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe(): si el
- * nodo fue declarado «Espacio Único» la derecha salta a la grilla directa de
- * objetos reales; en CUALQUIER otro caso monta el editor elástico recursivo. La
- * izquierda (ancla del nivel superior) la pinta `pintarAncla` + `resaltarSeleccionIzquierda`.
+ * Pinta el Panel Derecho del nivel activo. La decisión la toma panelesDe():
+ *   · ESPACIO FINAL (nivel terminal) → Panel de Contenido (tarjetas + Drop Zone).
+ *   · Cualquier otro caso           → editor elástico recursivo de divisiones.
+ * La izquierda (ancla del nivel superior) la pinta `pintarAncla` +
+ * `resaltarSeleccionIzquierda`.
  */
 async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<void> {
   const paneles = panelesDe(contextoDeNivel());
   if (paneles.derecho === 'listaContenedores') {
     const host = el(HOSTS.listaContenedores);
     if (!host) return;
-    // LEY 2 · DESCENSO RECURSIVO INFINITO Y REVERSIBLE: TODO nivel NO monolítico
-    // (habitación, mueble, estante, caja o pieza VACÍA recién creada) despliega el
-    // MISMO editor elástico («➕ Crear Espacio» + disyuntor «Espacio Único»). Sólo
-    // un «Espacio Único» declarado salta a la grilla directa; destildarlo devuelve
-    // el editor en caliente a CUALQUIER profundidad de la pila.
+    // LEY 2 · DESCENSO RECURSIVO INFINITO Y REVERSIBLE: TODO nivel modelable
+    // (habitación, mueble con estantes, pieza con sub-espacios arquitectónicos)
+    // despliega el MISMO editor elástico («➕ Crear Espacio» + «Espacio Final»).
     pintarEditorDivisiones(host, nodo, interior);
     return;
   }
-  // Fin de cadena / Espacio Único: grilla directa + disyuntor (Ley 4).
-  iniciarGrillaDirecta(nodo, interior);
+  // ESPACIO FINAL: Panel de Contenido sin lienzo/mapa 2D (Ley 4).
+  iniciarPanelEspacioFinal(nodo, interior);
 }
 
 /**
- * LEY 4 · Fin de cadena: la DERECHA monta la grilla directa de objetos reales y
- * el disyuntor «Espacio Único» viaja a su encabezado. La IZQUIERDA conserva el
- * mapa del NIVEL SUPERIOR con el nodo monolítico resaltado en naranja.
+ * LEY 4 · ESPACIO FINAL: la DERECHA monta el Panel de Contenido (tarjetas de las
+ * cajas/sub-espacios y objetos que aloja + zona receptora de Drag & Drop de área
+ * completa) y la IZQUIERDA se oculta por completo: no hay lienzo/mapa 2D.
  */
-function iniciarGrillaDirecta(nodo: NodoPortal, interior: InteriorNodo): void {
-  const host = el(HOSTS.grillaObjetos);
+function iniciarPanelEspacioFinal(nodo: NodoPortal, interior: InteriorNodo): void {
+  const host = el(HOSTS.contenidoFinal);
   if (!host) return;
-  const enTransito = interior.objetos.filter((o) => o.en_transito_interno).length;
-  const disyuntor = nodo.espacioUnico ? bloqueMonoliticoHtml(nodo, enTransito) : '';
-  host.innerHTML =
-    disyuntor + barraAccionesCajaHtml(nodo) + grillaObjetosDirectosHtml(nodo, interior.objetos);
-  // Barra del contenedor activo («🔎 Abrir ficha completa») + zona de suelta.
-  conectarAccionesCaja(host, nodo);
-  initGrillaObjetosDirectos({
-    contenedor: host,
-    nodo,
-    alCambiarEspacioUnico: (valor) => void alternarEspacioUnico(nodo, valor),
-    alCambiarMuebleMovil: (valor) => void alternarMuebleMovil(nodo, valor),
-  });
+  host.innerHTML = panelEspacioFinalHtml(nodo, interior);
+  conectarPanelEspacioFinal({ host, nodo });
 }
 
 /**
@@ -368,8 +294,9 @@ async function refrescarNivelInterno(): Promise<void> {
       transicionar();
       return;
     }
-    // 1) El nodo se re-resuelve contra el padrón (pudo cambiar su «Espacio Único»,
-    //    sumar hijos o ser eliminado) sin perder sus migas ni su geometría.
+    // 1) El nodo se re-resuelve contra el padrón (pudo cambiar su estado de
+    //    «Espacio Final», sumar hijos o ser eliminado) sin perder sus migas ni
+    //    su geometría.
     const fresco =
       nodo.tipo === 'habitacion' ? await nodoDeHabitacion(nodo.id) : await nodoDeContenedor(nodo.id);
     if (fresco) {
@@ -380,21 +307,25 @@ async function refrescarNivelInterno(): Promise<void> {
     const activo = nodoActual();
     if (!activo) return;
 
-    // 2) LEY 1 (Asimetría Rígida): la IZQUIERDA CONSERVA el mapa del NIVEL
-    //    SUPERIOR con el seleccionado resaltado en naranja. NUNCA dibuja el
-    //    interior del propio seleccionado → se mata el espejo entre cuadrantes.
-    const ctx = contextoDeNivel();
-    const paneles = panelesDe(ctx);
-    await pintarAncla(paneles.izquierdo, ctx.superior, activo);
-
-    // 3) Interior jerárquico del nodo SELECCIONADO (derecha).
+    // 2) INTERIOR JERÁRQUICO del nodo ACTIVO. Se resuelve ANTES de decidir los
+    //    paneles porque la naturaleza de los hijos define si el nivel es un
+    //    ESPACIO FINAL (sin sub-espacios arquitectónicos) o un nivel modelable.
     interiorActual = await cargarInteriorDeNodo(activo);
     reemplazarNodoActual({
       hijos: interiorActual.geometriaHijos,
       conDivisiones: interiorActual.piezas.length > 0,
       filas: interiorActual.filas,
       columnasPorFila: interiorActual.columnasPorFila,
+      subEspaciosArquitectonicos: contarSubEspaciosArquitectonicos(interiorActual.piezas),
     });
+
+    // 3) LEY 1 (Asimetría Rígida): la IZQUIERDA CONSERVA el mapa del NIVEL
+    //    SUPERIOR con el seleccionado resaltado en naranja. NUNCA dibuja el
+    //    interior del propio seleccionado → se mata el espejo entre cuadrantes.
+    //    En un ESPACIO FINAL la izquierda no existe: `pintarAncla` no dibuja nada.
+    const ctx = contextoDeNivel();
+    const paneles = panelesDe(ctx);
+    await pintarAncla(paneles.izquierdo, ctx.superior, nodoActual() ?? activo);
 
     // 4) Paneles del nivel + física dual + resalte naranja del seleccionado.
     const actual = nodoActual() ?? activo;

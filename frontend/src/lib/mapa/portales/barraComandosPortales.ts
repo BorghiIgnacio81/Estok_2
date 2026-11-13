@@ -6,13 +6,15 @@
 // que la barra se re-sincroniza después de cada transición de nivel y el switch
 // sigue operativo en CUALQUIER posición de la pila (`ruta: NodoPortal[]`).
 //
-//   · Nivel NO monolítico (planta, habitación, mueble, estante, caja o pieza
-//     VACÍA recién creada) → «✏️ Editar» VISIBLE, OPERATIVO y FUNCIONAL: habilita
-//     la inyección de celdas elásticas (`data-lienzo-crear`) del lienzo de ESE
-//     nivel, sin importar cuán hondo se haya descendido.
-//   · «Espacio Único» declarado (`espacio_unico = true`) → ÚNICO caso que apaga la
-//     edición: «✏️ Editar» queda DESHABILITADO y el modo vuelve a navegación.
-//     El disyuntor es REVERSIBLE: al DESTILDARLO el botón reaparece en caliente.
+//   · Nivel modelable (planta, habitación, mueble con divisiones, pieza con
+//     sub-espacios arquitectónicos) → «✏️ Editar» VISIBLE, OPERATIVO y FUNCIONAL:
+//     habilita la inyección de celdas elásticas (`data-lienzo-crear`) del lienzo
+//     de ESE nivel, sin importar cuán hondo se haya descendido.
+//   · ESPACIO FINAL (nivel terminal: declarado o sin sub-espacios
+//     arquitectónicos) → ÚNICO caso que apaga la edición: el lienzo 2D se oculta,
+//     «✏️ Editar» queda DESHABILITADO y el modo vuelve a navegación. El disyuntor
+//     es REVERSIBLE: al destildarlo (o con «🧩 Modelar divisiones») el botón
+//     reaparece en caliente.
 //
 // No duplica listeners: el clic lo atiende la DELEGACIÓN de lib/modoLienzo.ts,
 // de modo que las barras inyectadas en caliente quedan vivas sin re-enlazar nada.
@@ -30,18 +32,18 @@ export interface EstadoBarraComandos {
   modelable: boolean;
 }
 
-/** Micro-ayuda del botón de edición cuando el nivel activo es monolítico. */
-const TITULO_MONOLITICO =
-  '🧱 Espacio Único: este bloque es monolítico y no admite subdivisiones internas. Destildá «Espacio Único» para volver a dividirlo.';
+/** Micro-ayuda del botón de edición cuando el nivel activo es un Espacio Final. */
+const TITULO_ESPACIO_FINAL =
+  '🧱 Espacio Final: este nivel es terminal y no tiene lienzo 2D. Usá «🧩 Modelar divisiones» del panel (o destildá «Espacio Final» en el acordeón) para volver a subdividirlo.';
 
 /**
  * Aplica la visibilidad/reactividad del interruptor «✏️ Editar» a TODAS las barras
  * del documento según el disyuntor vigente. AUTORIDAD ÚNICA: mientras el nivel
- * activo NO sea «Espacio Único» el botón queda habilitado; al declararlo monolítico
- * se deshabilita y el lienzo vuelve a navegación (el clic vuelve a ser PORTAL).
+ * activo NO sea un Espacio Final el botón queda habilitado; al declararlo
+ * terminal se deshabilita y el lienzo vuelve a navegación (el clic es PORTAL).
  *
  * Idempotente y re-invocable: sirve tanto tras repintar el nivel como para
- * reaccionar EN CALIENTE al tildar/destildar «Espacio Único».
+ * reaccionar EN CALIENTE al tildar/destildar «Espacio Final».
  */
 export function reflejarModoEdicion(modelable: boolean): void {
   // Sin modelador no hay nada que editar: el lienzo vuelve a modo navegación
@@ -53,19 +55,19 @@ export function reflejarModoEdicion(modelable: boolean): void {
     if (!btn.dataset.tituloBase) btn.dataset.tituloBase = btn.title;
     btn.disabled = !modelable;
     btn.dataset.modelador = modelable ? '1' : '0';
-    btn.title = modelable ? btn.dataset.tituloBase : TITULO_MONOLITICO;
+    btn.title = modelable ? btn.dataset.tituloBase : TITULO_ESPACIO_FINAL;
   });
   refrescarBotonesModo();
 }
 
 /**
- * REACCIÓN EN CALIENTE AL DISYUNTOR «ESPACIO ÚNICO» (Lote 19): el ÚNICO estado que
- * apaga «✏️ Editar» es `espacio_unico = true`. Al DESTILDARLO el botón reaparece de
+ * REACCIÓN EN CALIENTE AL DISYUNTOR «ESPACIO FINAL» (Lote 19): el ÚNICO estado
+ * que apaga «✏️ Editar» es el nivel terminal. Al DESTILDARLO el botón reaparece de
  * inmediato, sin esperar al refresco de la cascada. Se invoca desde
- * `alternarEspacioUnico()` pasándole el valor tildado del checkbox.
+ * `alternarEspacioFinal()` pasándole el valor tildado del checkbox.
  */
-export function reaccionarEspacioUnico(espacioUnico: boolean): void {
-  reflejarModoEdicion(!espacioUnico);
+export function reaccionarEspacioFinal(espacioFinal: boolean): void {
+  reflejarModoEdicion(!espacioFinal);
 }
 
 /**

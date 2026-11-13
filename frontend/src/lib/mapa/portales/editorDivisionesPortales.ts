@@ -7,8 +7,8 @@
 // + conectarLienzoElastico) para modelar su interior con:
 //   · «➕ Crear Espacio» → POST /api/contenedores/ (división estructural, sin
 //     espejo de stock) → aparece al instante y se arrastra/estira/fusiona.
-//   · El disyuntor canónico «Espacio Único» (lib/espacioUnico.ts) que declara al
-//     nivel como bloque monolítico y re-transiciona la cascada (Ley 4).
+//   · El disyuntor canónico «Espacio Final» (lib/espacioFinal.ts) que declara al
+//     nivel como TERMINAL (sin lienzo 2D) y re-transiciona la cascada (Ley 4).
 //   · El PERÍMETRO ÁMBAR redimensionable (lib/perimetroElastico.ts) inyectado con
 //     `inyectarPerimetroElastico(..., nodo)` y conectado con
 //     `conectarPerimetroElastico(...)`: estirar el marco ensancha los límites
@@ -23,8 +23,8 @@ import { adaptadorContenedores, adaptadorUbicaciones } from '../../lienzoElastic
 import type { AdaptadorEspacios, ItemElastico } from '../../lienzoElastico';
 import { renderLienzoElastico } from '../../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../../plantaUnicaInteractivo';
-import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO } from '../../espacioUnico';
-// 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
+import { checkboxEspacioFinalHtml, GUIA_ESPACIO_FINAL } from '../../espacioFinal';
+// 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Final».
 import { lineaMuebleMovilHtml } from '../../muebleMovil';
 // Propiedades del Objeto declarado (Dueño/Categoría/Estado/Valor estimado).
 import { conectarPropiedadesObjetoEspacio } from '../../objetoEspacio';
@@ -33,9 +33,9 @@ import {
   guardarMedidaCon,
   inyectarPerimetroElastico,
 } from '../../perimetroElastico';
-import { reemplazarNodoActual } from './estadoPortales';
+import { forzarModelador, reemplazarNodoActual } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
-import { reaccionarEspacioUnico } from './barraComandosPortales';
+import { reaccionarEspacioFinal } from './barraComandosPortales';
 import { cargarContenedores } from './datosNodosPortales';
 // Disyuntores del espacio: persistencia compartida (PUT parcial multi-tenant).
 import { guardarDeclaradoMovible, guardarEspacioUnico } from './disyuntoresPersistencia';
@@ -94,7 +94,7 @@ function itemsEditor(interior: InteriorNodo): ItemElastico[] {
 
 /**
  * CUERPO del bloque de divisiones: los DOS disyuntores del espacio activo,
- * apilados en este orden EXACTO (Lote 26): «Espacio Único» arriba y «🎒 Declarar
+ * apilados en este orden EXACTO (Lote 26): «Espacio Final» arriba y «🎒 Declarar
  * como Mueble Móvil / Objeto» justo debajo, para que el operador configure la
  * pieza en caliente MIENTRAS modela los ambientes de la habitación.
  *
@@ -104,10 +104,10 @@ function itemsEditor(interior: InteriorNodo): ItemElastico[] {
  */
 function cuerpoDivisionesHtml(nodo: NodoPortal): string {
   return `<div class="portal-grilla-cab">
-      ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnicoEditor', marcado: nodo.espacioUnico, valor: nodo.id })}
+      ${checkboxEspacioFinalHtml({ id: 'portalEspacioFinalEditor', marcado: nodo.espacioUnico, valor: nodo.id })}
     </div>
     ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovilEditor')}
-    <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>`;
+    <p class="portal-monolitico-guia">${GUIA_ESPACIO_FINAL}</p>`;
 }
 
 /**
@@ -211,27 +211,35 @@ async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean>
 }
 
 /**
- * Persiste el disyuntor «Espacio Único» del nodo activo (Ubicación o Contenedor)
+ * Persiste el disyuntor «Espacio Final» del nodo activo (Ubicación o Contenedor)
  * y re-transiciona la cascada en caliente (Ley 4). Autoridad ÚNICA del flag: la
- * usan tanto el editor elástico del cuarto como la grilla directa de objetos.
+ * usan tanto el editor elástico del cuarto como el Panel de Contenido.
+ *
+ * CONTRATO: el campo persistido sigue siendo `espacio_unico` (backend); este
+ * helper es la puerta de la INTERFAZ «Espacio Final».
  */
-export async function alternarEspacioUnico(nodo: NodoPortal, valor: boolean): Promise<void> {
+export async function alternarEspacioFinal(nodo: NodoPortal, valor: boolean): Promise<void> {
   const recurso = nodo.tipo === 'habitacion' ? 'ubicaciones' : 'contenedores';
   const ok = await guardarEspacioUnico(nodo.id, valor, recurso);
   if (!ok) return;
   reemplazarNodoActual({ espacioUnico: valor });
-  // 🧱 DISYUNTOR REVERSIBLE EN CALIENTE: al destildar «Espacio Único» el botón
+  // OVERRIDE DE SESIÓN: destildar es la declaración EXPLÍCITA de «quiero modelar
+  // la geometría de esta pieza». Sobre un contenedor cuyos hijos son todos bultos
+  // el nivel seguiría detectándose terminal, así que se fuerza el modelador hasta
+  // que el operador lo vuelva a declarar Espacio Final.
+  forzarModelador(nodo.id, !valor);
+  // 🧱 DISYUNTOR REVERSIBLE EN CALIENTE: al destildar «Espacio Final» el botón
   // «✏️ Editar» reaparece de inmediato (antes de que la cascada repinte el nivel)
-  // y al tildarlo se deshabilita + el lienzo vuelve a navegación. La grilla directa
-  // de objetos se destruye al re-transicionar la pantalla con el evento de abajo.
-  reaccionarEspacioUnico(valor);
+  // y al tildarlo se deshabilita + el lienzo vuelve a navegación. El panel de
+  // contenido se destruye al re-transicionar la pantalla con el evento de abajo.
+  reaccionarEspacioFinal(valor);
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
 }
 
 /**
  * Persiste el disyuntor «🎒 Mueble Móvil / Objeto» del CONTENEDOR activo (PUT
  * parcial multi-tenant: la Ubicación no expone el campo) y refresca el padrón en
- * memoria. El control vive SIEMPRE debajo de «Espacio Único» en el panel del
+ * memoria. El control vive SIEMPRE debajo de «Espacio Final» en el panel del
  * nivel activo, así que la declaración viaja acoplada a esa celda.
  */
 export async function alternarMuebleMovil(nodo: NodoPortal, valor: boolean): Promise<void> {
@@ -250,7 +258,7 @@ export async function alternarMuebleMovil(nodo: NodoPortal, valor: boolean): Pro
 /**
  * LEY 2 · Despliega el EDITOR ELÁSTICO de divisiones en el Panel Derecho para una
  * habitación viva o un contenedor con sub-divisiones (recursivo ∞): cabecera con
- * «Espacio Único» + lienzo elástico naranja de perímetro ámbar estirable
+ * «Espacio Final» + lienzo elástico naranja de perímetro ámbar estirable
  * («➕ Crear Espacio», arrastre, resizing y fusión). Idempotente por render.
  */
 export function pintarEditorDivisiones(
@@ -303,11 +311,11 @@ export function pintarEditorDivisiones(
       acordeonDivisionesAbierto = acordeon.open;
     });
   }
-  host.querySelector<HTMLInputElement>('[data-espacio-unico]')?.addEventListener('change', (ev) => {
-    void alternarEspacioUnico(nodo, (ev.currentTarget as HTMLInputElement).checked);
+  host.querySelector<HTMLInputElement>('[data-espacio-final]')?.addEventListener('change', (ev) => {
+    void alternarEspacioFinal(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });
   // 🎒 Disyuntor de movilidad: acopla la declaración a la CELDA ACTIVA con PUT
-  // parcial (mismo contrato que «Espacio Único») sin recargar la pantalla.
+  // parcial (mismo contrato que «Espacio Final») sin recargar la pantalla.
   host.querySelector<HTMLInputElement>('[data-mueble-movil]')?.addEventListener('change', (ev) => {
     void alternarMuebleMovil(nodo, (ev.currentTarget as HTMLInputElement).checked);
   });

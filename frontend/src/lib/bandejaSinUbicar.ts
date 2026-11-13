@@ -81,6 +81,8 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../services/auth';
 import { toast } from './mapaJerarquico';
+// Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito.
+import { publicarArrastre, leerEntidadArrastrada } from './arrastreEntidad';
 import { cargarDatosBandeja } from './bandejaSinUbicarDatos';
 import type { ContenedorBandeja, ObjetoBandeja } from './bandejaSinUbicarDatos';
 // Render PURO de las cuatro pestañas, de los chips y del panel activo (módulo
@@ -180,12 +182,14 @@ function enlazar(): void {
           return;
         }
         arrastrandoChip = true;
-        const mime =
-          tipo === 'contenedor' ? 'application/x-estok-contenedor' : 'application/x-estok-objeto';
-        de.dataTransfer?.setData(mime, id);
-        de.dataTransfer?.setData('text/plain', id);
-        de.dataTransfer?.setData('application/x-estok-origen', 'bandeja');
-        if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
+        // PAYLOAD EXPLÍCITO: el chip viaja con SU id real y su `tipo_entidad`.
+        // La canasta sólo lista CAJAS y OBJETOS, así que el contenedor siempre es
+        // un bulto móvil ('caja'), nunca arquitectura del espacio.
+        publicarArrastre(de, {
+          id,
+          tipoEntidad: tipo === 'contenedor' ? 'caja' : 'objeto',
+          origen: 'bandeja',
+        });
         chip.classList.add('bandeja-chip-arrastrando');
       });
       chip.addEventListener('dragend', () => {
@@ -302,10 +306,11 @@ function enlazarExtraccion(): void {
       host.classList.remove('bandeja-drop-activo');
       // Ignorar un chip que se soltó de nuevo sobre la propia canasta.
       if (de.dataTransfer?.getData('application/x-estok-origen') === 'bandeja') return;
-      const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
-      const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-      if (contId) void extraerContenedor(contId);
-      else if (objId) void extraerObjeto(objId);
+      // El payload se lee por el contrato único (tipo_entidad + id real).
+      const entidad = leerEntidadArrastrada(de);
+      if (!entidad) return;
+      if (entidad.tipoEntidad === 'objeto') void extraerObjeto(entidad.id);
+      else void extraerContenedor(entidad.id);
     });
   }
 }

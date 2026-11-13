@@ -63,7 +63,7 @@ const TIP_DIVISIONES =
 let contenedor: HTMLElement | null = null;
 let roomId: string | null = null;
 let espacios: ItemElastico[] = [];
-/** Habitación dueña del perímetro (medida general + estado «Espacio Único»). */
+/** Habitación dueña del perímetro (medida general + estado «Espacio Final»). */
 let habitacion: HabitacionApi | null = null;
 
 /** GET de los espacios RAÍZ de la habitación (fuente de verdad = PostgreSQL). */
@@ -97,7 +97,7 @@ async function fetchEspacios(id: string): Promise<ItemElastico[]> {
 /**
  * GET de la habitación DUEÑA del lienzo: trae la medida general persistida
  * (`ui_width`/`ui_height`) que consume el perímetro elástico y el estado
- * «Espacio Único». Un fallo de red nunca rompe el Paso 3: se devuelve null.
+ * «Espacio Final». Un fallo de red nunca rompe el Paso 3: se devuelve null.
  */
 async function fetchHabitacion(id: string): Promise<HabitacionApi | null> {
   try {
@@ -144,7 +144,7 @@ async function crearEspacio(id: string): Promise<boolean> {
         es_inmueble: false,
         // Subdivisión estructural: geometría del mapa sin stock espejo.
         crear_espejo: false,
-        // Una DIVISIÓN interna nunca es monolítica: no nace como «Espacio Único».
+        // Una DIVISIÓN interna nunca es terminal: no nace como «Espacio Final».
         espacio_unico: false,
       }),
     });

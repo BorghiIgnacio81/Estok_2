@@ -21,9 +21,9 @@
 
 import { escapeHtml } from '../../mapaJerarquico';
 import type { NodoPortal } from './estadoPortales';
-// Recepción del Drag & Drop de la canasta: la persistencia (PUT con la relación
-// jerárquica y casillero fino nulo) es EXACTAMENTE la del motor de portales —
-// acá no se reimplementa ninguna regla, sólo se declara la zona de suelta.
+// Payload EXPLÍCITO del arrastre (id real + tipo_entidad): única fuente del
+// contrato, compartida por canastas, lienzos y panel de contenido.
+import { publicarArrastre } from '../../arrastreEntidad';
 import { guardarEnContenedor, leerCargaArrastrada } from './transitoInterno';
 
 /**
@@ -79,10 +79,20 @@ function conectarZonaDrop(zona: HTMLElement, destino: DestinoCaja): void {
   zona.addEventListener('dragover', (ev) => {
     const de = ev as DragEvent;
     de.preventDefault();
+    // AISLAMIENTO DE RECEPTORES ANIDADOS: la tarjeta de una caja vive DENTRO de
+    // la zona de suelta del contenedor padre; sin este freno, arrastrar sobre la
+    // tarjeta resaltaría también el área general y el Drop podría duplicarse.
+    de.stopPropagation();
     if (de.dataTransfer) de.dataTransfer.dropEffect = 'move';
     zona.classList.add('portal-caja-drop-activo');
   });
-  zona.addEventListener('dragleave', limpiar);
+  zona.addEventListener('dragleave', (ev) => {
+    const de = ev as DragEvent;
+    // Cambio entre hijos de la MISMA zona: no se apaga el realce.
+    if (de.relatedTarget && zona.contains(de.relatedTarget as Node)) return;
+    ev.stopPropagation();
+    limpiar();
+  });
   zona.addEventListener('drop', (ev) => {
     const de = ev as DragEvent;
     limpiar();
@@ -98,6 +108,10 @@ function conectarZonaDrop(zona: HTMLElement, destino: DestinoCaja): void {
       tieneDivisiones: destino.tieneDivisiones,
       fila: null,
       col: null,
+      // ASIGNACIÓN EXPLÍCITA: el operador soltó el elemento sobre el área o la
+      // tarjeta de ESTE contenedor; el PUT viaja con `en_transito_interno=false`
+      // y la pieza sale del limbo «En Tránsito» en la misma transacción.
+      enTransito: false,
     });
   });
 }
@@ -133,12 +147,40 @@ export function conectarDropPiezasCaja(host: HTMLElement): void {
 }
 
 /**
+ * ORIGEN DEL ARRASTRE de las tarjetas de cajas/sub-espacios contenidos
+ * (`[data-arrastre-entidad]`, que emite `contenidoInternoNodo.selectorPiezasHtml`
+ * en modo `arrastrables`).
+ *
+ * El payload se publica con el ID REAL de la tarjeta y su `tipo_entidad`
+ * explícito: `caja` para bultos móviles, `espacio` para divisiones fijas. Se
+ * frena la propagación porque la tarjeta vive DENTRO de la zona de suelta del
+ * contenedor activo y ningún ancestro debe reescribir el identificador.
+ */
+export function conectarArrastrePiezasCaja(host: HTMLElement): void {
+  host.querySelectorAll<HTMLElement>('[data-arrastre-entidad]').forEach((tarjeta) => {
+    const id = tarjeta.dataset.arrastreEntidad ?? '';
+    if (!id) return;
+    const tipoEntidad = tarjeta.dataset.arrastreTipo === 'espacio' ? 'espacio' : 'caja';
+    tarjeta.addEventListener('dragstart', (ev) => {
+      const de = ev as DragEvent;
+      publicarArrastre(de, { id, tipoEntidad, origen: 'panel' });
+      de.stopPropagation();
+      tarjeta.classList.add('portal-pieza-arrastrando');
+    });
+    tarjeta.addEventListener('dragend', () => {
+      tarjeta.classList.remove('portal-pieza-arrastrando');
+    });
+  });
+}
+
+/**
  * Conecta la barra de acciones del contenedor activo: la zona de suelta
- * destacada y las filas del selector de cajas del nivel. Idempotente por
- * render: el host se reescribe por innerHTML en cada nivel, así que los
- * listeners viejos desaparecen con sus nodos.
+ * destacada, las filas del selector de cajas del nivel y su origen de arrastre.
+ * Idempotente por render: el host se reescribe por innerHTML en cada nivel, así
+ * que los listeners viejos desaparecen con sus nodos.
  */
 export function conectarAccionesCaja(host: HTMLElement, nodo: NodoPortal): void {
   conectarDropCaja(host, nodo);
   conectarDropPiezasCaja(host);
+  conectarArrastrePiezasCaja(host);
 }

@@ -1,21 +1,24 @@
 // =============================================================================
-// GRILLA DIRECTA DE OBJETOS + BLOQUE MONOLÍTICO (fin de cadena «Espacio Único»)
+// GRILLA DIRECTA DE OBJETOS DEL NIVEL TERMINAL (panel del Espacio Final)
 // -----------------------------------------------------------------------------
-// Cuando el nodo activo es un ESPACIO ÚNICO (o todavía no tiene divisiones):
-//   · Panel Izquierdo → BLOQUE MONOLÍTICO: el modelador geométrico queda
-//     BLOQUEADO y sólo se ofrece el control «Espacio Único» con su leyenda.
-//   · Panel Derecho    → GRILLA DIRECTA de los objetos reales que aloja el nodo
-//     (stock puro) y Drop Zone que guarda objetos/cajas de forma directa.
-//     En este nivel la canasta flotante se oculta (lo decide el orquestador).
+// Bloque de contenido que lista los OBJETOS que cuelgan DIRECTAMENTE del nodo
+// activo (stock puro, sin contenedor intermedio) y los declara:
+//   · DESTINO del arrastre (`[data-portal-objetos-drop]`): soltar una caja u
+//     objeto de la canasta lo guarda directo en el nodo.
+//   · ORIGEN del arrastre (`[data-portal-objeto-dnd]`): cada tarjeta viaja a
+//     otra caja, al área general del panel o a la canasta, con el payload
+//     EXPLÍCITO id + tipo_entidad (`objeto`) de lib/arrastreEntidad.ts.
+//
+// El PANEL completo (cabecera, tarjetas de cajas y zona receptora de área
+// completa) vive en ./panelEspacioFinal.ts; acá sólo se resuelve el bloque de
+// objetos, para no duplicar el render ni la persistencia.
 // =============================================================================
 
-import { escapeHtml, toast } from '../../mapaJerarquico';
+import { escapeHtml } from '../../mapaJerarquico';
 import { indicadorTransitoHtml } from '../../indicadorTransito';
-import { checkboxEspacioUnicoHtml, GUIA_ESPACIO_UNICO, ETIQUETA_ESPACIO_UNICO } from '../../espacioUnico';
-// 🎒 Disyuntor de movilidad (Lote 26): SIEMPRE debajo del control «Espacio Único».
-import { lineaMuebleMovilHtml } from '../../muebleMovil';
 // Propiedades del Objeto declarado (Dueño/Categoría/Estado/Valor estimado).
 import { conectarPropiedadesObjetoEspacio } from '../../objetoEspacio';
+import { publicarArrastre } from '../../arrastreEntidad';
 import { leerCargaArrastrada, guardarEnContenedor, guardarEnUbicacion } from './transitoInterno';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
@@ -23,35 +26,6 @@ import type { ObjetoDto } from './datosNodosPortales';
 import { ASSET_MUEBLE } from '../../assetsUi';
 
 const IMG_OBJETO = ASSET_MUEBLE;
-
-/** Bloque monolítico: sin modelador, con el disyuntor y ZONA DE SUELTA propia. */
-export function bloqueMonoliticoHtml(nodo: NodoPortal, enTransito: number): string {
-  const transito = enTransito
-    ? `<span class="portal-badge portal-badge-transito">${indicadorTransitoHtml('interno')} · ${enTransito}</span>`
-    : '';
-  // 🔒 LOTE 29 · ZONA DE SUELTA DEL ESPACIO ÚNICO: el bloque ENTERO acepta el
-  // Drop de la canasta (antes sólo la grilla de abajo lo hacía, y soltar sobre el
-  // bloque no disparaba nada). Usa los MISMOS ganchos estándar del motor, así que
-  // no duplica ninguna lógica:
-  //   · `data-portal-objetos-drop` → lo conecta initGrillaObjetosDirectos().
-  //   · `data-drop-destino`        → id del contenedor que recibe la carga.
-  //   · `zona-drop-espacio`        → gancho semántico de estilo.
-  return `<div class="portal-monolitico zona-drop-espacio"
-    data-portal-objetos-drop="${escapeHtml(nodo.id)}"
-    data-drop-destino="${escapeHtml(nodo.id)}"
-    title="Soltá acá una caja u objeto de la canasta para guardarlo directo en este espacio (sin estante ni casillero).">
-    <div class="portal-monolitico-cab">
-      <span class="portal-monolitico-ico" aria-hidden="true">🧱</span>
-      <span class="portal-monolitico-nombre">${escapeHtml(nodo.nombre)}</span>
-      <span class="portal-badge portal-badge-monolitico">🧱 ${ETIQUETA_ESPACIO_UNICO}</span>
-      ${transito}
-    </div>
-    <p class="portal-monolitico-texto">Bloque monolítico: este contenedor no se subdivide en estantes ni cajones y el modelador geométrico queda bloqueado. Los objetos que aloja viven directo acá, en la grilla de la derecha.</p>
-    ${checkboxEspacioUnicoHtml({ id: 'portalEspacioUnico', marcado: nodo.espacioUnico, valor: nodo.id })}
-    ${lineaMuebleMovilHtml(nodo, 'portalMuebleMovil')}
-    <p class="portal-monolitico-guia">${GUIA_ESPACIO_UNICO}</p>
-  </div>`;
-}
 
 /** Tarjeta de un objeto real guardado directamente en el nodo. */
 function tarjetaObjetoHtml(o: ObjetoDto): string {
@@ -89,13 +63,11 @@ export function grillaObjetosDirectosHtml(nodo: NodoPortal, objetos: ObjetoDto[]
 
 /**
  * Conecta la grilla: Drop de guardado DIRECTO (sin celda fina) y origen de
- * arrastre de los objetos reales. El control «Espacio Único» avisa al
- * orquestador por callback para persistir y re-transicionar en caliente.
+ * arrastre de los objetos reales (payload explícito `objeto`).
  */
 export function initGrillaObjetosDirectos(opts: {
   contenedor: HTMLElement | null;
   nodo: NodoPortal;
-  alCambiarEspacioUnico: (valor: boolean) => void;
   /** 🎒 Declaración de movilidad de la celda activa (PUT parcial al Contenedor). */
   alCambiarMuebleMovil: (valor: boolean) => void;
 }): void {
@@ -103,7 +75,7 @@ export function initGrillaObjetosDirectos(opts: {
   if (!host) return;
 
   // Drop de guardado directo dentro del nodo activo. Los receptores pueden estar
-  // ANIDADOS (el bloque monolítico contiene a la grilla directa): la guarda
+  // ANIDADOS (el área general del panel contiene a la grilla directa): la guarda
   // `defaultPrevented` garantiza que sólo el receptor MÁS INTERNO procese la
   // suelta, sin doble resalte ni doble mutación (mismo criterio que
   // `transitoInterno.conectarDropCiego`).
@@ -127,8 +99,8 @@ export function initGrillaObjetosDirectos(opts: {
       const carga = leerCargaArrastrada(de);
       if (!carga) return;
       // Guardado DIRECTO, sin estante y sin casillero. El backend jamás marca
-      // «En Tránsito Interno» en un bloque monolítico (Espacio Único). El destino
-      // es la HABITACIÓN (Ubicación) o el CONTENEDOR según el nodo activo.
+      // «En Tránsito Interno» en un Espacio Final. El destino es la HABITACIÓN
+      // (Ubicación) o el CONTENEDOR según el nodo activo.
       if (opts.nodo.tipo === 'habitacion') {
         void guardarEnUbicacion(carga, nodoId, opts.nodo.nombre);
         return;
@@ -139,6 +111,9 @@ export function initGrillaObjetosDirectos(opts: {
         tieneDivisiones: false,
         fila: null,
         col: null,
+        // ASIGNACIÓN DEFINITIVA del operador: la pieza sale del limbo «En
+        // Tránsito» en la misma transacción.
+        enTransito: false,
       });
     });
   });
@@ -152,27 +127,18 @@ export function initGrillaObjetosDirectos(opts: {
         de.preventDefault();
         return;
       }
-      de.dataTransfer?.setData('application/x-estok-objeto', id);
-      de.dataTransfer?.setData('text/plain', id);
-      if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
+      // PAYLOAD EXPLÍCITO: id real del objeto + `tipo_entidad: 'objeto'`.
+      publicarArrastre(de, { id, tipoEntidad: 'objeto', origen: 'panel' });
+      // Ningún ancestro arrastrable debe reescribir el identificador.
+      de.stopPropagation();
       el.classList.add('portal-objeto-arrastrando');
     });
     el.addEventListener('dragend', () => el.classList.remove('portal-objeto-arrastrando'));
   });
 
-  // Disyuntor: destildar «Espacio Único» vuelve a habilitar el modelador.
-  const chk = host.querySelector<HTMLInputElement>('[data-espacio-unico]');
-  chk?.addEventListener('change', () => {
-    opts.alCambiarEspacioUnico(chk.checked);
-    toast(
-      chk.checked
-        ? '🧱 Marcado como Espacio Único: se bloquea el modelador y los objetos se guardan directo.'
-        : '🧩 Destildado: ahora podés subdividirlo en estantes o cajones en la grilla de la izquierda.',
-    );
-  });
-
-  // 🎒 Disyuntor de movilidad: vive DEBAJO de «Espacio Único» y persiste el flag
-  // del Contenedor activo (la Ubicación no tiene `declarado_movible`).
+  // 🎒 Disyuntor de movilidad: declara la pieza como bulto movible (la Ubicación
+  // no tiene `declarado_movible`). El «Espacio Final» se declara/destilda desde
+  // el acordeón de divisiones o desde el botón «Modelar divisiones» del panel.
   const chkMovible = host.querySelector<HTMLInputElement>('[data-mueble-movil]');
   chkMovible?.addEventListener('change', () => {
     opts.alCambiarMuebleMovil(chkMovible.checked);

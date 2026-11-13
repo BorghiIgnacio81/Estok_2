@@ -18,7 +18,7 @@ import type { ItemElastico } from '../lienzoElastico';
 import { renderLienzoElastico } from '../mapaPlantaUnica';
 import { inyectarPerimetroElastico } from '../perimetroElastico';
 import { iconoDeHabitacion } from '../planoHabitaciones';
-import { checkboxEspacioUnicoHtml } from '../espacioUnico';
+import { checkboxEspacioFinalHtml } from '../espacioFinal';
 import { habitacionesDePlanta, nombreDePlanta } from './dominioCasita';
 
 /** Nivel 1: la casa con techo puntiagudo y sus plantas como botones (planta activa en naranja). */
@@ -132,10 +132,11 @@ export function renderHabitacionesHtml(params: {
     : sinEstructura;
 
   // DISYUNTOR CANÓNICO EN LA CABECERA DEL SUB-NIVEL: el mismo control
-  // reutilizable (lib/espacioUnico.ts) declara la planta activa como bloque
-  // monolítico. La persistencia la conecta el orquestador (enlazar()).
+  // reutilizable (lib/espacioFinal.ts) declara la planta activa como Espacio
+  // Final (nivel terminal sin subdivisiones). La persistencia la conecta el
+  // orquestador (enlazar()).
   const disyuntor = div
-    ? checkboxEspacioUnicoHtml({
+    ? checkboxEspacioFinalHtml({
         id: 'casitaEspacioUnico',
         marcado: Boolean(div.espacio_unico),
         valor: div.id,

@@ -11,7 +11,7 @@
 // (lib/objetoEspacio.ts + services.objeto_espacio).
 //
 // REGLA DE POSICIÓN (Lote 26): este control se renderiza SIEMPRE exactamente
-// DEBAJO del control «Espacio Único» (lib/espacioUnico.ts), para que el operador
+// DEBAJO del control «Espacio Final» (lib/espacioFinal.ts), para que el operador
 // vea los dos disyuntores del MISMO espacio mientras modela una habitación.
 //
 // Aplica SÓLO a Contenedor: el modelo Ubicacion no tiene `declarado_movible`.

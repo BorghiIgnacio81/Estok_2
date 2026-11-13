@@ -20,7 +20,7 @@ export function etiquetaDecision(decision: Decision | undefined): {
   if (decision === 'divisiones')
     return { texto: '✅ Divisiones', clase: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
   if (decision === 'unico')
-    return { texto: '⬜ Espacio Único', clase: 'bg-blue-100 text-blue-700 border-blue-200' };
+    return { texto: '⬜ Espacio Final', clase: 'bg-blue-100 text-blue-700 border-blue-200' };
   if (decision === 'diferido')
     return { texto: '⏳ Se modelará más tarde', clase: 'bg-amber-100 text-amber-700 border-amber-200' };
   return { texto: 'Pendiente', clase: 'bg-gray-100 text-gray-500 border-gray-200' };
@@ -34,7 +34,7 @@ export function htmlEmbudo(a: RecursoCreado): string {
     <p class="mt-1 text-xs text-gray-500 leading-relaxed">Elegí cómo tratar este ambiente para seguir con el siguiente. El paso no se cierra hasta cubrir el 100% de tus habitaciones.</p>
     <div class="mt-3 flex flex-wrap gap-2">
       <button type="button" data-div-crear="${a.id}" class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-base">🧱 Crear divisiones ahora</button>
-      <button type="button" data-div-unico="${a.id}" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-base">⬜ Espacio Único</button>
+      <button type="button" data-div-unico="${a.id}" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-base">⬜ Espacio Final</button>
       <button type="button" data-div-diferir="${a.id}" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-base">⏳ En otro momento</button>
     </div>
   </div>`;

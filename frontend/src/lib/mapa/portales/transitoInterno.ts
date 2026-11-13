@@ -18,11 +18,13 @@
 
 import { getAuthHeaders, API_BASE_URL } from '../../../services/auth';
 import { toast } from '../../mapaJerarquico';
+// Contrato ÚNICO del payload de arrastre (id real + tipo_entidad explícito).
+import { leerEntidadArrastrada } from '../../arrastreEntidad';
 
-/** Naturaleza del elemento arrastrado. */
+/** Naturaleza del elemento arrastrado (recurso de persistencia). */
 export type TipoCarga = 'contenedor' | 'objeto';
 
-/** Carga arrastrada leída de los MIME types estándar del sistema. */
+/** Carga arrastrada ya resuelta (MIME explícito o histórico). */
 export interface CargaArrastrada {
   tipo: TipoCarga;
   id: string;
@@ -50,13 +52,18 @@ export interface DestinoDrop {
   enTransito?: boolean | null;
 }
 
-/** Lee la carga arrastrada de los MIME types estándar (null si no hay nada). */
+/**
+ * Lee la carga arrastrada del payload del sistema (null si no hay nada).
+ *
+ * Prioriza el contrato EXPLÍCITO (`application/x-estok-entidad`, con
+ * `tipo_entidad` + id real) y cae a los MIME históricos. Así un gesto que nace
+ * en una caja anidada dentro de la tarjeta de un estante nunca se interpreta con
+ * el id del contenedor padre.
+ */
 export function leerCargaArrastrada(de: DragEvent): CargaArrastrada | null {
-  const contId = de.dataTransfer?.getData('application/x-estok-contenedor');
-  const objId = de.dataTransfer?.getData('application/x-estok-objeto');
-  if (contId) return { tipo: 'contenedor', id: contId };
-  if (objId) return { tipo: 'objeto', id: objId };
-  return null;
+  const entidad = leerEntidadArrastrada(de);
+  if (!entidad) return null;
+  return { tipo: entidad.tipoEntidad === 'objeto' ? 'objeto' : 'contenedor', id: entidad.id };
 }
 
 /** PUT multi-tenant con manejo de sesión y mensaje de error unificado. */

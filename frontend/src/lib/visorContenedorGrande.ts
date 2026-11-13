@@ -15,6 +15,8 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
+// Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito.
+import { publicarArrastre } from './arrastreEntidad';
 import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
@@ -372,9 +374,14 @@ function enlazar(): void {
         de.preventDefault();
         return;
       }
-      de.dataTransfer?.setData('application/x-estok-contenedor', id);
-      de.dataTransfer?.setData('text/plain', id);
-      if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
+      // PAYLOAD EXPLÍCITO: id real de la pieza + tipología (bulto móvil o
+      // arquitectura). Sin burbujeo: la ficha vive dentro del mueble.
+      publicarArrastre(de, {
+        id,
+        tipoEntidad: dato?.declarado_movible ? 'caja' : 'espacio',
+        origen: 'visor',
+      });
+      de.stopPropagation();
       el.classList.add('opacity-50');
     });
     el.addEventListener('dragend', () => el.classList.remove('opacity-50'));
@@ -389,9 +396,9 @@ function enlazar(): void {
         de.preventDefault();
         return;
       }
-      de.dataTransfer?.setData('application/x-estok-objeto', id);
-      de.dataTransfer?.setData('text/plain', id);
-      if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
+      // PAYLOAD EXPLÍCITO: id real del objeto + `tipo_entidad: 'objeto'`.
+      publicarArrastre(de, { id, tipoEntidad: 'objeto', origen: 'visor' });
+      de.stopPropagation();
       el.classList.add('opacity-50');
     });
     el.addEventListener('dragend', () => el.classList.remove('opacity-50'));

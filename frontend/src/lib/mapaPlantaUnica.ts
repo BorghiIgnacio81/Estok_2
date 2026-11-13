@@ -250,9 +250,18 @@ function conteoBadgeHtml(item: ItemElastico): string {
         title="${total} objeto(s) guardados dentro: arrastrá otro desde la bandeja y soltalo sobre esta tarjeta">📦 ${total}</span>`;
 }
 
-/** Atributos data-* que hacen de la tarjeta un DESTINO del Drag & Drop. */
+/**
+ * Atributos data-* que hacen de la tarjeta un DESTINO del Drag & Drop y un
+ * ORIGEN con tipología EXPLÍCITA.
+ *
+ * `data-inplace-entidad` declara la naturaleza de la pieza para el contrato de
+ * arrastre (lib/arrastreEntidad.ts): 'caja' para los BULTOS móviles (cajas y
+ * muebles declarados «Mueble Móvil / Objeto») y 'espacio' para la arquitectura
+ * del espacio (estantes, cajones, muebles fijos).
+ */
 function atributosDrop(item: ItemElastico): string {
-  return `data-inplace-nombre="${escapeHtml(item.nombre)}" data-inplace-divisiones="${item.conDivisiones ? '1' : '0'}"`;
+  const entidad = esMuebleMovilDeclarado(item) ? 'caja' : 'espacio';
+  return `data-inplace-nombre="${escapeHtml(item.nombre)}" data-inplace-divisiones="${item.conDivisiones ? '1' : '0'}" data-inplace-entidad="${entidad}"`;
 }
 
 function gruposHtml(grupos: GrupoFusion[]): string {

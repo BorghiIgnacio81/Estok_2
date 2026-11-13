@@ -16,6 +16,8 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
+// Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito.
+import { publicarArrastre } from './arrastreEntidad';
 import {
   toast,
   filasInternasDe,
@@ -429,11 +431,11 @@ function enlazarVisor(): void {
       const id = el.dataset.objetoDnd;
       if (!id) { de.preventDefault(); return; }
       dragTipoVisor = 'objeto';
-      if (de.dataTransfer) {
-        de.dataTransfer.setData('application/x-estok-objeto', id);
-        de.dataTransfer.setData('text/plain', id);
-        de.dataTransfer.effectAllowed = 'move';
-      }
+      // PAYLOAD EXPLÍCITO (id real + `objeto`) y sin burbujeo: la bolita vive
+      // dentro de la tarjeta arrastrable de su mueble y ningún ancestro debe
+      // reemplazar el identificador.
+      publicarArrastre(de, { id, tipoEntidad: 'objeto', origen: 'visor' });
+      de.stopPropagation();
       el.classList.add('opacity-50');
     });
     el.addEventListener('dragend', () => {

@@ -3,7 +3,7 @@
 // -----------------------------------------------------------------------------
 // Los DOS disyuntores del nodo activo del motor de portales viajan por el MISMO
 // contrato de red (el ViewSet de Contenedores documenta `partial = True`):
-//   · `espacio_unico`     → bloque monolítico (lib/espacioUnico.ts).
+//   · `espacio_unico`     → ESPACIO FINAL / nivel terminal (lib/espacioFinal.ts).
 //   · `declarado_movible` → «🎒 Declarar como Mueble / Objeto» (lib/muebleMovil.ts).
 //
 // `declarado_movible` SÓLO existe en Contenedor: las Ubicaciones (habitación o

@@ -23,6 +23,7 @@ import { invalidarCachePortales } from './datosNodosPortales';
 import { el, slotDer, slotIzq } from './domPortales';
 import {
   desapilarHasta,
+  esEspacioFinal,
   fijarPlanta,
   limpiarRuta,
   nodoActual,
@@ -85,7 +86,7 @@ async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
  * TIRADORES DEL PERÍMETRO ámbar (ancho/alto del marco completo).
  */
 const CONTROLES_EDITOR =
-  '[data-fusion-check],[data-eliminar-item],[data-duplicar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-unico]';
+  '[data-fusion-check],[data-eliminar-item],[data-duplicar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-final]';
 
 /**
  * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO del Panel Derecho (habitación
@@ -233,7 +234,9 @@ function destinoCiegoDe(): DestinoCiego | null {
   if (nodo.tipo === 'habitacion') {
     return { tipo: 'ubicacion', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: nodo.conDivisiones };
   }
-  if (nodo.espacioUnico) {
+  // ESPACIO FINAL: el guardado es DIRECTO (el backend jamás lo marca «En
+  // Tránsito Interno»), así que el destino nunca declara divisiones internas.
+  if (esEspacioFinal(nodo)) {
     return { tipo: 'contenedor', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: false };
   }
   return { tipo: 'contenedor', id: nodo.id, nombre: nodo.nombre, tieneDivisiones: nodo.conDivisiones };

@@ -25,12 +25,9 @@
 // interpretan los MIME types que se publican acá.
 // =============================================================================
 
-/** MIME estándar del sistema para un contenedor arrastrado. */
-const MIME_CONTENEDOR = 'application/x-estok-contenedor';
-/** MIME de texto plano (fallback para destinos que sólo leen `text/plain`). */
-const MIME_TEXTO = 'text/plain';
-/** Origen del gesto: la bandeja ignora sus propios chips por este marcador. */
-const MIME_ORIGEN = 'application/x-estok-origen';
+// Contrato ÚNICO del payload de arrastre (id real + tipo_entidad explícito).
+import { publicarArrastre, MIME_ORIGEN } from './arrastreEntidad';
+
 /** Marca del asa inyectada (evita duplicarla en cada re-render). */
 const ATRIBUTO_ASA = 'data-asa-arrastre';
 /** Selector de las tarjetas navegables del motor elástico. */
@@ -75,14 +72,17 @@ function inyectarAsa(card: HTMLElement): void {
       de.preventDefault();
       return;
     }
-    if (de.dataTransfer) {
-      de.dataTransfer.setData(MIME_CONTENEDOR, destino);
-      de.dataTransfer.setData(MIME_TEXTO, destino);
-      // Origen 'lienzo': la canasta NO confunde este gesto con uno propio y lo
-      // interpreta como extracción (el bulto vuelve a «A reubicar»).
-      de.dataTransfer.setData(MIME_ORIGEN, 'lienzo');
-      de.dataTransfer.effectAllowed = 'move';
-    }
+    // PAYLOAD EXPLÍCITO: id REAL de la tarjeta + `tipo_entidad` declarado por el
+    // render (`data-inplace-entidad`: caja | espacio). Nunca el id del padre.
+    const tipoEntidad = card.dataset.inplaceEntidad === 'caja' ? 'caja' : 'espacio';
+    publicarArrastre(de, { id: destino, tipoEntidad });
+    // Origen 'lienzo': la canasta NO confunde este gesto con uno propio y lo
+    // interpreta como extracción (el bulto vuelve a «A reubicar»).
+    de.dataTransfer?.setData(MIME_ORIGEN, 'lienzo');
+    // La tarjeta vive dentro del lienzo (y puede estar anidada en otro bloque
+    // arrastrable): se frena la propagación para que ningún ancestro sobreescriba
+    // el identificador recién publicado.
+    de.stopPropagation();
     card.classList.add(CLASE_ARRASTRANDO);
   });
   asa.addEventListener('dragend', () => card.classList.remove(CLASE_ARRASTRANDO));

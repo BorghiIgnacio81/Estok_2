@@ -3,9 +3,9 @@
 // CANASTA DEL CUADRANTE DERECHO (Lote 31 · punto 2)
 // -----------------------------------------------------------------------------
 // Host de la canasta «🧺 Elementos por ubicar» DENTRO del cuadrante derecho del
-// visor de Almacenamiento. En el fin de cadena «Espacio Único» (ambiente sin
-// muebles internos) la canasta se integra acá, junto al bloque monolítico y a la
-// grilla directa de objetos, para mantener la consistencia con el lienzo habitual.
+// visor de Almacenamiento. En el nivel terminal «Espacio Final» (ambiente sin
+// muebles internos) la canasta se integra acá, junto al Panel de Contenido, para
+// mantener la consistencia con el lienzo habitual.
 //
 // No agrega lógica: es un host MÁS del mismo módulo lib/bandejaSinUbicar.ts (la
 // regla de recuperabilidad sigue teniendo una sola autoridad en PostgreSQL con
@@ -19,7 +19,7 @@
 ---
 
 <aside id="canastaCuadranteDerecho"
-  aria-label="Canasta de bultos del Espacio Único (cuadrante derecho)">
+  aria-label="Canasta de bultos del Espacio Final (cuadrante derecho)">
   <div class="canasta-cuadrante-cab">
     <span class="bandeja-titulo">🧺 Elementos por ubicar</span>
     <span data-contador-bandeja class="bandeja-contador">0</span>

@@ -94,11 +94,26 @@ export function contenidoInternoHtml(nodo: NodoPortal, objetos: ObjetoDto[]): st
  *       sobre la fila lo guarda DENTRO de esa caja
  *       (accionesCajaPortales.conectarDropPiezasCaja, misma persistencia).
  *
+ * En el PANEL DE CONTENIDO del Espacio Final (`opciones.arrastrables`) cada
+ * tarjeta es además ORIGEN de arrastre: la caja se muda tomándola con el mouse,
+ * con el payload EXPLÍCITO id + tipo_entidad (lib/arrastreEntidad.ts).
+ *
  * Módulo PURO (devuelve string HTML): no toca el DOM ni hace fetch.
  */
-export function selectorPiezasHtml(piezas: NodoPortal[]): string {
+export interface OpcionesSelectorPiezas {
+  /** Título del bloque (por defecto, el histórico del explorador). */
+  titulo?: string;
+  /** Habilita cada tarjeta como ORIGEN del arrastre (modelo híbrido). */
+  arrastrables?: boolean;
+}
+
+export function selectorPiezasHtml(
+  piezas: NodoPortal[],
+  opciones: OpcionesSelectorPiezas = {},
+): string {
   const lista = (piezas || []).filter((pieza) => pieza && pieza.id);
   if (!lista.length) return '';
+  const titulo = opciones.titulo ?? '📦 Cajas y piezas de este nivel · tocá una para ver su contenido y soltarle objetos';
   const filas = lista
     .map((pieza) => {
       const objetos = pieza.objetosCount ?? 0;
@@ -110,8 +125,13 @@ export function selectorPiezasHtml(piezas: NodoPortal[]): string {
         .filter(Boolean)
         .join(' · ');
       const nombre = escapeHtml(pieza.nombre);
+      // ORIGEN DEL ARRASTRE (opcional): la tarjeta se toma y se suelta en otra
+      // caja, en el área general del Espacio Final o en la canasta.
+      const arrastre = opciones.arrastrables
+        ? `draggable="true" data-arrastre-entidad="${escapeHtml(pieza.id)}" data-arrastre-tipo="${pieza.declaradoMovible || pieza.espacioUnico ? 'caja' : 'espacio'}"`
+        : '';
       return `<li>
-      <button type="button" class="portal-pieza-item"
+      <button type="button" class="portal-pieza-item" ${arrastre}
         data-portal-abrir="${escapeHtml(pieza.id)}"
         data-portal-tipo="contenedor"
         data-caja-drop-pieza="${escapeHtml(pieza.id)}"
@@ -130,7 +150,7 @@ export function selectorPiezasHtml(piezas: NodoPortal[]): string {
     .join('');
   return `
     <section class="portal-piezas" aria-label="Cajas y piezas contenidas">
-      <p class="portal-piezas-tit">📦 Cajas y piezas de este nivel · tocá una para ver su contenido y soltarle objetos</p>
+      <p class="portal-piezas-tit">${escapeHtml(titulo)}</p>
       <ul class="portal-piezas-lista">${filas}</ul>
     </section>`;
 }

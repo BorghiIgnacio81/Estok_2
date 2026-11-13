@@ -17,7 +17,7 @@ import LoadingState from '../components/LoadingState.astro';
 import ErrorState from '../components/ErrorState.astro';
 // Botón "+" unificado: variante flotante móvil (sobre la bandeja inferior fija).
 import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
-// Canasta del cuadrante derecho del visor («Espacio Único») — Lote 31 · punto 2:
+// Canasta del cuadrante derecho del visor («Espacio Final») — Lote 31 · punto 2:
 // host + hoja de estilos dedicada de la canasta del fin de cadena.
 import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro';
 // Alta simplificada de contenedores físicos («+ Nueva Caja / Contenedor»):
@@ -37,6 +37,10 @@ import '../styles/almacenamiento-canasta-cuadrante.css';
 import '../styles/planta-unica.css';
 import '../styles/lienzo-perimetro.css';
 import '../styles/almacenamiento-portales.css';
+// PANEL DE CONTENIDO DEL «ESPACIO FINAL» (Estantes, Cajones, Cajas): reemplaza al
+// lienzo/mapa 2D en los niveles terminales, con tarjetas y zona receptora de
+// Drag & Drop de área completa (html.portales-espacio-final oculta la izquierda).
+import '../styles/almacenamiento-espacio-final.css';
 // TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: hoja DEDICADA del cuadrante
 // izquierdo (fila compacta de mini-thumbnails de 64×64 + reglas del contexto
 // gráfico puro: sin leyendas largas, nodo activo con relleno NARANJA).
@@ -106,10 +110,12 @@ import { ASSET_CAJA } from '../lib/assetsUi';
          La máquina de escenas vive en el <script> (eventos estok:*).
          ========================================================================= -->
     <section class="mb-10" id="seccionCascada">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" id="gridCascada">
 
-        <!-- PANEL IZQUIERDO (ESCENAS 1-2: Mapa Estok / ESCENA 3: Visor de Habitación) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
+        <!-- PANEL IZQUIERDO (ESCENAS 1-2: Mapa Estok / ESCENA 3: Visor de Habitación).
+             En un ESPACIO FINAL esta columna se OCULTA por completo: no hay
+             lienzo/mapa 2D y el Panel de Contenido ocupa todo el ancho. -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel" id="panelIzquierdoCol">
           <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div class="flex items-center gap-2 flex-wrap">
               <h2 id="tituloPanelIzquierdo" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🏠 Mapa Estok</h2>
@@ -156,8 +162,9 @@ import { ASSET_CAJA } from '../lib/assetsUi';
           </div>
         </div>
 
-        <!-- PANEL DERECHO (ESCENAS 1-2: Visor de Habitación / ESCENA 3: Visor Contenedor Grande) -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel">
+        <!-- PANEL DERECHO (ESCENAS 1-2: Visor de Habitación / ESCENA 3: Visor Contenedor Grande;
+             ESPACIO FINAL: Panel de Contenido a todo el ancho) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 escena-panel" id="panelDerechoCol">
           <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
             <div class="flex items-center gap-2">
               <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
@@ -194,8 +201,8 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             <!-- =================================================================
                  HOSTS DEL MOTOR DE PORTALES RECURSIVOS (Panel DERECHO)
                  La derecha TRANSMUTA en cada nivel: habitaciones con mini-mapas
-                 internos ⇄ interior jerárquico del nodo ⇄ grilla directa de
-                 objetos reales (fin de cadena «Espacio Único»).
+                 internos ⇄ interior jerárquico del nodo ⇄ PANEL DE CONTENIDO del
+                 «Espacio Final» (nivel terminal: Estantes, Cajones, Cajas).
                  ================================================================= -->
             <div id="listaPlantasPanel" class="hidden mt-1 min-w-0"></div>
             <div id="listaHabitacionesPanel" class="hidden mt-1 min-w-0"></div>
@@ -206,7 +213,7 @@ import { ASSET_CAJA } from '../lib/assetsUi';
                  para arrastrar adentro. Es el MISMO módulo «Elementos por ubicar»
                  (lib/bandejaSinUbicar.ts) montado en un host estático más: el
                  motor de portales lo enciende sólo cuando el nodo activo es un
-                 contenedor NO monolítico y lo apaga en «Espacio Único» (donde la
+                 contenedor modelable y lo apaga en un «Espacio Final» (donde la
                  canasta ya vive en el cuadrante derecho). -->
             <div id="bandejaCajaHost" class="hidden mt-3">
               <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2"
@@ -215,9 +222,13 @@ import { ASSET_CAJA } from '../lib/assetsUi';
               </p>
               <div id="bandejaCajaContenido" class="bandeja-contenido"></div>
             </div>
-            <div id="grillaObjetosPanel" class="hidden mt-1 min-w-0"></div>
+            <!-- ESPACIO FINAL · PANEL DE CONTENIDO: reemplaza al lienzo/mapa 2D en
+                 los niveles terminales. Tarjetas de las cajas/sub-espacios y de los
+                 objetos que aloja, con zona receptora de Drag & Drop de área
+                 completa (lib/mapa/portales/panelEspacioFinal.ts). -->
+            <div id="panelEspacioFinalPanel" class="hidden mt-1 min-w-0"></div>
 
-            <!-- Canasta del cuadrante derecho («Espacio Único») · Lote 31. -->
+            <!-- Canasta del cuadrante derecho («Espacio Final») · Lote 31. -->
             <CanastaCuadranteDerecho />
           </div>
         </div>
@@ -326,7 +337,7 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             <p class="text-xs text-gray-400 mt-1">El mueble quedará fijo y adherido permanentemente a la habitación que lo contiene: no podrá arrastrarse ni eliminarse desde la pantalla de almacenamiento.</p>
           </div>
           <!-- 🎒 DECLARACIÓN DE MOVILIDAD: se MUDÓ al panel de portales (Lote 26),
-               justo debajo del control «Espacio Único» del nivel activo, donde el
+               justo debajo del control «Espacio Final» del nivel activo, donde el
                operador lo ve mientras modela los espacios (ver
                lib/muebleMovil.ts + lib/mapa/portales/editorDivisionesPortales.ts).
                El backend recibe el flag por PUT parcial al crear/editar la celda. -->

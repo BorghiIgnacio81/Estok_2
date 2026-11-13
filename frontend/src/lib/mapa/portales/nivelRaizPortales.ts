@@ -118,6 +118,9 @@ export async function pintarAncla(
   activo: NodoPortal,
 ): Promise<void> {
   if (izquierdo === 'planoPlanta') return; // el plano del Estok ya está montado
+  // ESPACIO FINAL: el lienzo/mapa 2D está DESACTIVADO y la columna se oculta
+  // desde `transicionar()`; no hay ancla que pintar.
+  if (izquierdo === 'oculto') return;
   cacheUbicacionesLocal = await cargarUbicaciones();
 
   if (izquierdo === 'plantaConHabitaciones') {

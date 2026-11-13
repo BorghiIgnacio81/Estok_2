@@ -150,7 +150,7 @@ function montarEditorHabitacionesDerecha(): void {
     });
   });
 
-  // Disyuntor canónico «Espacio Único» de la planta activa (cabecera).
+  // Disyuntor canónico «Espacio Final» de la planta activa (cabecera).
   host
     .querySelector<HTMLInputElement>('#casitaEspacioUnico')
     ?.addEventListener('change', async (e) => {

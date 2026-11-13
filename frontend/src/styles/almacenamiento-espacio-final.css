@@ -1,0 +1,222 @@
+/* =============================================================================
+   ALMACENAMIENTO · PANEL DE CONTENIDO DEL «ESPACIO FINAL»
+   -----------------------------------------------------------------------------
+   Cuando el operador navega a un ESPACIO FINAL (Estante, Cajón o Caja —un nivel
+   que no contiene sub-espacios arquitectónicos) el lienzo/mapa 2D tradicional se
+   DESACTIVA y se oculta:
+     · `html.portales-espacio-final` apaga la COLUMNA IZQUIERDA y deja el Panel
+       de Contenido a todo el ancho (una sola columna).
+     · El cuadrante derecho monta las tarjetas de las cajas/sub-espacios y de los
+       objetos contenidos + la zona receptora de Drag & Drop de área completa
+       (lib/mapa/portales/panelEspacioFinal.ts).
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. FÍSICA DE PANTALLA DEL NIVEL TERMINAL (sin columna izquierda)
+   --------------------------------------------------------------------------- */
+html.portales-espacio-final #panelIzquierdoCol {
+  display: none !important;
+}
+
+html.portales-espacio-final #gridCascada {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* El interruptor «✏️ Editar» / «💾 Guardar» no aplica: no hay lienzo que editar. */
+html.portales-espacio-final [data-modo-editar],
+html.portales-espacio-final [data-modo-guardar] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   2. PANEL DE CONTENIDO
+   --------------------------------------------------------------------------- */
+.pfinal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pfinal-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+}
+
+.pfinal-cab-izq {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pfinal-ico {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.pfinal-titulos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pfinal-nombre {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #7c2d12;
+  overflow-wrap: anywhere;
+}
+
+.pfinal-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pfinal-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.pfinal-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.pfinal-pill-transito {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.pfinal-cab-der {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pfinal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid #fdba74;
+  background: #ffffff;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.pfinal-btn:hover {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
+.pfinal-btn:active {
+  transform: scale(0.97);
+}
+
+/* ---------------------------------------------------------------------------
+   3. ZONA RECEPTORA DE ÁREA COMPLETA (con Drop Targets ANIDADOS)
+   ---------------------------------------------------------------------------
+   El wrapper acepta la suelta en cualquier punto y guarda en el Espacio Final.
+   Cada tarjeta de caja (`data-caja-drop-pieza`) es un receptor propio: soltar
+   SOBRE ella guarda DENTRO de esa caja, sin duplicar la suelta en el área
+   general (el motor aísla los receptores anidados).
+   --------------------------------------------------------------------------- */
+.pfinal-zona {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 240px;
+  padding: 12px;
+  border: 2px dashed #fdba74;
+  border-radius: 18px;
+  background: #fffdf8;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pfinal-zona.portal-caja-drop-activo {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.pfinal-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9a3412;
+}
+
+.pfinal-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pfinal-vacio {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* Realce de la tarjeta que está viajando (origen del arrastre). */
+.portal-pieza-arrastrando {
+  opacity: 0.55;
+}
+
+/* En el panel terminal las tarjetas de cajas son más grandes y se leen como
+   fichas de contenido, no como filas del explorador. */
+html.portales-espacio-final .portal-piezas-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+  /* El panel terminal muestra TODAS las fichas a la vista (sin scroll interno). */
+  max-height: none;
+  overflow: visible;
+}
+
+html.portales-espacio-final .portal-pieza-item {
+  min-height: 58px;
+}
+
+/* ORIGEN DEL ARRASTRE: la tarjeta se toma con el puntero (y en WebKit necesita
+   el gesto nativo habilitado explícitamente). */
+html.portales-espacio-final .portal-pieza-item[draggable='true'] {
+  -webkit-user-drag: element;
+  user-select: none;
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+html.portales-espacio-final .portal-pieza-item[draggable='true']:active {
+  cursor: grabbing;
+}

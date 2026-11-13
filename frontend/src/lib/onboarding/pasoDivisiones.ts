@@ -3,7 +3,7 @@
 // -----------------------------------------------------------------------------
 // Reemplaza la lista plana anterior por el «embudo inteligente» secuencial:
 //   ESCENA 1 · Combobox a la IZQUIERDA poblado SOLO con la lista REAL deduplicada
-//     del Paso 2 («Cocina», «Fusión»…) + checkbox canónico «Espacio Único» de la
+//     del Paso 2 («Cocina», «Fusión»…) + checkbox canónico «Espacio Final» de la
 //     habitación elegida y lienzo elástico naranja ABAJO para modelar el cuarto
 //     (con los BORDES EXTERIORES estirables, igual que el Paso 2). CERO datos
 //     fantasma: sin habitaciones reales NO se inyecta ninguna «Habitación
@@ -12,7 +12,7 @@
 //     divisiones creadas se OMITE el modal de las 3 opciones y se avanza directo
 //     al Paso 4; si no, congela la pantalla en la SIGUIENTE pendiente con sus 3
 //     vías → [🧱 Crear divisiones ahora] (activa el selector y despliega el
-//     lienzo para modelar en caliente), [⬜ Espacio Único] (persiste
+//     lienzo para modelar en caliente), [⬜ Espacio Final] (persiste
 //     `espacio_unico: true` y avanza solo) y [⏳ En otro momento] (marca «Se
 //     modelará más tarde», la deja abierta de fondo y avanza a la siguiente).
 //   ESCENA 3 · El escape al Paso 4 (Primer Objeto) solo se habilita cuando el
@@ -30,13 +30,13 @@ import { habitacionTieneDivisiones, limpiarLienzoDivisiones, montarLienzoDivisio
 import { listarAmbientes } from './api';
 import type { RecursoCreado } from './api';
 import { avisoGlobal } from './comunes';
-// Checkbox CANÓNICO «Espacio Único» (lib/espacioUnico.ts): el mismo control de
+// Checkbox CANÓNICO «Espacio Final» (lib/espacioFinal.ts): el mismo control de
 // toda la aplicación, disponible para CUALQUIER habitación seleccionada (Baño,
 // Cocina, etc.), no sólo para las que pasan por el embudo.
 import {
-  htmlEspacioUnicoHabitacion,
-  ID_ESPACIO_UNICO_DIVISIONES,
-  persistirEspacioUnicoHabitacion,
+  htmlEspacioFinalHabitacion,
+  ID_ESPACIO_FINAL_DIVISIONES,
+  persistirEspacioFinalHabitacion,
 } from './espacioUnicoDivisiones';
 import { leerRastroAmbientes } from './rastroAmbientes';
 // Piezas de vista del embudo (chip de decisión + panel de las 3 vías).
@@ -49,7 +49,7 @@ let lienzoEl: HTMLElement | null = null;
 let selectEl: HTMLSelectElement | null = null;
 let estadoEl: HTMLElement | null = null;
 let embudoEl: HTMLElement | null = null;
-/** Host del checkbox «Espacio Único» de la habitación seleccionada. */
+/** Host del checkbox «Espacio Final» de la habitación seleccionada. */
 let unicoEl: HTMLElement | null = null;
 let ambientes: RecursoCreado[] = [];
 /** Habitación cuyo lienzo está desplegado abajo (la que se está modelando). */
@@ -123,7 +123,7 @@ function pintarEstado(): void {
 /** Habitación SELECCIONADA (dueña del lienzo desplegado abajo).
  *
  * Prioriza `roomActivo` (la que se está modelando) y, cuando el embudo la
- * desmonta, cae al valor VISIBLE en el combobox: el checkbox «Espacio Único»
+ * desmonta, cae al valor VISIBLE en el combobox: el checkbox «Espacio Final»
  * sigue así a la habitación que el usuario ve seleccionada (Baño, Cocina…).
  */
 function ambienteActivo(): RecursoCreado | null {
@@ -132,28 +132,28 @@ function ambienteActivo(): RecursoCreado | null {
 }
 
 /**
- * Pinta el checkbox canónico «Espacio Único» de la habitación seleccionada.
+ * Pinta el checkbox canónico «Espacio Final» de la habitación seleccionada.
  * Disponible para TODAS las habitaciones del Paso 3 (Baño, Cocina, Pasillo…),
  * reflejando el estado REAL persistido en PostgreSQL.
  */
 function pintarEspacioUnico(): void {
   if (!unicoEl) return;
   const ambiente = ambienteActivo();
-  unicoEl.innerHTML = ambiente ? htmlEspacioUnicoHabitacion(ambiente) : '';
+  unicoEl.innerHTML = ambiente ? htmlEspacioFinalHabitacion(ambiente) : '';
 }
 
 /**
- * Persiste el «Espacio Único» de la habitación seleccionada con PUT parcial
+ * Persiste el «Espacio Final» de la habitación seleccionada con PUT parcial
  * sobre la Ubicación (mismo contrato que Almacenamiento). No re-monta el lienzo:
  * el embudo y el estado de los ambientes quedan consistentes al instante.
  */
-function alternarEspacioUnicoHabitacion(marcado: boolean): void {
+function alternarEspacioFinalHabitacion(marcado: boolean): void {
   const ambiente = ambienteActivo();
   if (!ambiente) return;
-  // Un ambiente monolítico ya está decidido: no vuelve a caer en el embudo.
+  // Un ambiente declarado terminal ya está decidido: no vuelve a caer en el embudo.
   decisiones.set(ambiente.id, marcado ? 'unico' : 'divisiones');
   pintarEstado();
-  persistirEspacioUnicoHabitacion(ambiente, marcado);
+  persistirEspacioFinalHabitacion(ambiente, marcado);
 }
 
 /** Escena 2: muestra (o limpia) el panel del embudo con la próxima pendiente. */
@@ -172,7 +172,7 @@ async function seleccionarAmbiente(id: string): Promise<void> {
   if (!id) return;
   roomActivo = id;
   pintarEstado();
-  // El checkbox «Espacio Único» sigue a la habitación elegida (Baño, Cocina…).
+  // El checkbox «Espacio Final» sigue a la habitación elegida (Baño, Cocina…).
   pintarEspacioUnico();
   if (!lienzoEl) return;
   lienzoEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -192,8 +192,8 @@ async function crearDivisionesAhora(id: string): Promise<void> {
   await montarLienzoDivisiones(id, lienzoEl);
 }
 
-/** Vía 2: «Espacio Único»: persiste `espacio_unico: true` (asíncrono) y avanza solo. */
-function marcarEspacioUnico(id: string): void {
+/** Vía 2: «Espacio Final»: persiste `espacio_unico: true` (asíncrono) y avanza solo. */
+function marcarEspacioFinal(id: string): void {
   const ambiente = ambientes.find((a) => a.id === id);
   decisiones.set(id, 'unico');
   if (ambiente) ambiente.espacioUnico = true;
@@ -203,7 +203,7 @@ function marcarEspacioUnico(id: string): void {
   }
   pintarEstado();
   pintarEspacioUnico();
-  if (ambiente) persistirEspacioUnicoHabitacion(ambiente, true);
+  if (ambiente) persistirEspacioFinalHabitacion(ambiente, true);
   evaluarEmbudo();
 }
 
@@ -316,9 +316,9 @@ export async function montarGuiaDivisiones(opciones: {
   // Delegación idempotente (se re-asigna en cada re-montaje).
   listaEl.onchange = (e) => {
     const t = e.target as HTMLElement;
-    // Checkbox «Espacio Único» de la habitación seleccionada (PUT parcial).
-    if (t instanceof HTMLInputElement && t.id === ID_ESPACIO_UNICO_DIVISIONES) {
-      alternarEspacioUnicoHabitacion(t.checked);
+    // Checkbox «Espacio Final» de la habitación seleccionada (PUT parcial).
+    if (t instanceof HTMLInputElement && t.id === ID_ESPACIO_FINAL_DIVISIONES) {
+      alternarEspacioFinalHabitacion(t.checked);
       return;
     }
     const sel = t as HTMLSelectElement;
@@ -333,7 +333,7 @@ export async function montarGuiaDivisiones(opciones: {
     }
     const unico = t.closest<HTMLElement>('[data-div-unico]');
     if (unico?.dataset.divUnico) {
-      marcarEspacioUnico(unico.dataset.divUnico);
+      marcarEspacioFinal(unico.dataset.divUnico);
       return;
     }
     const diferir = t.closest<HTMLElement>('[data-div-diferir]');

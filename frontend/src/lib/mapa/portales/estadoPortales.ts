@@ -26,14 +26,17 @@ export interface CeldaFina {
  * Nodo seleccionable de la cascada. Es una PROYECCIÓN liviana del registro real
  * (Ubicación o Contenedor de PostgreSQL) con lo mínimo que la máquina de niveles
  * necesita para decidir la pantalla: su grilla elástica, su geometría de hijos y
- * su disyuntor de estructura «Espacio Único».
+ * su disyuntor de estructura «Espacio Final».
  */
 export interface NodoPortal {
   tipo: TipoNodoPortal;
   /** UUID real (Ubicación o Contenedor) del nodo seleccionado. */
   id: string;
   nombre: string;
-  /** 🧱 DISYUNTOR: bloque monolítico declarado «Espacio Único» en la base. */
+  /**
+   * 🧱 DISYUNTOR DE ESPACIO FINAL (persistido como `espacio_unico` en la base):
+   * nivel TERMINAL declarado por el operador, sin subdivisiones arquitectónicas.
+   */
   espacioUnico: boolean;
   /**
    * 🎒 DISYUNTOR DE MOVILIDAD: pieza declarada «Mueble Móvil / Objeto» en la
@@ -43,6 +46,15 @@ export interface NodoPortal {
   declaradoMovible: boolean;
   /** Tiene al menos un hijo propio (estante/cajón/caja adentro). */
   conDivisiones: boolean;
+  /**
+   * SUB-ESPACIOS ARQUITECTÓNICOS: cantidad de hijos directos que son DIVISIONES
+   * fijas del espacio (estantes, cajones, muebles inmuebles). Los BULTOS —
+   * cajas móviles y muebles declarados «Mueble Móvil / Objeto»— NO cuentan.
+   *
+   * Lo resuelve `refrescarNivel()` con el interior real del nodo. `undefined` =
+   * todavía no se sondeó el interior (se conserva el modelador geométrico).
+   */
+  subEspaciosArquitectonicos?: number;
   /**
    * CONTADORES REALES del padrón (PostgreSQL) del nodo activo. Los consume la
    * ficha del Panel Izquierdo y el badge de cada tarjeta del lienzo, que se
@@ -96,6 +108,30 @@ export const estadoPortales: EstadoPortales = {
   planta: null,
 };
 
+/**
+ * 🧱 OVERRIDE DE SESIÓN DEL MODELADOR: ids de nodos donde el operador pidió
+ * EXPLÍCITAMENTE «Modelar divisiones» sobre un Espacio Final detectado
+ * automáticamente (contenedor cuyos hijos son todos bultos). Vive sólo en
+ * memoria: la persistencia real del disyuntor es `espacio_unico` (PUT parcial).
+ */
+const modeladorForzado = new Set<string>();
+
+/** ¿El operador reabrió el modelador de este nodo en esta sesión? */
+export function esModeladorForzado(id: string): boolean {
+  return modeladorForzado.has(String(id ?? ''));
+}
+
+/**
+ * Reabre (o vuelve a cerrar) el modelador geométrico de un nodo en caliente.
+ * `false` limpia el override: el nodo vuelve a resolverse con las reglas puras.
+ */
+export function forzarModelador(id: string, forzar = true): void {
+  const clave = String(id ?? '');
+  if (!clave) return;
+  if (forzar) modeladorForzado.add(clave);
+  else modeladorForzado.delete(clave);
+}
+
 // -----------------------------------------------------------------------------
 // LECTURA
 // -----------------------------------------------------------------------------
@@ -123,17 +159,47 @@ export function migas(): NodoPortal[] {
 }
 
 /**
- * 🧱 DISYUNTOR «ESPACIO ÚNICO» (AUTORIDAD ÚNICA del fin de cadena): el nodo es
- * monolítico —y por lo tanto NO admite modelador geométrico— SOLO si fue declarado
- * explícitamente «Espacio Único» en la base (`espacio_unico = true`).
+ * 🧱 DISYUNTOR «ESPACIO FINAL» (AUTORIDAD ÚNICA del nivel terminal).
  *
- * La AUSENCIA de hijos YA NO lo vuelve monolítico: un ESPACIO/MUEBLE/CAJA vacío
- * sigue siendo editable para poder inyectarle su primera sub-división. El
- * disyuntor es REVERSIBLE: destildarlo devuelve el modelador en caliente.
+ * Un nodo es Espacio Final cuando YA NO se modela arquitectónicamente:
+ *   · fue declarado explícitamente (`espacioUnico = true`, persistido como
+ *     `espacio_unico` en la base), o
+ *   · es un CONTENEDOR cuyos hijos directos son TODOS bultos (cajas móviles /
+ *     muebles declarados) —o no tiene hijos—: ningún sub-espacio arquitectónico.
+ *
+ * Las HABITACIONES nunca son terminales por detección automática: su editor
+ * elástico es el flujo principal de modelado (sólo lo apaga su propio disyuntor
+ * `espacioUnico`, que es reversible).
+ *
+ * El modelador geométrico puede reabrirse en caliente con `forzarModelador()`
+ * (botón «Modelar divisiones» del Panel de Contenido).
  */
-export function esNodoMonolitico(nodo: NodoPortal | null): boolean {
+export function esEspacioFinal(nodo: NodoPortal | null): boolean {
   if (!nodo) return false;
-  return nodo.espacioUnico;
+  if (esModeladorForzado(nodo.id)) return false;
+  if (nodo.espacioUnico) return true;
+  if (nodo.tipo !== 'contenedor') return false;
+  const arquitectonicos = nodo.subEspaciosArquitectonicos;
+  // Interior todavía no sondeado: se conserva el modelador hasta saberlo.
+  if (arquitectonicos === undefined) return false;
+  return arquitectonicos === 0;
+}
+
+/**
+ * ¿El hijo directo es una DIVISIÓN ARQUITECTÓNICA del espacio (estante, cajón,
+ * mueble fijo)? Los bultos móviles —cajas y piezas declaradas «Mueble Móvil /
+ * Objeto»— son CONTENIDO, no arquitectura, y por eso no impiden que el nivel sea
+ * un Espacio Final.
+ */
+export function esSubEspacioArquitectonico(hijo: NodoPortal | null): boolean {
+  if (!hijo) return false;
+  if (hijo.espacioUnico) return false;
+  return !hijo.declaradoMovible;
+}
+
+/** Cuenta los hijos ARQUITECTÓNICOS de un interior ya resuelto. */
+export function contarSubEspaciosArquitectonicos(hijos: NodoPortal[]): number {
+  return (hijos || []).filter(esSubEspacioArquitectonico).length;
 }
 
 // -----------------------------------------------------------------------------

@@ -11,14 +11,16 @@
 //   mismo contenedor jamás salta de columna, por lo que el clon en espejo queda
 //   estructuralmente bloqueado.
 //
-// LEY 4 (Espacio Único, REVERSIBLE): el ÚNICO fin de cadena es `espacio_unico`.
-//   Si el ACTIVO es monolítico, la derecha salta a la grilla de objetos; destildarlo
-//   devuelve el modelador en caliente (`tieneModeladorGeometrico`).
+// LEY 4 (Espacio Final, REVERSIBLE): el ÚNICO fin de cadena es el ESPACIO FINAL.
+//   Si el ACTIVO es terminal, el lienzo 2D se APAGA (la izquierda se oculta) y la
+//   derecha monta el Panel de Contenido (tarjetas + zona receptora de Drop).
+//   Destildarlo / «Modelar divisiones» devuelve el modelador en caliente
+//   (`tieneModeladorGeometrico`).
 //
 // Módulo 100% PURO: decide y describe, nunca toca el DOM.
 // =============================================================================
 
-import { esNodoMonolitico } from './estadoPortales';
+import { esEspacioFinal } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
 
 /** Paneles posibles del lado IZQUIERDO (ANCLA: el mapa del NIVEL SUPERIOR). */
@@ -30,7 +32,12 @@ export type PanelIzquierdo =
   /** Superior = CUARTO: lienzo interior del cuarto con el hijo elegido en naranja. */
   | 'visorHabitacion'
   /** Superior = CONTENEDOR: sub-grilla interna con el hijo elegido en naranja. */
-  | 'grillaNodo';
+  | 'grillaNodo'
+  /**
+   * ESPACIO FINAL: el lienzo/mapa 2D tradicional queda DESACTIVADO y oculto.
+   * La pantalla completa la ocupa el Panel de Contenido del lado derecho.
+   */
+  | 'oculto';
 
 /** Paneles posibles del lado DERECHO (EXPLORADOR: el interior del nodo ACTIVO). */
 export type PanelDerecho =
@@ -40,8 +47,12 @@ export type PanelDerecho =
   | 'habitacionesEnEspera'
   /** Explorador: interior jerárquico del nodo activo (editor elástico recursivo). */
   | 'listaContenedores'
-  /** Fin de cadena (Ley 4): grilla DIRECTA de objetos del nodo activo monolítico. */
-  | 'grillaObjetos';
+  /**
+   * ESPACIO FINAL: Panel de Contenido limpio —tarjetas de las cajas/sub-espacios
+   * y objetos que aloja + zona receptora de Drag & Drop de área completa—, sin
+   * lienzo/mapa 2D.
+   */
+  | 'contenidoFinal';
 
 /**
  * CONTEXTO RELACIONAL DEL NIVEL: aísla los DOS contextos que jamás deben
@@ -69,7 +80,7 @@ export interface Paneles {
  *   activo = null, con planta → Izq = plano del Estok · Der = espera (cuartos)
  *   activo = habitación      → Izq = PLANTA (cuarto naranja) · Der = interior
  *   activo = contenedor (+)  → Izq = mapa del PADRE      · Der = interior
- *   activo = contenedor (∞)  → Izq = mapa del PADRE      · Der = grilla de objetos
+ *   activo = ESPACIO FINAL   → Izq = OCULTA (sin lienzo) · Der = contenido
  */
 export function panelesDe(ctx: ContextoNivel): Paneles {
   return { izquierdo: anclaDe(ctx), derecho: exploradorDe(ctx) };
@@ -87,34 +98,41 @@ export function panelesDe(ctx: ContextoNivel): Paneles {
  *
  * La vista raíz de la Casa (Nivel 1, sin planta fijada) NO tiene padre: el
  * cuadrante izquierdo es el plano general del Estok y conserva su cabecera.
+ * En un ESPACIO FINAL no hay minimapa padre: el lienzo 2D se oculta.
  */
 export function esMinimapaPadre(ctx: ContextoNivel): boolean {
+  if (esEspacioFinal(ctx.activo)) return false;
   return Boolean(ctx.activo) || ctx.plantaFijada;
 }
 
 /**
- * LEY 1 · ¿Qué monta el Panel DERECHO? El interior del ACTIVO. TODO nodo NO
- * monolítico —planta, habitación, mueble, estante, caja o pieza VACÍA recién
- * creada— expone su EDITOR ELÁSTICO de divisiones (aunque todavía no tenga
- * sub-zonas). El ÚNICO fin de cadena (grilla directa de objetos) es el «Espacio
- * Único» declarado (`espacio_unico = true`); es reversible (Ley 4).
+ * LEY 1 · ¿Qué monta el Panel DERECHO? El interior del ACTIVO.
+ *
+ *   · ESPACIO FINAL (nivel terminal sin sub-espacios arquitectónicos) → Panel de
+ *     Contenido: tarjetas de lo que aloja + zona receptora de Drag & Drop, sin
+ *     lienzo/mapa 2D.
+ *   · Cualquier otro nodo —planta, habitación, mueble, estante con divisiones—
+ *     expone su EDITOR ELÁSTICO de divisiones.
  */
 function exploradorDe({ activo, plantaFijada }: ContextoNivel): PanelDerecho {
   if (!activo) return plantaFijada ? 'habitacionesEnEspera' : 'plantasEnEspera';
-  return esNodoMonolitico(activo) ? 'grillaObjetos' : 'listaContenedores';
+  return esEspacioFinal(activo) ? 'contenidoFinal' : 'listaContenedores';
 }
 
 /**
  * LEY 1 · ¿Qué monta el Panel IZQUIERDO (ancla)? SÓLO consulta al SUPERIOR:
+ *   activo = ESPACIO FINAL  → 'oculto' (el lienzo/mapa 2D queda desactivado).
  *   activo = raíz          → silueta general del Estok con sus N plantas.
  *   superior = PLANTA      → mapa de habitaciones (cuarto elegido en naranja).
  *   superior = CUARTO      → lienzo interior del cuarto (hijo elegido en naranja).
  *   superior = CONTENEDOR  → sub-grilla interna (hijo elegido en naranja).
- * Jamás consulta al ACTIVO: por eso no puede reflejar el mismo mapa que la
- * derecha (el clon en espejo queda estructuralmente bloqueado).
+ * Jamás consulta al ACTIVO para dibujar su interior: por eso no puede reflejar
+ * el mismo mapa que la derecha (el clon en espejo queda estructuralmente
+ * bloqueado).
  */
 function anclaDe({ activo, superior }: ContextoNivel): PanelIzquierdo {
   if (!activo) return 'planoPlanta';
+  if (esEspacioFinal(activo)) return 'oculto';
   if (!superior) return 'plantaConHabitaciones';
   return superior.tipo === 'habitacion' ? 'visorHabitacion' : 'grillaNodo';
 }
@@ -125,11 +143,11 @@ function anclaDe({ activo, superior }: ContextoNivel): PanelIzquierdo {
  *
  * Autoridad PURA que consulta la barra de comandos para habilitar el interruptor
  * «✏️ Editar» a CUALQUIER profundidad de la pila (`ruta: NodoPortal[]`). El ÚNICO
- * nivel sin modelador es el «Espacio Único» declarado (`espacio_unico = true`):
- * cualquier otra pieza —aunque esté vacía— lo expone SIEMPRE (regla reversible).
+ * nivel sin modelador es el ESPACIO FINAL (declarado o detectado); cualquier
+ * otra pieza lo expone SIEMPRE (regla reversible).
  */
 export function tieneModeladorGeometrico(nodo: NodoPortal | null): boolean {
-  return !esNodoMonolitico(nodo);
+  return !esEspacioFinal(nodo);
 }
 
 /** Leyendas de cabecera de cada par de paneles del flujo. */
@@ -175,14 +193,14 @@ function cabecerasDelNivel(ctx: ContextoNivel, paneles: Paneles): CabeceraPanele
         : 'Un mini-mapa por planta, a la espera de selección. Tocá una planta para desplegar sus habitaciones.',
     };
   }
-  if (paneles.derecho === 'grillaObjetos') {
+  if (paneles.derecho === 'contenidoFinal') {
     return {
-      tituloIzq: '🧱 Plano del contenedor',
-      tituloDer: `🔎 Objetos guardados en «${nodo.nombre}»`,
-      // SIN LEYENDA: el cuadrante izquierdo es el MINIMAPA PADRE (gráfico puro).
+      // ESPACIO FINAL: SIN LIENZO. La columna izquierda se oculta por completo.
+      tituloIzq: '',
+      tituloDer: `📦 Contenido de «${nodo.nombre}»`,
       descIzq: '',
       descDer:
-        'Lista de objetos guardados directamente acá. Arrastrá uno desde la canasta para guardarlo sin celda fina.',
+        'Espacio Final: soltá una caja u objeto en cualquier punto del panel para guardarlo ACÁ, o directamente sobre la tarjeta de una caja para guardarlo DENTRO de ella. Tocá una tarjeta para abrir su interior.',
     };
   }
   if (paneles.izquierdo === 'plantaConHabitaciones') {
@@ -221,6 +239,11 @@ export const HOSTS = {
   visorHabitacion: 'visorHabitacion',
   /** Superior = CONTENEDOR: Visor Contenedor Grande histórico (sub-grilla interna). */
   grillaNodo: 'visorContenedorGrande',
+  /**
+   * ESPACIO FINAL: NO hay lienzo. El id vacío hace que `moverPanel` no monte
+   * ningún host y `transicionar` oculte la columna izquierda completa.
+   */
+  oculto: '',
   // ── DERECHA (EXPLORADOR: interior del nodo ACTIVO) ──
   /** Espera raíz (sin planta): un mini-mapa por planta (host DEDICADO). */
   plantasEnEspera: 'listaPlantasPanel',
@@ -228,12 +251,12 @@ export const HOSTS = {
   habitacionesEnEspera: 'listaHabitacionesPanel',
   /** Explorador: interior jerárquico recursivo del nodo activo. */
   listaContenedores: 'listaContenedoresPanel',
-  /** Fin de cadena: grilla directa de objetos reales. */
-  grillaObjetos: 'grillaObjetosPanel',
+  /** ESPACIO FINAL: Panel de Contenido (tarjetas + zona receptora de Drop). */
+  contenidoFinal: 'panelEspacioFinalPanel',
 } as const;
 
 /** Todos los hosts de la cascada (se ocultan antes de encender los del nivel). */
-export const TODOS_LOS_HOSTS: string[] = Object.values(HOSTS);
+export const TODOS_LOS_HOSTS: string[] = Object.values(HOSTS).filter((id) => id.length > 0);
 
 /** Par [hostIzquierdo, hostDerecho] del nivel activo, ya resuelto a ids DOM. */
 export function hostsDe(paneles: Paneles): [string, string] {

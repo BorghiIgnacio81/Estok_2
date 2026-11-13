@@ -31,6 +31,8 @@
 // =============================================================================
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
+// Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito.
+import { publicarArrastre } from './arrastreEntidad';
 import type { UbicacionPlano } from './mapaJerarquico';
 import {
   contenedoresFuenteDeContenidoDe,
@@ -174,10 +176,13 @@ function enlazar(): void {
         de.preventDefault();
         return;
       }
-      const mime = tipo === 'contenedor' ? 'application/x-estok-contenedor' : 'application/x-estok-objeto';
-      de.dataTransfer?.setData(mime, id);
-      de.dataTransfer?.setData('text/plain', id);
-      if (de.dataTransfer) de.dataTransfer.effectAllowed = 'move';
+      // PAYLOAD EXPLÍCITO: id real + `tipo_entidad` ('caja' | 'objeto').
+      // Esta bandeja sólo lista bultos, nunca arquitectura del espacio.
+      publicarArrastre(de, {
+        id,
+        tipoEntidad: tipo === 'contenedor' ? 'caja' : 'objeto',
+        origen: 'bandeja',
+      });
       el.classList.add('bandeja-chip-arrastrando');
     });
     el.addEventListener('dragend', () => el.classList.remove('bandeja-chip-arrastrando'));

@@ -42,7 +42,7 @@ import {
 export interface RecursoCreado {
   id: string;
   nombre: string;
-  /** «Espacio Único»: bloque monolítico sin subdivisiones internas. */
+  /** «Espacio Final»: nivel terminal sin subdivisiones arquitectónicas. */
   espacioUnico?: boolean;
 }
 

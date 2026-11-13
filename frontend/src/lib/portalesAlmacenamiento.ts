@@ -11,7 +11,9 @@
 //   - datosNodosPortales.ts     → capa de datos (jerarquía real por parent_id).
 //   - tarjetasHabitaciones.ts   → habitaciones con mini-mapa de espacios internos.
 //   - editorDivisionesPortales.ts → editor elástico recursivo del interior.
-//   - grillaObjetosDirectos.ts  → Espacio Único: bloque + grilla directa.
+//   - grillaObjetosDirectos.ts  → objetos del Espacio Final + Drop directo.
+//   - panelEspacioFinal.ts      → Panel de Contenido del nivel terminal.
+//   - fisicaPantallaPortales.ts → hosts, columnas y canastas del nivel.
 //   - transitoInterno.ts        → Drop → «En Tránsito Interno» nativo.
 //   - portalesAlmacenamiento.ts → máquina de la cascada (transición y refresco).
 //   - portalesEnlaces.ts        → clics, drops y eventos públicos (entrada).

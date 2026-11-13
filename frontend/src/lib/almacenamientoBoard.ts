@@ -24,6 +24,9 @@
 
 import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi, enviarFormData } from '../services/auth';
 import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
+// Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito. Es
+// lo que impide que un ancestro arrastrable reemplace el id del elemento tomado.
+import { publicarArrastre } from './arrastreEntidad';
 // FILTRO CENTRAL DEL PLANO: el limbo «En Tránsito» es un espacio VIRTUAL de
 // sistema: nunca se lista como habitación ni se dibuja en los minimapas.
 import { esEspacioVirtual } from './ubicacionesVirtuales';
@@ -716,6 +719,11 @@ export class AlmacenamientoBoard {
     // Habitaciones de la cascada: origen arrastrable hacia las celdas del Mapa Estok
     document.querySelectorAll<HTMLElement>('.dnd-ubicacion').forEach((card) => {
       card.addEventListener('dragstart', (e) => {
+        // 🐞 FIX DEL PAYLOAD ANIDADO: la habitación CONTIENE las tarjetas de sus
+        // contenedores (también `draggable`). Sin esta guarda, arrastrar «Caja 02»
+        // burbujeaba hasta acá y este handler sobreescribía el payload con el id
+        // de la HABITACIÓN. Sólo se publica cuando el gesto nace en la tarjeta.
+        if (e.target !== card) return;
         const id = card.dataset.id;
         if (!id) return;
         e.dataTransfer?.setData('application/x-estok-ubicacion', id);
@@ -730,11 +738,12 @@ export class AlmacenamientoBoard {
         if (!id) return;
         this.dragTipo = 'objeto';
         this.dragId = id;
-        if (e.dataTransfer) {
-          e.dataTransfer.setData('application/x-estok-objeto', id);
-          e.dataTransfer.setData('text/plain', id);
-          e.dataTransfer.effectAllowed = 'move';
-        }
+        // PAYLOAD EXPLÍCITO: id real del objeto + `tipo_entidad: 'objeto'`.
+        publicarArrastre(e as DragEvent, { id, tipoEntidad: 'objeto', origen: 'lienzo' });
+        // El objeto vive DENTRO de la tarjeta de su contenedor (también
+        // arrastrable): se frena el burbujeo para que el contenedor padre no
+        // reemplace el id del objeto por el suyo.
+        e.stopPropagation();
         img.classList.add('opacity-50');
       });
       img.addEventListener('dragend', () => {
@@ -748,6 +757,13 @@ export class AlmacenamientoBoard {
     // Tarjetas de contenedor: origen arrastrable + zona de caída para sub-niveles
     document.querySelectorAll<HTMLElement>('.dnd-contenedor').forEach((card) => {
       card.addEventListener('dragstart', (e) => {
+        // 🐞 FIX DEL PAYLOAD ANIDADO (BUG «se mueve el Estante en lugar de la
+        // Caja 02»): las tarjetas de contenedor son RECURSIVAS — el Estante
+        // contiene las tarjetas de sus Cajas y todas son `draggable`. El evento
+        // `dragstart` burbujea desde la Caja hasta el Estante, y el handler del
+        // ancestro reescribía `dataTransfer` con SU id. Con esta guarda el
+        // payload queda SIEMPRE con el id real del elemento tomado.
+        if (e.target !== card) return;
         const id = card.dataset.id;
         if (!id) return;
         // Restricción estricta: los muebles inmuebles fijos NO se arrastran.
@@ -758,11 +774,13 @@ export class AlmacenamientoBoard {
         }
         this.dragTipo = 'contenedor';
         this.dragId = id;
-        if (e.dataTransfer) {
-          e.dataTransfer.setData('text/plain', id);
-          e.dataTransfer.setData('application/x-estok-contenedor', id);
-          e.dataTransfer.effectAllowed = 'move';
-        }
+        // PAYLOAD EXPLÍCITO: id real + tipología (bulto móvil vs arquitectura).
+        publicarArrastre(e as DragEvent, {
+          id,
+          tipoEntidad: cont?.declarado_movible ? 'caja' : 'espacio',
+          origen: 'lienzo',
+        });
+        e.stopPropagation();
         card.classList.add('opacity-50');
       });
 
