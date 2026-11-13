@@ -322,6 +322,9 @@ export function nodoDesdeContenedor(
     nombre: c.nombre,
     espacioUnico: c.espacio_unico,
     declaradoMovible: c.declarado_movible,
+    // TAXONOMÍA FÍSICA: la consume la detección del nivel terminal (una CAJA es
+    // contenido del espacio, no una división arquitectónica).
+    tipoFisico: c.tipo,
     // Naturaleza física: un mueble inmueble fijo NO puede irse al limbo.
     esInmueble: c.es_inmueble,
     conDivisiones: c.subcontenedores_count > 0,

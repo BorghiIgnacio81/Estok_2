@@ -92,7 +92,11 @@ export function panelEspacioFinalHtml(nodo: NodoPortal, interior: InteriorNodo):
         ⬇ Soltá acá cajas u objetos de la canasta · sobre la TARJETA de una caja, el elemento se guarda DENTRO de esa caja.
       </p>
       ${selectorPiezasHtml(piezas, {
-        titulo: `📦 Cajas y sub-espacios de este nivel · ${piezas.length}`,
+        // SIN RÓTULO INTERNO: el TÍTULO EXACTO del nivel
+        // («📦 Cajas y piezas de este nivel · tocá una para ver su contenido y
+        // soltarle objetos») ya lo muestra el ENCABEZADO del Panel Derecho, así
+        // que repetirlo acá sería duplicar la misma frase en pantalla.
+        titulo: '',
         arrastrables: true,
       })}
       ${piezas.length ? '' : `<p class="pfinal-vacio">${sinCajas}</p>`}

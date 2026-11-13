@@ -126,6 +126,10 @@ export function transicionar(): void {
   setTexto('descPanelIzquierdo', cab.descIzq);
   setTexto('tituloPanelDerecho', cab.tituloDer);
   setTexto('descPanelDerecho', cab.descDer);
+  // En el Espacio Final no hay leyenda: el texto exacto del nivel lo aporta el
+  // Panel de Contenido, así que la línea de descripción se oculta (no queda un
+  // párrafo vacío con margen).
+  el('descPanelDerecho')?.classList.toggle('hidden', cab.descDer.trim().length === 0);
   // MINIMAPA DEL NIVEL PADRE: el cuadrante izquierdo conserva su TÍTULO (nombre
   // del nivel donde está parado el operador) y sólo se retira la leyenda larga.
   // La TIRA de minimapas de los niveles superiores se monta en `#minimapasAnidados`.

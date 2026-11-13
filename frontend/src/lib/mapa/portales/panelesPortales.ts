@@ -22,6 +22,9 @@
 
 import { esEspacioFinal } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
+// TÍTULO EXACTO del nivel terminal: fuente ÚNICA compartida con el selector de
+// piezas (lib/mapa/portales/textosPortales.ts). Nunca se escribe dos veces.
+import { TITULO_CAJAS_NIVEL } from './textosPortales';
 
 /** Paneles posibles del lado IZQUIERDO (ANCLA: el mapa del NIVEL SUPERIOR). */
 export type PanelIzquierdo =
@@ -195,12 +198,14 @@ function cabecerasDelNivel(ctx: ContextoNivel, paneles: Paneles): CabeceraPanele
   }
   if (paneles.derecho === 'contenidoFinal') {
     return {
-      // ESPACIO FINAL: SIN LIENZO. La columna izquierda se oculta por completo.
+      // ESPACIO FINAL: SIN LIENZO. La columna izquierda se oculta por completo y
+      // el ENCABEZADO se REEMPLAZA por el título exacto del nivel: la leyenda del
+      // explorador jerárquico («Interior jerárquico de la pieza activa…») no
+      // aplica porque acá no hay mapa ni descenso geométrico.
       tituloIzq: '',
-      tituloDer: `📦 Contenido de «${nodo.nombre}»`,
+      tituloDer: TITULO_CAJAS_NIVEL,
       descIzq: '',
-      descDer:
-        'Espacio Final: soltá una caja u objeto en cualquier punto del panel para guardarlo ACÁ, o directamente sobre la tarjeta de una caja para guardarlo DENTRO de ella. Tocá una tarjeta para abrir su interior.',
+      descDer: '',
     };
   }
   if (paneles.izquierdo === 'plantaConHabitaciones') {

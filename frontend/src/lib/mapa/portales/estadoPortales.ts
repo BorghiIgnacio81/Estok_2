@@ -12,6 +12,9 @@
 // =============================================================================
 
 import type { ItemGeometria } from '../../sectoresMinimapa';
+// Taxonomía física del inventario: ÚNICA fuente para distinguir una CAJA (bulto
+// de contenido) de una DIVISIÓN arquitectónica (estante/cajón/mueble fijo).
+import { esCajaMovil } from '../../taxonomiaContenedor';
 
 /** Naturaleza del nodo dentro de la cascada (jerarquía real por `parent_id`). */
 export type TipoNodoPortal = 'planta' | 'habitacion' | 'contenedor';
@@ -44,6 +47,14 @@ export interface NodoPortal {
    * SÓLO los Contenedores tienen el campo: las Ubicaciones viajan siempre false.
    */
   declaradoMovible: boolean;
+  /**
+   * 🧾 TIPO FÍSICO del contenedor (`CONJUNTO`, `MUEBLE_INMUEBLE`, `MUEBLE_MOVIL`,
+   * `CAJA`, `OBJETO`), tal como lo persiste el backend. Lo necesita la detección
+   * del nivel terminal: una CAJA es CONTENIDO del espacio (aunque su dueño no la
+   * haya declarado «Mueble / Objeto»), nunca una división arquitectónica.
+   * Las habitaciones viajan `undefined`.
+   */
+  tipoFisico?: string;
   /** Tiene al menos un hijo propio (estante/cajón/caja adentro). */
   conDivisiones: boolean;
   /**
@@ -190,10 +201,24 @@ export function esEspacioFinal(nodo: NodoPortal | null): boolean {
  * mueble fijo)? Los bultos móviles —cajas y piezas declaradas «Mueble Móvil /
  * Objeto»— son CONTENIDO, no arquitectura, y por eso no impiden que el nivel sea
  * un Espacio Final.
+ *
+ * REGLA DE LAS CAJAS (nivel terminal de Estantes/Cajones): una pieza de tipo
+ * físico `CAJA` es SIEMPRE contenido del inventario —el operador la creó con
+ * «+ Nueva Caja / Contenedor» y vive adentro del estante—, aunque su disyuntor
+ * `declarado_movible` siga en `false` (default del backend). Sin esta regla, un
+ * estante con cajas sin declarar se leía como «nivel modelable» y mostraba el
+ * lienzo 2D en lugar de las tarjetas del Espacio Final.
  */
 export function esSubEspacioArquitectonico(hijo: NodoPortal | null): boolean {
   if (!hijo) return false;
   if (hijo.espacioUnico) return false;
+  // CAJA (tipo físico real, no inmueble): bulto de contenido, nunca división.
+  if (
+    hijo.tipoFisico &&
+    esCajaMovil({ tipo: hijo.tipoFisico, es_inmueble: hijo.esInmueble })
+  ) {
+    return false;
+  }
   return !hijo.declaradoMovible;
 }
 

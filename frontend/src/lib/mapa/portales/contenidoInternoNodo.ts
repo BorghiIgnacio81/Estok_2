@@ -19,6 +19,8 @@ import { escapeHtml } from '../../mapaJerarquico';
 import { indicadorTransitoHtml } from '../../indicadorTransito';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
+// TÍTULO EXACTO de las cajas del nivel: fuente ÚNICA en textosPortales.ts.
+import { TITULO_CAJAS_NIVEL } from './textosPortales';
 
 /** Casillero fino legible del objeto («F1·C2» o «sin casillero»). */
 function casilleroDe(objeto: ObjetoDto): string {
@@ -113,7 +115,8 @@ export function selectorPiezasHtml(
 ): string {
   const lista = (piezas || []).filter((pieza) => pieza && pieza.id);
   if (!lista.length) return '';
-  const titulo = opciones.titulo ?? '📦 Cajas y piezas de este nivel · tocá una para ver su contenido y soltarle objetos';
+  // `titulo: ''` = sin rótulo interno (el encabezado del nivel ya lo muestra).
+  const titulo = opciones.titulo ?? TITULO_CAJAS_NIVEL;
   const filas = lista
     .map((pieza) => {
       const objetos = pieza.objetosCount ?? 0;
@@ -150,7 +153,7 @@ export function selectorPiezasHtml(
     .join('');
   return `
     <section class="portal-piezas" aria-label="Cajas y piezas contenidas">
-      <p class="portal-piezas-tit">${escapeHtml(titulo)}</p>
+      ${titulo.trim() ? `<p class="portal-piezas-tit">${escapeHtml(titulo)}</p>` : ''}
       <ul class="portal-piezas-lista">${filas}</ul>
     </section>`;
 }
