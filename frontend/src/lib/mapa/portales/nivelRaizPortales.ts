@@ -111,6 +111,10 @@ export async function renderNivelRaiz(): Promise<void> {
  * LEY 1 · ANCLA IZQUIERDA: dibuja el mapa del NIVEL SUPERIOR. El nodo activo se
  * resalta aparte por identidad (`resaltarSeleccionIzquierda`). NUNCA dibuja el
  * interior del activo → se mata el espejo entre ambos cuadrantes.
+ *
+ * Esta ancla NO se apaga jamás, tampoco en un ESPACIO FINAL: cuando el activo es
+ * un Estante/Cajón/Caja, el cuadrante izquierdo sigue mostrando el plano del
+ * padre (habitación o contenedor) con la pieza terminal en NARANJA.
  */
 export async function pintarAncla(
   izquierdo: PanelIzquierdo,
@@ -118,9 +122,6 @@ export async function pintarAncla(
   activo: NodoPortal,
 ): Promise<void> {
   if (izquierdo === 'planoPlanta') return; // el plano del Estok ya está montado
-  // ESPACIO FINAL: el lienzo/mapa 2D está DESACTIVADO y la columna se oculta
-  // desde `transicionar()`; no hay ancla que pintar.
-  if (izquierdo === 'oculto') return;
   cacheUbicacionesLocal = await cargarUbicaciones();
 
   if (izquierdo === 'plantaConHabitaciones') {

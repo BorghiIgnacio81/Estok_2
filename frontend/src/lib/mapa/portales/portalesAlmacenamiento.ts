@@ -8,11 +8,12 @@
 // LEY 1 (Asimetría): el Panel Izquierdo CONSERVA el mapa del NIVEL SUPERIOR (el
 // padre) con el hijo seleccionado resaltado en naranja; el derecho avanza al
 // interior del seleccionado. LEY 4: «Espacio Final» (nivel terminal sin
-// sub-espacios arquitectónicos) → el lienzo 2D se OCULTA y la derecha monta el
-// Panel de Contenido (tarjetas + zona de suelta). Los visores históricos (mapa
-// Estok, Visor de Habitación y Visor Contenedor Grande) siguen siendo el PLANO
-// del Panel Izquierdo por sus eventos públicos, pero viven en un host EXCLUSIVO
-// de la izquierda.
+// sub-espacios arquitectónicos) → la derecha monta el Panel de Contenido
+// (tarjetas + zona de suelta) y la IZQUIERDA SIGUE VISIBLE con el plano del
+// padre: la pantalla conserva SIEMPRE los dos cuadrantes. Los visores históricos
+// (mapa Estok, Visor de Habitación y Visor Contenedor Grande) siguen siendo el
+// PLANO del Panel Izquierdo por sus eventos públicos, pero viven en un host
+// EXCLUSIVO de la izquierda.
 // =============================================================================
 
 import { aplicarModo } from '../../modoLienzo';
@@ -117,8 +118,9 @@ export async function nodoDeHabitacion(id: string): Promise<NodoPortal | null> {
 export function transicionar(): void {
   const ctx = contextoDeNivel();
   const paneles = panelesDe(ctx);
-  // HOSTS + COLUMNAS + CANASTAS (incluye la ocultación del lienzo 2D cuando el
-  // nivel activo es un ESPACIO FINAL).
+  // HOSTS + COLUMNAS + CANASTAS. La estructura de DOS CUADRANTES se mantiene
+  // siempre: en un ESPACIO FINAL la derecha monta el Panel de Contenido y la
+  // izquierda conserva el plano del nivel superior con la pieza en naranja.
   aplicarFisicaDePaneles(paneles);
 
   const cab = cabecerasDe(ctx, paneles);
@@ -264,7 +266,8 @@ async function pintarNivel(nodo: NodoPortal, interior: InteriorNodo): Promise<vo
 /**
  * LEY 4 · ESPACIO FINAL: la DERECHA monta el Panel de Contenido (tarjetas de las
  * cajas/sub-espacios y objetos que aloja + zona receptora de Drag & Drop de área
- * completa) y la IZQUIERDA se oculta por completo: no hay lienzo/mapa 2D.
+ * completa). La IZQUIERDA NO se oculta: conserva el plano del nivel superior con
+ * la pieza terminal en naranja y la tira de minimapas (dos cuadrantes).
  */
 function iniciarPanelEspacioFinal(nodo: NodoPortal, interior: InteriorNodo): void {
   const host = el(HOSTS.contenidoFinal);
@@ -326,7 +329,7 @@ async function refrescarNivelInterno(): Promise<void> {
     // 3) LEY 1 (Asimetría Rígida): la IZQUIERDA CONSERVA el mapa del NIVEL
     //    SUPERIOR con el seleccionado resaltado en naranja. NUNCA dibuja el
     //    interior del propio seleccionado → se mata el espejo entre cuadrantes.
-    //    En un ESPACIO FINAL la izquierda no existe: `pintarAncla` no dibuja nada.
+    //    Rige TAMBIÉN en el ESPACIO FINAL: la izquierda no se oculta nunca.
     const ctx = contextoDeNivel();
     const paneles = panelesDe(ctx);
     await pintarAncla(paneles.izquierdo, ctx.superior, nodoActual() ?? activo);

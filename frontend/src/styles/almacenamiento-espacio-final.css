@@ -2,27 +2,25 @@
    ALMACENAMIENTO · PANEL DE CONTENIDO DEL «ESPACIO FINAL»
    -----------------------------------------------------------------------------
    Cuando el operador navega a un ESPACIO FINAL (Estante, Cajón o Caja —un nivel
-   que no contiene sub-espacios arquitectónicos) el lienzo/mapa 2D tradicional se
-   DESACTIVA y se oculta:
-     · `html.portales-espacio-final` apaga la COLUMNA IZQUIERDA y deja el Panel
-       de Contenido a todo el ancho (una sola columna).
+   que no contiene sub-espacios arquitectónicos) el cuadrante DERECHO monta este
+   Panel de Contenido:
+     · `html.portales-espacio-final` aporta SÓLO el estilo del panel (fichas
+       grandes, grilla de tarjetas). NO oculta la columna izquierda: la pantalla
+       mantiene SIEMPRE los dos cuadrantes (izquierda = plano del nivel superior
+       con la pieza activa en naranja + tira de minimapas anidados).
      · El cuadrante derecho monta las tarjetas de las cajas/sub-espacios y de los
        objetos contenidos + la zona receptora de Drag & Drop de área completa
        (lib/mapa/portales/panelEspacioFinal.ts).
    ============================================================================= */
 
 /* ---------------------------------------------------------------------------
-   1. FÍSICA DE PANTALLA DEL NIVEL TERMINAL (sin columna izquierda)
+   1. FÍSICA DE PANTALLA DEL NIVEL TERMINAL (DOS CUADRANTES, NO UNO)
+   ---------------------------------------------------------------------------
+   No hay reglas que oculten #panelIzquierdoCol ni que colapsen #gridCascada: la
+   izquierda conserva el plano del nivel superior y la tira de minimapas.
+   Sólo se apaga el interruptor de edición, porque el nivel terminal no tiene
+   lienzo propio que modelar (queda «🧩 Modelar divisiones» en el panel).
    --------------------------------------------------------------------------- */
-html.portales-espacio-final #panelIzquierdoCol {
-  display: none !important;
-}
-
-html.portales-espacio-final #gridCascada {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-/* El interruptor «✏️ Editar» / «💾 Guardar» no aplica: no hay lienzo que editar. */
 html.portales-espacio-final [data-modo-editar],
 html.portales-espacio-final [data-modo-guardar] {
   display: none !important;

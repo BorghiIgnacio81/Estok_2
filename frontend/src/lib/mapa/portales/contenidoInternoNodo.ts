@@ -17,6 +17,8 @@
 
 import { escapeHtml } from '../../mapaJerarquico';
 import { indicadorTransitoHtml } from '../../indicadorTransito';
+// TIPO DE ENTIDAD REAL del arrastre (caja vs espacio): fuente ÚNICA del contrato.
+import { tipoEntidadDeContenedor } from '../../arrastreEntidad';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
 // TÍTULO EXACTO de las cajas del nivel: fuente ÚNICA en textosPortales.ts.
@@ -129,9 +131,17 @@ export function selectorPiezasHtml(
         .join(' · ');
       const nombre = escapeHtml(pieza.nombre);
       // ORIGEN DEL ARRASTRE (opcional): la tarjeta se toma y se suelta en otra
-      // caja, en el área general del Espacio Final o en la canasta.
+      // caja, en el área general del Espacio Final o en la canasta. El payload
+      // declara el ID REAL de la tarjeta y su `tipo_entidad` verdadero: una CAJA
+      // del inventario viaja como `caja` (taxonomía física) y una división
+      // arquitectónica como `espacio`. Nunca se publica el ID del estante padre.
+      const tipoEntidad = tipoEntidadDeContenedor({
+        tipo: pieza.tipoFisico,
+        es_inmueble: pieza.esInmueble,
+        declarado_movible: pieza.declaradoMovible,
+      });
       const arrastre = opciones.arrastrables
-        ? `draggable="true" data-arrastre-entidad="${escapeHtml(pieza.id)}" data-arrastre-tipo="${pieza.declaradoMovible || pieza.espacioUnico ? 'caja' : 'espacio'}"`
+        ? `draggable="true" data-arrastre-entidad="${escapeHtml(pieza.id)}" data-arrastre-tipo="${tipoEntidad}"`
         : '';
       return `<li>
       <button type="button" class="portal-pieza-item" ${arrastre}

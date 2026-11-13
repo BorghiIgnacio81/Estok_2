@@ -88,6 +88,9 @@ function itemsEditor(interior: InteriorNodo): ItemElastico[] {
       objetos_count: pieza?.objetosCount ?? 0,
       contenedores_count: pieza?.subcontenedoresCount ?? 0,
       conDivisiones: Boolean(pieza?.conDivisiones),
+      // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
+      tipo_contenedor: pieza?.tipoFisico ?? null,
+      protegido: pieza?.esInmueble === true,
     };
   });
 }

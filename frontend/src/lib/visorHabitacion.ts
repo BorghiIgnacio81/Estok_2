@@ -208,6 +208,8 @@ function renderVisor(): void {
     // MARCADO DE MUEBLE MÓVIL (Lote 25): el plano dibuja el icono/borde del
     // mueble declarado (`declarado_movible === true`) frente a la arquitectura.
     declarado_movible: c.declarado_movible === true,
+    // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
+    tipo_contenedor: c.tipo ?? null,
     // Mueble inmueble fijo: el backend rechaza su DELETE → no se expone el 🗑️.
     protegido: c.es_inmueble === true,
     // DROP TARGET: contadores reales (badge «📦 N») y división interna para que

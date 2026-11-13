@@ -190,6 +190,8 @@ function muebleLienzoHtml(m: MuebleVisor, conts: SubContVisor[]): string {
       fusion_grupo: x.fusion_grupo,
       // MARCADO DE MUEBLE MÓVIL (Lote 25): icono/borde según la declaración.
       declarado_movible: x.declarado_movible === true,
+      // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
+      tipo_contenedor: x.tipo ?? null,
       // Estante inmueble fijo: el backend rechaza su DELETE → sin botón 🗑️.
       protegido: x.es_inmueble === true,
       meta: x.es_inmueble ? '📌 fijo' : null,

@@ -22,6 +22,8 @@
 // =============================================================================
 
 import { escapeHtml } from './mapaJerarquico';
+// CONTRATO ÚNICO DEL ARRASTRE: el tipo_entidad REAL de la tarjeta (caja | espacio).
+import { tipoEntidadDeContenedor } from './arrastreEntidad';
 import { estiloPerimetro, tiradoresPerimetro } from './perimetroElastico';
 import { siluetaContinua, unirCeldasAdyacentes } from './plantaFusionSilueta';
 import type { ItemElastico } from './lienzoElastico';
@@ -260,7 +262,14 @@ function conteoBadgeHtml(item: ItemElastico): string {
  * del espacio (estantes, cajones, muebles fijos).
  */
 function atributosDrop(item: ItemElastico): string {
-  const entidad = esMuebleMovilDeclarado(item) ? 'caja' : 'espacio';
+  // TIPO DE ENTIDAD REAL del arrastre: la CAJA se resuelve por taxonomía física
+  // (una caja creada con «+ Nueva Caja» no declara `declarado_movible`), así el
+  // payload nunca confunde una caja con la arquitectura del espacio.
+  const entidad = tipoEntidadDeContenedor({
+    tipo: item.tipo_contenedor,
+    es_inmueble: item.protegido,
+    declarado_movible: item.declarado_movible,
+  });
   return `data-inplace-nombre="${escapeHtml(item.nombre)}" data-inplace-divisiones="${item.conDivisiones ? '1' : '0'}" data-inplace-entidad="${entidad}"`;
 }
 

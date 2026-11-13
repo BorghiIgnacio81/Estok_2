@@ -16,7 +16,7 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 // Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito.
-import { publicarArrastre } from './arrastreEntidad';
+import { publicarArrastre, tipoEntidadDeContenedor } from './arrastreEntidad';
 import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico';
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
@@ -378,7 +378,7 @@ function enlazar(): void {
       // arquitectura). Sin burbujeo: la ficha vive dentro del mueble.
       publicarArrastre(de, {
         id,
-        tipoEntidad: dato?.declarado_movible ? 'caja' : 'espacio',
+        tipoEntidad: tipoEntidadDeContenedor(dato),
         origen: 'visor',
       });
       de.stopPropagation();

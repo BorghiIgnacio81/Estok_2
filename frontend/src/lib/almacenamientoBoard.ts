@@ -26,7 +26,7 @@ import { getAuthHeaders, getEstokActivoId, API_BASE_URL, normalizarUrlApi, envia
 import { minimapaPlantaHtml, minimapaInternoHtml, toast as toastFijo } from './mapaJerarquico';
 // Contrato ÚNICO del payload de arrastre: id REAL + tipo_entidad explícito. Es
 // lo que impide que un ancestro arrastrable reemplace el id del elemento tomado.
-import { publicarArrastre } from './arrastreEntidad';
+import { publicarArrastre, tipoEntidadDeContenedor } from './arrastreEntidad';
 // FILTRO CENTRAL DEL PLANO: el limbo «En Tránsito» es un espacio VIRTUAL de
 // sistema: nunca se lista como habitación ni se dibuja en los minimapas.
 import { esEspacioVirtual } from './ubicacionesVirtuales';
@@ -777,7 +777,7 @@ export class AlmacenamientoBoard {
         // PAYLOAD EXPLÍCITO: id real + tipología (bulto móvil vs arquitectura).
         publicarArrastre(e as DragEvent, {
           id,
-          tipoEntidad: cont?.declarado_movible ? 'caja' : 'espacio',
+          tipoEntidad: tipoEntidadDeContenedor(cont),
           origen: 'lienzo',
         });
         e.stopPropagation();

@@ -20,6 +20,8 @@
 //   explícito y cae al MIME histórico cuando el arrastre viene de código viejo.
 // =============================================================================
 
+import { esCajaMovil } from './taxonomiaContenedor';
+
 /** MIME del OBJETO fino arrastrado (legado + compatibilidad de Drop Targets). */
 export const MIME_OBJETO = 'application/x-estok-objeto';
 /** MIME del CONTENEDOR arrastrado (caja, estante, mueble). */
@@ -66,6 +68,44 @@ export interface OpcionesPublicarArrastre {
 /** ¿El valor es un `tipo_entidad` válido del contrato? */
 function esTipoEntidad(valor: string): valor is TipoEntidadArrastrada {
   return valor === 'objeto' || valor === 'caja' || valor === 'espacio';
+}
+
+/**
+ * Datos mínimos de una pieza para deducir su `tipo_entidad` REAL en el arrastre.
+ * Los DTOs de contenedor del padrón (`ContenedorDto`, `SubContVisor`, `NodoPortal`)
+ * exponen estos tres campos con nombres distintos; cada render los adapta.
+ */
+export interface PiezaArrastrable {
+  /** Tipo físico CRUDO del backend (`CAJA`, `CONJUNTO`, `MUEBLE_INMUEBLE`, …). */
+  tipo?: string | null;
+  /** Mueble inmueble fijo (una CAJA nunca lo es). */
+  es_inmueble?: boolean | null;
+  /** 🎒 Declaración explícita «Mueble Móvil / Objeto» (bulto movible). */
+  declarado_movible?: boolean | null;
+}
+
+/**
+ * TIPO DE ENTIDAD REAL de un contenedor arrastrado:
+ *   · `caja`    → CAJA del inventario (taxonomía física) o mueble declarado
+ *                 «Mueble Móvil / Objeto»: bultos que se mudan entre espacios.
+ *   · `espacio` → división arquitectónica (estante, cajón, mueble fijo).
+ *
+ * La CAJA se resuelve por TAXONOMÍA (`lib/taxonomiaContenedor.ts`) y no por el
+ * flag `declarado_movible`: el alta rápida «+ Nueva Caja / Contenedor» persiste
+ * `declarado_movible = false`, así que sin esta regla una caja viajaba como
+ * «espacio» y el payload dejaba de declarar su naturaleza verdadera.
+ */
+export function tipoEntidadDeContenedor(
+  pieza: PiezaArrastrable | null | undefined,
+): TipoEntidadArrastrada {
+  if (!pieza) return 'espacio';
+  // `tipo` ausente = payload parcial: NO se asume CAJA (el default del modelo
+  // backend no debe contaminar los orígenes de arrastre viejos).
+  if (pieza.tipo && esCajaMovil({ tipo: pieza.tipo, es_inmueble: pieza.es_inmueble })) {
+    return 'caja';
+  }
+  if (pieza.declarado_movible === true) return 'caja';
+  return 'espacio';
 }
 
 /**

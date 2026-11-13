@@ -89,7 +89,9 @@ export function panelEspacioFinalHtml(nodo: NodoPortal, interior: InteriorNodo):
       data-caja-drop-divisiones="${nodo.conDivisiones ? '1' : '0'}"
       title="Toda esta área es una zona de suelta: soltá una caja u objeto para guardarlo en «${escapeHtml(nodo.nombre)}». Sobre la tarjeta de una caja, el elemento se guarda DENTRO de esa caja.">
       <p class="pfinal-hint">
-        ⬇ Soltá acá cajas u objetos de la canasta · sobre la TARJETA de una caja, el elemento se guarda DENTRO de esa caja.
+        ⬇ <strong>Zona libre de suelta</strong>: soltá acá una caja u objeto de la canasta y queda
+        guardado directo en «${escapeHtml(nodo.nombre)}» (sin casillero) · sobre la TARJETA de una
+        caja, el elemento se guarda DENTRO de esa caja.
       </p>
       ${selectorPiezasHtml(piezas, {
         // SIN RÓTULO INTERNO: el TÍTULO EXACTO del nivel

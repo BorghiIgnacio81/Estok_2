@@ -46,6 +46,15 @@ export interface ItemElastico {
    * inmueble.
    */
   declarado_movible?: boolean | null;
+  /**
+   * TIPO FÍSICO CRUDO del contenedor (`CAJA`, `CONJUNTO`, `MUEBLE_INMUEBLE`, …).
+   *
+   * Lo publica cada render que arma las tarjetas del lienzo y lo consume el
+   * contrato de arrastre (`lib/arrastreEntidad.ts` → `tipoEntidadDeContenedor`)
+   * para que una CAJA viaje SIEMPRE con `tipo_entidad: 'caja'` aunque su
+   * `declarado_movible` siga en `false` (default del alta rápida de cajas).
+   */
+  tipo_contenedor?: string | null;
   /** Conteos opcionales: si no hay `meta`, la tarjeta los compone automáticamente. */
   objetos_count?: number;
   contenedores_count?: number;

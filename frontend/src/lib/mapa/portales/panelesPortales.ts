@@ -12,8 +12,12 @@
 //   estructuralmente bloqueado.
 //
 // LEY 4 (Espacio Final, REVERSIBLE): el ÚNICO fin de cadena es el ESPACIO FINAL.
-//   Si el ACTIVO es terminal, el lienzo 2D se APAGA (la izquierda se oculta) y la
-//   derecha monta el Panel de Contenido (tarjetas + zona receptora de Drop).
+//   Si el ACTIVO es terminal, el lienzo 2D del PROPIO nodo no existe (no hay
+//   sub-espacios arquitectónicos que dibujar) y la DERECHA monta el Panel de
+//   Contenido (tarjetas + zona receptora de Drop). La IZQUIERDA NO SE OCULTA:
+//   conserva el plano del nivel superior con el nodo terminal en NARANJA y la
+//   tira acumulada de minimapas, porque la pantalla mantiene SIEMPRE la
+//   estructura de dos cuadrantes en toda la jerarquía.
 //   Destildarlo / «Modelar divisiones» devuelve el modelador en caliente
 //   (`tieneModeladorGeometrico`).
 //
@@ -35,12 +39,7 @@ export type PanelIzquierdo =
   /** Superior = CUARTO: lienzo interior del cuarto con el hijo elegido en naranja. */
   | 'visorHabitacion'
   /** Superior = CONTENEDOR: sub-grilla interna con el hijo elegido en naranja. */
-  | 'grillaNodo'
-  /**
-   * ESPACIO FINAL: el lienzo/mapa 2D tradicional queda DESACTIVADO y oculto.
-   * La pantalla completa la ocupa el Panel de Contenido del lado derecho.
-   */
-  | 'oculto';
+  | 'grillaNodo';
 
 /** Paneles posibles del lado DERECHO (EXPLORADOR: el interior del nodo ACTIVO). */
 export type PanelDerecho =
@@ -83,7 +82,9 @@ export interface Paneles {
  *   activo = null, con planta → Izq = plano del Estok · Der = espera (cuartos)
  *   activo = habitación      → Izq = PLANTA (cuarto naranja) · Der = interior
  *   activo = contenedor (+)  → Izq = mapa del PADRE      · Der = interior
- *   activo = ESPACIO FINAL   → Izq = OCULTA (sin lienzo) · Der = contenido
+ *   activo = ESPACIO FINAL   → Izq = mapa del PADRE      · Der = contenido
+ * La IZQUIERDA nunca se apaga: los dos cuadrantes se mantienen en toda la
+ * jerarquía, incluso en el nivel terminal (Estante, Cajón, Caja).
  */
 export function panelesDe(ctx: ContextoNivel): Paneles {
   return { izquierdo: anclaDe(ctx), derecho: exploradorDe(ctx) };
@@ -101,10 +102,11 @@ export function panelesDe(ctx: ContextoNivel): Paneles {
  *
  * La vista raíz de la Casa (Nivel 1, sin planta fijada) NO tiene padre: el
  * cuadrante izquierdo es el plano general del Estok y conserva su cabecera.
- * En un ESPACIO FINAL no hay minimapa padre: el lienzo 2D se oculta.
+ * Un ESPACIO FINAL (Estante, Cajón, Caja) TAMPOCO apaga la izquierda: el plano
+ * del nivel superior con el nodo terminal resaltado en NARANJA sigue visible, de
+ * modo que la estructura de dos cuadrantes se mantiene en toda la jerarquía.
  */
 export function esMinimapaPadre(ctx: ContextoNivel): boolean {
-  if (esEspacioFinal(ctx.activo)) return false;
   return Boolean(ctx.activo) || ctx.plantaFijada;
 }
 
@@ -124,18 +126,17 @@ function exploradorDe({ activo, plantaFijada }: ContextoNivel): PanelDerecho {
 
 /**
  * LEY 1 · ¿Qué monta el Panel IZQUIERDO (ancla)? SÓLO consulta al SUPERIOR:
- *   activo = ESPACIO FINAL  → 'oculto' (el lienzo/mapa 2D queda desactivado).
  *   activo = raíz          → silueta general del Estok con sus N plantas.
  *   superior = PLANTA      → mapa de habitaciones (cuarto elegido en naranja).
  *   superior = CUARTO      → lienzo interior del cuarto (hijo elegido en naranja).
  *   superior = CONTENEDOR  → sub-grilla interna (hijo elegido en naranja).
  * Jamás consulta al ACTIVO para dibujar su interior: por eso no puede reflejar
  * el mismo mapa que la derecha (el clon en espejo queda estructuralmente
- * bloqueado).
+ * bloqueado). Un ESPACIO FINAL no es una excepción: la izquierda sigue siendo el
+ * plano del padre con el estante/caja activo en naranja.
  */
 function anclaDe({ activo, superior }: ContextoNivel): PanelIzquierdo {
   if (!activo) return 'planoPlanta';
-  if (esEspacioFinal(activo)) return 'oculto';
   if (!superior) return 'plantaConHabitaciones';
   return superior.tipo === 'habitacion' ? 'visorHabitacion' : 'grillaNodo';
 }
@@ -198,11 +199,13 @@ function cabecerasDelNivel(ctx: ContextoNivel, paneles: Paneles): CabeceraPanele
   }
   if (paneles.derecho === 'contenidoFinal') {
     return {
-      // ESPACIO FINAL: SIN LIENZO. La columna izquierda se oculta por completo y
-      // el ENCABEZADO se REEMPLAZA por el título exacto del nivel: la leyenda del
-      // explorador jerárquico («Interior jerárquico de la pieza activa…») no
-      // aplica porque acá no hay mapa ni descenso geométrico.
-      tituloIzq: '',
+      // ESPACIO FINAL: el lienzo del PROPIO nodo no existe, pero el cuadrante
+      // izquierdo SÍ se mantiene (plano del nivel superior con el estante/caja
+      // activo en naranja + tira de minimapas), así que conserva su título de
+      // contexto. El ENCABEZADO derecho lleva el título EXACTO del nivel: la
+      // leyenda del explorador jerárquico («Interior jerárquico de la pieza
+      // activa…») no aplica porque acá no hay descenso geométrico.
+      tituloIzq: '🧭 Plano del nivel superior',
       tituloDer: TITULO_CAJAS_NIVEL,
       descIzq: '',
       descDer: '',
@@ -244,11 +247,6 @@ export const HOSTS = {
   visorHabitacion: 'visorHabitacion',
   /** Superior = CONTENEDOR: Visor Contenedor Grande histórico (sub-grilla interna). */
   grillaNodo: 'visorContenedorGrande',
-  /**
-   * ESPACIO FINAL: NO hay lienzo. El id vacío hace que `moverPanel` no monte
-   * ningún host y `transicionar` oculte la columna izquierda completa.
-   */
-  oculto: '',
   // ── DERECHA (EXPLORADOR: interior del nodo ACTIVO) ──
   /** Espera raíz (sin planta): un mini-mapa por planta (host DEDICADO). */
   plantasEnEspera: 'listaPlantasPanel',

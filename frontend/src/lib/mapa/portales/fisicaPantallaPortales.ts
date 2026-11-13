@@ -3,9 +3,10 @@
 // -----------------------------------------------------------------------------
 // Aplica al DOM la decisión PURA de `panelesPortales.ts`:
 //   · enciende/apaga los hosts de la cascada y los mueve a su columna,
-//   · en un ESPACIO FINAL oculta la COLUMNA IZQUIERDA (sin lienzo/mapa 2D),
-//     deja el Panel de Contenido a todo el ancho y traslada la tira de
-//     minimapas al panel derecho,
+//   · mantiene SIEMPRE visibles los DOS CUADRANTES (izquierdo = plano del nivel
+//     superior + tira de minimapas; derecho = interior/panel de contenido). En
+//     un ESPACIO FINAL (Estante, Cajón, Caja) la izquierda NO se oculta: sigue
+//     mostrando el plano del padre con el nodo terminal en naranja,
 //   · gobierna la canasta del cuadrante derecho y la del contenedor activo.
 //
 // Sin estado propio: todo se resuelve con el estado vigente de la cascada.
@@ -19,20 +20,20 @@ import type { Paneles } from './panelesPortales';
 
 /** Aplica la física de pantalla completa del nivel recién resuelto. */
 export function aplicarFisicaDePaneles(paneles: Paneles): void {
-  // ESPACIO FINAL: el lienzo/mapa 2D tradicional queda DESACTIVADO y la columna
-  // izquierda OCULTA; el Panel de Contenido ocupa todo el ancho disponible.
-  const enEspacioFinal = paneles.izquierdo === 'oculto';
+  // ESTRUCTURA DE DOS CUADRANTES INAMOVIBLE: el nivel terminal NO oculta la
+  // columna izquierda (conserva el plano del padre y su tira de minimapas). La
+  // clase `portales-espacio-final` sólo aporta el estilo del Panel de Contenido.
+  const enEspacioFinal = paneles.derecho === 'contenidoFinal';
   document.documentElement.classList.toggle('portales-espacio-final', enEspacioFinal);
-  el('panelIzquierdoCol')?.classList.toggle('hidden', enEspacioFinal);
+  el('panelIzquierdoCol')?.classList.remove('hidden');
   for (const id of TODOS_LOS_HOSTS) el(id)?.classList.add('hidden');
   const [idIzq, idDer] = hostsDe(paneles);
   moverPanel(el(idIzq), slotIzq());
   moverPanel(el(idDer), slotDer());
-  // TIRA DE MINIMAPAS: en un Espacio Final la izquierda no existe, así que el
-  // breadcrumb navegable viaja a la cima del Panel de Contenido (mismo host, no
-  // se duplica el componente).
+  // TIRA DE MINIMAPAS: viaja SIEMPRE a la cima del cuadrante izquierdo, en
+  // cualquier nivel (incluido el terminal). Nunca se mueve a la derecha.
   const tira = el('minimapasAnidados');
-  const destinoTira = enEspacioFinal ? slotDer() : slotIzq();
+  const destinoTira = slotIzq();
   if (tira && destinoTira && tira.parentElement !== destinoTira) {
     destinoTira.insertBefore(tira, destinoTira.firstChild);
   }
