@@ -19,8 +19,9 @@
 
 import { getAuthHeaders, API_BASE_URL, normalizarUrlApi } from '../services/auth';
 import { escapeHtml } from './mapaJerarquico';
-// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_MUEBLE } from './assetsUi';
+// ICONO CANÓNICO DEL OBJETO: /fluffy-objeto.webp para los ítems generales y
+// /mueble.webp ÚNICAMENTE para la categoría «Muebles» (lib/iconoObjeto.ts).
+import { iconoDeObjeto } from './iconoObjeto';
 
 export interface CajaSeleccionada {
   id: string;
@@ -34,6 +35,10 @@ interface ItemFino {
   nombre: string;
   fila: number | null;
   col: number | null;
+  /** Categoría visible del objeto (define su ícono canónico). */
+  categoria_nombre: string | null;
+  /** Categoría normalizada por el backend («muebles…»). */
+  categoria_slug: string | null;
 }
 
 /** Sub-caja/estante DIRECTO de la caja activa, con los objetos que aloja dentro. */
@@ -44,8 +49,6 @@ interface CajaInterna {
   col: number | null;
   objetos: ItemFino[];
 }
-
-const IMG_OBJETO = ASSET_MUEBLE;
 
 let actual: CajaSeleccionada | null = null;
 let raizIzq: HTMLElement | null = null;
@@ -124,6 +127,8 @@ function mapearObjetos(raw: Record<string, unknown>[], cajaId: string): ItemFino
       nombre: String(o.nombre || 'Objeto'),
       fila: enteroONull(o.parent_grid_row),
       col: enteroONull(o.parent_grid_col),
+      categoria_nombre: o.categoria_nombre != null ? String(o.categoria_nombre) : null,
+      categoria_slug: o.categoria_slug != null ? String(o.categoria_slug) : null,
     });
   }
   return items.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
@@ -172,15 +177,15 @@ async function cargar(): Promise<void> {
 function renderCanvas(): void {
   if (!raizIzq || !actual) return;
   const piezas = [
-    ...subcajas.map((c) => ({ tipo: 'contenedor' as const, nombre: c.nombre, fila: c.fila, col: c.col })),
-    ...objetosSueltos.map((o) => ({ tipo: 'objeto' as const, nombre: o.nombre, fila: o.fila, col: o.col })),
+    ...subcajas.map((c) => ({ tipo: 'contenedor' as const, nombre: c.nombre, fila: c.fila, col: c.col, categoria: null, categoriaSlug: null })),
+    ...objetosSueltos.map((o) => ({ tipo: 'objeto' as const, nombre: o.nombre, fila: o.fila, col: o.col, categoria: o.categoria_nombre, categoriaSlug: o.categoria_slug })),
   ];
   const tiles = piezas
     .map(
       (p) => `<span class="caja-tile" title="${escapeHtml(p.nombre)} · ${etiquetaFC(p.fila, p.col)}">
       ${
         p.tipo === 'objeto'
-          ? `<img src="${IMG_OBJETO}" alt="" style="width:18px;height:18px;border-radius:999px;object-fit:cover" />`
+          ? `<img src="${iconoDeObjeto(p.categoria, p.categoriaSlug)}" alt="" style="width:18px;height:18px;border-radius:999px;object-fit:cover" />`
           : `<span class="caja-tile-ico" aria-hidden="true">📦</span>`
       }
       <span class="caja-tile-nombre">${escapeHtml(p.nombre)}</span>
@@ -213,7 +218,7 @@ function renderCanvas(): void {
 function objetoVinetaHtml(o: ItemFino): string {
   return `<li class="caja-arbol-item">
     <span class="caja-arbol-vineta" aria-hidden="true">•</span>
-    <img src="${IMG_OBJETO}" alt="" class="caja-arbol-img" />
+    <img src="${iconoDeObjeto(o.categoria_nombre, o.categoria_slug)}" alt="" class="caja-arbol-img" />
     <span class="caja-arbol-nombre">${escapeHtml(o.nombre)}</span>
     <span class="caja-nodo-fc">${etiquetaFC(o.fila, o.col)}</span>
   </li>`;

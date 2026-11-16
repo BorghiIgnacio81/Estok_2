@@ -21,7 +21,12 @@
 //     DOS lugares y subí CACHE_VERSION en sw.js.
 // =============================================================================
 
-/** Objeto individual / mueble (antes /mueble.png). Render: 12-48 px. */
+/**
+ * MUEBLES / ESTRUCTURAS (antes /mueble.png). Render: 12-48 px.
+ * REGLA (lib/iconoObjeto.ts): esta imagen es EXCLUSIVA de los ítems de categoría
+ * «Muebles» y de las estructuras/muebles del plano. Un objeto general o suelto
+ * NUNCA la usa: su ícono canónico es ASSET_FOTO_OBJETO (/fluffy-objeto.webp).
+ */
 export const ASSET_MUEBLE = '/mueble.webp';
 
 /** Contenedor pequeño / caja (antes /Nuevo Contenedor.png). Render: 20-64 px. */
@@ -59,7 +64,11 @@ export const ASSET_INFORMES = '/informes.jpg';
 /** Botón «Nueva ubicación» del plano elástico (antes /nueva ubicacion.png). Render: 76 px. */
 export const ASSET_NUEVA_UBICACION = '/nueva-ubicacion.webp';
 
-/** Foto de reemplazo del objeto individual (antes /fluffy_plush_ball.jpg). Render: 48 px. */
+/**
+ * Ícono canónico del OBJETO general / suelto (antes /fluffy_plush_ball.jpg).
+ * Render: 48 px. Es la imagen de TODOS los objetos cuya categoría NO sea
+ * «Muebles» (ver lib/iconoObjeto.ts).
+ */
 export const ASSET_FOTO_OBJETO = '/fluffy-objeto.webp';
 
 /**

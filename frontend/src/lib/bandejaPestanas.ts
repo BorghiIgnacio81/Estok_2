@@ -35,10 +35,12 @@ import {
   esObjetoSueltoSinHogar,
 } from './taxonomiaContenedor';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
+import { ASSET_CAJA } from './assetsUi';
+// ICONO CANÓNICO DEL OBJETO: /fluffy-objeto.webp para los ítems generales y
+// /mueble.webp ÚNICAMENTE para la categoría «Muebles» (lib/iconoObjeto.ts).
+import { iconoDeObjeto } from './iconoObjeto';
 
 const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
-const IMG_OBJETO = ASSET_MUEBLE;
 
 /** Caja móvil (tipo=CAJA, no inmueble): reutiliza la whitelist compartida. */
 function esCaja(c: ContenedorBandeja): boolean {
@@ -80,13 +82,14 @@ function chipContenedor(c: ContenedorBandeja): ChipBandeja {
   };
 }
 
-/** Chip de un OBJETO fino suelto (iconografía de objeto). */
+/** Chip de un OBJETO fino suelto (iconografía canónica por categoría). */
 function chipObjeto(o: ObjetoBandeja): ChipBandeja {
   return {
     id: o.id,
     nombre: o.nombre,
     tipo: 'objeto',
-    img: IMG_OBJETO,
+    // «Muebles» → /mueble.webp · cualquier otra categoría → /fluffy-objeto.webp.
+    img: iconoDeObjeto(o.categoria_nombre),
     // Sin espacio físico fijo y SIN caja: se rotula «En tránsito».
     enTransito: esObjetoEnLimbo(o),
   };

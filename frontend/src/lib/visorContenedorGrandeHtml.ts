@@ -21,9 +21,12 @@ import { indicadorTransitoHtml } from './indicadorTransito';
 
 // Iconografía local / de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
 import { ASSET_MUEBLE } from './assetsUi';
+// ICONO CANÓNICO DEL OBJETO: /fluffy-objeto.webp para los ítems generales y
+// /mueble.webp ÚNICAMENTE para la categoría «Muebles» (lib/iconoObjeto.ts).
+import { iconoDeObjeto } from './iconoObjeto';
 
+// Muebles / Estructuras (mueble inmueble o con sub-divisiones) → /mueble.webp.
 const IMG_MUEBLE = ASSET_MUEBLE;
-const IMG_OBJETO = ASSET_MUEBLE;
 
 // =============================================================================
 // TIPOS (compartidos con visorContenedorGrande.ts)
@@ -79,6 +82,8 @@ export interface SubObjVisor {
   parent_grid_col?: number | null;
   /** Flag del backend: objeto dentro del mueble sin casillero fino («En Tránsito Interno»). */
   en_transito_interno?: boolean;
+  /** Categoría visible: «Muebles» usa /mueble.webp · el resto /fluffy-objeto.webp. */
+  categoria_nombre?: string | null;
 }
 
 export interface OpcionesVisorContenido {
@@ -123,7 +128,7 @@ function muebleObjetosHtml(m: MuebleVisor, objs: SubObjVisor[]): string {
     ${directos
       .map(
         (o) => `<span class="mueble-item mueble-item-objeto${o.en_transito_interno ? ' mueble-item-transito-fila' : ''}" draggable="true" data-mueble-obj-dnd="${o.id}" title="Arrastrá «${escapeHtml(o.nombre)}» para reacomodarlo o extraerlo a la bandeja">
-        <img src="${IMG_OBJETO}" alt="" class="mueble-item-img mueble-item-img-objeto" draggable="false" />
+        <img src="${iconoDeObjeto(o.categoria_nombre)}" alt="" class="mueble-item-img mueble-item-img-objeto" draggable="false" />
         <span class="mueble-item-nombre">${escapeHtml(o.nombre)}</span>
         ${o.en_transito_interno ? etiquetaTransitoHtml() : ''}
       </span>`,

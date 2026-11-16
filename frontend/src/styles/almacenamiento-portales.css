@@ -567,3 +567,20 @@ body [data-grupo-resize] {
   border-top: 1px dashed #fdba74;
   padding: 10px 12px 12px;
 }
+
+/* -----------------------------------------------------------------------------
+   DROP INTER-CUADRANTES · SILUETAS DE HABITACIÓN DEL PLANO IZQUIERDO
+   -----------------------------------------------------------------------------
+   El Panel Izquierdo (ancla) dibuja el plano del nivel superior. Mientras el
+   operador arrastra un objeto/caja desde el cuadrante derecho, la silueta bajo
+   el puntero se resalta en NARANJA y queda trazada con línea discontinua para
+   que se lea como RECEPTORA: al soltar, el elemento se reubica en ese cuarto
+   (lib/mapa/portales/dropZonasAncla.ts).
+   ----------------------------------------------------------------------------- */
+.minimapa-sector-clicable.minimapa-sector-drop-activo rect,
+.minimapa-sector-clicable.minimapa-sector-drop-activo path {
+  fill: #ffedd5;
+  stroke: #f97316;
+  stroke-width: 1.4;
+  stroke-dasharray: 3 1.5;
+}

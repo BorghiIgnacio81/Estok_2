@@ -22,10 +22,9 @@ import { publicarArrastre } from '../../arrastreEntidad';
 import { leerCargaArrastrada, guardarEnContenedor, guardarEnUbicacion } from './transitoInterno';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
-// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_MUEBLE } from '../../assetsUi';
-
-const IMG_OBJETO = ASSET_MUEBLE;
+// ICONO CANÓNICO DEL OBJETO: /fluffy-objeto.webp para los ítems generales y
+// /mueble.webp ÚNICAMENTE para la categoría «Muebles» (lib/iconoObjeto.ts).
+import { iconoDeObjeto } from '../../iconoObjeto';
 
 /** Tarjeta de un objeto real guardado directamente en el nodo. */
 function tarjetaObjetoHtml(o: ObjetoDto): string {
@@ -36,11 +35,13 @@ function tarjetaObjetoHtml(o: ObjetoDto): string {
     o.parent_grid_row != null && o.parent_grid_col != null
       ? `F${o.parent_grid_row}·C${o.parent_grid_col}`
       : 'sin casillero';
+  // FOTO REAL del objeto o el ícono canónico de su categoría.
+  const imagen = o.foto || iconoDeObjeto(o.categoria_nombre, o.categoria_slug);
   return `<article class="portal-objeto${o.en_transito_interno ? ' portal-objeto-transito' : ''}"
     draggable="true"
     data-portal-objeto-dnd="${escapeHtml(o.id)}"
     title="Objeto «${escapeHtml(o.nombre)}» · ${escapeHtml(casillero)}. Arrastralo a la canasta para extraerlo.">
-    <img src="${escapeHtml(o.foto || IMG_OBJETO)}" alt="" class="portal-objeto-img" draggable="false" />
+    <img src="${escapeHtml(imagen)}" alt="" class="portal-objeto-img" draggable="false" />
     <span class="portal-objeto-nombre">${escapeHtml(o.nombre)}</span>
     <span class="portal-objeto-casillero">${escapeHtml(casillero)}</span>${transito}
   </article>`;

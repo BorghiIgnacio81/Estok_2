@@ -67,6 +67,10 @@ function piezaDeHabitacion(room: UbicacionPlano, espacios: ContenedorDto[]): Pie
  * habitación navegable (nombre + icono semántico rotulados encima de su silueta).
  * Si la planta todavía no tiene habitaciones devuelve un estado vacío explicativo
  * (nunca un panel mudo).
+ *
+ * `zonasDeSuelta` enciende cada silueta como DROPZONE receptora del arrastre
+ * inter-cuadrantes (derecha → izquierda): sólo lo usa el ANCLA izquierda, porque
+ * es el plano donde el operador suelta un objeto/caja sobre OTRA habitación.
  */
 export function listaHabitacionesHtml(
   rooms: UbicacionPlano[],
@@ -74,6 +78,7 @@ export function listaHabitacionesHtml(
   aspecto: number,
   nombrePlanta: string | null = null,
   activoId: string | null = null,
+  zonasDeSuelta = false,
 ): string {
   const dibujables = filtrarEspaciosDePlano(rooms);
   if (!dibujables.length) {
@@ -87,11 +92,21 @@ export function listaHabitacionesHtml(
   return `<div class="portal-lienzo-planta">${lienzoAmpliadoHtml(piezas, aspecto, planta, {
     tip: `🗺️ <strong>Mini-mapa ampliado de «${escapeHtml(planta)}»</strong>: tocá la silueta de una habitación para entrar a su interior.`,
     activoId,
-    atributosSector: (pieza) => [
-      `data-portal-abrir="${escapeHtml(pieza.id)}"`,
-      'data-portal-tipo="habitacion"',
-      `data-portal-nombre="${escapeHtml(pieza.nombre)}"`,
-    ].join(' '),
+    atributosSector: (pieza) =>
+      [
+        `data-portal-abrir="${escapeHtml(pieza.id)}"`,
+        'data-portal-tipo="habitacion"',
+        `data-portal-nombre="${escapeHtml(pieza.nombre)}"`,
+        // DROP INTER-CUADRANTES (derecha → izquierda): la silueta recibe el
+        // objeto/caja arrastrado y lo reasigna a ESTA habitación
+        // (lib/mapa/portales/dropZonasAncla.ts).
+        ...(zonasDeSuelta
+          ? [
+              `data-drop-ubicacion="${escapeHtml(pieza.id)}"`,
+              `data-drop-nombre="${escapeHtml(pieza.nombre)}"`,
+            ]
+          : []),
+      ].join(' '),
   })}</div>`;
 }
 

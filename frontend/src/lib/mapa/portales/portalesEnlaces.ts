@@ -43,6 +43,9 @@ import {
 } from './portalesAlmacenamiento';
 import { conectarDropCiego, guardarEnContenedor, leerCargaArrastrada } from './transitoInterno';
 import type { DestinoCiego } from './transitoInterno';
+// DROP INTER-CUADRANTES (derecha → izquierda): las siluetas de HABITACIÓN del
+// plano del nivel superior (ancla izquierda) son Dropzones receptoras.
+import { conectarDropSiluetasAncla } from './dropZonasAncla';
 // ENLACE PROFUNDO («🗺️ Ver en el mapa» de /objetos → ?contenedor=<id>): apila la
 // ruta planta → habitación → … → caja sobre el nivel raíz recién montado.
 import { abrirDestinoDelMapaDesdeUrl } from './enlaceProfundoPortales';
@@ -413,7 +416,13 @@ export function iniciarPortalesAlmacenamiento(): void {
   conectarDropTarjetas();
   conectarTiraMinimapas();
   const izquierda = slotIzq();
-  if (izquierda) conectarDropCiego(izquierda, destinoCiegoDe);
+  if (izquierda) {
+    // DROP INTER-CUADRANTES (derecha → izquierda): se conecta ANTES del «drop a
+    // ciegas» para que la suelta sobre la silueta de una habitación resuelva su
+    // destino exacto y el receptor genérico ignore el evento ya consumido.
+    conectarDropSiluetasAncla(izquierda);
+    conectarDropCiego(izquierda, destinoCiegoDe);
+  }
   // ARRANQUE: nivel raíz (plano de la planta + habitaciones con mini-mapas) y,
   // si la URL lo pide (`/almacenamiento?contenedor=<id>`, botón «🗺️ Ver en el
   // mapa» de las tarjetas de /objetos), se abre la POSICIÓN exacta de la caja

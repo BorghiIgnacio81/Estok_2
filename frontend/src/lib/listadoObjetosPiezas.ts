@@ -7,8 +7,9 @@
 // =============================================================================
 
 import type { NodoCaja } from './rutaCajaMinimapas';
-// Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_MUEBLE } from './assetsUi';
+// ICONO CANÓNICO DEL OBJETO: /fluffy-objeto.webp para los ítems generales y
+// /mueble.webp ÚNICAMENTE para la categoría «Muebles» (lib/iconoObjeto.ts).
+import { iconoDeObjeto } from './iconoObjeto';
 // ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml). Se re-exporta con el
 // nombre histórico (`esc`) porque categoriasGestion y el render lo importan acá.
 import { escapeHtml as esc } from './escapeHtml';
@@ -58,7 +59,6 @@ export interface PayloadArbol {
   resumen?: { contenedores: number; objetos_ubicados: number; objetos_sueltos: number };
 }
 
-const IMG_OBJETO = ASSET_MUEBLE;
 const MAX_OBJETOS_POR_NIVEL = 60;
 
 const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {
@@ -121,8 +121,14 @@ export function chipPublicado(obj: ObjetoArbol): string {
   return '<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-[10px] font-bold">MercadoLibre</span>';
 }
 
+/**
+ * Foto real del objeto o su ICONO CANÓNICO según la categoría:
+ *   · «Muebles» → /mueble.webp
+ *   · resto     → /fluffy-objeto.webp
+ */
 export function fotoDe(obj: ObjetoArbol): string {
-  return obj.foto_principal ? esc(obj.foto_principal) : IMG_OBJETO;
+  if (obj.foto_principal) return esc(obj.foto_principal);
+  return iconoDeObjeto(obj.categoria_nombre, obj.categoria_slug);
 }
 
 // ---------------------------------------------------------------------------

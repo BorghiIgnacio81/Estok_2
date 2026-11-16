@@ -149,6 +149,23 @@ export async function guardarEnContenedor(
 }
 
 /**
+ * Cuerpo del PUT que reasigna el bulto a una HABITACIÓN (FK `ubicacion`).
+ *
+ * Es el MISMO contrato para el «drop sobre la habitación» del nivel terminal y
+ * para el DROP INTER-CUADRANTES (arrastrar desde la derecha y soltar sobre la
+ * silueta de otro cuarto del plano izquierdo): ubicación destino, sin contenedor
+ * padre y sin celda fina.
+ */
+function cuerpoAUbicacion(
+  carga: CargaArrastrada,
+  ubicacionId: string,
+): Record<string, unknown> {
+  return carga.tipo === 'contenedor'
+    ? { ubicacion: ubicacionId, parent_contenedor: null, parent_grid_row: null, parent_grid_col: null }
+    : { ubicacion: ubicacionId, contenedor: null, parent_grid_row: null, parent_grid_col: null };
+}
+
+/**
  * Guarda un elemento en una HABITACIÓN de forma general (sin celda fina):
  * queda localizado físicamente en el cuarto, esperando asignación de espacio.
  */
@@ -157,14 +174,34 @@ export async function guardarEnUbicacion(
   ubicacionId: string,
   nombre: string,
 ): Promise<boolean> {
-  const cuerpo =
-    carga.tipo === 'contenedor'
-      ? { ubicacion: ubicacionId, parent_contenedor: null, parent_grid_row: null, parent_grid_col: null }
-      : { ubicacion: ubicacionId, contenedor: null, parent_grid_row: null, parent_grid_col: null };
   const recurso = carga.tipo === 'contenedor' ? 'contenedores' : 'objetos';
-  const ok = await pedirPut(recurso, carga.id, cuerpo);
+  const ok = await pedirPut(recurso, carga.id, cuerpoAUbicacion(carga, ubicacionId));
   if (!ok) return false;
   toast(`✅ Guardado en «${nombre}» sin celda fina (pendiente de ubicación detallada).`);
+  window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+  window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id: carga.id } }));
+  return true;
+}
+
+/**
+ * DROP INTER-CUADRANTES (derecha → izquierda): REUBICA el objeto/caja arrastrado
+ * en la HABITACIÓN receptora del plano del nivel superior.
+ *
+ * Persiste exactamente la misma relación que `guardarEnUbicacion` (PUT con
+ * `ubicacion = espacio_id` de la habitación y sin contenedor padre) y emite el
+ * latido global para que el tablero, los visores y la canasta se repinten en el
+ * acto, sin F5.
+ */
+export async function reubicarEnUbicacion(
+  carga: CargaArrastrada,
+  ubicacionId: string,
+  nombre: string,
+): Promise<boolean> {
+  const recurso = carga.tipo === 'contenedor' ? 'contenedores' : 'objetos';
+  const ok = await pedirPut(recurso, carga.id, cuerpoAUbicacion(carga, ubicacionId));
+  if (!ok) return false;
+  const sujeto = carga.tipo === 'contenedor' ? 'Caja reubicada a' : 'Objeto reubicado a';
+  toast(`✅ ${sujeto} «${nombre}»`);
   window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
   window.dispatchEvent(new CustomEvent('estok:objetos-cambiados', { detail: { id: carga.id } }));
   return true;

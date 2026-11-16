@@ -161,6 +161,9 @@ async function cargar(): Promise<void> {
       parent_grid_row: o.parent_grid_row != null ? Number(o.parent_grid_row) : null,
       parent_grid_col: o.parent_grid_col != null ? Number(o.parent_grid_col) : null,
       en_transito_interno: Boolean(o.en_transito_interno),
+      // CATEGORÍA: el ícono del objeto suelto se resuelve con ella
+      // («Muebles» → /mueble.webp · resto → /fluffy-objeto.webp).
+      categoria_nombre: o.categoria_nombre != null ? String(o.categoria_nombre) : null,
     }));
 
   // RAÍCES de la habitación: TODOS los contenedores sin padre. Alimentan el

@@ -60,6 +60,7 @@ async function pintarHabitacionesEn(
   hostId: string,
   plantaId: string,
   activoId: string | null,
+  zonasDeSuelta = false,
 ): Promise<void> {
   const host = el(hostId);
   if (!host) return;
@@ -72,6 +73,7 @@ async function pintarHabitacionesEn(
     aspectoDelLienzo(),
     datos.plant?.nombre ?? null,
     activoId,
+    zonasDeSuelta,
   );
 }
 
@@ -126,7 +128,11 @@ export async function pintarAncla(
 
   if (izquierdo === 'plantaConHabitaciones') {
     const plantaId = await plantaIdAncla();
-    if (plantaId) await pintarHabitacionesEn(HOSTS.plantaConHabitaciones, plantaId, activo.id);
+    // ANCLA IZQUIERDA: cada silueta del plano es además una DROPZONE receptora
+    // del arrastre inter-cuadrantes (derecha → izquierda).
+    if (plantaId) {
+      await pintarHabitacionesEn(HOSTS.plantaConHabitaciones, plantaId, activo.id, true);
+    }
     return;
   }
   if (izquierdo === 'visorHabitacion') {

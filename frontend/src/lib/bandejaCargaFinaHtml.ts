@@ -14,11 +14,13 @@
 
 import { escapeHtml } from './mapaJerarquico';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_CAJA, ASSET_MUEBLE } from './assetsUi';
+import { ASSET_CAJA, ASSET_FOTO_OBJETO, ASSET_MUEBLE } from './assetsUi';
 
+// «Muebles / Estructuras» (inmueble o con sub-divisiones) → /mueble.webp.
 const IMG_CONTENEDOR_GRANDE = ASSET_MUEBLE;
 const IMG_CONTENEDOR_PEQUENO = ASSET_CAJA;
-const IMG_OBJETO = ASSET_MUEBLE;
+// OBJETO individual (general / suelto) → /fluffy-objeto.webp.
+const IMG_OBJETO = ASSET_FOTO_OBJETO;
 
 // =============================================================================
 // TIPOS COMPARTIDOS

@@ -71,6 +71,10 @@ export interface ObjetoDto {
   en_transito_interno: boolean;
   tipo: string;
   foto: string | null;
+  /** Categoría visible del objeto: define su ícono canónico (lib/iconoObjeto.ts). */
+  categoria_nombre: string | null;
+  /** Categoría normalizada por el backend («muebles y estructuras moviles»). */
+  categoria_slug: string | null;
 }
 
 /** Interior resuelto de un nodo: hijos jerárquicos + objetos reales directos. */
@@ -176,6 +180,10 @@ function normalizarObjeto(o: Record<string, unknown>): ObjetoDto {
     en_transito_interno: Boolean(o.en_transito_interno),
     tipo: String(o.tipo || '').toUpperCase(),
     foto: texto(o.foto),
+    // CATEGORÍA: el ícono del objeto se resuelve con ella («Muebles» →
+    // /mueble.webp · resto → /fluffy-objeto.webp). La API expone ambos campos.
+    categoria_nombre: texto(o.categoria_nombre),
+    categoria_slug: texto(o.categoria_slug),
   };
 }
 
