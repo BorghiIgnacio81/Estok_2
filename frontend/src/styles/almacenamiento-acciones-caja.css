@@ -3,8 +3,9 @@
    -----------------------------------------------------------------------------
    Barra que acompaña la inspección interna de una CAJA / CONTENEDOR:
      · «🔎 Abrir ficha completa» → /contenedores/{id}.
-   Mover la caja ya no tiene botón propio: se arrastra como cualquier bulto
-   hacia otro espacio o hacia «🧺 Elementos por ubicar / A reubicar / En tránsito»
+     · «📍 Mover caja a…» → reubica la caja a «🚚 Cajas en Tránsito», a otra
+       habitación o dentro de un mueble/estante (lib/cajaReubicar.ts).
+   El arrastre del lienzo sigue siendo el atajo equivalente
    (lib/arrastreTarjetasLienzo.ts).
    Se aísla en su propia hoja para no engordar almacenamiento-portales.css
    (disciplina de modularidad: ningún archivo de UI por encima de 400 líneas).
@@ -51,6 +52,51 @@
 .portal-caja-btn-ficha:hover {
   background: #fffbeb;
   border-color: #f59e0b;
+}
+
+/* ---------------------------------------------------------------------------
+   «📍 MOVER CAJA A…»: selector explícito de reubicación de la caja activa
+   (lib/mapa/portales/accionesCajaPortales.ts → lib/cajaReubicar.ts).
+   Permite desvincular una caja que quedó como división del cuarto (a «En
+   Tránsito») o moverla a otra habitación / dentro de un mueble, sin depender
+   del asa ⠿ (que no existe en móvil).
+   --------------------------------------------------------------------------- */
+.portal-caja-mover {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid #fbbf24;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #92400e;
+}
+
+.portal-caja-mover-ico {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.portal-caja-mover-select {
+  max-width: 230px;
+  padding: 3px 2px;
+  border: 0;
+  background: transparent;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portal-caja-mover-select:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.portal-caja-mover-select:focus-visible {
+  outline: 2px solid #f97316;
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------------

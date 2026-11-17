@@ -2,9 +2,17 @@
 // MODAL «+ NUEVA CAJA / CONTENEDOR» · Alta simplificada en /almacenamiento
 // -----------------------------------------------------------------------------
 // Formulario dedicado a contenedores físicos: Nombre, Foto (opcional),
-// Dimensiones (Largo × Ancho × Alto), Descripción y Ubicación/Espacio.
+// Dimensiones (Largo × Ancho × Alto), Descripción y Ubicación/Espacio OPCIONAL.
 // OMITE DELIBERADAMENTE el «Valor Estimado»: una caja no es un ítem de stock,
 // es un espacio que aloja objetos.
+//
+// REGLA DE NEGOCIO (por defecto): la caja nace EN TRÁNSITO. No se asigna como
+// división física de la habitación donde está parado el operador: viaja sin
+// `ubicacion` y el backend la aterriza en la habitación VIRTUAL «En Tránsito»
+// del Estok activo. Desde ahí aparece en la canasta «🧺 Elementos por ubicar»
+// (2 · Cajas sueltas) esperando que el operador la arrastre al plano o la
+// reubique con el selector «📍 Mover caja a…». Elegir un espacio en el selector
+// es una asignación EXPLÍCITA (habitación, mueble o estante).
 //
 // Reglas del proyecto respetadas:
 //   · Auth centralizada: getAuthHeaders()/enviarFormData() desde services/auth
@@ -99,6 +107,14 @@ function opcionVacia(texto: string): HTMLOptionElement {
   return opt;
 }
 
+/**
+ * Selector OPCIONAL de espacio físico.
+ *
+ * La primera opción —y la que queda seleccionada SIEMPRE al abrir el modal— es
+ * «🚚 Cajas en Tránsito (sin ubicación fija)». Sólo se listan después las
+ * habitaciones/espacios reales: el limbo («En Tránsito» / «Zona de Mudanza») es
+ * virtual y JAMÁS se ofrece como destino físico.
+ */
 async function cargarUbicaciones(): Promise<void> {
   const select = ref<HTMLSelectElement>('nuevaCajaUbicacion');
   if (!select) return;
@@ -121,14 +137,9 @@ async function cargarUbicaciones(): Promise<void> {
       .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
 
     select.innerHTML = '';
-    if (!lista.length) {
-      select.appendChild(opcionVacia('Sin espacios disponibles'));
-      mostrarError(
-        'Todavía no hay habitaciones o espacios. Creá uno en el mapa antes de registrar una caja.',
-      );
-      return;
-    }
-    select.appendChild(opcionVacia('Elegí un espacio / habitación…'));
+    // DEFAULT = CAJA EN TRÁNSITO: el alta no exige (ni preselecciona) ninguna
+    // habitación, así la caja nunca nace como división del cuarto actual.
+    select.appendChild(opcionVacia('🚚 Cajas en Tránsito (sin ubicación fija)'));
     for (const u of lista) {
       const opt = document.createElement('option');
       opt.value = String(u.id);
@@ -136,9 +147,9 @@ async function cargarUbicaciones(): Promise<void> {
       select.appendChild(opt);
     }
   } catch {
+    // Sin espacios disponibles se puede seguir: la caja nace en tránsito.
     select.innerHTML = '';
-    select.appendChild(opcionVacia('No se pudieron cargar los espacios'));
-    mostrarError('No se pudieron cargar los espacios. Cerrá el modal e intentá de nuevo.');
+    select.appendChild(opcionVacia('🚚 Cajas en Tránsito (sin ubicación fija)'));
   }
 }
 
@@ -204,16 +215,14 @@ async function enviarFormulario(e: Event): Promise<void> {
     ref<HTMLInputElement>('nuevaCajaNombre')?.focus();
     return;
   }
-  if (!ubicacion) {
-    mostrarError('Elegí la ubicación / espacio donde estará la caja.');
-    ref<HTMLSelectElement>('nuevaCajaUbicacion')?.focus();
-    return;
-  }
 
   const formData = new FormData();
   formData.append('nombre', nombre);
   formData.append('descripcion', ref<HTMLTextAreaElement>('nuevaCajaDescripcion')?.value.trim() ?? '');
-  formData.append('ubicacion', ubicacion);
+  // SIN espacio elegido NO se envía `ubicacion`: el backend crea la caja como
+  // CAJA EN TRÁNSITO (raíz suelta en la habitación virtual «En Tránsito»), de
+  // modo que nunca nace como división física del cuarto actual.
+  if (ubicacion) formData.append('ubicacion', ubicacion);
   // Taxonomía física: caja móvil de inventario, mudable y sin «Valor Estimado».
   formData.append('tipo', 'CAJA');
   formData.append('es_inmueble', 'false');
@@ -240,7 +249,12 @@ async function enviarFormulario(e: Event): Promise<void> {
     }
 
     const creada = await res.json().catch(() => null);
-    showToast(`✅ Caja «${nombre}» creada.`, 'success');
+    showToast(
+      ubicacion
+        ? `✅ Caja «${nombre}» creada en el espacio elegido.`
+        : `🚚 Caja «${nombre}» creada en «Cajas en Tránsito»: reubicala desde la canasta.`,
+      'success',
+    );
     cerrarModalNuevaCaja();
     resetModal();
     // Latido global: tablero de Almacenamiento, canasta y visores se repintan.

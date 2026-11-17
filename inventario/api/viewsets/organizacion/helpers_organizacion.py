@@ -8,9 +8,12 @@ propagación de ubicación en cascada y el generador del «registro espejo»
 omitible (dualidad Contenedor + Objeto vía `crear_espejo`).
 """
 
+from uuid import UUID
+
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from ....models import Ubicacion, Contenedor, Membresia
+from ....models import Ubicacion, Contenedor, Estok, Membresia
+from ....services.mudanza_service import asegurar_ubicacion_limbo
 from ....services.objeto_espacio import crear_objeto_espejo, obtener_objeto_espejo
 from ....services.taxonomia_contenedor import TIPO_CONJUNTO, TIPO_MUEBLE_INMUEBLE
 
@@ -69,6 +72,38 @@ class OrganizacionHelpersMixin:
         if isinstance(valor, str):
             return valor.strip().lower() not in ('0', 'false', 'no', '')
         return bool(valor)
+
+    def _limbo_del_estok_activo(self, estok_id):
+        """
+        Habitación limbo «En Tránsito» del Estok activo (`X-Estok-Id`).
+
+        La usan las altas de CAJA que NO eligen un espacio físico: como
+        `Contenedor.ubicacion` es NOT NULL, la pieza no puede quedar huérfana ni
+        inventarse como una división del cuarto donde está parado el operador.
+        Aterriza en la habitación VIRTUAL de tránsito, que la canasta
+        «🧺 Elementos por ubicar» lista como «2 · Cajas sueltas» para reubicarla
+        por arrastre o con el selector «📍 Mover caja a…».
+
+        La membresía se valida acá porque no hay Ubicación destino de la cual
+        derivarla. La creación del limbo (idempotente, reutiliza el histórico
+        «Zona de Mudanza») es la MISMA del servicio de mudanza.
+        """
+        estok_uuid = None
+        if estok_id:
+            try:
+                estok_uuid = UUID(str(estok_id))
+            except (TypeError, ValueError):
+                estok_uuid = None
+        if estok_uuid is None:
+            raise ValidationError(
+                "Falta el header X-Estok-Id: una caja sin espacio elegido se "
+                "guarda en «En Tránsito» del Estok activo."
+            )
+        estok = Estok.objects.filter(pk=estok_uuid).first()
+        if estok is None:
+            raise ValidationError("El Estok activo especificado no existe.")
+        _validar_membresia(self.request.user, estok.id)
+        return asegurar_ubicacion_limbo(estok)
 
     def _crear_registro_espejo_mudable(self, contenedor, crear_espejo=True):
         """

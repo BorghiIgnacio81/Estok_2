@@ -3,7 +3,8 @@
 // MODAL SIMPLIFICADO «+ NUEVA CAJA / CONTENEDOR» (pantalla de Almacenamiento)
 // -----------------------------------------------------------------------------
 // Formulario dedicado a contenedores físicos: Nombre, Foto (opcional),
-// Dimensiones (Largo × Ancho × Alto en cm), Descripción y Ubicación/Espacio.
+// Dimensiones (Largo × Ancho × Alto en cm), Descripción y Ubicación/Espacio
+// OPCIONAL (por defecto la caja nace EN TRÁNSITO, sin espacio físico).
 //
 // OMITE DELIBERADAMENTE el «Valor Estimado» y los campos patrimoniales del alta
 // de objetos: una caja no es un ítem de stock, es un espacio que lo aloja.
@@ -84,12 +85,16 @@
 
       <div>
         <label for="nuevaCajaUbicacion" class="block text-sm font-medium text-gray-700 mb-1">
-          Ubicación / Espacio <span class="text-red-500">*</span>
+          Ubicación / Espacio (opcional)
         </label>
-        <select id="nuevaCajaUbicacion" name="ubicacion" required
+        <select id="nuevaCajaUbicacion" name="ubicacion"
           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-base bg-white">
-          <option value="">Cargando espacios…</option>
+          <option value="">🚚 Cajas en Tránsito (sin ubicación fija)</option>
         </select>
+        <p class="mt-1 text-xs text-gray-500">
+          Por defecto la caja nace en «En Tránsito» y espera en la canasta «🧺 Elementos por ubicar».
+          Elegí un espacio solo si querés asignarla ya a una habitación o mueble.
+        </p>
       </div>
 
       <p id="nuevaCajaError" class="hidden text-sm text-red-600"></p>

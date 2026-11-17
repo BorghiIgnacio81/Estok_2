@@ -6,38 +6,82 @@
 // disponibles. Este módulo aporta la barra de acciones DESTACADA de ese nivel:
 //
 //   · 🔎 «Abrir ficha completa» → /contenedores/{id} con TODO el inventario.
+//   · 📍 «Mover caja a…» → reubica la caja ACTIVA sin depender del arrastre:
+//     «🚚 Cajas en Tránsito», cualquier habitación/espacio físico, o un mueble,
+//     estante o caja (queda DENTRO de él). Es la vía explícita para desvincular
+//     las cajas que quedaron guardadas por error como una división del cuarto.
+//     La mutación vive en lib/cajaReubicar.ts (POST en_transito ⇄ PUT).
 //   · La ZONA DE SUELTA que recibe los objetos/cajas arrastrados de la canasta
 //     para guardarlos DENTRO del contenedor abierto.
 //
-// MODELO HÍBRIDO UNIFICADO (sin botón): mover una caja fuera de su espacio ya
-// NO necesita una acción dedicada — la caja se arrastra y se suelta sobre otro
-// espacio o sobre «🧺 Elementos por ubicar / A reubicar / En tránsito», igual que
-// cualquier objeto (lib/arrastreTarjetasLienzo.ts + bandejaSinUbicar.ts).
-// El botón «🚚 Poner Caja En Tránsito» se retiró por redundante.
+// El arrastre del lienzo sigue vigente como atajo (lib/arrastreTarjetasLienzo.ts
+// + bandejaSinUbicar.ts); el selector es el camino equivalente para móvil y para
+// las piezas que se dibujaron como división y no exponen el asa ⠿.
 //
 // Módulo de DOM puro: no dibuja planos ni duplica la cascada. La recepción del
 // Drag & Drop delega en el motor de portales (transitoInterno.ts).
 // =============================================================================
 
-import { escapeHtml } from '../../mapaJerarquico';
+import { escapeHtml, toast } from '../../mapaJerarquico';
 import type { NodoPortal } from './estadoPortales';
 // Payload EXPLÍCITO del arrastre (id real + tipo_entidad): única fuente del
 // contrato, compartida por canastas, lienzos y panel de contenido.
 import { publicarArrastre } from '../../arrastreEntidad';
 import { guardarEnContenedor, leerCargaArrastrada } from './transitoInterno';
+// Reubicación de una caja existente: FUENTE ÚNICA de las mutaciones
+// (POST en_transito ⇄ PUT ubicación/parent_contenedor).
+import {
+  listarDestinosCaja,
+  moverCajaADestino,
+} from '../../cajaReubicar';
+import type { GrupoDestino } from '../../cajaReubicar';
+
+/** Grupos y rótulos del selector «📍 Mover caja a…». */
+const GRUPOS_MOVER: { clave: GrupoDestino; etiqueta: string }[] = [
+  { clave: 'transito', etiqueta: 'En tránsito' },
+  { clave: 'espacio', etiqueta: 'Espacios y habitaciones' },
+  { clave: 'mueble', etiqueta: 'Muebles, estantes y cajas' },
+];
+
+/**
+ * ¿La pieza activa puede reubicarse?
+ *
+ * Sólo bultos móviles: una CAJA, un MUEBLE_MOVIL o un OBJETO. La arquitectura
+ * ANCLADA al cuarto (`CONJUNTO` = estante/cajón interno, `MUEBLE_INMUEBLE` =
+ * mueble fijo) nunca cambia de habitación: el backend la rechaza con HTTP 403.
+ */
+function puedeReubicarse(nodo: NodoPortal): boolean {
+  if (nodo.tipo !== 'contenedor') return false;
+  if (nodo.esInmueble === true) return false;
+  const tipo = String(nodo.tipoFisico || '').toUpperCase();
+  return tipo !== 'CONJUNTO' && tipo !== 'MUEBLE_INMUEBLE';
+}
 
 /**
  * Barra de acciones del contenedor activo (vacía para habitaciones).
- * Sólo queda la ficha completa: mover la caja se hace arrastrándola.
+ *
+ * La ficha completa está siempre. El selector de reubicación sólo se ofrece a
+ * piezas móviles: la arquitectura anclada al cuarto no se mueve.
  */
 export function barraAccionesCajaHtml(nodo: NodoPortal): string {
   if (nodo.tipo !== 'contenedor') return '';
+  const mover = !puedeReubicarse(nodo)
+    ? ''
+    : `<label class="portal-caja-mover"
+      title="Mover «${escapeHtml(nodo.nombre)}» a «🚚 Cajas en Tránsito», a otra habitación o dentro de un mueble/estante/caja">
+      <span class="portal-caja-mover-ico" aria-hidden="true">📍</span>
+      <select class="portal-caja-mover-select" data-caja-mover="${escapeHtml(nodo.id)}"
+        aria-label="Mover «${escapeHtml(nodo.nombre)}» a otro espacio o a Cajas en Tránsito">
+        <option value="">Mover a…</option>
+      </select>
+    </label>`;
   return `<div class="portal-caja-acciones">
     <a href="/contenedores/${escapeHtml(nodo.id)}"
       class="portal-caja-btn portal-caja-btn-ficha"
       title="Abrir la ficha completa de «${escapeHtml(nodo.nombre)}» con todo su inventario interno">
       🔎 Abrir ficha completa
     </a>
+    ${mover}
   </div>`;
 }
 
@@ -174,8 +218,62 @@ export function conectarArrastrePiezasCaja(host: HTMLElement): void {
 }
 
 /**
+ * Conecta el selector «📍 Mover caja a…» de la barra de acciones.
+ *
+ * Carga los destinos en segundo plano (una sola consulta cacheada) agrupados en
+ * «En tránsito» · «Espacios y habitaciones» · «Muebles, estantes y cajas» y
+ * persiste el cambio con `moverCajaADestino` (fuente única de la mutación). Es la
+ * vía explícita para desvincular una caja guardada como división de un cuarto o
+ * reubicarla directamente en otro espacio/mueble.
+ */
+export function conectarMoverCaja(host: HTMLElement, nodo: NodoPortal): void {
+  if (!puedeReubicarse(nodo)) return;
+  const select = host.querySelector<HTMLSelectElement>('[data-caja-mover]');
+  if (!select) return;
+  const cajaId = select.dataset.cajaMover ?? '';
+  if (!cajaId) return;
+
+  select.disabled = true;
+  void (async () => {
+    const destinos = await listarDestinosCaja(cajaId);
+    // El panel se repinta con innerHTML: si este select ya no está en el DOM,
+    // no se escribe nada (evita duplicar opciones en el nodo nuevo).
+    if (!select.isConnected) return;
+    for (const grupo of GRUPOS_MOVER) {
+      const items = destinos.filter((d) => d.grupo === grupo.clave);
+      if (!items.length) continue;
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = grupo.etiqueta;
+      for (const destino of items) {
+        const opt = document.createElement('option');
+        opt.value = destino.valor;
+        opt.textContent = destino.etiqueta;
+        optgroup.appendChild(opt);
+      }
+      select.appendChild(optgroup);
+    }
+    select.disabled = false;
+  })();
+
+  select.addEventListener('change', () => {
+    const destino = select.value;
+    if (!destino) return;
+    select.disabled = true;
+    void (async () => {
+      const res = await moverCajaADestino(cajaId, destino);
+      toast(res.ok ? `✅ ${res.mensaje}` : `❌ ${res.mensaje}`);
+      // Tras una mutación exitosa el latido global repinta el panel completo; en
+      // el error se rehabilita el selector para reintentar sin recargar.
+      select.value = '';
+      select.disabled = false;
+    })();
+  });
+}
+
+/**
  * Conecta la barra de acciones del contenedor activo: la zona de suelta
- * destacada, las filas del selector de cajas del nivel y su origen de arrastre.
+ * destacada, las filas del selector de cajas del nivel, su origen de arrastre y
+ * el selector de reubicación de la caja abierta.
  * Idempotente por render: el host se reescribe por innerHTML en cada nivel, así
  * que los listeners viejos desaparecen con sus nodos.
  */
@@ -183,4 +281,5 @@ export function conectarAccionesCaja(host: HTMLElement, nodo: NodoPortal): void 
   conectarDropCaja(host, nodo);
   conectarDropPiezasCaja(host);
   conectarArrastrePiezasCaja(host);
+  conectarMoverCaja(host, nodo);
 }

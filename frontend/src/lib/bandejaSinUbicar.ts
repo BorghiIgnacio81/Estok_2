@@ -91,6 +91,8 @@ import { grupoHtml, pestanasHtml } from './bandejaChipHtml';
 import type { GrupoChips } from './bandejaChipHtml';
 // Filtros EXACTOS de las cuatro pestañas (módulo puro, sin DOM ni fetch).
 import { construirPestanas } from './bandejaPestanas';
+// Reubicación de una caja existente: FUENTE ÚNICA de la mutación a «En Tránsito».
+import { enviarCajaATransito } from './cajaReubicar';
 
 let contenedores: ContenedorBandeja[] = [];
 let objetos: ObjetoBandeja[] = [];
@@ -234,34 +236,14 @@ function enlazar(): void {
 
 /**
  * Soltar una CAJA sobre la canasta la deja en «En Tránsito» (limbo de mudanza
- * del Estok activo): POST /contenedores/{id}/en_transito/.
+ * del Estok activo).
  *
- * Se usa el endpoint canónico —no un PUT suelto— porque además de desanclar el
- * contenedor (`parent_contenedor` y casillero nulos) lo muda a la habitación
- * virtual «En Tránsito», que es la que la canasta lista como bulto recuperable
- * incluso cuando la pieza arrastra geometría residual del plano de origen.
+ * La mutación vive en lib/cajaReubicar.ts (`enviarCajaATransito`), fuente ÚNICA
+ * compartida con el selector «📍 Mover caja a…»: acá sólo se decide el toast.
  */
 async function extraerContenedor(id: string): Promise<void> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/contenedores/${id}/en_transito/`, {
-      method: 'POST',
-      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-      body: '{}',
-    });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      return;
-    }
-    const datos = await res.json().catch(() => ({}));
-    if (res.ok) {
-      toast(datos?.mensaje || '🧺 Caja enviada a «En Tránsito»: reubicala arrastrándola.');
-      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
-    } else {
-      toast('❌ ' + (datos?.detail || datos?.error || 'No se pudo extraer el elemento.'));
-    }
-  } catch {
-    toast('❌ Error de conexión al extraer el elemento.');
-  }
+  const res = await enviarCajaATransito(id);
+  toast(res.ok ? res.mensaje : `❌ ${res.mensaje}`);
 }
 
 async function extraerObjeto(id: string): Promise<void> {

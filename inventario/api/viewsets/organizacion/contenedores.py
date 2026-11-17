@@ -252,6 +252,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             self.request.data.get('ubicacion')
             or self.request.query_params.get('ubicacion')
         )
+        # Un `ubicacion` vacío / "null" del formulario significa explícitamente
+        # «sin espacio elegido» (no un id inválido): cae en la rama de tránsito.
+        if ubicacion_id is not None and str(ubicacion_id).strip().lower() in ('', 'none', 'null'):
+            ubicacion_id = None
         if ubicacion_id:
             try:
                 ubicacion = Ubicacion.objects.select_related('estok').get(id=ubicacion_id)
@@ -260,7 +264,21 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
             _validar_membresia(self.request.user, ubicacion.estok_id)
             contenedor = serializer.save(ubicacion_id=ubicacion_id)
         else:
-            contenedor = serializer.save()
+            # ==============================================================
+            # ALTA SIN ESPACIO ELEGIDO → «CAJA EN TRÁNSITO»
+            # ==============================================================
+            # La caja NO se asigna como una división física de la habitación en
+            # la que está parado el operador: `Contenedor.ubicacion` es NOT NULL,
+            # así que aterriza como RAÍZ SUELTA en la habitación VIRTUAL «En
+            # Tránsito» del Estok activo. Desde ahí la canasta la lista en
+            # «2 · Cajas sueltas» para arrastrarla al plano o reubicarla con el
+            # selector «📍 Mover caja a…».
+            estok_id = (
+                self.request.headers.get('X-Estok-Id')
+                or self.request.query_params.get('estok_id')
+            )
+            limbo = self._limbo_del_estok_activo(estok_id)
+            contenedor = serializer.save(ubicacion=limbo)
         self._crear_registro_espejo_mudable(contenedor, crear_espejo)
 
 
