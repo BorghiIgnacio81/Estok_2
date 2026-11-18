@@ -8,6 +8,10 @@
 //   · sólo cuentan los contenedores RAÍZ: las sub-divisiones internas de un
 //     mueble (estanterías, cajoneras) quedan SUBSUMIDAS dentro de su padre y
 //     no son bloques del cuarto;
+//   · las CAJAS NO cuentan: son CONTENIDO del inventario (se muestran como
+//     tarjetas del panel derecho), nunca bloques/divisiones del suelo. Sin esta
+//     regla el rótulo prometía 5 espacios donde el mapa dibujaba 4 (bug real:
+//     «Caja 06» contada como espacio de la habitación);
 //   · los miembros de un mismo `fusion_grupo` (espacio fusionado en «L») se
 //     colapsan en UN único bloque representativo.
 //
@@ -19,6 +23,8 @@
 // =============================================================================
 
 import type { ContenedorDto } from './portales/datosNodosPortales';
+// ÚNICA fuente de la separación plano ⇄ cajas (taxonomía + rótulo canónico).
+import { esCajaDeInventario } from '../taxonomiaContenedor';
 
 /**
  * Indexa los ESPACIOS VISIBLES de cada habitación por el id de su Ubicación.
@@ -30,6 +36,8 @@ export function indexarEspaciosVisiblesPorUbicacion(
   const gruposVistos = new Set<string>();
   for (const c of contenedores) {
     if (c.parent_contenedor || !c.ubicacion) continue;
+    // CAJAS: contenido del inventario, nunca un bloque/división del cuarto.
+    if (esCajaDeInventario(c)) continue;
     if (c.fusion_grupo) {
       const claveGrupo = `${c.ubicacion}::${c.fusion_grupo}`;
       if (gruposVistos.has(claveGrupo)) continue;

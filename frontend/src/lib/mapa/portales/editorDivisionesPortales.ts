@@ -19,6 +19,9 @@
 import { getAuthHeaders, API_BASE_URL } from '../../../services/auth';
 import { escapeHtml, toast } from '../../mapaJerarquico';
 import { iconoDeEspacio } from '../../iconosFisicos';
+// SEPARACIÓN ESTRICTA PLANO ⇄ CAJAS: el lienzo de la HABITACIÓN dibuja sólo
+// arquitectura (divisiones y muebles). Las cajas son CONTENIDO del inventario.
+import { esCajaDeInventario } from '../../taxonomiaContenedor';
 import { adaptadorContenedores, adaptadorUbicaciones } from '../../lienzoElastico';
 import type { AdaptadorEspacios, ItemElastico } from '../../lienzoElastico';
 import { renderLienzoElastico } from '../../mapaPlantaUnica';
@@ -68,31 +71,46 @@ const TIP_DIVISIONES =
  */
 let acordeonDivisionesAbierto = false;
 
-/** Traduce la geometría real de los hijos a los rectángulos elásticos del editor. */
-function itemsEditor(interior: InteriorNodo): ItemElastico[] {
+/**
+ * Traduce la geometría real de los hijos a los rectángulos elásticos del editor.
+ *
+ * `soloArquitectura` lo activa el nivel HABITACIÓN: el mapa 2D del cuarto dibuja
+ * únicamente divisiones físicas y muebles. Las CAJAS son CONTENIDO del
+ * inventario (no formas del suelo) y quedan fuera del lienzo; siguen visibles y
+ * accionables como TARJETAS interactivas de contenedor en el selector del mismo
+ * panel derecho (`selectorPiezasHtml`). En los niveles internos de un mueble la
+ * regla NO cambia: sus cajas se dibujan como contenido del estante.
+ */
+function itemsEditor(interior: InteriorNodo, soloArquitectura = false): ItemElastico[] {
   // Contadores y división interna por pieza: alimentan el badge «📦 N» de cada
   // tarjeta y el aviso exacto al soltar un objeto encima (Drop Target).
   const piezaPorId = new Map(interior.piezas.map((p) => [String(p.id), p]));
-  return interior.geometriaHijos.map((g) => {
-    const pieza = piezaPorId.get(String(g.id));
-    return {
-      id: String(g.id),
-      nombre: String(g.nombre ?? 'Espacio'),
-      icono: iconoDeEspacio(g.nombre),
-      ui_left: g.ui_left ?? null,
-      ui_top: g.ui_top ?? null,
-      ui_width: g.ui_width ?? null,
-      ui_height: g.ui_height ?? null,
-      fusion_grupo: g.fusion_grupo ?? null,
-      // «📦 N» en la tarjeta + «En Tránsito Interno» cuando tiene sub-divisiones.
-      objetos_count: pieza?.objetosCount ?? 0,
-      contenedores_count: pieza?.subcontenedoresCount ?? 0,
-      conDivisiones: Boolean(pieza?.conDivisiones),
-      // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
-      tipo_contenedor: pieza?.tipoFisico ?? null,
-      protegido: pieza?.esInmueble === true,
-    };
-  });
+  return interior.geometriaHijos
+    .filter((g) => {
+      if (!soloArquitectura) return true;
+      const pieza = piezaPorId.get(String(g.id));
+      return !pieza || !esCajaDeInventario(pieza);
+    })
+    .map((g) => {
+      const pieza = piezaPorId.get(String(g.id));
+      return {
+        id: String(g.id),
+        nombre: String(g.nombre ?? 'Espacio'),
+        icono: iconoDeEspacio(g.nombre),
+        ui_left: g.ui_left ?? null,
+        ui_top: g.ui_top ?? null,
+        ui_width: g.ui_width ?? null,
+        ui_height: g.ui_height ?? null,
+        fusion_grupo: g.fusion_grupo ?? null,
+        // «📦 N» en la tarjeta + «En Tránsito Interno» cuando tiene sub-divisiones.
+        objetos_count: pieza?.objetosCount ?? 0,
+        contenedores_count: pieza?.subcontenedoresCount ?? 0,
+        conDivisiones: Boolean(pieza?.conDivisiones),
+        // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
+        tipo_contenedor: pieza?.tipoFisico ?? null,
+        protegido: pieza?.esInmueble === true,
+      };
+    });
 }
 
 /**
@@ -269,7 +287,7 @@ export function pintarEditorDivisiones(
   nodo: NodoPortal,
   interior: InteriorNodo,
 ): void {
-  const items = itemsEditor(interior);
+  const items = itemsEditor(interior, nodo.tipo === 'habitacion');
   // PERÍMETRO ÁMBAR UNIVERSAL (reutilización del motor de la Planta): el lienzo
   // del interior se envuelve con `inyectarPerimetroElastico(..., nodo)` para que
   // el marco exterior sea estirable en CUALQUIER nivel de la cascada (habitación

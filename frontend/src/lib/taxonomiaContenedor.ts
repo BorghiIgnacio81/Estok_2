@@ -348,6 +348,45 @@ export function esNombreDeCaja(nombre?: string | null): boolean {
   return RE_NOMBRE_CAJA.test(String(nombre ?? '').trim());
 }
 
+/** Pieza con rótulo: lo necesita la detección de cajas descalzadas. */
+export interface PiezaConRotulo extends PiezaTaxonomica {
+  nombre?: string | null;
+  /** Alias del tipo físico que ya publica la cascada de portales (`NodoPortal`). */
+  tipoFisico?: string | null;
+  /** Alias camelCase de la inmovilidad que publica la cascada de portales. */
+  esInmueble?: boolean | null;
+}
+
+/**
+ * CAJA DEL INVENTARIO: bulto de contenido, NUNCA una forma arquitectónica del
+ * plano.
+ *
+ * Es el ÚNICO criterio con el que un canvas 2D de HABITACIÓN decide que una
+ * pieza no se dibuja como bloque/división del suelo. Combina DOS señales:
+ *
+ *   1. Taxonomía física real (`tipo='CAJA'` y no inmueble) — `esCajaMovil`.
+ *   2. RÓTULO canónico «Caja…»/«Cajas…» — `esNombreDeCaja`, la misma regla con
+ *      la que el backend reconoce una caja sin checkbox manual.
+ *
+ * La señal 2 cubre el registro DESCALZADO: una caja creada con coordenadas de
+ * grilla (`parent_grid_row/col`) fue inferida como `MUEBLE_MOVIL` por
+ * `inferir_tipo_contenedor` del backend y quedaba guardada como nodo de
+ * división espacial (bug real: «Caja 06» dibujada dentro de la habitación). El
+ * filtro la saca del mapa aunque el dato todavía no se haya reparado.
+ *
+ * Acepta tanto el DTO del padrón (`tipo` / `es_inmueble`) como el nodo de la
+ * cascada de portales (`tipoFisico` / `esInmueble`), sin adaptadores intermedios.
+ *
+ * Los muebles (MUEBLE_MOVIL / MUEBLE_INMUEBLE), las divisiones (CONJUNTO) y el
+ * resto de las piezas arquitectónicas NO son cajas y siguen en el plano.
+ */
+export function esCajaDeInventario(pieza: PiezaConRotulo | null | undefined): boolean {
+  if (!pieza) return false;
+  const tipo = pieza.tipo ?? pieza.tipoFisico ?? null;
+  const esInmueble = pieza.es_inmueble ?? pieza.esInmueble ?? false;
+  return esCajaMovil({ tipo, es_inmueble: esInmueble }) || esNombreDeCaja(pieza.nombre);
+}
+
 /** Campos mínimos para decidir si un Objeto es una caja/contenedor. */
 export interface ObjetoClasificable {
   es_contenedor?: boolean | null;

@@ -243,12 +243,18 @@ def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):
       1. `tipo_explicito=True` → se respeta el valor enviado por el cliente.
       2. `es_inmueble=True`    → MUEBLE_INMUEBLE (mueble fijo del cuarto).
       3. Rótulo "Estante/Estantería/Cajonera/Cajón ..." → CONJUNTO.
-      4. `parent_contenedor` definido → CONJUNTO (conjunto/estructura interna
+      4. Rótulo "Caja/Cajas ..." → CAJA. Un bulto de inventario NUNCA es una
+         división arquitectónica: se evalúa ANTES del parentesco y de las
+         coordenadas de grilla, porque sin esta regla una caja creada con
+         `parent_grid_row/col` se guardaba como MUEBLE_MOVIL (nodo de división
+         espacial del cuarto) y el lienzo 2D la dibujaba como bloque del suelo
+         (bug real: «Caja 06» dentro de una habitación).
+      5. `parent_contenedor` definido → CONJUNTO (conjunto/estructura interna
          del mueble anfitrión; Nivel 3/4).
-      5. Rótulo "Mueble ..."   → MUEBLE_MOVIL.
-      6. Encastrado en la grilla de la habitación (`parent_grid_row/col`) →
+      6. Rótulo "Mueble ..."   → MUEBLE_MOVIL.
+      7. Encastrado en la grilla de la habitación (`parent_grid_row/col`) →
          MUEBLE_MOVIL.
-      7. Resto → CAJA (contenedor móvil de objetos).
+      8. Resto → CAJA (contenedor móvil de objetos).
 
     Un mueble raíz MUDABLE (`es_inmueble=False`) es SIEMPRE MUEBLE_MOVIL,
     tenga o no sub-divisiones internas: sus CONJUNTOS viajan con él en
@@ -263,6 +269,14 @@ def inferir_tipo_contenedor(contenedor, *, tipo_explicito=False):
     nombre = getattr(contenedor, 'nombre', '')
     if es_nombre_de_estante(nombre):
         return TIPO_CONJUNTO
+
+    # REGLA DE LAS CAJAS (4): el rótulo canónico «Caja/Cajas …» declara un bulto
+    # de inventario, NUNCA una división arquitectónica. Se evalúa ANTES del
+    # parentesco y de las coordenadas de grilla para que una caja soltada en un
+    # casillero del cuarto NO se degrade a MUEBLE_MOVIL (nodo de división
+    # espacial que el lienzo 2D dibujaba como bloque del suelo).
+    if es_nombre_de_caja(nombre):
+        return TIPO_CAJA
 
     if getattr(contenedor, 'parent_contenedor_id', None):
         return TIPO_CONJUNTO

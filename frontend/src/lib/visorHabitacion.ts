@@ -46,6 +46,9 @@ import {
   minimapaHabitacionHtml,
   iconoContenedorVisor,
 } from './visorHabitacionHtml';
+// SEPARACIÓN ESTRICTA PLANO ⇄ CAJAS: la ÚNICA fuente que decide si una pieza
+// es un bulto de inventario (caja) y no una forma arquitectónica del cuarto.
+import { esCajaDeInventario } from './taxonomiaContenedor';
 
 interface ContenedorVisor {
   id: string;
@@ -133,6 +136,22 @@ async function cargarContenido(): Promise<void> {
   objetosRoom = (objData as unknown as ObjetoVisor[]).filter((o) => !o.contenedor);
 }
 
+/**
+ * ESPACIOS ARQUITECTÓNICOS del cuarto: los contenedores raíz MENOS las cajas.
+ *
+ * Es la ÚNICA lista que consume el lienzo 2D de la habitación (render + motor
+ * elástico), de modo que el filtro nunca puede quedar desincronizado entre el
+ * dibujo y los gestos de arrastre/estira/fusión. `contenedoresRoom` conserva el
+ * padrón COMPLETO para las operaciones de datos (reubicar, inspeccionar).
+ *
+ * Las cajas son CONTENIDO del inventario: no son divisiones físicas del suelo
+ * ni formas arquitectónicas, así que no se dibujan en el mapa del cuarto (se
+ * muestran como tarjetas interactivas en el cuadrante derecho).
+ */
+function espaciosDelCuarto(): ContenedorVisor[] {
+  return contenedoresRoom.filter((c) => !esCajaDeInventario(c));
+}
+
 // =============================================================================
 // MINIMAPA DEL CASILLERO INSPECCIONADO
 // =============================================================================
@@ -193,7 +212,21 @@ function renderVisor(): void {
   const room = roomActual;
   const puerta = room.posicion_puerta || null;
 
-  const items: ItemElastico[] = contenedoresRoom.map((c) => ({
+  // =========================================================================
+  // FILTRO DEL MAPA 2D DE LA HABITACIÓN (causa raíz «Caja 06»)
+  // -------------------------------------------------------------------------
+  // El lienzo del cuarto dibuja ÚNICAMENTE las divisiones físicas del plano y
+  // los muebles (espacios). Las CAJAS son CONTENIDO del inventario: no son
+  // divisiones del suelo ni formas arquitectónicas, por lo que quedan
+  // TERMINANTEMENTE EXCLUIDAS del SVG/Canvas de la habitación. Se muestran SÓLO
+  // en el cuadrante derecho como tarjetas interactivas de contenedores.
+  // La MISMA lista alimenta `rooms()` del motor elástico (ver `enlazarVisor`):
+  // así una caja no puede arrastrarse, estirarse, renombrarse ni fusionarse
+  // desde este plano.
+  // =========================================================================
+  const espaciosRoom = espaciosDelCuarto();
+
+  const items: ItemElastico[] = espaciosRoom.map((c) => ({
     id: c.id,
     nombre: c.nombre,
     // ICONO DE SUBTIPO FÍSICO: el lienzo de edición pinta el icono predefinido
@@ -408,7 +441,7 @@ function enlazarVisor(): void {
     conectarLienzoElastico({
       scope: scopeLienzo,
       rooms: () =>
-        contenedoresRoom.map((c) => ({
+        espaciosDelCuarto().map((c) => ({
           id: c.id,
           nombre: c.nombre,
           ui_left: c.ui_left,
