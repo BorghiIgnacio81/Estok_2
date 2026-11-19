@@ -28,6 +28,9 @@ import { iniciarModoLienzo } from './modoLienzo';
 import { initCajaDetalle } from './cajaDetalle';
 import { initOffsetHeaderBandeja } from './layout/offsetHeaderBandeja';
 import { initNuevaCajaModal } from './nuevaCajaModal';
+// TOGGLE RÁPIDO «CAJA LLENA»: el badge de cada tarjeta del tablero alterna el
+// estado con un PATCH parcial, sin abrir el modal de edición.
+import { initCajaLlenaToggle } from './cajaLlenaToggle';
 
 /**
  * ARRANQUE CON GARANTÍA DE DOM LISTO: el render del lienzo «Mapa Estok» se
@@ -74,6 +77,8 @@ export function iniciarAlmacenamiento(): void {
     });
     // Alta directa de contenedores: botón «+ Nueva Caja / Contenedor».
     initNuevaCajaModal();
+    // Toggle rápido «Caja llena» desde el badge de cada tarjeta del tablero.
+    initCajaLlenaToggle();
     // Modo ✏️ Editar ⇄ 💾 Guardar de los planos + navegación por PORTALES.
     iniciarModoLienzo();
     iniciarPortalesAlmacenamiento();

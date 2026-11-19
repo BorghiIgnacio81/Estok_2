@@ -16,6 +16,11 @@
 // «Llenas / Lotes») y el sumario por categoría que reemplazó al texto fijo
 // «Contenedor vacío» de la SECCIÓN 1.
 //
+// El badge de un Contenedor real se emite como BOTÓN interactivo
+// (`js-toggle-caja-llena`): la tarjeta alterna «Caja llena» con un PATCH en
+// segundo plano (ver lib/cajaLlenaToggle.ts). Los Objetos declarados como caja
+// conservan el badge estático.
+//
 // Capa 100% PURA (sin DOM ni red): la consumen el render del listado, el canvas
 // de Almacenamiento y los modales. El escapado delega en lib/escapeHtml.
 // =============================================================================
@@ -24,6 +29,15 @@ import { escapeHtml } from './escapeHtml';
 
 /** Metadatos mínimos de una caja/contenedor para calcular su estado. */
 export interface CajaEstadoFuente {
+  /** Id del Contenedor real (habilita el toggle rápido de la tarjeta). */
+  id?: string | null;
+  /** Nombre visible, usado en los avisos del toggle rápido. */
+  nombre?: string | null;
+  /**
+   * Origen del nodo: los Objetos declarados como caja (`'objeto'`) NO son
+   * Contenedores y no admiten PATCH de estado, así que su badge es estático.
+   */
+  origen?: string | null;
   /** Declaración manual de caja llena (contenido fotografiado como lote). */
   esta_llena?: boolean | null;
   /** Cantidad estimada de piezas del lote (opcional). */
@@ -51,7 +65,7 @@ export interface EstadoCaja {
 export type FiltroEstadoCaja = '' | 'con_espacio' | 'llenas';
 
 const CLASES_TONO: Record<TonoEstadoCaja, string> = {
-  llena: 'bg-orange-100 text-orange-800 border-orange-200',
+  llena: 'bg-red-100 text-red-800 border-red-200',
   espacio: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   vacio: 'bg-gray-100 text-gray-500 border-gray-200',
 };
@@ -100,13 +114,60 @@ export function estadoCaja(fuente: CajaEstadoFuente): EstadoCaja {
   return { tono, texto, clase: CLASES_TONO[tono], esLlena, objetos, cantidadLote };
 }
 
-/** Badge HTML (pill) con el estado de la caja. */
-export function badgeEstadoCajaHtml(fuente: CajaEstadoFuente): string {
-  const estado = estadoCaja(fuente);
+/** Badge estático (pill) con el estado de la caja. */
+function badgeEstaticoHtml(estado: EstadoCaja): string {
   const clases = 'inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold '
     + estado.clase;
   return '<span class="' + clases + '" title="' + escapeHtml(estado.texto) + '">'
     + escapeHtml(estado.texto) + '</span>';
+}
+
+/** ¿El badge puede alternar «Caja llena» con un PATCH en segundo plano? */
+function admiteToggle(fuente: CajaEstadoFuente): boolean {
+  return Boolean(fuente.id) && fuente.origen !== 'objeto';
+}
+
+/**
+ * Atributos `data-*` que consume lib/cajaLlenaToggle.ts (delegación global).
+ * `data-objetos` guarda el conteo para repintar el badge sin refetch tras el
+ * PATCH; `data-cantidad-lote` queda vacío cuando no hay cantidad estimada.
+ */
+function atributosToggle(estado: EstadoCaja, fuente: CajaEstadoFuente): string {
+  const accion = estado.esLlena
+    ? 'Marcar como caja con espacio disponible'
+    : 'Marcar como caja llena (lote en foto)';
+  return [
+    'type="button"',
+    'data-id="' + escapeHtml(fuente.id || '') + '"',
+    'data-nombre="' + escapeHtml(fuente.nombre || 'esta caja') + '"',
+    'data-esta-llena="' + (estado.esLlena ? '1' : '0') + '"',
+    'data-cantidad-lote="' + escapeHtml(estado.cantidadLote ?? '') + '"',
+    'data-objetos="' + estado.objetos + '"',
+    'aria-pressed="' + (estado.esLlena ? 'true' : 'false') + '"',
+    'title="' + escapeHtml(estado.texto + ' · ' + accion) + '"',
+  ].join(' ');
+}
+
+/**
+ * Badge HTML (pill) con el estado de la caja.
+ *
+ * Con `id` de un Contenedor real se renderiza como BOTÓN interactivo
+ * (`js-toggle-caja-llena`): la tarjeta permite marcar/desmarcar «Caja llena»
+ * en segundo plano (PATCH) sin abrir el modal de edición. Ver
+ * lib/cajaLlenaToggle.ts. Los Objetos declarados como caja conservan el badge
+ * estático porque no son Contenedores.
+ */
+export function badgeEstadoCajaHtml(fuente: CajaEstadoFuente): string {
+  const estado = estadoCaja(fuente);
+  if (!admiteToggle(fuente)) return badgeEstaticoHtml(estado);
+
+  const clases = 'js-toggle-caja-llena cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 '
+    + 'rounded-full border text-[10px] font-semibold transition-base hover:brightness-95 '
+    + 'focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-1 '
+    + estado.clase;
+  const icono = estado.esLlena ? '🔒 ' : '🔓 ';
+  return '<button class="' + clases + '" ' + atributosToggle(estado, fuente) + '>'
+    + icono + escapeHtml(estado.texto) + '</button>';
 }
 
 /** Desglose «3 revistas, 2 libros» de los objetos directos (o cadena vacía). */

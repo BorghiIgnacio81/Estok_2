@@ -27,6 +27,9 @@ import { escucharObjetosCambiados } from './latidoInventario';
 import { cargarContextoRutaCaja } from './rutaCajaMinimapas';
 import { initRutaGeograficaDespliegue } from './rutaGeograficaDespliegue';
 import { initCajaOperativa } from './cajaOperativa';
+// TOGGLE RÁPIDO «CAJA LLENA»: el badge de cada tarjeta (SECCIÓN 1) alterna el
+// estado con un PATCH parcial, sin abrir el modal de edición.
+import { initCajaLlenaToggle } from './cajaLlenaToggle';
 import { esc } from './listadoObjetosRender';
 import type { PayloadArbol } from './listadoObjetosRender';
 // CAPA DE VISTA (DOM) del inventario en cascada: refs, secciones y volcado del
@@ -313,6 +316,10 @@ function enlazarEventos(): void {
 // ---------------------------------------------------------------------------
 
 export function initListadoJerarquicoObjetos(): void {
+  // Delegación global del toggle «Caja llena» de las tarjetas: sobrevive a los
+  // re-render del listado (filtros, ubicación, latido de inventario).
+  initCajaLlenaToggle();
+
   // Delegación del widget de ruta geográfica: clic sobre el TEXTO de la ruta →
   // despliegue suave de la fila de minimapas. Idempotente y global, sobrevive a
   // las tarjetas que el listado re-inyecta en caliente con cada filtro/recarga.
