@@ -18,6 +18,8 @@ from ...services.taxonomia_contenedor import (
     es_caja_movil,
 )
 from ...services.transito_interno import esta_en_transito_interno
+# Normalización ÚNICA de «Caja llena / lote en foto» (compartida con Objeto).
+from ...services.caja_llena_lote import normalizar_caja_llena_lote
 # Nombres canónicos del limbo de mudanza: fuente ÚNICA backend del concepto
 # «espacio virtual» que el frontend nunca debe dibujar dentro de un plano.
 from ...services.mudanza_service import NOMBRES_LIMBO
@@ -364,18 +366,11 @@ class ContenedorSerializer(serializers.ModelSerializer):
         CAJA LLENA / LOTE EN FOTO: la cantidad estimada sólo tiene sentido con
         `esta_llena=True`. Al destildar la caja se limpia a null y el 0 se
         normaliza a null (el badge del frontend sólo lee cantidades > 0).
+
+        La regla vive en `services.caja_llena_lote` (fuente ÚNICA, compartida
+        con `ObjetoCreateSerializer` para las cajas registradas como Objeto).
         """
-        if 'cantidad_objetos_lote' in attrs:
-            cantidad = attrs.get('cantidad_objetos_lote')
-            if cantidad is not None and cantidad <= 0:
-                attrs['cantidad_objetos_lote'] = None
-        esta_llena = attrs.get(
-            'esta_llena',
-            getattr(self.instance, 'esta_llena', False) if self.instance else False,
-        )
-        if not esta_llena:
-            attrs['cantidad_objetos_lote'] = None
-        return attrs
+        return normalizar_caja_llena_lote(attrs, self.instance)
 
     def create(self, validated_data):
         """

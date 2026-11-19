@@ -25,6 +25,8 @@ import { notificarObjetosCambiados } from './latidoInventario';
 // valor persistido (lógica en su propio módulo por la regla de modularización).
 import {
   avisoClasificacionPersistida,
+  cajaLlenaSeleccionada,
+  cantidadLoteSeleccionada,
   contenedorSeleccionado,
   hidratarSwitchContenedor,
   iniciarSwitchContenedor,
@@ -96,8 +98,9 @@ async function cargarObjeto(): Promise<void> {
 
     // === Clasificación CAJA ⇄ OBJETO SIMPLE (switch manual) ===
     // El valor REAL persistido manda: el switch arranca como el backend lo dejó
-    // y el operador puede rectificarlo en cualquier momento.
-    hidratarSwitchContenedor(obj.es_contenedor);
+    // y el operador puede rectificarlo en cualquier momento. La misma
+    // hidratación trae la declaración «Caja llena» y su cantidad estimada.
+    hidratarSwitchContenedor(obj.es_contenedor, obj.esta_llena, obj.cantidad_objetos_lote);
 
     // === Cargar categorías (11 oficiales) y seleccionar la del objeto ===
     await cargarCategorias(obj.categoria);
@@ -288,6 +291,10 @@ async function enviarFormulario(evento: Event): Promise<void> {
     // desmarcada no existe en el FormData y el PUT parcial conservaría el flag
     // anterior, así que la tarjeta nunca cambiaría de sección en /objetos.
     payload['es_contenedor'] = contenedorSeleccionado();
+    // CAJA LLENA / LOTE EN FOTO: la bandera y la cantidad estimada viajan
+    // SIEMPRE. Sin caja declarada no hay lote: el backend normaliza a null.
+    payload['esta_llena'] = cajaLlenaSeleccionada();
+    payload['cantidad_objetos_lote'] = cantidadLoteSeleccionada();
 
     const response = await fetch(`${API_BASE_URL}/objetos/${objetoId}/`, {
       method: 'PUT',

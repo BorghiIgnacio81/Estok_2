@@ -12,6 +12,9 @@
 // Mapeo persistido (SIN migraciones, sólo campos ya existentes del modelo Objeto):
 //   · `es_contenedor = true` → el objeto puede contener otros objetos dentro
 //     (campo del modelo aceptado por ObjetoCreateSerializer).
+//   · `esta_llena` + `cantidad_objetos_lote` → LOTE EN FOTO opcional (campos
+//     espejo de Contenedor): la fila «Caja llena» se despliega al declarar
+//     Caja/Mueble y la cantidad estimada sólo con ese tilde activo.
 //   · `especificaciones.alta_rapida = 'caja' | 'mueble'` → conserva la DISTINCIÓN
 //     elegida dentro del JSON libre `especificaciones` del objeto.
 //     DRF parsea el string del multipart en su JSONField (JSONField.get_value
@@ -32,6 +35,12 @@
 const SELECTOR = '[data-alta-clasificacion]';
 const CLASE_ACTIVA = 'alta-opcion-activa';
 const CLAVE_ESPECIFICACIONES = 'alta_rapida';
+// CAJA LLENA / LOTE EN FOTO: controles condicionales del alta. No llevan
+// `name` (no viajan en el FormData del formulario): su estado se lee del DOM.
+const ID_FILA_CAJA_LLENA = 'altaCajaLlenaRow';
+const ID_ESTA_LLENA = 'altaEstaLlena';
+const ID_FILA_CANTIDAD_LOTE = 'altaCantidadLoteRow';
+const ID_CANTIDAD_LOTE = 'altaCantidadLote';
 
 /** Clasificaciones admitidas por el alta rápida. */
 export type ClasificacionAlta = 'caja' | 'mueble';
@@ -47,6 +56,37 @@ function casillas(): HTMLInputElement[] {
   return Array.from(document.querySelectorAll<HTMLInputElement>(SELECTOR));
 }
 
+/**
+ * CAJA LLENA / LOTE EN FOTO (visibilidad condicional).
+ *
+ * La fila sólo existe cuando el operador declaró el objeto como Caja/Mueble
+ * (`es_contenedor=True`). Al desmarcar la clasificación se oculta y se limpia
+ * la declaración de lote: un objeto simple no puede nacer «lleno».
+ */
+export function sincronizarCajaLlenaAlta(): void {
+  const fila = document.getElementById(ID_FILA_CAJA_LLENA);
+  if (!fila) return;
+  const esContenedor = casillas().some((casilla) => casilla.checked);
+  fila.classList.toggle('hidden', !esContenedor);
+  if (!esContenedor) {
+    const check = document.getElementById(ID_ESTA_LLENA) as HTMLInputElement | null;
+    if (check) check.checked = false;
+    sincronizarCantidadLoteAlta();
+  }
+}
+
+/** Muestra la cantidad estimada sólo con el tilde «Caja llena» activo. */
+export function sincronizarCantidadLoteAlta(): void {
+  const check = document.getElementById(ID_ESTA_LLENA) as HTMLInputElement | null;
+  const fila = document.getElementById(ID_FILA_CANTIDAD_LOTE);
+  const input = document.getElementById(ID_CANTIDAD_LOTE) as HTMLInputElement | null;
+  const llena = check?.checked === true;
+  fila?.classList.toggle('hidden', !llena);
+  // Destildar la caja significa «con espacio disponible»: no se arrastra la
+  // cantidad de un lote anterior.
+  if (!llena && input) input.value = '';
+}
+
 /** Refleja el estado de las casillas en el resalte visual de su tarjeta. */
 export function sincronizarClasificacionAlta(): void {
   for (const casilla of casillas()) {
@@ -54,6 +94,8 @@ export function sincronizarClasificacionAlta(): void {
       .closest<HTMLElement>('[data-alta-opcion]')
       ?.classList.toggle(CLASE_ACTIVA, casilla.checked);
   }
+  // El bloque «Caja llena» depende de la clasificación elegida.
+  sincronizarCajaLlenaAlta();
 }
 
 /**
@@ -74,6 +116,13 @@ export function initObjetoClasificacionAlta(): void {
       sincronizarClasificacionAlta();
     });
   }
+  // CAJA LLENA: el campo «Cantidad estimada de objetos en el lote» se
+  // despliega únicamente con el checkbox activo (visibilidad condicional).
+  const estaLlena = document.getElementById(ID_ESTA_LLENA) as HTMLInputElement | null;
+  if (estaLlena && estaLlena.dataset.altaLoteActivo !== 'true') {
+    estaLlena.dataset.altaLoteActivo = 'true';
+    estaLlena.addEventListener('change', sincronizarCantidadLoteAlta);
+  }
   sincronizarClasificacionAlta();
 }
 
@@ -88,8 +137,17 @@ export function leerClasificacionAlta(): ClasificacionSeleccionada {
 /** Campos del alta rápida listos para el FormData del POST /api/objetos/. */
 export function camposClasificacionAlta(): Record<string, string> {
   const { esContenedor, clasificacion } = leerClasificacionAlta();
+  // CAJA LLENA / LOTE EN FOTO: sólo tiene sentido con una clasificación de
+  // contenedor. La cantidad vacía viaja como 0 y el backend la normaliza a
+  // null (el badge del listado sólo lee cantidades > 0).
+  const checkLlena = document.getElementById(ID_ESTA_LLENA) as HTMLInputElement | null;
+  const cantidadLote =
+    (document.getElementById(ID_CANTIDAD_LOTE) as HTMLInputElement | null)?.value.trim() ?? '';
+  const estaLlena = esContenedor && checkLlena?.checked === true;
   const campos: Record<string, string> = {
     es_contenedor: esContenedor ? 'true' : 'false',
+    esta_llena: estaLlena ? 'true' : 'false',
+    cantidad_objetos_lote: estaLlena && cantidadLote !== '' ? cantidadLote : '0',
   };
   if (clasificacion) {
     campos.especificaciones = JSON.stringify({ [CLAVE_ESPECIFICACIONES]: clasificacion });

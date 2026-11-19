@@ -127,10 +127,11 @@ def nodo_objeto_contenedor(objeto_data, objetos_serializados):
         'ancho': None,
         'alto': None,
         'foto': objeto_data.get('foto_principal'),
-        # Los Objetos declarados como caja NO manejan lote en foto: la tarjeta
-        # cae en el badge genérico («Contenedor vacío» / «Con espacio (N)»).
-        'esta_llena': False,
-        'cantidad_objetos_lote': None,
+        # CAJA LLENA / LOTE EN FOTO: el Objeto contenedor también puede declarar
+        # su contenido como lote fotografiado (campos espejo de Contenedor). El
+        # badge de la tarjeta lo rotula «Caja llena (~40 objetos)» / «Lote foto».
+        'esta_llena': objeto_data.get('esta_llena') is True,
+        'cantidad_objetos_lote': objeto_data.get('cantidad_objetos_lote'),
         'grid_filas': None,
         'grid_columnas': None,
         'grid_filas_config': None,

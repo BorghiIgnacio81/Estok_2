@@ -20,6 +20,8 @@ from ...services import decisiones_service
 from ...services.clasificacion_contenedor_objeto import declara_contenedor
 from ...services.categorias_clasificacion import normalizar_nombre_categoria
 from ...services.transito_interno import esta_en_transito_interno
+# Normalización ÚNICA de «Caja llena / lote en foto» (compartida con Contenedor).
+from ...services.caja_llena_lote import normalizar_caja_llena_lote
 from ...services.ubicacion_objeto import (
     TEXTO_CONTENEDOR_AUSENTE,
     etiqueta_ubicacion_objeto,
@@ -95,6 +97,9 @@ class ObjetoListSerializer(serializers.ModelSerializer):
             'parent_grid_row', 'parent_grid_col',
             'categoria', 'categoria_nombre', 'categoria_slug', 'categoria_subtipo',
             'es_contenedor', 'objeto_padre', 'objeto_padre_nombre',
+            # CAJA LLENA / LOTE EN FOTO: alimenta el badge de las tarjetas de
+            # la SECCIÓN 1 («Caja llena (~40 objetos)», «Lote foto», etc.).
+            'esta_llena', 'cantidad_objetos_lote',
             'estado_carga', 'fecha_registro', 'deleted_at',
             'owner_action', 'en_transito_interno', 'es_espejo_contenedor',
             # IDs espaciales para el árbol de la Mudanza Inter-Estok
@@ -344,6 +349,9 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             'ubicacion', 'contenedor',
             'parent_grid_row', 'parent_grid_col',
             'categoria', 'es_contenedor', 'objeto_padre',
+            # CAJA LLENA / LOTE EN FOTO: el operador fotografía el contenido y
+            # declara la cantidad estimada (opcional) en el ALTA y la EDICIÓN.
+            'esta_llena', 'cantidad_objetos_lote',
             'estado_conservacion', 'valor_estimado', 'color',
             'dueno_original', 'dueno_externo_nombre', 'beneficiario',
             'autor', 'edicion', 'anio', 'isbn_issn',
@@ -390,6 +398,19 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
             # Objeto NUEVO sin marca manual ni categoría de contenedor:
             # `es_contenedor` es False, lo pida o no el cliente.
             attrs['es_contenedor'] = False
+
+        # CAJA LLENA / LOTE EN FOTO: sólo una caja/contenedor puede declarar un
+        # lote. Si la clasificación final es de objeto simple, la bandera y la
+        # cantidad se descartan (el badge del listado nunca rotula «llena» un
+        # objeto suelto).
+        es_contenedor_final = attrs.get(
+            'es_contenedor',
+            bool(getattr(instancia, 'es_contenedor', False)),
+        )
+        if not es_contenedor_final:
+            attrs['esta_llena'] = False
+            attrs['cantidad_objetos_lote'] = None
+
         return attrs
 
     def validate(self, attrs):
@@ -408,6 +429,14 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         para no borrar un estado vigente en un PUT parcial que solo renombra el
         objeto.
         """
+        # ------------------------------------------------------------------
+        # CAJA LLENA / LOTE EN FOTO
+        # ------------------------------------------------------------------
+        # Misma normalización que `ContenedorSerializer` (fuente única en
+        # services.caja_llena_lote): la cantidad sólo sobrevive con
+        # `esta_llena=True` y el 0 se convierte en null.
+        normalizar_caja_llena_lote(attrs, self.instance)
+
         # ------------------------------------------------------------------
         # CLASIFICACIÓN DE CONTENEDOR (`es_contenedor`)
         # ------------------------------------------------------------------
