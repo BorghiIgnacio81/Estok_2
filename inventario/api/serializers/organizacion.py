@@ -359,6 +359,24 @@ class ContenedorSerializer(serializers.ModelSerializer):
         )
         attrs['en_transito_interno'] = esta_en_transito_interno(destino, fila, col)
 
+    def validate(self, attrs):
+        """
+        CAJA LLENA / LOTE EN FOTO: la cantidad estimada sólo tiene sentido con
+        `esta_llena=True`. Al destildar la caja se limpia a null y el 0 se
+        normaliza a null (el badge del frontend sólo lee cantidades > 0).
+        """
+        if 'cantidad_objetos_lote' in attrs:
+            cantidad = attrs.get('cantidad_objetos_lote')
+            if cantidad is not None and cantidad <= 0:
+                attrs['cantidad_objetos_lote'] = None
+        esta_llena = attrs.get(
+            'esta_llena',
+            getattr(self.instance, 'esta_llena', False) if self.instance else False,
+        )
+        if not esta_llena:
+            attrs['cantidad_objetos_lote'] = None
+        return attrs
+
     def create(self, validated_data):
         """
         Alta de Contenedor con TAXONOMÍA AUTOMÁTICA.

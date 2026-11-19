@@ -40,6 +40,9 @@ import { prepararSeccionObjeto, recolectarSeccionObjeto } from './objetoEspacioM
 import { ASSET_CAJA, ASSET_CONTENEDOR_GRANDE, ASSET_MUEBLE } from './assetsUi';
 // ESCAPADO HTML: helper ÚNICO del frontend (lib/escapeHtml).
 import { escapeHtml } from './escapeHtml';
+// BADGE DE ESTADO de la caja (llena / con espacio / vacío): fuente ÚNICA
+// compartida con el listado de /objetos (lib/cajaEstadoBadge.ts).
+import { badgeEstadoCajaHtml } from './cajaEstadoBadge';
 
 // =============================================================================
 // ICONOGRAFÍA LOCAL (especificación estricta del Lienzo de Mapeo)
@@ -77,6 +80,10 @@ export interface ContenedorDnD {
   es_inmueble?: boolean;
   /** Declaración explícita de movilidad (canasta de «Elementos por ubicar»). */
   declarado_movible?: boolean | null;
+  /** Caja llena: contenido fotografiado como lote, no admite más objetos. */
+  esta_llena?: boolean | null;
+  /** Cantidad estimada de piezas del lote (opcional, sólo si está llena). */
+  cantidad_objetos_lote?: number | null;
   objetos_count: number;
   qr_code_url: string | null;
   largo?: string | number | null;
@@ -553,6 +560,7 @@ export class AlmacenamientoBoard {
             ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
           </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📦 ${c.objetos_count || 0} objetos${c.hijos.length ? ` · 🗂 ${c.hijos.length} sub-contenedor${c.hijos.length > 1 ? 'es' : ''}` : ''}</p>
+          <div class="mt-1">${c.hijos.length === 0 || c.esta_llena ? badgeEstadoCajaHtml(c) : ''}</div>
           ${this.medidasHtml(c, 'contenedor')}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
@@ -589,6 +597,7 @@ export class AlmacenamientoBoard {
             ${c.descripcion ? `<p class="text-xs text-gray-500 line-clamp-1">${escapeHtml(c.descripcion)}</p>` : ''}
           </div>
           <p class="text-[11px] text-gray-400 mt-0.5">📍 ${escapeHtml(c.ubicacion_nombre || 'Sin ubicación')} · 📦 ${c.objetos_count || 0}${c.hijos.length ? ` · 🗂 ${c.hijos.length}` : ''}</p>
+          <div class="mt-1">${c.hijos.length === 0 || c.esta_llena ? badgeEstadoCajaHtml(c) : ''}</div>
           ${this.medidasHtml(c, 'contenedor')}
         </div>
         <div class="flex items-center gap-0.5 flex-shrink-0">
@@ -1308,6 +1317,17 @@ export class AlmacenamientoBoard {
     });
   }
 
+  /** Muestra/oculta la cantidad del lote según el checkbox «Caja llena». */
+  private sincronizarCantidadLote(): void {
+    const check = document.getElementById('editarEstaLlena') as HTMLInputElement | null;
+    const llena = Boolean(check && check.checked);
+    document.getElementById('editarCantidadLoteRow')?.classList.toggle('hidden', !llena);
+    if (!llena) {
+      const input = document.getElementById('editarCantidadLote') as HTMLInputElement | null;
+      if (input) input.value = '';
+    }
+  }
+
   private abrirModalEditar(tipo: 'ubicacion' | 'contenedor', entidad: EntidadEditable): void {
     const modal = document.getElementById('modalEditar');
     if (!modal) return;
@@ -1343,6 +1363,32 @@ export class AlmacenamientoBoard {
       } else {
         inmuebleRow.classList.add('hidden');
         inmuebleCheck.checked = false;
+      }
+    }
+    // CAJA LLENA / LOTE EN FOTO: sólo para contenedores. La cantidad estimada
+    // se despliega únicamente con el checkbox activo (visibilidad condicional).
+    const cajaLlenaRow = document.getElementById('editarCajaLlenaRow');
+    const cajaLlenaCheck = document.getElementById('editarEstaLlena') as HTMLInputElement | null;
+    const cantidadLote = document.getElementById('editarCantidadLote') as HTMLInputElement | null;
+    if (cajaLlenaRow && cajaLlenaCheck) {
+      if (tipo === 'contenedor') {
+        cajaLlenaRow.classList.remove('hidden');
+        const estaLlena = tipo === 'contenedor' && 'esta_llena' in entidad
+          ? Boolean((entidad as ContenedorDnD).esta_llena)
+          : false;
+        cajaLlenaCheck.checked = estaLlena;
+        if (cantidadLote) {
+          const cantidad = 'cantidad_objetos_lote' in entidad
+            ? (entidad as ContenedorDnD).cantidad_objetos_lote
+            : null;
+          cantidadLote.value = cantidad == null ? '' : String(cantidad);
+        }
+        this.sincronizarCantidadLote();
+      } else {
+        cajaLlenaRow.classList.add('hidden');
+        cajaLlenaCheck.checked = false;
+        if (cantidadLote) cantidadLote.value = '';
+        document.getElementById('editarCantidadLoteRow')?.classList.add('hidden');
       }
     }
     // 🎒 DECLARACIÓN DE MOVILIDAD (Lote 26): ya NO viaja por este modal. El
@@ -1390,6 +1436,11 @@ export class AlmacenamientoBoard {
     inmuebleRow?.classList.remove('hidden');
     const inmuebleCheck = document.getElementById('editarInmueble') as HTMLInputElement | null;
     if (inmuebleCheck) inmuebleCheck.checked = false;
+    // CAJA LLENA / LOTE: una caja nueva nace con espacio disponible (sin lote).
+    document.getElementById('editarCajaLlenaRow')?.classList.remove('hidden');
+    const cajaLlenaCheck = document.getElementById('editarEstaLlena') as HTMLInputElement | null;
+    if (cajaLlenaCheck) cajaLlenaCheck.checked = false;
+    this.sincronizarCantidadLote();
     // 🎒 DECLARACIÓN DE MOVILIDAD (Lote 26): el modal ya no la gestiona. La pieza
     // nace como ARQUITECTURA (default False del modelo) y el operador la declara
     // «Mueble Móvil / Objeto» en el disyuntor del panel, debajo de «Espacio Único».
@@ -1444,6 +1495,17 @@ export class AlmacenamientoBoard {
     if (gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    // CAJA LLENA / LOTE EN FOTO (cantidad vacía → 0: el badge la ignora).
+    const estaLlenaCreacion = Boolean(
+      (document.getElementById('editarEstaLlena') as HTMLInputElement | null)?.checked,
+    );
+    const cantidadLoteCreacion =
+      (document.getElementById('editarCantidadLote') as HTMLInputElement | null)?.value.trim() || '';
+    formData.append('esta_llena', estaLlenaCreacion ? 'true' : 'false');
+    formData.append(
+      'cantidad_objetos_lote',
+      estaLlenaCreacion && cantidadLoteCreacion !== '' ? cantidadLoteCreacion : '0',
+    );
     const foto = this.fotoSeleccionada;
     if (foto) formData.append('foto', foto);
     const estokId = getEstokActivoId();
@@ -1512,6 +1574,17 @@ export class AlmacenamientoBoard {
     if (tipo === 'contenedor' && gridFilas !== '') formData.append('grid_filas', gridFilas);
     if (tipo === 'contenedor' && gridColumnas !== '') formData.append('grid_columnas', gridColumnas);
     if (tipo === 'contenedor') formData.append('es_inmueble', esInmueble ? 'true' : 'false');
+    // CAJA LLENA / LOTE EN FOTO: sólo contenedores. Al destildar, la cantidad
+    // viaja como 0 y el backend la normaliza a null.
+    const estaLlena = Boolean(
+      (document.getElementById('editarEstaLlena') as HTMLInputElement | null)?.checked,
+    );
+    const cantidadLote =
+      (document.getElementById('editarCantidadLote') as HTMLInputElement | null)?.value.trim() || '';
+    if (tipo === 'contenedor') {
+      formData.append('esta_llena', estaLlena ? 'true' : 'false');
+      formData.append('cantidad_objetos_lote', estaLlena && cantidadLote !== '' ? cantidadLote : '0');
+    }
     // FOTO del modal técnico: puede venir de la cámara directa o de la galería;
     // el File único vive en `fotoSeleccionada` (mismo flujo para ambos inputs).
     if (this.fotoSeleccionada) formData.append('foto', this.fotoSeleccionada);
@@ -1587,6 +1660,10 @@ export class AlmacenamientoBoard {
             if (gridColumnas !== '') c.grid_columnas = Number(gridColumnas);
             if (configNuevo) c.grid_filas_config = configNuevo;
             c.es_inmueble = esInmueble;
+            // CAJA LLENA / LOTE: mantiene el modelo en memoria coherente con el
+            // POST/PUT para que el badge de la tarjeta se repinte sin refetch.
+            c.esta_llena = estaLlena;
+            c.cantidad_objetos_lote = estaLlena && cantidadLote !== '' ? Number(cantidadLote) : null;
           }
         }
 
@@ -1756,6 +1833,9 @@ export class AlmacenamientoBoard {
     (document.getElementById('ubiForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormUbicacion(e));
     (document.getElementById('conForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormContenedor(e));
     (document.getElementById('editarForm') as HTMLFormElement | null)?.addEventListener('submit', (e) => this.enviarFormEditar(e));
+
+    // Visibilidad CONDICIONAL del campo del lote (se enlaza UNA sola vez).
+    document.getElementById('editarEstaLlena')?.addEventListener('change', () => this.sincronizarCantidadLote());
 
     this.enlazarInputFoto('ubiFotoInput', 'ubiFotoLabel');
     this.enlazarInputFoto('conFotoInput', 'conFotoLabel');

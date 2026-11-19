@@ -88,10 +88,19 @@ function limpiarFoto(): void {
   preview?.classList.add('hidden');
 }
 
+/** Muestra/oculta el campo de cantidad estimada según el checkbox «Caja llena». */
+function sincronizarLote(): void {
+  const llena = ref<HTMLInputElement>('nuevaCajaEstaLlena')?.checked === true;
+  ref<HTMLElement>('nuevaCajaLoteRow')?.classList.toggle('hidden', !llena);
+  const input = ref<HTMLInputElement>('nuevaCajaCantidadLote');
+  if (!llena && input) input.value = '';
+}
+
 /** Reset completo del estado local y del formulario (sin tocar la red). */
 function resetModal(): void {
   ref<HTMLFormElement>('nuevaCajaForm')?.reset();
   limpiarFoto();
+  sincronizarLote();
   mostrarError(null);
   setGuardando(false);
 }
@@ -227,6 +236,12 @@ async function enviarFormulario(e: Event): Promise<void> {
   formData.append('tipo', 'CAJA');
   formData.append('es_inmueble', 'false');
   formData.append('declarado_movible', 'true');
+  // CAJA LLENA / LOTE EN FOTO: bandera + cantidad estimada opcional (se envía
+  // 0 cuando el operador la dejó vacía; el badge sólo lee cantidades > 0).
+  const estaLlena = ref<HTMLInputElement>('nuevaCajaEstaLlena')?.checked === true;
+  const cantidadLote = ref<HTMLInputElement>('nuevaCajaCantidadLote')?.value.trim() ?? '';
+  formData.append('esta_llena', estaLlena ? 'true' : 'false');
+  formData.append('cantidad_objetos_lote', estaLlena && cantidadLote !== '' ? cantidadLote : '0');
   const largo = ref<HTMLInputElement>('nuevaCajaLargo')?.value ?? '';
   const ancho = ref<HTMLInputElement>('nuevaCajaAncho')?.value ?? '';
   const alto = ref<HTMLInputElement>('nuevaCajaAlto')?.value ?? '';
@@ -295,6 +310,10 @@ export function initNuevaCajaModal(): void {
   });
 
   ref<HTMLFormElement>('nuevaCajaForm')?.addEventListener('submit', (e) => void enviarFormulario(e));
+
+  // CAJA LLENA: el campo «Cantidad estimada de objetos en el lote» sólo se
+  // despliega cuando el checkbox está activo (visibilidad condicional).
+  ref<HTMLInputElement>('nuevaCajaEstaLlena')?.addEventListener('change', sincronizarLote);
 
   // FOTO: vista previa local (sin subir nada hasta el submit).
   ref<HTMLInputElement>('nuevaCajaFoto')?.addEventListener('change', (e) => {

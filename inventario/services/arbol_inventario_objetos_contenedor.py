@@ -127,6 +127,10 @@ def nodo_objeto_contenedor(objeto_data, objetos_serializados):
         'ancho': None,
         'alto': None,
         'foto': objeto_data.get('foto_principal'),
+        # Los Objetos declarados como caja NO manejan lote en foto: la tarjeta
+        # cae en el badge genérico («Contenedor vacío» / «Con espacio (N)»).
+        'esta_llena': False,
+        'cantidad_objetos_lote': None,
         'grid_filas': None,
         'grid_columnas': None,
         'grid_filas_config': None,

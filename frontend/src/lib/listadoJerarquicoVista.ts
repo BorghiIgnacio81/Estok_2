@@ -21,6 +21,10 @@ import {
   seccionSueltosHtml,
 } from './listadoObjetosRender';
 import type { PayloadArbol } from './listadoObjetosRender';
+// FILTRO DE ESTADO DE CAJAS (barra de /objetos): «Todas» · «Con espacio
+// disponible» · «Llenas / Lotes». Lógica pura en cajaEstadoBadge.ts.
+import { cumpleFiltroEstadoCaja } from './cajaEstadoBadge';
+import type { FiltroEstadoCaja } from './cajaEstadoBadge';
 // OBJETOS de categoría «Muebles» sin caja: bloque propio dentro de la sección
 // de muebles (capa pura separada para sostener el límite de 400 líneas).
 import { seccionMueblesObjetosHtml } from './listadoMueblesObjetosRender';
@@ -64,6 +68,8 @@ export interface OpcionesRenderInventario {
    * que el recorte se vea en el acto (por defecto todo queda colapsado).
    */
   filtroUbicacionActivo?: boolean;
+  /** Filtro de estado de cajas: '' (todas) · 'con_espacio' · 'llenas'. */
+  estadoCaja?: FiltroEstadoCaja;
 }
 
 /** Muestra u oculta un elemento por la clase `hidden` (idempotente). */
@@ -133,6 +139,10 @@ export function renderInventario(
 ): void {
   const estructuras = payload.estructuras || [];
   const cajas = payload.cajas || [];
+  // FILTRO «Con espacio disponible» / «Llenas / Lotes» de la barra superior:
+  // recorta SÓLO la SECCIÓN 1 (el resto del inventario no se toca).
+  const cajasVisibles = cajas.filter((caja) => cumpleFiltroEstadoCaja(caja, opciones.estadoCaja || ''));
+  const filtroCajasActivo = Boolean(opciones.estadoCaja);
   const sueltos = payload.sueltos || [];
   const objetosDentro = payload.objetos_en_contenedor || [];
   // OBJETOS de categoría «Muebles» sin caja: el backend los separa de
@@ -143,7 +153,7 @@ export function renderInventario(
     || { contenedores: 0, objetos_ubicados: 0, objetos_sueltos: 0 };
 
   // SECCIÓN 2 · 📦 Cajas e Inventario Interno (sólo cajas móviles).
-  const cajasHtml = seccionCajasHtml(cajas);
+  const cajasHtml = seccionCajasHtml(cajasVisibles);
   // SECCIÓN 3 · 📦 Objetos en Contenedor (lista plana con insignia).
   const objetosEnContenedorHtml = seccionObjetosEnContenedorHtml(objetosDentro);
   // SECCIÓN 4 · 🗄 Muebles y Estructuras Móviles (excluye inmuebles fijos) +
@@ -168,7 +178,7 @@ export function renderInventario(
   if (!haySecciones) {
     ocultarSecciones(refs);
     mostrar(refs.resumen, false);
-    if (payload.filtros_activos) {
+    if (payload.filtros_activos || filtroCajasActivo) {
       mostrar(refs.sinResultados, true);
     } else {
       mostrar(refs.empty, true);
@@ -190,7 +200,7 @@ export function renderInventario(
   // sección + detalle secundario (sub-ítems y valor estimado acumulado). Se
   // recalcula con CADA render, así el filtro por ubicación actualiza los
   // contadores en tiempo real.
-  const resumenCajas = resumenSeccionCajas(cajas);
+  const resumenCajas = resumenSeccionCajas(cajasVisibles);
   const resumenContenedor = resumenSeccionObjetosEnContenedor(objetosDentro);
   const resumenMuebles = resumenSeccionMuebles(estructuras, mueblesObjetos);
   const resumenSueltos = resumenSeccionSueltos(sueltos);

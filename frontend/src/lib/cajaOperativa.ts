@@ -41,6 +41,10 @@ export interface CajaOperable {
   alto?: number | string | null;
   /** URL absoluta de la foto física actual (previsualización en el modal). */
   foto?: string | null;
+  /** Caja llena: contenido fotografiado como lote, no admite más objetos. */
+  esta_llena?: boolean | null;
+  /** Cantidad estimada de piezas del lote (opcional, sólo si está llena). */
+  cantidad_objetos_lote?: number | string | null;
 }
 
 /** Materiales admitidos por el modelo Contenedor (valor, etiqueta). */
@@ -54,32 +58,10 @@ type Refrescar = () => void;
 let onRefrescar: Refrescar = () => {};
 let listenersListos = false;
 
-// --------------------- 1. SUMARIO DINÁMICO POR CATEGORÍA ---------------------
-/** Agrupa los objetos directos por categoría y resume el stock de la caja. */
-export function sumarioCategoriasHtml(contenido: unknown): string {
-  const items = Array.isArray(contenido) ? contenido : [];
-  const conteo = new Map<string, number>();
-  let total = 0;
 
-  for (const item of items) {
-    const obj = item as Record<string, unknown> | null;
-    if (!obj || obj.tipo !== 'objeto') continue;
-    const categoria = String(obj.categoria_nombre || '').trim() || 'sin categoría';
-    conteo.set(categoria, (conteo.get(categoria) || 0) + 1);
-    total += 1;
-  }
-
-  const base = 'block text-[11px] text-gray-400 mt-1 leading-snug';
-  if (total === 0) {
-    return '<span class="' + base + ' italic">Contenedor vacío</span>';
-  }
-
-  const partes = Array.from(conteo.entries())
-    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0], 'es'))
-    .map(([nombre, cantidad]) => cantidad + ' ' + nombre.toLowerCase());
-
-  return '<span class="' + base + '">' + escapeHtml(partes.join(', ')) + '</span>';
-}
+// El SUMARIO de la caja (badge de estado + desglose por categoría) vive en
+// lib/cajaEstadoBadge.ts (`sumarioCajaHtml`): fuente ÚNICA compartida con el
+// canvas de Almacenamiento. Acá sólo quedan las acciones operativas.
 
 /** Opciones de la fila de acciones: `mostrarMover:false` la reduce a Editar/Eliminar. */
 export interface AccionesCajaOpts {
@@ -103,6 +85,8 @@ export function filaAccionesCajaHtml(caja: CajaOperable, opts: AccionesCajaOpts 
     'data-ancho="' + escapeHtml(caja.ancho ?? '') + '"',
     'data-alto="' + escapeHtml(caja.alto ?? '') + '"',
     'data-foto="' + escapeHtml(caja.foto || '') + '"',
+    'data-esta-llena="' + (caja.esta_llena ? '1' : '0') + '"',
+    'data-cantidad-lote="' + escapeHtml(caja.cantidad_objetos_lote ?? '') + '"',
   ].join(' ');
   const base =
     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-base cursor-pointer';
@@ -138,6 +122,12 @@ function cajaDesdeBoton(btn: HTMLElement): CajaOperable {
     ancho: d.ancho || null,
     alto: d.alto || null,
     foto: d.foto || null,
+    esta_llena: d.estaLlena === '1',
+    // Cantidad del lote: 0/'' equivale a «sin cantidad» (no se fuerza a 1 como
+    // en las coordenadas de casillero, donde el mínimo real es 1).
+    cantidad_objetos_lote: d.cantidadLote && d.cantidadLote !== '0'
+      ? Number(d.cantidadLote)
+      : null,
   };
 }
 
@@ -167,8 +157,31 @@ export function abrirModalEditarCaja(caja: CajaOperable): void {
     + '<label class="block"><span class="block text-xs font-semibold text-gray-600 mb-1">Descripción</span>'
     + '<textarea name="descripcion" rows="2" class="' + CLASE_CONTROL + ' resize-none">'
     + escapeHtml(caja.descripcion || '') + '</textarea></label>'
+    // CAJA LLENA / LOTE EN FOTO: el campo numérico sólo se despliega cuando el
+    // operador declara la caja llena (contenido fotografiado, sin desglosar).
+    + '<label class="flex items-start gap-2 p-2.5 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer">'
+    + '<input type="checkbox" name="esta_llena" class="js-caja-llena mt-0.5 w-4 h-4 text-orange-600 focus:ring-orange-500 rounded"'
+    + (caja.esta_llena ? ' checked' : '') + ' />'
+    + '<span class="text-xs font-medium text-gray-700">Caja llena <span class="font-normal">(contenido en foto / no admite más objetos)</span></span>'
+    + '</label>'
+    + '<label class="js-lote-campo block hidden"><span class="block text-xs font-semibold text-gray-600 mb-1">Cantidad estimada de objetos en el lote</span>'
+    + '<input type="number" min="1" step="1" name="cantidad_objetos_lote" value="'
+    + escapeHtml(caja.cantidad_objetos_lote ?? '')
+    + '" placeholder="Ej: 40" class="' + CLASE_CONTROL + '" /></label>'
     + campoFoto(String(caja.foto || ''))
     + botonesModal('Guardar cambios');
+
+  // Visibilidad CONDICIONAL del campo del lote: sólo con «Caja llena» activo.
+  const checkLlena = form.querySelector<HTMLInputElement>('[name="esta_llena"]');
+  const campoLote = form.querySelector<HTMLElement>('.js-lote-campo');
+  const inputLote = form.querySelector<HTMLInputElement>('[name="cantidad_objetos_lote"]');
+  const sincronizarLote = (): void => {
+    const llena = Boolean(checkLlena?.checked);
+    if (campoLote) campoLote.classList.toggle('hidden', !llena);
+    if (!llena && inputLote) inputLote.value = '';
+  };
+  checkLlena?.addEventListener('change', sincronizarLote);
+  sincronizarLote();
 
   // Miniatura en vivo al elegir un archivo nuevo (antes de subirlo al backend).
   const inputFoto = form.querySelector<HTMLInputElement>('.js-foto-input');
@@ -201,6 +214,14 @@ export function abrirModalEditarCaja(caja: CajaOperable): void {
     }
     const archivo = form.querySelector<HTMLInputElement>('[name="foto"]')?.files?.[0];
     if (archivo) datos.append('foto', archivo);
+
+    // CAJA LLENA / LOTE: se envía SIEMPRE la bandera; la cantidad viaja como 0
+    // cuando el operador dejó el campo vacío (el badge la ignora: sólo cuenta
+    // cantidades > 0). Al destildar, el backend limpia la cantidad a null.
+    const estaLlena = Boolean(form.querySelector<HTMLInputElement>('[name="esta_llena"]')?.checked);
+    const cantidadLote = (form.querySelector<HTMLInputElement>('[name="cantidad_objetos_lote"]')?.value || '').trim();
+    datos.append('esta_llena', estaLlena ? 'true' : 'false');
+    datos.append('cantidad_objetos_lote', estaLlena && cantidadLote !== '' ? cantidadLote : '0');
 
     await apiPut('/contenedores/' + encodeURIComponent(caja.id) + '/', datos, true);
     cerrarOverlay();

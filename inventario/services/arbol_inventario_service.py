@@ -396,6 +396,10 @@ def construir_arbol_estok(
             'ancho': _decimal_a_float(contenedor.ancho),
             'alto': _decimal_a_float(contenedor.alto),
             'foto': _foto_url(contenedor, request),
+            # CAJA LLENA / LOTE EN FOTO: alimenta el badge de estado de la
+            # tarjeta («Caja llena (~40 objetos)», «Lote foto», etc.).
+            'esta_llena': bool(contenedor.esta_llena),
+            'cantidad_objetos_lote': contenedor.cantidad_objetos_lote,
             'grid_filas': contenedor.grid_filas,
             'grid_columnas': contenedor.grid_columnas,
             'grid_filas_config': contenedor.grid_filas_config,
@@ -440,6 +444,9 @@ def construir_arbol_estok(
             'ancho': _decimal_a_float(caja.ancho),
             'alto': _decimal_a_float(caja.alto),
             'foto': _foto_url(caja, request),
+            # CAJA LLENA / LOTE EN FOTO: badge de estado de la SECCIÓN 1.
+            'esta_llena': bool(caja.esta_llena),
+            'cantidad_objetos_lote': caja.cantidad_objetos_lote,
             'grid_filas': caja.grid_filas,
             'grid_columnas': caja.grid_columnas,
             'grid_filas_config': caja.grid_filas_config,

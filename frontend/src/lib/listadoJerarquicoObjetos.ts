@@ -47,9 +47,18 @@ import {
   limpiarFiltroUbicacion,
   repintarFiltroUbicacion,
 } from './filtroUbicacionListado';
+// FILTRO DE ESTADO DE CAJAS (Todas · Con espacio disponible · Llenas / Lotes):
+// el tipo y la regla viven en la fuente única de badges (cajaEstadoBadge.ts).
+import type { FiltroEstadoCaja } from './cajaEstadoBadge';
 
 // Re-export del contrato del payload para consumidores externos.
 export type { ObjetoArbol, NodoContenedor, GrupoEstructura, PayloadArbol } from './listadoObjetosRender';
+
+/** Valor vigente del combo «Estado de cajas» ('con_espacio' · 'llenas' · ''). */
+function leerFiltroEstadoCaja(): FiltroEstadoCaja {
+  const valor = filtroEstadoCaja ? filtroEstadoCaja.value : '';
+  return valor === 'con_espacio' || valor === 'llenas' ? valor : '';
+}
 
 interface Filtros {
   decision: string;
@@ -74,6 +83,8 @@ let filtroCategoria: HTMLSelectElement | null = null;
 let filtroPublicado: HTMLSelectElement | null = null;
 // Combo «Filtro por Ubicación» (habitaciones/espacios + contenedores padre).
 let filtroUbicacion: HTMLSelectElement | null = null;
+// Combo «Estado de cajas» (Todas · Con espacio disponible · Llenas / Lotes).
+let filtroEstadoCaja: HTMLSelectElement | null = null;
 let searchInput: HTMLInputElement | null = null;
 let btnLimpiarFiltros: HTMLElement | null = null;
 
@@ -116,6 +127,7 @@ async function cargar(): Promise<void> {
     if (refsInventario) {
       renderInventario(refsInventario, recorte.payload, {
         filtroUbicacionActivo: recorte.activo,
+        estadoCaja: leerFiltroEstadoCaja(),
       });
     }
   } catch (err: any) {
@@ -158,6 +170,7 @@ function repintarConFiltroUbicacion(): void {
   if (!recorte) return;
   renderInventario(refsInventario, recorte.payload, {
     filtroUbicacionActivo: recorte.activo,
+    estadoCaja: leerFiltroEstadoCaja(),
   });
 }
 
@@ -171,6 +184,7 @@ function limpiarFiltros(): void {
   if (filtroDecision) filtroDecision.value = '';
   if (filtroCategoria) filtroCategoria.value = '';
   if (filtroPublicado) filtroPublicado.value = '';
+  if (filtroEstadoCaja) filtroEstadoCaja.value = '';
   limpiarFiltroUbicacion();
   if (searchInput) searchInput.value = '';
   filtros.decision = '';
@@ -254,6 +268,9 @@ function enlazarEventos(): void {
   if (filtroDecision) filtroDecision.addEventListener('change', aplicarFiltros);
   if (filtroCategoria) filtroCategoria.addEventListener('change', aplicarFiltros);
   if (filtroPublicado) filtroPublicado.addEventListener('change', aplicarFiltros);
+  // ESTADO DE CAJAS: recorte en memoria sobre el último payload (sin refetch),
+  // igual que el filtro por ubicación. Recalcula el badge del acordeón.
+  if (filtroEstadoCaja) filtroEstadoCaja.addEventListener('change', repintarConFiltroUbicacion);
 
   let timeout: number | null = null;
   if (searchInput) {
@@ -313,6 +330,7 @@ export function initListadoJerarquicoObjetos(): void {
   filtroCategoria = document.getElementById('filtroCategoria') as HTMLSelectElement | null;
   filtroPublicado = document.getElementById('filtroPublicado') as HTMLSelectElement | null;
   filtroUbicacion = document.getElementById('filtroUbicacion') as HTMLSelectElement | null;
+  filtroEstadoCaja = document.getElementById('filtroEstadoCaja') as HTMLSelectElement | null;
   searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
   btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
@@ -377,6 +395,4 @@ export function initListadoJerarquicoObjetos(): void {
     Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => void cargar());
   }
 }
-
-
 

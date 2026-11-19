@@ -24,6 +24,10 @@ import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro
 // markup del modal dedicado (Nombre · Foto · Dimensiones · Descripción ·
 // Ubicación). Su lógica vive en lib/nuevaCajaModal.ts.
 import NuevaCajaModal from '../components/NuevaCajaModal.astro';
+// CAMPOS «CAJA LLENA / LOTE EN FOTO» del modal de edición de contenedor
+// (checkbox + cantidad estimada con visibilidad condicional). Su lógica vive en
+// lib/almacenamientoBoard.ts; se extrajo para respetar el límite de 400 líneas.
+import CamposCajaLlena from '../components/inventario/CamposCajaLlena.astro';
 // TIRA DE MINIMAPAS DE LOS NIVELES SUPERIORES: host canónico del COMPONENTE
 // GLOBAL (formato `cadena`). Lo rellena lib/mapa/portales/minimapasAnidadosContexto.ts
 // con el ÚNICO motor de minimapas (lib/minimapasAnidados.ts → lib/minimapa.ts).
@@ -340,6 +344,11 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             </label>
             <p class="text-xs text-gray-400 mt-1">El mueble quedará fijo y adherido permanentemente a la habitación que lo contiene: no podrá arrastrarse ni eliminarse desde la pantalla de almacenamiento.</p>
           </div>
+          <!-- CAJA LLENA / LOTE EN FOTO (sólo contenedores): checkbox + cantidad
+               estimada con visibilidad condicional. Markup en
+               components/inventario/CamposCajaLlena.astro; lógica en
+               lib/almacenamientoBoard.ts (abrirModalEditar/enviarFormEditar). -->
+          <CamposCajaLlena />
           <!-- 🎒 DECLARACIÓN DE MOVILIDAD: se MUDÓ al panel de portales (Lote 26),
                justo debajo del control «Espacio Final» del nivel activo, donde el
                operador lo ve mientras modela los espacios (ver

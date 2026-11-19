@@ -163,6 +163,26 @@ class Contenedor(models.Model):
         help_text="Marca manual del casillero/estante del mueble (multi-elemento): si está activo, el espacio se pinta con opacidad sutil y deja de aceptar elementos por arrastre (dragover/ondrop bloqueados) hasta desmarcarlo. Se persiste vía PUT hermético al Estok activo."
     )
     # =====================================================================
+    # CAJA LLENA / LOTE DE OBJETOS EN FOTO
+    # ---------------------------------------------------------------------
+    # El operador fotografía una caja con decenas de piezas y NO las desglosa
+    # una por una: declara la caja LLENA y, opcionalmente, la cantidad
+    # estimada del lote (ej. 40 revistas). El backend NO crea Objetos: el
+    # stock sigue siendo el bulto físico y el listado lo etiqueta como
+    # «Lote» (ver frontend/src/lib/cajaEstadoBadge.ts).
+    # =====================================================================
+    esta_llena = models.BooleanField(
+        default=False,
+        verbose_name="Caja llena (lote en foto)",
+        help_text="Marca la caja/contenedor como LLENA: su contenido está fotografiado como lote y no admite más objetos. El listado de objetos la etiqueta como «Caja llena» / «Lote foto» en vez de «Contenedor vacío»."
+    )
+    cantidad_objetos_lote = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Cantidad estimada de objetos en el lote",
+        help_text="Cantidad aproximada de piezas que contiene el lote fotografiado (ej. 40 para una colección de 40 revistas). Opcional: sólo se muestra cuando la caja está marcada como llena."
+    )
+    # =====================================================================
     # «ESPACIO ÚNICO» (bloque monolítico declarado)
     # ---------------------------------------------------------------------
     # Marca el contenedor (Caja / Espacio / Mueble) como un BLOQUE MONOLÍTICO

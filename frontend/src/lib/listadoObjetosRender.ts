@@ -30,8 +30,10 @@ import {
 import type { GrupoEstructura, NodoContenedor, ObjetoArbol } from './listadoObjetosPiezas';
 import {
   filaAccionesCajaHtml,
-  sumarioCategoriasHtml,
 } from './cajaOperativa';
+// Badge de estado («Caja llena (~40 objetos)», «Con espacio (N)», «Contenedor
+// vacío») + desglose por categoría: fuente ÚNICA compartida con Almacenamiento.
+import { mensajeCajaVaciaHtml, sumarioCajaHtml, textoLoteEstimado } from './cajaEstadoBadge';
 import { rutaGeograficaCardHtml } from './rutaCajaMinimapas';
 import type { NodoCaja } from './rutaCajaMinimapas';
 // Limbo de mudanza (Lote 28): única fuente del concepto en el cliente.
@@ -171,9 +173,12 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
   const tipoLabel = opts.tipoLabel ?? (esInmueble(nodo)
     ? '📌 Mueble fijo (inmueble)'
     : (tieneSubContenedores(nodo) ? '🗄️ Mueble con sub-contenedores' : '📦 Caja/Contenedor'));
+  const lote = textoLoteEstimado(nodo);
   const subtitulo = [
     tipoLabel,
     nodo.material ? esc(nodo.material) : '',
+    // FICHA DESCRIPTIVA: cantidad estimada del lote fotografiado (si existe).
+    lote ? '📸 Lote: ' + lote : '',
     numerico(nodo.subcontenedores_count) + ' sub-caja(s) · ' + numerico(nodo.objetos_count) + ' objeto(s)',
   ].filter(Boolean).join(' · ');
 
@@ -189,7 +194,7 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
     + '<span class="min-w-0 flex-1">'
     + '<h3 class="text-xl font-extrabold text-gray-900 leading-tight truncate" title="' + esc(nodo.nombre) + '">' + esc(nodo.nombre) + '</h3>'
     + (opts.ruta ? '<div class="mt-1.5 min-w-0">' + opts.ruta + '</div>' : '')
-    + (opts.sumario ? sumarioCategoriasHtml(contenido) : '')
+    + (opts.sumario ? sumarioCajaHtml(nodo) : '')
     + '<span class="block text-[11px] text-gray-500 mt-0.5 truncate">' + subtitulo + '</span>'
     + '</span></span>';
 
@@ -215,7 +220,7 @@ function contenedorTarjetaHtml(nodo: NodoContenedor, opts: TarjetaOpts = {}): st
       + '<span class="min-w-0 flex-1">' + identidad + '</span>'
       + lateral
       + '</div>'
-      + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">— Sin contenido —</p></div>'
+      + '<div class="px-4 pb-4"><p class="text-sm text-gray-400 italic">' + mensajeCajaVaciaHtml(nodo) + '</p></div>'
       + acciones
       + '</article>';
   }

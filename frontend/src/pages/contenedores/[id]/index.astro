@@ -64,6 +64,9 @@ export const prerender = false;
               <div>
                 <h1 id="nombreContenedor" class="text-2xl font-bold text-gray-900"></h1>
                 <p id="descripcionContenedor" class="text-gray-500 text-sm mt-1"></p>
+                <!-- CAJA LLENA / LOTE EN FOTO: cantidad estimada declarada en la
+                     ficha descriptiva (se oculta si la caja no tiene lote). -->
+                <p id="loteContenedor" class="hidden text-xs font-semibold text-orange-700 mt-1"></p>
               </div>
             </div>
 
@@ -205,6 +208,18 @@ export const prerender = false;
       // === Info básica ===
       document.getElementById('nombreContenedor')!.textContent = contenedor.nombre;
       document.getElementById('descripcionContenedor')!.textContent = contenedor.descripcion || 'Sin descripción';
+      // FICHA DESCRIPTIVA · CAJA LLENA / LOTE: cantidad estimada declarada.
+      const loteEl = document.getElementById('loteContenedor')!;
+      const cantidadLote = Number(contenedor.cantidad_objetos_lote) || 0;
+      if (contenedor.esta_llena) {
+        loteEl.textContent = cantidadLote > 0
+          ? `📸 Caja llena · lote estimado: ~${cantidadLote} objetos`
+          : '📸 Caja llena · lote fotografiado (contenido no desglosado)';
+        loteEl.classList.remove('hidden');
+      } else {
+        loteEl.textContent = '';
+        loteEl.classList.add('hidden');
+      }
       // Procedencia en caliente: si la caja vive dentro de un contenedor padre
       // (estante/mueble), se muestra SU nombre actual resuelto por el backend
       // (procedencia_nombre = self.parent_contenedor.nombre); si es raíz, la
