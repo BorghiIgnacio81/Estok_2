@@ -186,10 +186,17 @@ function conectarPortalesPorDelegacion(): void {
     accionEnIzquierda(ev.target as HTMLElement | null);
   });
   // Accesibilidad: las siluetas del plano (role="button" tabindex="0") también
-  // navegan con Enter / Espacio, igual que las tarjetas del panel derecho.
+  // navegan con Enter / Espacio, igual que las tarjetas del panel derecho. NUNCA
+  // se dispara desde un campo de edición in-place ni desde un tirador: escribir
+  // un espacio en el nombre de un espacio no puede hacer saltar de nivel.
   slotIzq()?.addEventListener('keydown', (ev) => {
     if (ev.key !== 'Enter' && ev.key !== ' ') return;
-    accionEnIzquierda(ev.target as HTMLElement | null);
+    const objetivo = ev.target as HTMLElement | null;
+    if (!objetivo) return;
+    if (objetivo.closest('input, textarea, select, [data-inplace-renombrar], [data-libre-resize], [data-grupo-resize], [data-perimetro-resize]')) return;
+    if (!objetivo.closest('[role="button"], [data-mueble-chip], [data-mueble-abrir], [data-inplace-card]')) return;
+    ev.preventDefault();
+    accionEnIzquierda(objetivo);
   });
   // ESTADO DE ESPERA INICIAL: la tarjeta de PLANTA del Panel Derecho elige esa
   // planta → el orquestador del lienzo sube de nivel (planta fija a la
