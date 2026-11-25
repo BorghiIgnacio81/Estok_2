@@ -138,17 +138,27 @@ export async function pintarAncla(
   if (izquierdo === 'visorHabitacion') {
     const room = superior ? roomDeCache(superior.id) : null;
     if (room) {
+      // `esContextoAncla`: es un PINTADO del plano superior, no un gesto del
+      // operador. El listener de la cascada lo ignora (no re-navega) y el Visor
+      // de Habitación dibuja el cuarto con su ID REAL para resaltar al hijo.
       window.dispatchEvent(
-        new CustomEvent('estok:habitacion-seleccionada', { detail: { room } }),
+        new CustomEvent('estok:habitacion-seleccionada', {
+          detail: { room, esContextoAncla: true },
+        }),
       );
     }
     return;
   }
   if (izquierdo === 'grillaNodo' && superior) {
-    window.dispatchEvent(
-      new CustomEvent('estok:mueble-seleccionado', {
-        detail: { id: superior.id, nombre: superior.nombre, hermanos: superior.hijos },
-      }),
-    );
+    // El Visor Contenedor Grande dibuja la sub-grilla del SUPERIOR con el hijo
+    // activo en naranja. Se publica como DESTAQUE (`estok:mueble-destacado`), NO
+    // como una NAVEGACIÓN: reutilizar `estok:mueble-seleccionado` acá convertía el
+    // id del padre en un descenso de nivel (el ancla terminaba abriendo el espacio
+    // equivocado, siempre el mismo). El evento histórico se emite IGUAL pero
+    // marcado `esContextoAncla` para los consumidores de lectura (bandeja de carga
+    // fina), jamás para navegar.
+    const detalle = { id: superior.id, nombre: superior.nombre, hermanos: superior.hijos, esContextoAncla: true };
+    window.dispatchEvent(new CustomEvent('estok:mueble-destacado', { detail: detalle }));
+    window.dispatchEvent(new CustomEvent('estok:mueble-seleccionado', { detail: detalle }));
   }
 }

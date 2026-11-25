@@ -30,8 +30,11 @@ import {
 import type { InteriorNodo } from './datosNodosPortales';
 import {
   contarSubEspaciosArquitectonicos,
+  depurarPila,
   desapilarHasta,
+  espacioIdActivo,
   estadoPortales,
+  limpiarDerivados,
   limpiarRuta,
   nodoActual,
   nodoPadre,
@@ -45,6 +48,10 @@ import type { ContextoNivel } from './panelesPortales';
 import { pintarAncla, renderNivelRaiz, roomDeCache } from './nivelRaizPortales';
 import { sincronizarBarraComandos } from './barraComandosPortales';
 import { pintarEditorDivisiones } from './editorDivisionesPortales';
+// PLANO VECTORIAL DEL ESPACIO ACTIVO (cuadrante izquierdo): al ingresar a un
+// mueble/espacio con subdivisiones internas dibuja la silueta de CADA una
+// (dropzones receptoras del arrastre del panel derecho + portales de descenso).
+import { pintarPlanoSubdivisiones } from './planoSubdivisionesActivo';
 // PANEL DE CONTENIDO DEL ESPACIO FINAL: reemplaza al lienzo/mapa 2D en los
 // niveles terminales (Estantes, Cajones, Cajas) con tarjetas + zona de suelta.
 import { conectarPanelEspacioFinal, panelEspacioFinalHtml } from './panelEspacioFinal';
@@ -61,6 +68,13 @@ import { pintarMinimapasNiveles } from './minimapasAnidadosContexto';
 let interiorActual: InteriorNodo | null = null;
 /** Aviso anticolisión: evita re-entradas cuando un refresco dispara eventos. */
 let refrescando = false;
+/**
+ * REPINTADO DIFERIDO: si un refresco (navegación, latido de cambios o vuelta de
+ * nivel) llega mientras otro está en vuelo, se marca esta bandera y se ejecuta UNA
+ * pasada más al terminar. Sin esto, una navegación encolada durante un refresco
+ * actualizaba la pila pero la pantalla quedaba con el nivel anterior.
+ */
+let refrescoPendiente = false;
 /** Firma del último nivel pintado (profundidad + nodo activo + planta). */
 let firmaNivel = '';
 
@@ -187,8 +201,9 @@ function syncBotones(): void {
  * abre su interior. Si el nodo ya está activo sólo se refresca (sin duplicar).
  */
 export async function portalANodo(nodo: NodoPortal): Promise<void> {
-  const actual = nodoActual();
-  if (!actual || actual.id !== nodo.id) empujarNodo(nodo);
+  // IDENTIDAD ESTRICTA: se compara SIEMPRE el UUID real del espacio activo.
+  const activoId = espacioIdActivo();
+  if (!activoId || activoId !== String(nodo.id)) empujarNodo(nodo);
   await refrescarNivel();
 }
 
@@ -196,8 +211,18 @@ export async function portalANodo(nodo: NodoPortal): Promise<void> {
  * LEY 2 · SELECCIÓN IN-PLACE: el elemento pulsado vive en el plano del CONTENEDOR
  * (mismo padre que el tope de la pila). Se REEMPLAZA el tope (no se empuja nivel)
  * para que el ancla izquierda quede QUIETA y sólo cambie el interior de la derecha.
+ *
+ * RESET DE SUB-ESPACIOS: el nodo saliente se descarta entero (no se reutiliza su
+ * `hijos` ni su sondeo de subdivisiones) → un espacio hermano jamás arrastra los
+ * datos del anterior.
  */
 export async function seleccionarNodo(nodo: NodoPortal): Promise<void> {
+  const activoId = espacioIdActivo();
+  if (activoId && activoId === String(nodo.id)) {
+    // Ya es el espacio activo: no se desapila ni se duplica; sólo se refresca.
+    await refrescarNivel();
+    return;
+  }
   if (profundidad() > 0) desapilarHasta(profundidad() - 1);
   await portalANodo(nodo);
 }
@@ -235,6 +260,8 @@ export async function volverARaiz(): Promise<void> {
   interiorActual = null;
   await renderNivelRaiz();
   transicionar();
+  // Sin espacio activo no hay subdivisiones que dibujar en la izquierda.
+  pintarPlanoSubdivisiones(null, null);
 }
 
 // -----------------------------------------------------------------------------
@@ -277,37 +304,86 @@ function iniciarPanelEspacioFinal(nodo: NodoPortal, interior: InteriorNodo): voi
 }
 
 /**
+ * Resuelve un nodo de la pila contra el padrón VIGENTE.
+ *
+ * REGLA ESTRICTA DE IDENTIDAD: el nodo se busca por su UUID real (el MISMO que
+ * recibió el handler de navegación por `data-id`/`data-portal-abrir`). Si ya no
+ * existe se devuelve `null`: NUNCA se cae a otro espacio por nombre, posición ni
+ * «primer elemento del listado».
+ */
+async function resolverNodoVigente(nodo: NodoPortal): Promise<NodoPortal | null> {
+  return nodo.tipo === 'habitacion' ? nodoDeHabitacion(nodo.id) : nodoDeContenedor(nodo.id);
+}
+
+/**
  * REFRESCO DEL NIVEL ACTIVO: re-resuelve el nodo SELECCIONADO contra el padrón,
  * dibuja el mapa del NIVEL SUPERIOR (el padre) en la izquierda con el
  * seleccionado en NARANJA, carga su interior jerárquico y repinta la derecha.
  * Conserva la pila (migas, geometría y profundidad).
  */
 export async function refrescarNivel(): Promise<void> {
-  if (refrescando) return;
+  if (refrescando) {
+    // Ya hay un refresco en vuelo: se pide UNA pasada más al terminar (nunca se
+    // pierde el repintado de una navegación que llegó en ese instante).
+    refrescoPendiente = true;
+    return;
+  }
   // VIEWPORT CONGELADO: `refrescarNivel` se dispara con la respuesta de la API
   // (latido `estok:espacios-cambiados`) y repinta ambos paneles por innerHTML.
   // Se capturan scroll, foco y caret al entrar y se reponen al terminar, para
   // que el toast de éxito y el re-render no muevan la página ni un píxel (ni
   // expulsen al operador del campo que está editando).
   await conservarViewportAsync(refrescarNivelInterno);
+  // REPINTADO DIFERIDO (máx. 3 pasadas): se ejecuta con el estado DEFINITIVO de
+  // la pila, así el nivel mostrado y el espacio activo nunca divergen.
+  for (let pasada = 0; refrescoPendiente && pasada < 3; pasada++) {
+    refrescoPendiente = false;
+    await conservarViewportAsync(refrescarNivelInterno);
+  }
+  refrescoPendiente = false;
 }
 
 async function refrescarNivelInterno(): Promise<void> {
   refrescando = true;
   try {
-    const nodo = nodoActual();
+    // 0) DEPURACIÓN DE LA PILA: un nodo jamás es padre de sí mismo. Si una doble
+    //    navegación empujó dos veces el mismo ID, se descarta el duplicado para
+    //    que la izquierda (padre) y la derecha (activo) no muestren el mismo mapa.
+    depurarPila();
+    // El INTERIOR del nivel anterior NO sobrevive a un cambio de nivel: se
+    // re-resuelve siempre desde el padrón (nunca se arrastra el del espacio previo).
+    interiorActual = null;
+    let nodo = nodoActual();
     if (!nodo) {
       await renderNivelRaiz();
       transicionar();
+      pintarPlanoSubdivisiones(null, null);
       return;
     }
-    // 1) El nodo se re-resuelve contra el padrón (pudo cambiar su estado de
-    //    «Espacio Final», sumar hijos o ser eliminado) sin perder sus migas ni
-    //    su geometría.
-    const fresco =
-      nodo.tipo === 'habitacion' ? await nodoDeHabitacion(nodo.id) : await nodoDeContenedor(nodo.id);
+    // 1) El nodo se re-resuelve contra el padrón por su ID REAL (pudo cambiar su
+    //    estado de «Espacio Final», sumar hijos o ser eliminado) sin perder sus
+    //    migas ni su geometría.
+    let fresco = await resolverNodoVigente(nodo);
+    if (!fresco) {
+      // El espacio abierto ya no existe: la cascada sube UN nivel y repinta ese
+      // contexto. Jamás se muestran datos de un espacio fantasma.
+      desapilarHasta(profundidad() - 1);
+      nodo = nodoActual();
+      fresco = nodo ? await resolverNodoVigente(nodo) : null;
+      if (!nodo || !fresco) {
+        // Tampoco hay un nivel superior resoluble: se vuelve a la raíz.
+        limpiarRuta();
+        await renderNivelRaiz();
+        transicionar();
+        pintarPlanoSubdivisiones(null, null);
+        return;
+      }
+    }
     if (fresco) {
-      fresco.hijos = nodo.hijos;
+      // RESET DE SUB-ESPACIOS: los hijos y el sondeo arquitectónico se descartan
+      // (se recalculan en el paso 2 desde el interior de ESTE nodo). Así un
+      // espacio hermano nunca hereda las subdivisiones del espacio anterior.
+      limpiarDerivados(fresco);
       fresco.celda = nodo.celda;
       reemplazarNodoActual(fresco);
     }
@@ -338,8 +414,13 @@ async function refrescarNivelInterno(): Promise<void> {
     const actual = nodoActual() ?? activo;
     await pintarNivel(actual, interiorActual);
     transicionar();
+    // 4-bis) PLANO DEL ESPACIO ACTIVO en el CUADRANTE IZQUIERDO: si el espacio que
+    //      acaba de abrirse tiene subdivisiones internas (ej. las 4 de «Armario
+    //      Espejo») se dibujan sus siluetas vectoriales, cada una receptora del
+    //      arrastre del panel derecho y portal de descenso a su interior.
+    pintarPlanoSubdivisiones(actual, interiorActual);
     resaltarSeleccionIzquierda(actual.id);
-    // 4-bis) El Visor de Habitación (cuando oficia de ancla) destaca la silueta
+    // 4-ter) El Visor de Habitación (cuando oficia de ancla) destaca la silueta
     //     elegida en NARANJA. El cuadrante izquierdo NO pinta fichas de texto:
     //     es el MINIMAPA gráfico del nivel superior (ver transicionar).
     if (paneles.izquierdo === 'visorHabitacion') {

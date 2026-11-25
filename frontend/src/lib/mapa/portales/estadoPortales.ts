@@ -170,6 +170,53 @@ export function migas(): NodoPortal[] {
 }
 
 /**
+ * ID REAL DEL ESPACIO ACTIVO («espacio_id_activo»).
+ *
+ * Fuente ÚNICA del identificador del espacio abierto: es SIEMPRE el UUID del tope
+ * de la pila (Ubicación o Contenedor), nunca un índice, un nombre ni un valor por
+ * defecto. Los handlers de navegación lo consultan para descartar descensos
+ * repetidos y para verificar que el nodo resuelto sea el que el operador tocó.
+ */
+export function espacioIdActivo(): string | null {
+  const actual = nodoActual();
+  return actual ? String(actual.id) : null;
+}
+
+/**
+ * LIMPIEZA DE DATOS DERIVADOS de un nodo: los hijos (`hijos`) y el sondeo de
+ * sub-espacios arquitectónicos (`subEspaciosArquitectonicos`) SIEMPRE se calculan
+ * desde el interior real del propio nodo en `refrescarNivel()`. Al cambiar de
+ * espacio (hermano, padre o hijo) se descartan para que NUNCA viajen las
+ * subdivisiones del espacio anterior a la ficha del nuevo.
+ */
+export function limpiarDerivados(nodo: NodoPortal | null): void {
+  if (!nodo) return;
+  nodo.hijos = [];
+  nodo.subEspaciosArquitectonicos = undefined;
+}
+
+/**
+ * DEPURACIÓN DE LA PILA: un nodo no puede ser padre de sí mismo.
+ *
+ * Si dos navegaciones concurrentes (el evento del visor + la delegación del clic,
+ * un doble toque, el enlace profundo) empujan el MISMO id dos veces, el cuadrante
+ * izquierdo (padre = mismo id) y el derecho (activo) dibujarían el mismo mapa y
+ * el estado de hijos se arrastraría de un nivel al otro. Se descarta el tope
+ * duplicado. Devuelve `true` cuando la pila cambió.
+ */
+export function depurarPila(): boolean {
+  let cambio = false;
+  while (estadoPortales.ruta.length >= 2) {
+    const tope = estadoPortales.ruta[estadoPortales.ruta.length - 1];
+    const previo = estadoPortales.ruta[estadoPortales.ruta.length - 2];
+    if (String(tope.id) !== String(previo.id)) break;
+    estadoPortales.ruta.splice(estadoPortales.ruta.length - 2, 1);
+    cambio = true;
+  }
+  return cambio;
+}
+
+/**
  * 🧱 DISYUNTOR «ESPACIO FINAL» (AUTORIDAD ÚNICA del nivel terminal).
  *
  * Un nodo es Espacio Final cuando YA NO se modela arquitectónicamente:

@@ -988,8 +988,21 @@ export function initVisorContenedorGrande(opts: { contenedor?: HTMLElement | nul
   // cuando cargar() reciba los muebles, render() abrirá el detalle solicitado.
   window.addEventListener('estok:mueble-seleccionado', (e) => {
     if (!roomActual) return;
-    const detalle = (e as CustomEvent<{ id?: string | null }>).detail ?? {};
+    const detalle = (e as CustomEvent<{ id?: string | null; esContextoAncla?: boolean }>).detail ?? {};
+    // Un PINTADO DEL ANCLA no re-renderiza por acá (lo hace el evento de
+    // destaque de abajo): evita un doble render por la misma transición.
+    if (detalle.esContextoAncla) return;
     muebleActivoId = detalle?.id ?? null;
+    render();
+  });
+  // DESTAQUE DEL ANCLA IZQUIERDA (`pintarAncla` → cuadrante `grillaNodo`): la
+  // cascada publica el ID REAL del mueble SUPERIOR que debe dibujar la sub-grilla
+  // con el hijo activo en naranja. Es SÓLO un pintado: no navega ni desapila.
+  window.addEventListener('estok:mueble-destacado', (e) => {
+    const detalle = (e as CustomEvent<{ id?: string | null; esContextoAncla?: boolean }>).detail ?? {};
+    if (!detalle.esContextoAncla || !roomActual) return;
+    if (String(detalle.id ?? '') === String(muebleActivoId ?? '')) return;
+    muebleActivoId = detalle.id ?? null;
     render();
   });
   window.addEventListener('estok:espacios-cambiados', () => {

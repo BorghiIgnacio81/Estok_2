@@ -150,6 +150,13 @@ import { ASSET_CAJA } from '../lib/assetsUi';
                  toque (data-minimapa-nivel → portalesEnlaces.ts). En la raíz
                  queda oculto. El host es el COMPONENTE GLOBAL (formato cadena). -->
             <MinimapaRuta id="minimapasAnidados" class="hidden flex flex-row items-center gap-2 overflow-x-auto pb-1" />
+            <!-- PLANO DEL ESPACIO ACTIVO (cuadrante izquierdo): al ingresar a un
+                 mueble/espacio con subdivisiones internas (ej. las 4 subdivisiones
+                 de «Armario Espejo») este host dibuja la silueta vectorial de CADA
+                 una. Cada silueta es Dropzone receptora del arrastre del panel
+                 derecho y portal de descenso a su interior (clic). Lo gobierna
+                 lib/mapa/portales/planoSubdivisionesActivo.ts. -->
+            <div id="planoSubdivisionesPanel" class="hidden mt-1 min-w-0"></div>
             <!-- SIN FICHA DE TEXTO EN EL CONTEXTO: la ficha con migas de pan
                  escritas («Living › Ropero › Caja 01») y listas de atributos ya
                  no se pinta. Los NOMBRES de los espacios/habitaciones siguen

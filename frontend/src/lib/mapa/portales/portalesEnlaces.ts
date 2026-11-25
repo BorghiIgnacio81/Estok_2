@@ -24,12 +24,17 @@ import { el, slotDer, slotIzq } from './domPortales';
 import {
   desapilarHasta,
   esEspacioFinal,
+  espacioIdActivo,
   fijarPlanta,
   limpiarRuta,
   nodoActual,
   profundidad,
 } from './estadoPortales';
 import type { NodoPortal } from './estadoPortales';
+import { HOSTS } from './panelesPortales';
+// COLA ÚNICA DE NAVEGACIÓN: serializa los descensos y espera a que la pantalla
+// deje de refrescarse (ver lib/mapa/portales/navegacionCola.ts).
+import { enColaNavegacion, esperarSinRefresco } from './navegacionCola';
 import {
   estaRefrescando,
   interiorDelNivel,
@@ -66,8 +71,11 @@ async function nodoDelPortal(id: string, tipo: string): Promise<NodoPortal | nul
  * NARANJA y la derecha avanza al interior jerárquico del nodo.
  */
 async function descenderDesdeDerecha(id: string, tipo: string): Promise<void> {
-  if (estaRefrescando()) return;
+  if (!id) return;
+  await esperarSinRefresco();
   const nodo = await nodoDelPortal(id, tipo);
+  // IDENTIDAD ESTRICTA: si el padrón no tiene ESE id, no hay navegación. Nunca se
+  // sustituye por otro espacio (ni por el primero del listado).
   if (nodo) await portalANodo(nodo);
 }
 
@@ -77,7 +85,13 @@ async function descenderDesdeDerecha(id: string, tipo: string): Promise<void> {
  * ESE nodo (sin bajar de nivel el ancla izquierda).
  */
 async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
-  if (estaRefrescando()) return;
+  if (!id) return;
+  await esperarSinRefresco();
+  // Tocar el espacio que ya está abierto no desapila ni duplica: sólo refresca.
+  if (espacioIdActivo() === String(id)) {
+    await refrescarNivel();
+    return;
+  }
   const nodo = await nodoDelPortal(id, tipo);
   if (nodo) await seleccionarNodo(nodo);
 }
@@ -138,24 +152,44 @@ function conectarPortalesPorDelegacion(): void {
     const objetivo = ev.target as HTMLElement | null;
     const carta = objetivo?.closest<HTMLElement>('[data-portal-abrir]');
     if (carta) {
-      void descenderDesdeDerecha(carta.dataset.portalAbrir ?? '', carta.dataset.portalTipo ?? 'contenedor');
+      const id = carta.dataset.portalAbrir ?? '';
+      const tipo = carta.dataset.portalTipo ?? 'contenedor';
+      enColaNavegacion(() => descenderDesdeDerecha(id, tipo));
       return;
     }
     // LEY 2 · El EDITOR ELÁSTICO del cuarto (derecha): en modo NAVEGACIÓN cada
     // silueta es un portal que baja al interior jerárquico de esa división.
     const idEditor = contenedorDeEditor(objetivo);
-    if (idEditor) void descenderDesdeDerecha(idEditor, 'contenedor');
+    if (idEditor) enColaNavegacion(() => descenderDesdeDerecha(idEditor, 'contenedor'));
   });
   // LEY 2 · SALTO ÁGIL INTER-ESPACIOS: el Panel Izquierdo (ancla) es INTERACTIVO.
   // Un clic directo sobre la silueta/tarjeta de un VECINO visible en el mapa de la
   // izquierda dispara un SALTO RÁPIDO IN-PLACE: el vecino se repinta en NARANJA a
   // la izquierda y la derecha muta al instante a su interior fino, SIN obligar al
   // operador a retroceder de nivel con «⬅ Volver».
-  slotIzq()?.addEventListener('click', (ev) => {
+  //
+  // EXCEPCIÓN · PLANO DEL ESPACIO ACTIVO: las siluetas del bloque
+  // `#planoSubdivisionesPanel` son HIJAS del espacio abierto (no vecinas del
+  // padre). Tocarlas DESCIENDE a su interior (`data-portal-abrir` + id real).
+  const accionEnIzquierda = (objetivo: HTMLElement | null): void => {
     if (modoLienzoActual() !== 'navegacion') return;
-    const destino = vecinoDelAncla(ev.target as HTMLElement | null);
+    const destino = vecinoDelAncla(objetivo);
     if (!destino) return;
-    void seleccionarEnIzquierda(destino.id, destino.tipo);
+    const esHijaDelActivo = Boolean(objetivo?.closest(`#${HOSTS.planoSubdivisiones}`));
+    enColaNavegacion(() =>
+      esHijaDelActivo
+        ? descenderDesdeDerecha(destino.id, destino.tipo)
+        : seleccionarEnIzquierda(destino.id, destino.tipo),
+    );
+  };
+  slotIzq()?.addEventListener('click', (ev) => {
+    accionEnIzquierda(ev.target as HTMLElement | null);
+  });
+  // Accesibilidad: las siluetas del plano (role="button" tabindex="0") también
+  // navegan con Enter / Espacio, igual que las tarjetas del panel derecho.
+  slotIzq()?.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    accionEnIzquierda(ev.target as HTMLElement | null);
   });
   // ESTADO DE ESPERA INICIAL: la tarjeta de PLANTA del Panel Derecho elige esa
   // planta → el orquestador del lienzo sube de nivel (planta fija a la
@@ -248,7 +282,7 @@ function destinoCiegoDe(): DestinoCiego | null {
 /** «📦 Organizar Contenido»: entra al primer espacio del cuarto activo. */
 function organizarContenido(): void {
   const primera = interiorDelNivel()?.piezas[0];
-  if (primera) void portalANodo(primera);
+  if (primera) enColaNavegacion(() => portalANodo(primera));
 }
 
 // -----------------------------------------------------------------------------
@@ -302,10 +336,28 @@ function vigilarOrigenDelClic(): void {
   );
 }
 
+/**
+ * ¿El evento nace en el ancla (pintado del plano del nivel superior) o en un gesto
+ * del operador? Los pintados del ancla NO navegan: sólo alimentan a los visores
+ * para que dibujen su nivel con el ID REAL del nodo superior.
+ */
+function esPintadoDeAncla(detalle: { esContextoAncla?: boolean }): boolean {
+  return detalle?.esContextoAncla === true;
+}
+
 function alSeleccionarHabitacion(e: Event): void {
-  if (estaRefrescando()) return;
-  const room = (e as CustomEvent<{ room: UbicacionPlano | null }>).detail?.room ?? null;
-  void (async () => {
+  const detalle =
+    (e as CustomEvent<{ room: UbicacionPlano | null; esContextoAncla?: boolean }>).detail ??
+    ({} as never);
+  // PINTADO DEL ANCLA (pintarAncla → visorHabitacion): jamás re-navega la cascada.
+  if (esPintadoDeAncla(detalle)) return;
+  const room = detalle.room ?? null;
+  // ORIGEN CONGELADO: se lee ANTES de cualquier await; si se consultara después,
+  // el flag ya se habría reseteado (setTimeout 0) y un clic del ancla se
+  // interpretaría como un DESCENSO, duplicando el nivel.
+  const desdeIzquierda = clicEnIzquierda;
+  enColaNavegacion(async () => {
+    await esperarSinRefresco();
     if (!room) {
       limpiarRuta();
       await refrescarNivel();
@@ -313,27 +365,32 @@ function alSeleccionarHabitacion(e: Event): void {
     }
     const nodo = await nodoDeHabitacion(String(room.id));
     if (!nodo) return;
-    await (clicEnIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
-  })();
+    await (desdeIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
+  });
 }
 
 function alSeleccionarMueble(e: Event): void {
-  if (estaRefrescando()) return;
-  const detalle = (e as CustomEvent<{ id?: string | null; nombre?: string }>).detail ?? {};
+  const detalle =
+    (e as CustomEvent<{ id?: string | null; nombre?: string; esContextoAncla?: boolean }>).detail ?? {};
+  // PINTADO DEL ANCLA: identifica el espacio a dibujar/resaltar, nunca navega.
+  if (esPintadoDeAncla(detalle)) return;
   const id = detalle.id ?? null;
-  if (!id) {
-    // «← Ver todos los muebles»: se vuelve al nivel de la habitación.
-    desapilarHasta(1);
-    void refrescarNivel();
-    return;
-  }
-  if (profundidad() === 0) return;
-  void (async () => {
-    const nodo = await nodoDeContenedor(id);
+  const desdeIzquierda = clicEnIzquierda;
+  enColaNavegacion(async () => {
+    await esperarSinRefresco();
+    if (!id) {
+      // «← Ver todos los muebles»: se vuelve al nivel de la habitación.
+      desapilarHasta(1);
+      await refrescarNivel();
+      return;
+    }
+    if (profundidad() === 0) return;
+    // IDENTIDAD ESTRICTA: el nodo se resuelve por el ID REAL del espacio tocado.
+    const nodo = await nodoDeContenedor(String(id));
     if (!nodo) return;
     if (detalle.nombre) nodo.nombre = detalle.nombre;
-    await (clicEnIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
-  })();
+    await (desdeIzquierda ? seleccionarNodo(nodo) : portalANodo(nodo));
+  });
 }
 
 /** Temporizador único de refrescos diferidos por gesto activo. */
@@ -394,7 +451,7 @@ function conectarTiraMinimapas(): void {
     if (!miga) return;
     ev.preventDefault();
     ev.stopPropagation();
-    void navegarAMiga(Number(miga.dataset.minimapaNivel));
+    enColaNavegacion(() => navegarAMiga(Number(miga.dataset.minimapaNivel)));
   };
   host.addEventListener('click', navegar);
   host.addEventListener('keydown', (ev) => {

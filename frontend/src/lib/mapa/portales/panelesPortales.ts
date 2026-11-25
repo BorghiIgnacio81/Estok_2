@@ -247,6 +247,15 @@ export const HOSTS = {
   visorHabitacion: 'visorHabitacion',
   /** Superior = CONTENEDOR: Visor Contenedor Grande histórico (sub-grilla interna). */
   grillaNodo: 'visorContenedorGrande',
+  /**
+   * PLANO DEL ESPACIO ACTIVO: cuando el nodo activo tiene subdivisiones internas
+   * (ej. «Armario Espejo» con sus 4 estantes), la IZQUIERDA dibuja las siluetas
+   * vectoriales de cada subdivisión (dropzones receptoras + portales de descenso).
+   * Es un host EXTRA de la izquierda (convive con el plano del nivel superior), NO
+   * un panel del tipo `PanelIzquierdo`: lo pinta
+   * lib/mapa/portales/planoSubdivisionesActivo.ts en cada transición de nivel.
+   */
+  planoSubdivisiones: 'planoSubdivisionesPanel',
   // ── DERECHA (EXPLORADOR: interior del nodo ACTIVO) ──
   /** Espera raíz (sin planta): un mini-mapa por planta (host DEDICADO). */
   plantasEnEspera: 'listaPlantasPanel',
