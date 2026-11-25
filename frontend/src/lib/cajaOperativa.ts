@@ -69,10 +69,14 @@ export interface AccionesCajaOpts {
 }
 
 // ------------ 2. FILA DE ACCIONES (siempre visible, fuera del <details>) -----
-/** Fila "Mover"/"Editar"/"Eliminar": los metadatos viajan como `data-*`. */
-export function filaAccionesCajaHtml(caja: CajaOperable, opts: AccionesCajaOpts = {}): string {
-  const mostrarMover = opts.mostrarMover !== false;
-  const attrs = [
+/**
+ * Atributos `data-*` que consumen los botones `.js-mover-caja`, `.js-editar-caja`
+ * y `.js-eliminar-caja` (ver `cajaDesdeBoton`). FUENTE ÚNICA del contrato: la
+ * fila de acciones de las tarjetas y el menú rápido de la lista móvil de
+ * /objetos (lib/objetos/movil) los generan con esta misma función.
+ */
+export function atributosCajaHtml(caja: CajaOperable): string {
+  return [
     'data-id="' + escapeHtml(caja.id) + '"',
     'data-nombre="' + escapeHtml(caja.nombre) + '"',
     'data-descripcion="' + escapeHtml(caja.descripcion || '') + '"',
@@ -88,6 +92,13 @@ export function filaAccionesCajaHtml(caja: CajaOperable, opts: AccionesCajaOpts 
     'data-esta-llena="' + (caja.esta_llena ? '1' : '0') + '"',
     'data-cantidad-lote="' + escapeHtml(caja.cantidad_objetos_lote ?? '') + '"',
   ].join(' ');
+}
+
+/** Fila "Mover"/"Editar"/"Eliminar": los metadatos viajan como `data-*`. */
+export function filaAccionesCajaHtml(caja: CajaOperable, opts: AccionesCajaOpts = {}): string {
+  const mostrarMover = opts.mostrarMover !== false;
+  const attrs = atributosCajaHtml(caja);
+
   const base =
     'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-base cursor-pointer';
 

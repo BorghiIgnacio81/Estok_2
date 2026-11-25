@@ -30,7 +30,6 @@ import { initCajaOperativa } from './cajaOperativa';
 // TOGGLE RÁPIDO «CAJA LLENA»: el badge de cada tarjeta (SECCIÓN 1) alterna el
 // estado con un PATCH parcial, sin abrir el modal de edición.
 import { initCajaLlenaToggle } from './cajaLlenaToggle';
-import { esc } from './listadoObjetosRender';
 import type { PayloadArbol } from './listadoObjetosRender';
 // CAPA DE VISTA (DOM) del inventario en cascada: refs, secciones y volcado del
 // payload. Se extrajo para sostener el límite de 400 líneas por archivo de UI.
@@ -53,6 +52,14 @@ import {
 // FILTRO DE ESTADO DE CAJAS (Todas · Con espacio disponible · Llenas / Lotes):
 // el tipo y la regla viven en la fuente única de badges (cajaEstadoBadge.ts).
 import type { FiltroEstadoCaja } from './cajaEstadoBadge';
+// VISTA MÓVIL (< md): barra de filtros en cascada, píldoras acumulables y
+// lista compacta de detalles con minifoto. Se alimenta con el MISMO payload
+// del árbol; en pantallas grandes queda oculta (md:hidden en su markup).
+import {
+  actualizarListaObjetosMovil,
+  initListaObjetosMovil,
+  limpiarFiltrosMovil,
+} from './objetos/movil/listaObjetosMovil';
 
 // Re-export del contrato del payload para consumidores externos.
 export type { ObjetoArbol, NodoContenedor, GrupoEstructura, PayloadArbol } from './listadoObjetosRender';
@@ -133,6 +140,9 @@ async function cargar(): Promise<void> {
         estadoCaja: leerFiltroEstadoCaja(),
       });
     }
+    // VISTA MÓVIL: el mismo payload alimenta la lista compacta con minifoto
+    // (no-op si la pantalla no renderiza el bloque móvil).
+    actualizarListaObjetosMovil(recorte.payload);
   } catch (err: any) {
     if (errorMsgEl) {
       errorMsgEl.textContent = err && err.message
@@ -175,6 +185,7 @@ function repintarConFiltroUbicacion(): void {
     filtroUbicacionActivo: recorte.activo,
     estadoCaja: leerFiltroEstadoCaja(),
   });
+  actualizarListaObjetosMovil(recorte.payload);
 }
 
 /**
@@ -190,47 +201,21 @@ function limpiarFiltros(): void {
   if (filtroEstadoCaja) filtroEstadoCaja.value = '';
   limpiarFiltroUbicacion();
   if (searchInput) searchInput.value = '';
+  // La vista móvil (oculta en ≥ md) comparte el mismo inventario: su barra en
+  // cascada se blanquea junto con la botonera del escritorio.
+  limpiarFiltrosMovil();
   filtros.decision = '';
   filtros.categoria = '';
   filtros.publicado_ml = '';
   void cargar();
 }
 
-async function cargarCategoriasFiltros(): Promise<void> {
-  if (!filtroCategoria) return;
-  try {
-    const res = await fetch(API_BASE_URL + '/categorias/', { headers: getAuthHeaders() });
-    if (!res.ok) return;
-    const data = await res.json();
-    const categorias: Array<{ id: string; nombre: string; icono?: string }> = data.results || data || [];
-    let html = '<option value="">Todas</option>';
-    for (const c of categorias) {
-      html += '<option value="' + esc(c.id) + '">' + esc(c.icono || '🏷️') + ' ' + esc(c.nombre) + '</option>';
-    }
-    filtroCategoria.innerHTML = html;
-  } catch {
-    // El árbol se carga igual sin el desplegable de categorías.
-  }
-}
-
-/**
- * Inserta EN CALIENTE la categoría recién creada en el combobox de filtros, SIN
- * recargar la página (elimina el F5 manual). El modal CategoriaCreator dispara el
- * evento `categoriaCreada` tras el 201/200 del backend; acá se refleja al toque en
- * el DOM del <select>. Si la opción ya existiera, no se duplica.
- */
-function agregarCategoriaAlFiltro(
-  categoria: { id?: string; nombre?: string; icono?: string } | null,
-): void {
-  if (!filtroCategoria || !categoria || !categoria.id || !categoria.nombre) return;
-  const id = String(categoria.id);
-  const yaExiste = Array.from(filtroCategoria.options).some((opt) => opt.value === id);
-  if (yaExiste) return;
-  const opt = document.createElement('option');
-  opt.value = id;
-  opt.textContent = (categoria.icono || '🏷️') + ' ' + String(categoria.nombre);
-  filtroCategoria.appendChild(opt);
-}
+// COMBOBOX DE CATEGORÍAS (poblado + refresco en caliente desde el modal
+// «Nueva Categoría»): capa propia para no engordar este controlador.
+import {
+  agregarCategoriaFiltro,
+  cargarCategoriasFiltro,
+} from './categoriasFiltroObjetos';
 
 // ---------------------------------------------------------------------------
 // Eliminación de objetos sueltos (soft delete vía API)
@@ -325,6 +310,12 @@ export function initListadoJerarquicoObjetos(): void {
   // las tarjetas que el listado re-inyecta en caliente con cada filtro/recarga.
   initRutaGeograficaDespliegue();
 
+  // VISTA MÓVIL (< md): barra de filtros en cascada + píldoras acumulables +
+  // lista compacta de detalles con minifoto. Su «Limpiar filtros» también
+  // blanquea los filtros del escritorio y recarga el árbol, así ambas vistas
+  // quedan siempre consistentes (una sola consulta).
+  initListaObjetosMovil({ alLimpiarFiltros: limpiarFiltros });
+
   loadingEl = document.getElementById('loadingState');
   errorEl = document.getElementById('errorState');
   errorMsgEl = document.getElementById('errorMessage');
@@ -355,7 +346,7 @@ export function initListadoJerarquicoObjetos(): void {
   // `categoriaCreada` inyecta la opción en caliente en el <select> de filtros,
   // sin recargar la página ni exigir un F5 manual.
   window.addEventListener('categoriaCreada', (event) => {
-    agregarCategoriaAlFiltro((event as CustomEvent).detail);
+    agregarCategoriaFiltro(filtroCategoria, (event as CustomEvent).detail);
   });
 
   // BAJA REACTIVA: al eliminar una categoría desde el gestor del modal
@@ -389,7 +380,7 @@ export function initListadoJerarquicoObjetos(): void {
   const catId = params.get('categoria_id');
 
   if (catId) {
-    Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => {
+    Promise.all([contextoRuta, cargarCategoriasFiltro(filtroCategoria)]).then(() => {
       const existe = filtroCategoria ? Array.from(filtroCategoria.options).some((opt) => opt.value === catId) : false;
       if (existe && filtroCategoria) {
         filtroCategoria.value = catId;
@@ -399,7 +390,7 @@ export function initListadoJerarquicoObjetos(): void {
       }
     });
   } else {
-    Promise.all([contextoRuta, cargarCategoriasFiltros()]).then(() => void cargar());
+    Promise.all([contextoRuta, cargarCategoriasFiltro(filtroCategoria)]).then(() => void cargar());
   }
 }
 

@@ -61,14 +61,20 @@ export interface PayloadArbol {
 
 const MAX_OBJETOS_POR_NIVEL = 60;
 
-const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {
+/**
+ * Etiquetas visibles de la DECISIÓN del dueño (`owner_action`).
+ * Se exporta como fuente ÚNICA: la consumen los chips del listado y las
+ * opciones de la barra de filtros en cascada de la vista móvil.
+ */
+export const ETIQUETA_DECISION: Record<string, { texto: string; clase: string }> = {
   vender: { texto: 'Vender', clase: 'bg-green-100 text-green-800' },
   conservar: { texto: 'Conservar', clase: 'bg-blue-100 text-blue-800' },
   tirar: { texto: 'Tirar', clase: 'bg-red-100 text-red-800' },
   mudar: { texto: 'Mudar', clase: 'bg-purple-100 text-purple-800' },
 };
 
-const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
+/** Etiquetas visibles del ESTADO DE CONSERVACIÓN (fuente única, ver arriba). */
+export const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
   excelente: { texto: 'Excelente', clase: 'bg-emerald-100 text-emerald-800' },
   bueno: { texto: 'Bueno', clase: 'bg-blue-100 text-blue-800' },
   regular: { texto: 'Regular', clase: 'bg-amber-100 text-amber-800' },

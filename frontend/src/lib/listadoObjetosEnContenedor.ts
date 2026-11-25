@@ -42,8 +42,13 @@ export interface ObjetoEnContenedor {
   contenedor_etiqueta?: string | null;
 }
 
-/** Insignia por naturaleza del contenedor (espejo del backend). */
-const ICONO_CONTENEDOR: Record<string, string> = {
+/**
+ * Insignia por naturaleza del contenedor (espejo del backend).
+ *
+ * Se exporta como fuente ÚNICA: la usan las tarjetas de la sección «Objetos en
+ * Contenedor» y los renglones de la lista móvil de /objetos.
+ */
+export const ICONO_CONTENEDOR: Record<string, string> = {
   caja: '📦',
   mueble: '🗄️',
   espacio: '🧩',
