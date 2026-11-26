@@ -36,6 +36,8 @@ import type { NodoPortal } from './estadoPortales';
 import type { InteriorNodo } from './datosNodosPortales';
 import { barraAccionesCajaHtml, conectarAccionesCaja } from './accionesCajaPortales';
 import { selectorPiezasHtml } from './contenidoInternoNodo';
+// «⛓️‍💥 Desvincular del espacio»: acción explícita sobre cada sub-espacio listado.
+import { conectarDesvinculacionTarjetas } from './desvincularSubespacio';
 import { grillaObjetosDirectosHtml, initGrillaObjetosDirectos } from './grillaObjetosDirectos';
 import { alternarEspacioFinal, alternarMuebleMovil } from './editorDivisionesPortales';
 
@@ -100,6 +102,9 @@ export function panelEspacioFinalHtml(nodo: NodoPortal, interior: InteriorNodo):
         // que repetirlo acá sería duplicar la misma frase en pantalla.
         titulo: '',
         arrastrables: true,
+        // Un CONTENEDOR puede alojar sub-espacios asignados por error: la fila
+        // expone «⛓️‍💥 Desvincular» para corregirlo sin borrar inventario.
+        permiteDesvincular: nodo.tipo === 'contenedor',
       })}
       ${piezas.length ? '' : `<p class="pfinal-vacio">${sinCajas}</p>`}
       ${grillaObjetosDirectosHtml(nodo, objetos)}
@@ -125,6 +130,8 @@ export function conectarPanelEspacioFinal(opts: {
   // tarjeta `data-caja-drop-pieza`; el motor aísla ambos receptores para que la
   // suelta sobre una tarjeta NO se replique en el espacio general.
   conectarAccionesCaja(host, nodo);
+  // Tarjetas de sub-espacios: «⛓️‍💥 Desvincular» (PUT parcial parent_contenedor=null).
+  conectarDesvinculacionTarjetas({ scope: host, padre: nodo });
 
   // Objetos sueltos: drop directo + origen de arrastre (payload `objeto`).
   initGrillaObjetosDirectos({

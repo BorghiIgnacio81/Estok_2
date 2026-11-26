@@ -32,6 +32,9 @@ import { conectarDropTarjetasLienzo } from './dropTarjetasLienzo';
 // contenedor se arrastra a otro espacio o a la bandeja de reubicación igual que
 // un objeto, sin botón «Poner en tránsito».
 import { conectarArrastreTarjetasLienzo } from './arrastreTarjetasLienzo';
+// «⛓️‍💥 Desvincular del espacio»: acción de las tarjetas del lienzo (módulo aparte
+// para sostener el límite de mantenibilidad de este orquestador).
+import { conectarDesvinculacionEnLienzo } from './desvinculacionTarjetasLienzo';
 
 export type { OpcionesPlantaUnica } from './plantaUnicaArrastre';
 
@@ -62,6 +65,7 @@ export function conectarLienzoElastico(opts: OpcionesPlantaUnica): void {
   conectarResizeLibre(opts);
   conectarSeleccionYFusion(opts);
   conectarEliminacionItems(opts);
+  conectarDesvinculacionEnLienzo(opts);
   conectarPerimetro(opts);
   // DESTINO DEL ARRASTRE (omnipresente en TODOS los niveles): cada tarjeta acepta
   // el bulto que se suelta encima y lo guarda DENTRO de ella. El recurso lo dicta

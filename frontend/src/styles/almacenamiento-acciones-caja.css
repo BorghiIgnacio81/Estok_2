@@ -284,6 +284,47 @@
   color: #f59e0b;
 }
 
+/* FILA de la lista: tarjeta-portal + acción explícita «⛓️‍💥 Desvincular».
+   La acción vive FUERA del botón de la tarjeta (nunca un botón dentro de otro):
+   así tocar la pieza abre su interior y tocar la cadena la desvincula. */
+.portal-pieza-fila {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.portal-pieza-fila .portal-pieza-item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.portal-pieza-desvincular {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #b45309;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.portal-pieza-desvincular:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.portal-pieza-desvincular:disabled {
+  opacity: 0.45;
+  cursor: progress;
+}
+
 /* Realce de la fila mientras un objeto de la bandeja está encima. */
 .portal-pieza-item.portal-caja-drop-activo {
   border-color: #ea580c;

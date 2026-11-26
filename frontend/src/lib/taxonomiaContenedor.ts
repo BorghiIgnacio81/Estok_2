@@ -387,6 +387,31 @@ export function esCajaDeInventario(pieza: PiezaConRotulo | null | undefined): bo
   return esCajaMovil({ tipo, es_inmueble: esInmueble }) || esNombreDeCaja(pieza.nombre);
 }
 
+/**
+ * CAJA DE CONTENIDO dentro del PLANO 2D de su padre (la que NO se dibuja como
+ * bloque arquitectónico).
+ *
+ * Es la variante de `esCajaDeInventario` que usa el lienzo de la HABITACIÓN, y
+ * resuelve el caso real de «Cama», «Repisas», «Zona Indoor» o «Setup PC»:
+ * contenedores que la taxonomía guarda como `tipo='CAJA'` pero que el operador
+ * MODELÓ con geometría propia (`ui_left/ui_top/ui_width/ui_height`) dentro del
+ * cuarto. Son ESPACIOS del plano, no bultos de contenido: si se ocultaran, el
+ * lienzo del cuarto mostraba únicamente el mueble restante («Armario espejo»)
+ * como si fuera un sub-espacio fantasma de cada uno de ellos.
+ *
+ * REGLA ESTRICTA:
+ *   1. Rótulo canónico «Caja…»/«Cajas…»  → CONTENIDO, siempre (aunque tenga
+ *      geometría heredada de una grilla: bug «Caja 06»).
+ *   2. CAJA sin geometría de plano        → CONTENIDO (bulto por ubicar).
+ *   3. CAJA con geometría modelada        → ARQUITECTURA (se dibuja).
+ *   4. Cualquier otro tipo (CONJUNTO / MUEBLE_*) → ARQUITECTURA.
+ */
+export function esCajaDeContenidoEnPlano(pieza: PiezaConRotulo | null | undefined): boolean {
+  if (!pieza) return false;
+  if (esNombreDeCaja(pieza.nombre)) return true;
+  return esCajaDeInventario(pieza) && !tieneGeometriaDePlano(pieza);
+}
+
 /** Campos mínimos para decidir si un Objeto es una caja/contenedor. */
 export interface ObjetoClasificable {
   es_contenedor?: boolean | null;

@@ -37,7 +37,7 @@ import { cargarInteriorDeNodo, datosDeNivelPlanta } from './datosNodosPortales';
 import { plantaIdAncla } from './nivelRaizPortales';
 // SEPARACIÓN ESTRICTA PLANO ⇄ CAJAS: la miniatura del cuarto dibuja sólo
 // arquitectura (divisiones y muebles); las cajas son CONTENIDO del inventario.
-import { esCajaDeInventario } from '../../taxonomiaContenedor';
+import { esCajaDeContenidoEnPlano } from '../../taxonomiaContenedor';
 
 /** Host ÚNICO de la tira (declarado por components/MinimapaRuta.astro). */
 export const HOST_MINIMAPAS_NIVELES = 'minimapasAnidados';
@@ -113,8 +113,21 @@ export async function resolverMinimapasNiveles(aspecto: number): Promise<NodoRut
         // (caché de portales) para descartarlas por identidad real.
         const interior = await cargarInteriorDeNodo(padre);
         if (!layout.length) layout = interior.geometriaHijos;
+        const geomPorId = new Map(layout.map((g) => [String(g.id), g]));
         const idsCajas = new Set(
-          interior.piezas.filter((p) => esCajaDeInventario(p)).map((p) => String(p.id)),
+          interior.piezas
+            .filter((p) => {
+              const g = geomPorId.get(String(p.id));
+              return esCajaDeContenidoEnPlano({
+                tipo: p.tipoFisico,
+                es_inmueble: p.esInmueble,
+                nombre: p.nombre,
+                ui_left: g?.ui_left ?? null,
+                ui_top: g?.ui_top ?? null,
+                ui_height: g?.ui_height ?? null,
+              });
+            })
+            .map((p) => String(p.id)),
         );
         layout = layout.filter((g) => g.id == null || !idsCajas.has(String(g.id)));
       } else if (!layout.length) {

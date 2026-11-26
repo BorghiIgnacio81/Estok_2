@@ -112,6 +112,31 @@ export async function fetchTodosPortales(url: string): Promise<Record<string, un
   return todos;
 }
 
+/**
+ * Igual que `fetchTodosPortales` pero informa si TODAS las páginas respondieron
+ * OK. Lo usa el pedido ESTRICTO de sub-espacios para distinguir «el espacio no
+ * tiene hijos» (lista vacía legítima) de «el endpoint no está disponible»
+ * (recurso desplegado en otro orden) y caer al padrón ya cacheado.
+ */
+async function fetchTodosPortalesConEstado(
+  url: string,
+): Promise<{ items: Record<string, unknown>[]; ok: boolean }> {
+  const items: Record<string, unknown>[] = [];
+  let siguiente: string | null = url;
+  while (siguiente) {
+    const res = await fetch(siguiente, { headers: getAuthHeaders() });
+    if (res.status === 401) {
+      window.location.href = '/login';
+      return { items, ok: false };
+    }
+    if (!res.ok) return { items, ok: false };
+    const data = await res.json();
+    items.push(...(data.results || data));
+    siguiente = normalizarUrlApi(data.next);
+  }
+  return { items, ok: true };
+}
+
 function texto(v: unknown): string | null {
   return v == null ? null : String(v);
 }
@@ -134,6 +159,11 @@ function enteroONull(v: unknown): number | null {
 let cacheUbicaciones: UbicacionPlano[] | null = null;
 let cacheContenedores: ContenedorDto[] | null = null;
 let cacheObjetos: ObjetoDto[] | null = null;
+/**
+ * SUB-ESPACIOS DIRECTOS ya pedidos a la API con filtrado estricto, indexados por
+ * el UUID del espacio padre. Evita repetir el GET en cada repintado del nivel.
+ */
+const cacheHijosPorEspacio = new Map<string, ContenedorDto[]>();
 
 function normalizarContenedor(c: Record<string, unknown>): ContenedorDto {
   const config = Array.isArray(c.grid_filas_config) ? (c.grid_filas_config as unknown[]) : null;
@@ -192,6 +222,7 @@ export function invalidarCachePortales(): void {
   cacheUbicaciones = null;
   cacheContenedores = null;
   cacheObjetos = null;
+  cacheHijosPorEspacio.clear();
 }
 
 /** Padrón de Ubicaciones del Estok activo (plantas + habitaciones). */
@@ -219,7 +250,8 @@ export async function cargarObjetos(): Promise<ObjetoDto[]> {
 }
 
 // -----------------------------------------------------------------------------
-// CONSULTAS DE JERARQUÍA (sobre la caché, cero N+1)
+// CONSULTAS DE JERARQUÍA
+// (caché del padrón del Estok + sub-espacios directos por API estricta)
 // -----------------------------------------------------------------------------
 
 /** Divisiones (plantas) del Estok activo, ordenadas por su fila del macro-plano. */
@@ -246,10 +278,40 @@ export async function contenedoresRaizDeUbicacion(ubicacionId: string): Promise<
   return conts.filter((c) => c.ubicacion === ubicacionId && !c.parent_contenedor);
 }
 
-/** Hijos DIRECTOS de un contenedor a cualquier profundidad. */
+/**
+ * SUB-ESPACIOS DIRECTOS de un espacio, pedidos a la API con FILTRADO ESTRICTO.
+ *
+ *   GET /api/espacios/?espacio_padre_id=<UUID del espacio activo>
+ *
+ * Contrato hermético: la respuesta es EXCLUSIVAMENTE la de los contenedores
+ * cuyo `parent_contenedor_id` coincide con el UUID pedido. Si el espacio todavía
+ * no tiene sub-espacios, la lista viene vacía y así se devuelve: NO existe
+ * fallback, mock ni «hijo por defecto» (jamás aparece un mueble de otro espacio).
+ *
+ * Se re-valida la relación en el cliente (`parent_contenedor === id`) para que
+ * ningún cambio de contrato del backend pueda colar un hijo ajeno.
+ */
+export async function cargarSubespaciosDeEspacio(espacioId: string): Promise<ContenedorDto[]> {
+  const id = String(espacioId ?? '').trim();
+  if (!id) return [];
+  const cacheados = cacheHijosPorEspacio.get(id);
+  if (cacheados) return cacheados;
+  const { items, ok } = await fetchTodosPortalesConEstado(
+    `${API_BASE_URL}/espacios/?espacio_padre_id=${encodeURIComponent(id)}&page_size=1000`,
+  );
+  // ENDPOINT NO DISPONIBLE (despliegue desfasado): se usa el padrón completo ya
+  // cacheado con la MISMA comparación exacta por UUID. Nunca un hijo por defecto.
+  const base = ok ? items : ((await cargarContenedores()) as unknown as Record<string, unknown>[]);
+  const hijos = base
+    .map(normalizarContenedor)
+    .filter((c) => c.parent_contenedor === id);
+  cacheHijosPorEspacio.set(id, hijos);
+  return hijos;
+}
+
+/** Hijos DIRECTOS de un contenedor a cualquier profundidad (filtro estricto). */
 export async function contenedoresHijosDe(padreId: string): Promise<ContenedorDto[]> {
-  const conts = await cargarContenedores();
-  return conts.filter((c) => c.parent_contenedor === padreId);
+  return cargarSubespaciosDeEspacio(padreId);
 }
 
 /** Objetos colgados DIRECTAMENTE de un contenedor (sin estante fino). */

@@ -62,6 +62,12 @@ export interface OpcionesPlantaUnica {
    * Sin este callback las tarjetas NO dibujan el botón (ver `permiteDuplicar`).
    */
   duplicarItem?: (item: ItemElastico, card: HTMLElement) => Promise<boolean>;
+  /**
+   * «Desvincular del espacio» (⛓️‍💥): saca la pieza del padre que la contiene
+   * (PUT parcial `parent_contenedor = null`) sin borrar su contenido. Sin este
+   * callback las tarjetas NO dibujan el botón (ver `permiteDesvincular`).
+   */
+  desvincularItem?: (item: ItemElastico, card: HTMLElement) => Promise<boolean>;
 }
 
 /** Adaptador de persistencia efectivo (Ubicación por defecto). */
@@ -71,7 +77,7 @@ export function adaptadorDe(opts: OpcionesPlantaUnica): AdaptadorEspacios {
 
 /** Controles que NO inician un arrastre (checkbox de fusión, tiradores y 🗑️). */
 const CONTROLES =
-  '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo],[data-eliminar-item],[data-duplicar-item]';
+  '[data-fusion-check],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-eliminar-grupo],[data-eliminar-item],[data-duplicar-item],[data-desvincular-item]';
 
 // =============================================================================
 // HELPERS DE GESTO

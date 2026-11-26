@@ -32,7 +32,7 @@ from ..base import HasRolePermission
 from ..fusion_espacial import ids_del_grupo
 from .acciones_contenedor import AccionesContenedorMixin
 from .filtros_bandeja import aplicar_filtro_bandeja
-from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia
+from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia, filtrar_por_espacio_padre
 
 
 class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, viewsets.ModelViewSet):
@@ -51,10 +51,10 @@ class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, views
         ubicacion_id = self.request.query_params.get('ubicacion')
         if ubicacion_id:
             qs = qs.filter(ubicacion_id=ubicacion_id)
-        # Sub-contenedores directos de un padre puntual
-        padre_id = self.request.query_params.get('padre')
-        if padre_id:
-            qs = qs.filter(parent_contenedor_id=padre_id)
+        # Sub-contenedores DIRECTOS de un espacio padre puntual: `?espacio_padre_id=`
+        # (contrato de /api/espacios/) con sus alias históricos. Filtro ESTRICTO:
+        # sin coincidencias devuelve lista vacía, nunca los hijos de otro espacio.
+        qs = filtrar_por_espacio_padre(qs, self.request.query_params)
         # Solo contenedores raíz (sin padre jerárquico)
         raiz = self.request.query_params.get('raiz')
         if raiz and raiz.lower() in ('true', '1', 'yes'):

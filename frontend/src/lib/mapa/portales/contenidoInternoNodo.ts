@@ -21,6 +21,8 @@ import { indicadorTransitoHtml } from '../../indicadorTransito';
 import { tipoEntidadDeContenedor } from '../../arrastreEntidad';
 import type { NodoPortal } from './estadoPortales';
 import type { ObjetoDto } from './datosNodosPortales';
+// Regla ÚNICA de desvinculación (arquitectura anclada al cuarto no se desvincula).
+import { puedeDesvincularse } from './desvincularSubespacio';
 // TÍTULO EXACTO de las cajas del nivel: fuente ÚNICA en textosPortales.ts.
 import { TITULO_CAJAS_NIVEL } from './textosPortales';
 
@@ -109,6 +111,13 @@ export interface OpcionesSelectorPiezas {
   titulo?: string;
   /** Habilita cada tarjeta como ORIGEN del arrastre (modelo híbrido). */
   arrastrables?: boolean;
+  /**
+   * «⛓️‍💥 Desvincular del espacio» en cada fila: saca la pieza del espacio activo
+   * sin borrar su contenido (corrige asignaciones accidentales). Lo encienden los
+   * paneles de un CONTENEDOR activo; el listener lo conecta
+   * `desvincularSubespacio.conectarDesvinculacionTarjetas`.
+   */
+  permiteDesvincular?: boolean;
 }
 
 export function selectorPiezasHtml(
@@ -143,7 +152,23 @@ export function selectorPiezasHtml(
       const arrastre = opciones.arrastrables
         ? `draggable="true" data-arrastre-entidad="${escapeHtml(pieza.id)}" data-arrastre-tipo="${tipoEntidad}"`
         : '';
-      return `<li>
+      // «⛓️‍💥 Desvincular del espacio»: acción EXPLÍCITA en la fila para corregir
+      // una asignación accidental (la pieza deja de colgar del espacio activo y
+      // queda como raíz de su misma habitación, sin perder su contenido).
+      const desvinculable =
+        opciones.permiteDesvincular === true &&
+        puedeDesvincularse({
+          tipo_contenedor: pieza.tipoFisico,
+          protegido: pieza.esInmueble,
+        });
+      const accionDesvincular = desvinculable
+        ? `<button type="button" class="portal-pieza-desvincular"
+        data-desvincular-pieza="${escapeHtml(pieza.id)}"
+        data-id="${escapeHtml(pieza.id)}"
+        data-nombre="${nombre}"
+        title="Desvincular «${nombre}» de este espacio: deja de ser sub-espacio y queda como espacio independiente de la habitación, conservando su contenido.">⛓️‍💥</button>`
+        : '';
+      return `<li class="portal-pieza-fila" data-pieza-id="${escapeHtml(pieza.id)}">
       <button type="button" class="portal-pieza-item" ${arrastre}
         data-portal-abrir="${escapeHtml(pieza.id)}"
         data-portal-tipo="contenedor"
@@ -158,6 +183,7 @@ export function selectorPiezasHtml(
         </span>
         <span class="portal-pieza-flecha" aria-hidden="true">▸</span>
       </button>
+      ${accionDesvincular}
     </li>`;
     })
     .join('');

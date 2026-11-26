@@ -48,7 +48,7 @@ import {
 } from './visorHabitacionHtml';
 // SEPARACIÓN ESTRICTA PLANO ⇄ CAJAS: la ÚNICA fuente que decide si una pieza
 // es un bulto de inventario (caja) y no una forma arquitectónica del cuarto.
-import { esCajaDeInventario } from './taxonomiaContenedor';
+import { esCajaDeContenidoEnPlano } from './taxonomiaContenedor';
 
 interface ContenedorVisor {
   id: string;
@@ -147,9 +147,14 @@ async function cargarContenido(): Promise<void> {
  * Las cajas son CONTENIDO del inventario: no son divisiones físicas del suelo
  * ni formas arquitectónicas, así que no se dibujan en el mapa del cuarto (se
  * muestran como tarjetas interactivas en el cuadrante derecho).
+ *
+ * EXCEPCIÓN GEOMÉTRICA («espacios» guardados como CAJA): una CAJA MODELADA con
+ * geometría propia en el cuarto («Cama», «Repisas», «Zona Indoor», «Setup PC»)
+ * es arquitectura del plano y SÍ se dibuja; sin ella el lienzo mostraba
+ * únicamente el mueble restante como si fuera un sub-espacio fantasma.
  */
 function espaciosDelCuarto(): ContenedorVisor[] {
-  return contenedoresRoom.filter((c) => !esCajaDeInventario(c));
+  return contenedoresRoom.filter((c) => !esCajaDeContenidoEnPlano(c));
 }
 
 // =============================================================================
@@ -215,14 +220,14 @@ function renderVisor(): void {
   // =========================================================================
   // FILTRO DEL MAPA 2D DE LA HABITACIÓN (causa raíz «Caja 06»)
   // -------------------------------------------------------------------------
-  // El lienzo del cuarto dibuja ÚNICAMENTE las divisiones físicas del plano y
-  // los muebles (espacios). Las CAJAS son CONTENIDO del inventario: no son
-  // divisiones del suelo ni formas arquitectónicas, por lo que quedan
-  // TERMINANTEMENTE EXCLUIDAS del SVG/Canvas de la habitación. Se muestran SÓLO
-  // en el cuadrante derecho como tarjetas interactivas de contenedores.
-  // La MISMA lista alimenta `rooms()` del motor elástico (ver `enlazarVisor`):
-  // así una caja no puede arrastrarse, estirarse, renombrarse ni fusionarse
-  // desde este plano.
+  // El lienzo del cuarto dibuja las divisiones físicas del plano y los muebles
+  // (espacios). Las CAJAS DE CONTENIDO (rótulo «Caja…» o CAJA sin geometría
+  // propia) NO son divisiones del suelo: quedan TERMINANTEMENTE EXCLUIDAS del
+  // SVG/Canvas y se muestran SÓLO como tarjetas en el cuadrante derecho.
+  // EXCEPCIÓN: una CAJA MODELADA con `ui_*` propias («Cama», «Repisas», «Zona
+  // Indoor», «Setup PC») ES un espacio arquitectónico y se dibuja; si se
+  // ocultara, el cuarto entero quedaba reducido al único mueble restante.
+  // La MISMA lista alimenta `rooms()` del motor elástico (ver `enlazarVisor`).
   // =========================================================================
   const espaciosRoom = espaciosDelCuarto();
 
@@ -400,7 +405,7 @@ function enlazarVisor(): void {
       const objetivo = e.target as HTMLElement | null;
       if (
         objetivo?.closest(
-          '[data-inplace-renombrar],[data-fusion-check],[data-eliminar-grupo],[data-eliminar-item],[data-libre-resize],[data-grupo-resize]',
+          '[data-inplace-renombrar],[data-fusion-check],[data-eliminar-grupo],[data-eliminar-item],[data-desvincular-item],[data-libre-resize],[data-grupo-resize]',
         )
       ) {
         return;

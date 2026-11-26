@@ -73,6 +73,12 @@ export interface ItemElastico {
    * mudanzas, no un ambiente físico con geometría propia.
    */
   es_espacio_virtual?: boolean;
+  /**
+   * ¿La pieza puede DESVINCULARSE del espacio que la contiene? Lo resuelve el
+   * nivel que arma el ítem (una arquitectura anclada —CONJUNTO /
+   * MUEBLE_INMUEBLE— no puede cambiar de padre, el backend la rechaza).
+   */
+  desvinculable?: boolean;
   /** Alias del mismo flag expuesto por otros DTOs. */
   es_virtual?: boolean;
   /** Alias legacy del mismo concepto. */

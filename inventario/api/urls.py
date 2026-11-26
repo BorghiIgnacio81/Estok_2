@@ -50,6 +50,11 @@ router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'usuarios', UserViewSet, basename='user')
 router.register(r'ubicaciones', UbicacionViewSet, basename='ubicacion')
 router.register(r'contenedores', ContenedorViewSet, basename='contenedor')
+# ALIAS DE LECTURA `GET /api/espacios/`: apunta al MISMO ContenedorViewSet
+# (fuente única del padrón espacial). Lo consume el frontend para pedir los
+# sub-espacios DIRECTOS del espacio activo con filtrado estricto:
+#   GET /api/espacios/?espacio_padre_id=<UUID>
+router.register(r'espacios', ContenedorViewSet, basename='espacio')
 router.register(r'objetos', ObjetoViewSet, basename='objeto')
 router.register(r'fotos', FotoObjetoViewSet, basename='foto')
 router.register(r'historial-precios', HistorialPrecioViewSet, basename='historialprecio')

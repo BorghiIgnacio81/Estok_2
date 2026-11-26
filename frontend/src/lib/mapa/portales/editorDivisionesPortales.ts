@@ -21,7 +21,7 @@ import { escapeHtml, toast } from '../../mapaJerarquico';
 import { iconoDeEspacio } from '../../iconosFisicos';
 // SEPARACIÓN ESTRICTA PLANO ⇄ CAJAS: el lienzo de la HABITACIÓN dibuja sólo
 // arquitectura (divisiones y muebles). Las cajas son CONTENIDO del inventario.
-import { esCajaDeInventario } from '../../taxonomiaContenedor';
+import { esCajaDeContenidoEnPlano } from '../../taxonomiaContenedor';
 import { adaptadorContenedores, adaptadorUbicaciones } from '../../lienzoElastico';
 import type { AdaptadorEspacios, ItemElastico } from '../../lienzoElastico';
 import { renderLienzoElastico } from '../../mapaPlantaUnica';
@@ -45,6 +45,13 @@ import { guardarDeclaradoMovible, guardarEspacioUnico } from './disyuntoresPersi
 import type { InteriorNodo } from './datosNodosPortales';
 // «Duplicar» (⧉) del espacio/sub-división: copia exacta contigua en el backend.
 import { duplicarDivisionEnNodo } from './duplicarDivisionPortales';
+// «⛓️‍💥 Desvincular del espacio»: corrige asignaciones accidentales sin borrar
+// el contenido de la pieza (PUT parcial `parent_contenedor = null`).
+import {
+  conectarDesvinculacionTarjetas,
+  desvincularSubespacioDePadre,
+  puedeDesvincularse,
+} from './desvincularSubespacio';
 // «📋 Ver contenido interno»: inventario de objetos guardados en la caja/nodo
 // activo (punto 2 de las pruebas móviles) + acceso a la ficha del contenedor.
 import { contenidoInternoHtml, selectorPiezasHtml } from './contenidoInternoNodo';
@@ -75,11 +82,12 @@ let acordeonDivisionesAbierto = false;
  * Traduce la geometría real de los hijos a los rectángulos elásticos del editor.
  *
  * `soloArquitectura` lo activa el nivel HABITACIÓN: el mapa 2D del cuarto dibuja
- * únicamente divisiones físicas y muebles. Las CAJAS son CONTENIDO del
- * inventario (no formas del suelo) y quedan fuera del lienzo; siguen visibles y
- * accionables como TARJETAS interactivas de contenedor en el selector del mismo
- * panel derecho (`selectorPiezasHtml`). En los niveles internos de un mueble la
- * regla NO cambia: sus cajas se dibujan como contenido del estante.
+ * divisiones físicas y muebles. Las CAJAS DE CONTENIDO (rótulo «Caja…» o CAJA
+ * sin geometría propia) quedan fuera del lienzo; siguen visibles y accionables
+ * como TARJETAS interactivas en el selector del mismo panel derecho
+ * (`selectorPiezasHtml`). EXCEPCIÓN: una CAJA MODELADA con `ui_*` propias es un
+ * espacio arquitectónico y se dibuja (ver `esCajaDeContenidoEnPlano`). En los
+ * niveles internos de un mueble la regla NO cambia: sus cajas son contenido.
  */
 function itemsEditor(interior: InteriorNodo, soloArquitectura = false): ItemElastico[] {
   // Contadores y división interna por pieza: alimentan el badge «📦 N» de cada
@@ -89,7 +97,17 @@ function itemsEditor(interior: InteriorNodo, soloArquitectura = false): ItemElas
     .filter((g) => {
       if (!soloArquitectura) return true;
       const pieza = piezaPorId.get(String(g.id));
-      return !pieza || !esCajaDeInventario(pieza);
+      if (!pieza) return true;
+      // La geometría REAL del hijo viaja con el ítem: una CAJA modelada en el
+      // cuarto (ui_* propias) es arquitectura y debe dibujarse.
+      return !esCajaDeContenidoEnPlano({
+        tipo: pieza.tipoFisico,
+        es_inmueble: pieza.esInmueble,
+        nombre: pieza.nombre,
+        ui_left: g.ui_left,
+        ui_top: g.ui_top,
+        ui_height: g.ui_height,
+      });
     })
     .map((g) => {
       const pieza = piezaPorId.get(String(g.id));
@@ -109,6 +127,11 @@ function itemsEditor(interior: InteriorNodo, soloArquitectura = false): ItemElas
         // TIPO FÍSICO REAL: define el `tipo_entidad` del arrastre (CAJA → 'caja').
         tipo_contenedor: pieza?.tipoFisico ?? null,
         protegido: pieza?.esInmueble === true,
+        // Arquitectura anclada (CONJUNTO / MUEBLE_INMUEBLE) no se desvincula.
+        desvinculable: puedeDesvincularse({
+          tipo_contenedor: pieza?.tipoFisico ?? null,
+          protegido: pieza?.esInmueble === true,
+        }),
       };
     });
 }
@@ -307,6 +330,9 @@ export function pintarEditorDivisiones(
       tipSoloEnEdicion: true,
       // ⧉ «Duplicar» en cada tarjeta: copia exacta contigua del cajón/estante.
       permiteDuplicar: true,
+      // ⛓️‍💥 «Desvincular» en cada tarjeta: saca la pieza del espacio activo
+      // (sólo tiene sentido cuando el nivel activo ES un contenedor padre).
+      permiteDesvincular: nodo.tipo === 'contenedor',
     }),
     nodo,
   );
@@ -321,7 +347,9 @@ export function pintarEditorDivisiones(
     // directas. Resuelve el caso de cajas guardadas en el MISMO casillero (se
     // dibujan una encima de otra en el lienzo y sólo la de arriba recibe el
     // clic) y habilita la suelta de objetos sobre la caja elegida.
-    selectorPiezasHtml(interior.piezas) +
+    selectorPiezasHtml(interior.piezas, {
+      permiteDesvincular: nodo.tipo === 'contenedor',
+    }) +
     contenidoInternoHtml(nodo, interior.objetos);
   // ACORDEÓN: repone el estado de plegado que tenía el operador antes del repintado
   // y memoriza cada toggle, para que un guardado no cierre la configuración.
@@ -345,6 +373,8 @@ export function pintarEditorDivisiones(
   conectarPropiedadesObjetoEspacio(host, nodo);
   // «🔎 Abrir ficha completa» del contenedor activo + zona de suelta.
   conectarAccionesCaja(host, nodo);
+  // «⛓️‍💥 Desvincular» de las tarjetas del listado (además del botón del lienzo).
+  conectarDesvinculacionTarjetas({ scope: host, padre: nodo });
   conectarLienzoElastico({
     scope: host,
     rooms: () => items,
@@ -358,6 +388,9 @@ export function pintarEditorDivisiones(
       if (ok) window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
       return ok;
     },
+    // ⛓️‍💥 DESVINCULAR: la pieza deja de colgar de «nodo» y pasa a ser raíz de la
+    // misma habitación, conservando su contenido (cero pérdida de inventario).
+    desvincularItem: async (item) => (await desvincularSubespacioDePadre(nodo, item)).ok,
     notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
   });
   // TIRADORES DEL PERÍMETRO (borde derecho / inferior / esquina): al estirar el

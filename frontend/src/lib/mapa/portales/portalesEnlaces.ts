@@ -103,7 +103,7 @@ async function seleccionarEnIzquierda(id: string, tipo: string): Promise<void> {
  * TIRADORES DEL PERÍMETRO ámbar (ancho/alto del marco completo).
  */
 const CONTROLES_EDITOR =
-  '[data-fusion-check],[data-eliminar-item],[data-duplicar-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-final]';
+  '[data-fusion-check],[data-eliminar-item],[data-duplicar-item],[data-desvincular-item],[data-eliminar-grupo],[data-inplace-renombrar],[data-libre-resize],[data-grupo-resize],[data-perimetro-resize],[data-lienzo-crear],[data-espacio-final]';
 
 /**
  * LEY 2 · Resuelve una silueta del EDITOR ELÁSTICO del Panel Derecho (habitación

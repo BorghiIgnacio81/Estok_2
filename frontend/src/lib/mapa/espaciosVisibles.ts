@@ -23,8 +23,9 @@
 // =============================================================================
 
 import type { ContenedorDto } from './portales/datosNodosPortales';
-// ÚNICA fuente de la separación plano ⇄ cajas (taxonomía + rótulo canónico).
-import { esCajaDeInventario } from '../taxonomiaContenedor';
+// ÚNICA fuente de la separación plano ⇄ cajas (taxonomía + rótulo canónico),
+// con la excepción geométrica de los «espacios» guardados como CAJA modelada.
+import { esCajaDeContenidoEnPlano } from '../taxonomiaContenedor';
 
 /**
  * Indexa los ESPACIOS VISIBLES de cada habitación por el id de su Ubicación.
@@ -37,7 +38,9 @@ export function indexarEspaciosVisiblesPorUbicacion(
   for (const c of contenedores) {
     if (c.parent_contenedor || !c.ubicacion) continue;
     // CAJAS: contenido del inventario, nunca un bloque/división del cuarto.
-    if (esCajaDeInventario(c)) continue;
+    // Excepción: una CAJA MODELADA con geometría propia en el cuarto es un
+    // ESPACIO arquitectónico y cuenta igual que el lienzo la dibuja.
+    if (esCajaDeContenidoEnPlano(c)) continue;
     if (c.fusion_grupo) {
       const claveGrupo = `${c.ubicacion}::${c.fusion_grupo}`;
       if (gruposVistos.has(claveGrupo)) continue;

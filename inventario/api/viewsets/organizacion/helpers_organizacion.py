@@ -26,6 +26,36 @@ def _validar_membresia(user, estok_id):
         raise PermissionDenied("No tienes membresia en el Estok destino.")
 
 
+def filtrar_por_espacio_padre(qs, query_params):
+    """
+    FILTRO ESTRICTO DE SUB-ESPACIOS DIRECTOS (`GET /api/espacios/`).
+
+    Contrato público: `?espacio_padre_id=<UUID>` devuelve EXCLUSIVAMENTE los
+    contenedores cuyo `parent_contenedor_id` es ese UUID. Sin coincidencias la
+    respuesta es una lista vacía: NO existe fallback, ni por nombre, ni por
+    posición, ni «primer elemento del listado» (un espacio sin sub-espacios
+    creados jamás hereda los hijos de otro).
+
+    Se conservan los alias históricos `?espacio_padre=` y `?padre=` para no
+    romper a los consumidores existentes (Visor de Habitación, Bandeja fina).
+    Un UUID inválido responde 400 en lugar de ignorarse en silencio.
+    """
+    crudo = (
+        query_params.get('espacio_padre_id')
+        or query_params.get('espacio_padre')
+        or query_params.get('padre')
+    )
+    if crudo is None or str(crudo).strip() == '':
+        return qs
+    try:
+        padre_uuid = UUID(str(crudo).strip())
+    except (TypeError, ValueError):
+        raise ValidationError(
+            "El parámetro «espacio_padre_id» debe ser un UUID válido."
+        )
+    return qs.filter(parent_contenedor_id=padre_uuid)
+
+
 class OrganizacionHelpersMixin:
     @staticmethod
     def _ids_ubicaciones_descendientes(ubicacion_id):

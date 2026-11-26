@@ -303,7 +303,11 @@ function gruposHtml(grupos: GrupoFusion[]): string {
     .join('');
 }
 
-function sueltasHtml(sueltas: ItemElastico[], permiteDuplicar = false): string {
+function sueltasHtml(
+  sueltas: ItemElastico[],
+  permiteDuplicar = false,
+  permiteDesvincular = false,
+): string {
   return sueltas
     .map((item, i) => {
       const geo = geoDe(item, i);
@@ -331,6 +335,10 @@ function sueltasHtml(sueltas: ItemElastico[], permiteDuplicar = false): string {
       ${permiteDuplicar ? `<button type="button" data-duplicar-item data-id="${item.id}"
         class="pu-celda-duplicar"
         title="Duplicar «${escapeHtml(item.nombre)}»: crea una copia con las mismas dimensiones, tipo y configuración, pegada al lado del original.">⧉</button>` : ''}
+      ${permiteDesvincular && item.desvinculable ? `<button type="button" data-desvincular-item data-id="${item.id}"
+        data-nombre="${escapeHtml(item.nombre)}"
+        class="pu-celda-desvincular"
+        title="Desvincular «${escapeHtml(item.nombre)}» del espacio que lo contiene: deja de ser sub-espacio y queda como espacio independiente de la habitación, conservando su contenido.">⛓️‍💥</button>` : ''}
       ${item.icono ? `<span class="pu-icono" aria-hidden="true">${escapeHtml(item.icono)}</span>` : ''}
       <span class="pu-nombre" data-inplace-renombrar data-id="${item.id}">${escapeHtml(item.nombre)}</span>
       ${meta ? `<span class="pu-meta">${escapeHtml(meta)}</span>` : ''}
@@ -371,6 +379,12 @@ export function renderLienzoElastico(opts: {
    */
   permiteDuplicar?: boolean;
   /**
+   * Habilita la acción «Desvincular del espacio» (⛓️‍💥) en cada tarjeta suelta
+   * que declare `desvinculable`. La enciende el editor de sub-divisiones de
+   * Almacenamiento (nivel CONTENEDOR) e inyecta el callback `desvincularItem`.
+   */
+  permiteDesvincular?: boolean;
+  /**
    * Excluye del lienzo los ítems SIN geometría física (`ui_*` porcentuales
    * válidas). Lo activan los planos de UBICACIONES (habitaciones/ambientes);
    * los interiores de contenedores conservan la cascada de geometría por defecto.
@@ -385,6 +399,7 @@ export function renderLienzoElastico(opts: {
     tip,
     tipSoloEnEdicion,
     permiteDuplicar,
+    permiteDesvincular,
     excluirSinGeometria,
   } = opts;
   const items = (itemsRecibidos ?? []).filter(
@@ -411,7 +426,7 @@ export function renderLienzoElastico(opts: {
     <div class="planta-unica-lienzo" data-lienzo-pu>
       ${vacio}
       ${gruposHtml(grupos)}
-      ${sueltasHtml(sueltas, permiteDuplicar === true)}
+      ${sueltasHtml(sueltas, permiteDuplicar === true, permiteDesvincular === true)}
     </div>
   </div>`;
 }

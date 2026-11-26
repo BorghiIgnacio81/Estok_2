@@ -465,6 +465,35 @@ body.modo-edicion .planta-unica-tip--edicion {
   cursor: progress;
 }
 
+/* «Desvincular del espacio» (⛓️‍💥): pegado a la izquierda del ⧉, en la misma
+   esquina superior derecha. Saca la pieza del padre que la contiene (corrige una
+   asignación accidental) sin borrar su inventario. */
+.pu-celda-desvincular {
+  position: absolute;
+  top: 2px;
+  right: 38px;
+  z-index: 6;
+  font-size: 11px;
+  line-height: 1;
+  padding: 1px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0.55;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.pu-celda-desvincular:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.pu-celda-desvincular:disabled {
+  opacity: 0.3;
+  cursor: progress;
+}
+
 /* --- MUEBLE MÓVIL DECLARADO (Lote 25) ---------------------------------------
    El operador declaró la pieza con el checkbox «Declarar como Mueble Móvil /
    Objeto» (`declarado_movible === true`). El plano 2D la distingue de la
