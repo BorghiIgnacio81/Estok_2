@@ -16,10 +16,11 @@ Formatos soportados — mismo contrato que el selector del modal:
     '2x2' → 4 etiquetas por hoja A4
     '4x4' → 16 etiquetas por hoja A4
 
-Este módulo es PURO respecto del ORM y del request: recibe una lista de
-`Contenedor` YA filtrada por tenant (api/viewsets/organizacion/
-qr_etiquetas_acciones.py) y devuelve los bytes del PDF. NO marca `qr_impreso`:
-esa decisión es de la vista, cuando el PDF se generó correctamente.
+Este módulo es PURO respecto del ORM y del request: recibe la lista YA
+normalizada por `services/qr_etiquetas_universo` (cajas físicas `Contenedor` y
+cajas registradas como `Objeto`, con la misma forma `CajaEtiquetaQr`) y devuelve
+los bytes del PDF. NO marca `qr_impreso`: esa decisión es de la vista, cuando el
+PDF se generó correctamente.
 """
 
 import io
@@ -124,10 +125,20 @@ def ruta_ubicacion(caja):
     """
     Ubicación asignada de la caja en una sola línea: «Habitación › Mueble».
 
-    El mueble contenedor se resuelve EN VIVO contra la FK padre (misma regla de
-    herencia dinámica que `ContenedorSerializer.procedencia_nombre`), nunca de
-    un valor denormalizado.
+    Acepta las DOS naturalezas de la etiqueta:
+      · `CajaEtiquetaQr` (services/qr_etiquetas_universo) → `ubicacion_nombre` y
+        `parent_contenedor_nombre` ya resueltos.
+      · un `Contenedor` (compatibilidad): el mueble se resuelve EN VIVO contra
+        la FK padre, misma regla de herencia dinámica que
+        `ContenedorSerializer.procedencia_nombre`, nunca un valor denormalizado.
     """
+    if hasattr(caja, 'ubicacion_nombre') or hasattr(caja, 'parent_contenedor_nombre'):
+        partes = [
+            str(getattr(caja, 'ubicacion_nombre', None) or '').strip(),
+            str(getattr(caja, 'parent_contenedor_nombre', None) or '').strip(),
+        ]
+        return ' › '.join([p for p in partes if p]) or 'Sin ubicación asignada'
+
     partes = []
     ubicacion = getattr(caja, 'ubicacion', None)
     if ubicacion is not None and getattr(ubicacion, 'nombre', ''):
@@ -142,9 +153,21 @@ def ruta_ubicacion(caja):
 
 
 def _datos_etiqueta(caja, qr_service):
-    """Arma el contenido imprimible de UNA caja."""
+    """
+    Arma el contenido imprimible de UNA caja.
+
+    El QR depende de la NATURALEZA del registro: un `Contenedor` codifica el
+    endpoint de sus objetos (`?contenedor=<uuid>`); una caja registrada como
+    `Objeto` codifica su ficha (`/objetos/<uuid>`), que el escáner reconoce como
+    `tipo='objeto'`. Sin esta distinción el QR de una caja-Objeto no resolvía a
+    nada al escanearlo.
+    """
+    tipo_entidad = str(getattr(caja, 'tipo_entidad', '') or '').strip().lower()
     try:
-        png = qr_service.generar_png(str(caja.id), box_size=RESOLUCION_QR)
+        if tipo_entidad == 'objeto':
+            png = qr_service.generar_png_objeto(str(caja.id), box_size=RESOLUCION_QR)
+        else:
+            png = qr_service.generar_png(str(caja.id), box_size=RESOLUCION_QR)
     except Exception as exc:  # noqa: BLE001 - una caja sin QR no aborta la hoja
         logger.error('No se pudo generar el QR de la caja %s: %s', caja.id, exc)
         png = None

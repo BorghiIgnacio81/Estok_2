@@ -390,7 +390,12 @@ class ObjetoCreateSerializer(serializers.ModelSerializer):
         especificaciones = attrs.get(
             'especificaciones', getattr(instancia, 'especificaciones', None),
         )
-        if declara_contenedor(nombre, categoria, especificaciones):
+        # CAJA LLENA / LOTE EN FOTO: `validate` ya normalizó la bandera, así que
+        # acá se lee el valor FINAL del guardado (payload o registro existente).
+        esta_llena = bool(
+            attrs.get('esta_llena', getattr(instancia, 'esta_llena', False))
+        )
+        if declara_contenedor(nombre, categoria, especificaciones, esta_llena):
             attrs['es_contenedor'] = True
             return attrs
 

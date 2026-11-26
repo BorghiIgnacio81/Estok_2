@@ -93,15 +93,49 @@ class QRService:
         base_url = getattr(settings, 'SITE_URL', 'http://localhost:8000')
         return f"{base_url}/api/objetos/?contenedor={contenedor_id}"
 
+    def _build_objeto_url(self, objeto_id: str) -> str:
+        """
+        Construye la URL que se codificará en el QR de un OBJETO contenedor.
+
+        Las cajas registradas como Objeto («Caja de adaptadores y cables»…) no
+        son `Contenedor`: su contenido cuelga de `objeto_padre`, así que el
+        endpoint de contenedores no las resuelve. Se codifica su FICHA, que el
+        escáner reconoce como `tipo='objeto'` por la ruta `/objetos/<uuid>`
+        (ver frontend/src/lib/qrComun.ts → extraerReferenciaQr).
+        """
+        base_url = getattr(settings, 'SITE_URL', 'http://localhost:8000')
+        return f"{base_url}/objetos/{objeto_id}"
+
+    def _png_de(self, datos: str, box_size: Optional[int] = None) -> bytes:
+        """
+        Genera el PNG del QR de `datos`, EN MEMORIA.
+
+        Es la ÚNICA implementación de la configuración visual/técnica del QR
+        (versión, corrección de error, borde y colores). La usan el QR de
+        `Contenedor` (`generar_png`) y el de un OBJETO contenedor
+        (`generar_png_objeto`).
+        """
+        qr = qrcode.QRCode(
+            version=QR_VERSION,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medio: tolera ~15% de daño
+            box_size=box_size or QR_BOX_SIZE,
+            border=QR_BORDER,
+        )
+        qr.add_data(datos)
+        qr.make(fit=True)
+
+        img = qr.make_image(
+            fill_color=QR_FILL_COLOR,
+            back_color=QR_BACK_COLOR
+        )
+
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        return img_buffer.getvalue()
+
     def generar_png(self, contenedor_id: str, box_size: Optional[int] = None) -> bytes:
         """
         Genera el QR de un contenedor y devuelve los bytes PNG EN MEMORIA.
-
-        Es la ÚNICA implementación de la configuración visual/técnica del QR
-        (versión, corrección de error, borde y colores). La usan:
-          · `generar_qr()`  → persiste la imagen en media/qrcodes/
-          · services/qr_etiquetas_pdf_service.py → la incrusta en el PDF de
-            etiquetas imprimibles.
 
         `box_size` permite subir la resolución para impresión sin tocar el
         archivo guardado en disco (que conserva QR_BOX_SIZE).
@@ -113,23 +147,15 @@ class QRService:
         Returns:
             Contenido binario del PNG.
         """
-        qr = qrcode.QRCode(
-            version=QR_VERSION,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medio: tolera ~15% de daño
-            box_size=box_size or QR_BOX_SIZE,
-            border=QR_BORDER,
-        )
-        qr.add_data(self._build_contenedor_url(contenedor_id))
-        qr.make(fit=True)
+        return self._png_de(self._build_contenedor_url(contenedor_id), box_size)
 
-        img = qr.make_image(
-            fill_color=QR_FILL_COLOR,
-            back_color=QR_BACK_COLOR
-        )
+    def generar_png_objeto(self, objeto_id: str, box_size: Optional[int] = None) -> bytes:
+        """
+        Genera el QR de un OBJETO contenedor (caja declarada en /objetos).
 
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, format='PNG')
-        return img_buffer.getvalue()
+        No toca disco: devuelve el PNG en memoria para la etiqueta imprimible.
+        """
+        return self._png_de(self._build_objeto_url(objeto_id), box_size)
 
     def generar_qr(self, contenedor_id: str, contenedor_nombre: str = "") -> Optional[str]:
         """

@@ -106,6 +106,12 @@ urlpatterns = [
     path('cajas/generar_pdf_qr/',
          ContenedorViewSet.as_view({'get': 'generar_pdf_qr'}),
          name='cajas-generar-pdf-qr'),
+    # LISTADO DE CAJAS del mismo modal (cajas fisicas + cajas registradas como
+    # Objeto, sin filtrar por categoria). Fuente unica: services/
+    # qr_etiquetas_universo.construir_universo.
+    path('cajas/etiquetas_qr/',
+         ContenedorViewSet.as_view({'get': 'etiquetas_qr'}),
+         name='cajas-etiquetas-qr'),
     # Captura PÚBLICA de decisiones remotas del dueño (puente del 403).
     # AllowAny: la única credencial es el token FIRMADO de un solo uso.
     path('public/objeto-remoto-decision/',

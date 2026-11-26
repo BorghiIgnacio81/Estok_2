@@ -4,23 +4,31 @@
 // Fuente ÚNICA de las llamadas HTTP del modal «🖨️ Imprimir QRs»
 // (components/inventario/ModalImprimirQR.astro → lib/imprimirQrEtiquetas.ts).
 //
-//   cargarCajasQr()      → GET /api/contenedores/?bandeja=true&page_size=1000
-//                          `bandeja=true` aplica la MISMA regla de «caja móvil
-//                          reconocible» que la canasta «Elementos por ubicar»:
-//                          nunca lista habitaciones «Espacio N» ni muebles.
+//   cargarCajasQr()      → GET /api/cajas/etiquetas_qr/
+//                          Universo ÚNICO del backend
+//                          (services/qr_etiquetas_universo.construir_universo):
+//                          cajas físicas (`Contenedor` tipo CAJA) MÁS las cajas
+//                          registradas como Objeto (`es_contenedor` /
+//                          `esta_llena`), SIN filtrar por categoría temática.
+//                          Nunca lista habitaciones, muebles ni espejos.
 //   pedirPdfEtiquetas()  → GET /api/cajas/generar_pdf_qr/ (PDF A4 + marcado de
-//                          `qr_impreso` en el backend).
+//                          `qr_impreso` en el backend, en Contenedor y Objeto).
 //
 // Auth centralizada: los headers salen SIEMPRE de services/auth
 // (getAuthHeaders → Authorization + X-Estok-Id). Este módulo no los arma.
 // =============================================================================
 
-import { API_BASE_URL, getAuthHeaders, normalizarUrlApi } from '../services/auth';
+import { API_BASE_URL, getAuthHeaders } from '../services/auth';
 
-/** Caja del inventario móvil (subconjunto del serializado de /contenedores/). */
+/** Tipo de registro físico de la caja imprimible (contrato del backend). */
+export type TipoEntidadCajaQr = 'caja' | 'objeto';
+
+/** Caja del inventario móvil (subconjunto del serializado de /cajas/etiquetas_qr/). */
 export interface CajaQr {
   id: string;
   nombre: string;
+  /** 'caja' = Contenedor físico · 'objeto' = caja declarada en /objetos. */
+  tipo_entidad?: TipoEntidadCajaQr;
   qr_impreso?: boolean;
   ubicacion_nombre?: string;
   parent_contenedor_nombre?: string | null;
@@ -87,26 +95,26 @@ export function descargarBlob(blob: Blob, nombre: string): void {
 /**
  * Cajas imprimibles del Estok activo, ordenadas por nombre.
  *
+ * El backend devuelve el universo COMPLETO en una sola respuesta
+ * ({ total, results }): cajas físicas + cajas registradas como Objeto, sin
+ * filtrar por categoría. Se tolera también un array plano por compatibilidad.
+ *
  * Lanza `Error(SESION_EXPIRADA)` tras redirigir al login, o un Error con el
  * mensaje del servidor para que la UI lo muestre.
  */
 export async function cargarCajasQr(): Promise<CajaQr[]> {
-  const acumuladas: CajaQr[] = [];
-  let url: string | null = `${API_BASE_URL}/contenedores/?bandeja=true&page_size=1000`;
-
-  while (url) {
-    const res = await fetch(url, { headers: getAuthHeaders() });
-    if (res.status === 401) {
-      window.location.href = '/login';
-      throw new Error(SESION_EXPIRADA);
-    }
-    if (!res.ok) throw new Error(await textoDeError(res));
-    const data = await res.json();
-    acumuladas.push(...((data.results || []) as CajaQr[]));
-    url = normalizarUrlApi(data.next);
+  const res = await fetch(`${API_BASE_URL}/cajas/etiquetas_qr/`, {
+    headers: getAuthHeaders(),
+  });
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error(SESION_EXPIRADA);
   }
+  if (!res.ok) throw new Error(await textoDeError(res));
 
-  return acumuladas.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  const data = await res.json();
+  const filas: CajaQr[] = Array.isArray(data) ? data : data?.results || [];
+  return filas.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
 }
 
 /**

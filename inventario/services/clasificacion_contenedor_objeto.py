@@ -18,6 +18,9 @@ REGLA ÚNICA (idempotente, no destructiva)
       3. Su rótulo EMPIEZA por «Caja» («Caja 02», «Cajas 03», «Caja de
          herramientas»): el nombre es señal suficiente, sin checkbox manual.
       4. El alta rápida lo declaró caja (`especificaciones.alta_rapida='caja'`).
+      5. Está marcado como CAJA LLENA / lote en foto (`esta_llena=True`): el
+         contenido está fotografiado y el registro ES el bulto físico, aunque
+         su nombre y su categoría sean temáticos (Revistas, Electrónica…).
 
     El flag `Categoria.es_contenedor` NO participa: significa «categoría de
     Mercado Libre con subcategorías» y está en True para TODAS las categorías
@@ -127,7 +130,7 @@ def es_categoria_contenedor(categoria) -> bool:
     )
 
 
-def declara_contenedor(nombre=None, categoria=None, especificaciones=None) -> bool:
+def declara_contenedor(nombre=None, categoria=None, especificaciones=None, esta_llena=False) -> bool:
     """
     REGLA ÚNICA de declaración de CAJA sobre datos sueltos (sin consultas).
 
@@ -135,6 +138,12 @@ def declara_contenedor(nombre=None, categoria=None, especificaciones=None) -> bo
       1. El rótulo EMPIEZA por «Caja»/«Cajas» (`es_nombre_de_caja`).
       2. La categoría es «Cajas y Contenedores» (`es_categoria_contenedor`).
       3. El alta rápida lo declaró caja (`especificaciones.alta_rapida='caja'`).
+      4. Está marcado como CAJA LLENA / lote en foto (`esta_llena=True`): el
+         operador fotografió el contenido de la caja y no lo desglosó, así que
+         el registro ES el bulto físico aunque su nombre o su categoría sean
+         temáticos («Colección de revistas ¡HOLA! Argentina», «Adaptadores y
+         cables»). Sin esta vía la caja quedaba como objeto suelto y no
+         aparecía en la lista de etiquetas QR.
 
     El ESPEJO de dualidad de un Contenedor (`especificaciones.
     es_espejo_contenedor`) NUNCA declara caja: su caja real ya existe como
@@ -148,13 +157,15 @@ def declara_contenedor(nombre=None, categoria=None, especificaciones=None) -> bo
         return False
     if especificaciones.get('alta_rapida') == ALTA_RAPIDA_CAJA:
         return True
+    if esta_llena:
+        return True
     if es_nombre_de_caja(nombre):
         return True
     return es_categoria_contenedor(categoria)
 
 
 def es_objeto_caja(objeto) -> bool:
-    """True si el Objeto es una caja/contenedor por marca, rótulo o categoría."""
+    """True si el Objeto es una caja/contenedor por marca, rótulo, categoría o lote."""
     if objeto is None:
         return False
     if bool(getattr(objeto, 'es_contenedor', False)):
@@ -163,6 +174,7 @@ def es_objeto_caja(objeto) -> bool:
         getattr(objeto, 'nombre', ''),
         getattr(objeto, 'categoria', None),
         getattr(objeto, 'especificaciones', None),
+        getattr(objeto, 'esta_llena', False),
     )
 
 

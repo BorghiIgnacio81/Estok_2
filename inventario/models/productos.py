@@ -105,6 +105,23 @@ class Objeto(ObjetoMetodosMixin, models.Model):
         verbose_name="Cantidad estimada de objetos en el lote",
         help_text="Cantidad aproximada de piezas que contiene el lote fotografiado (ej. 40 para una colección de 40 revistas). Opcional: sólo se muestra cuando la caja está marcada como llena."
     )
+    # =====================================================================
+    # ETIQUETAS QR IMPRIMIBLES (espejo de `Contenedor.qr_impreso`)
+    # ---------------------------------------------------------------------
+    # El modal «🖨️ Imprimir QRs» lista y rotula TAMBIÉN las cajas registradas
+    # como Objeto (`es_contenedor=True` / `esta_llena=True`). Sin esta marca,
+    # esas etiquetas se verían SIEMPRE como «Nuevas» y el filtro «nuevas» no
+    # podría dejar de incluirlas después de imprimirlas.
+    # =====================================================================
+    qr_impreso = models.BooleanField(
+        default=False,
+        verbose_name="QR impreso",
+        help_text=(
+            "True cuando la etiqueta QR de esta caja-Objeto ya se generó e "
+            "imprimió desde «Imprimir QRs» (PDF A4). Alimenta el badge "
+            "«Impreso» y el filtro «nuevas» del modal de etiquetas."
+        )
+    )
     objeto_padre = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,

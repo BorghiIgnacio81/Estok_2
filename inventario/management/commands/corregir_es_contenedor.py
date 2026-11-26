@@ -147,6 +147,7 @@ class Command(BaseCommand):
         for objeto in marcados:
             if declara_contenedor(
                 objeto.nombre, objeto.categoria, objeto.especificaciones,
+                objeto.esta_llena,
             ):
                 legitimos.append(objeto)
             else:
