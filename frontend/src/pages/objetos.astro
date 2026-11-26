@@ -22,6 +22,10 @@ import CategoriaCreator from '../components/CategoriaCreator.astro';
 // Modal unificado de exportación (CSV parametrizado + informe PDF con formato).
 // Su lógica vive en src/lib/exportarDatos.ts (auth centralizada en services/auth).
 import ModalExportarDatos from '../components/objetos/ModalExportarDatos.astro';
+// Modal «🖨️ Imprimir QRs»: etiquetas QR en PDF (hoja A4) de las cajas, con
+// filtro (todas / no impresas / selección manual) y grilla 3x3 · 2x2 · 4x4.
+// Lógica en lib/imprimirQrEtiquetas.ts; PDF en /api/cajas/generar_pdf_qr/.
+import ModalImprimirQR from '../components/inventario/ModalImprimirQR.astro';
 // Botón "+" unificado (variante cabecera: PNG grande de la botonera superior).
 import BotonAccionRapida from '../components/ui/BotonAccionRapida.astro';
 // Estilos de la MINI-GUÍA ANALÍTICA (.mini-anidado*) que dibujan las tarjetas de
@@ -70,6 +74,15 @@ import ListaObjetosMovil from '../components/objetos/ListaObjetosMovil.astro';
         <p class="mt-1 text-gray-500">Cajas, armarios y objetos del Estok activo en vista de cascada</p>
       </div>
       <div class="flex justify-between items-center w-full lg:w-auto gap-3 flex-wrap">
+        <!-- IMPRESIÓN DE ETIQUETAS QR: abre el modal ModalImprimirQR (filtro de
+             cajas + grilla A4). El PDF lo genera el backend y deja cada caja con
+             qr_impreso = true. -->
+        <button type="button" data-abrir-imprimir-qr
+          class="inline-flex shrink-0 items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-50 active:scale-95 transition-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+          title="Imprimir las etiquetas QR de las cajas en PDF (hoja A4)"
+          aria-label="Imprimir QRs">
+          🖨️ Imprimir QRs
+        </button>
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />
         <ModalExportarDatos />
         <!-- Escáner QR: BOTÓN GRÁFICO PURO (sin texto ni fondo) entre la
@@ -370,5 +383,8 @@ import ListaObjetosMovil from '../components/objetos/ListaObjetosMovil.astro';
 
   <!-- ESCÁNER QR - modal de cámara (contenido + ruta de ubicación completa). -->
   <EscanerQrModal />
+
+  <!-- Modal «🖨️ Imprimir QRs»: etiquetas QR en PDF (hoja A4) de las cajas. -->
+  <ModalImprimirQR />
 </BaseLayout>
 

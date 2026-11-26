@@ -24,6 +24,11 @@ import CanastaCuadranteDerecho from '../components/CanastaCuadranteDerecho.astro
 // markup del modal dedicado (Nombre · Foto · Dimensiones · Descripción ·
 // Ubicación). Su lógica vive en lib/nuevaCajaModal.ts.
 import NuevaCajaModal from '../components/NuevaCajaModal.astro';
+// IMPRESIÓN DE ETIQUETAS QR EN PDF (botón superior «🖨️ Imprimir QRs»):
+// modal con filtro (todas / no impresas / selección manual) y grilla A4
+// (3x3 · 2x2 · 4x4). La lógica vive en lib/imprimirQrEtiquetas.ts y el PDF lo
+// genera el backend en /api/cajas/generar_pdf_qr/.
+import ModalImprimirQR from '../components/inventario/ModalImprimirQR.astro';
 // CAMPOS «CAJA LLENA / LOTE EN FOTO» del modal de edición de contenedor
 // (checkbox + cantidad estimada con visibilidad condicional). Su lógica vive en
 // lib/almacenamientoBoard.ts; se extrajo para respetar el límite de 400 líneas.
@@ -91,18 +96,29 @@ import { ASSET_CAJA } from '../lib/assetsUi';
            padding. La ilustración /nuevo-contenedor.webp ocupa TODA el área del
            botón (el <button> se ajusta a la imagen), conserva su relación de
            aspecto y el nombre accesible vive en title + aria-label. -->
-      <button type="button" id="nuevaCajaContenedorBtn"
-        class="inline-flex self-center shrink-0 p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
-        title="Crear una caja en «Cajas en Tránsito» (nombre, foto y dimensiones); después reubicala desde la canasta"
-        aria-label="Nueva caja o contenedor">
-        <img
-          src={ASSET_CAJA}
-          alt=""
-          aria-hidden="true"
-          draggable="false"
-          class="block h-20 w-auto md:h-24 md:w-auto max-w-none object-contain object-center select-none pointer-events-none"
-        />
-      </button>
+      <div class="flex items-center justify-end gap-3 flex-wrap self-center">
+        <!-- IMPRESIÓN DE ETIQUETAS QR: abre el modal ModalImprimirQR (filtro de
+             cajas + grilla A4). El PDF lo genera el backend y deja cada caja con
+             qr_impreso = true. -->
+        <button type="button" data-abrir-imprimir-qr
+          class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-50 active:scale-95 transition-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2"
+          title="Imprimir las etiquetas QR de las cajas en PDF (hoja A4)"
+          aria-label="Imprimir QRs">
+          🖨️ Imprimir QRs
+        </button>
+        <button type="button" id="nuevaCajaContenedorBtn"
+          class="inline-flex self-center shrink-0 p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
+          title="Crear una caja en «Cajas en Tránsito» (nombre, foto y dimensiones); después reubicala desde la canasta"
+          aria-label="Nueva caja o contenedor">
+          <img
+            src={ASSET_CAJA}
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+            class="block h-20 w-auto md:h-24 md:w-auto max-w-none object-contain object-center select-none pointer-events-none"
+          />
+        </button>
+      </div>
     </div>
 
     <LoadingState mensaje="Cargando espacios de almacenamiento..." />
@@ -421,6 +437,9 @@ import { ASSET_CAJA } from '../lib/assetsUi';
   <!-- Modal simplificado: «+ Nueva Caja / Contenedor» (Nombre · Foto ·
        Dimensiones · Descripción · Ubicación). Sin «Valor Estimado». -->
   <NuevaCajaModal />
+
+  <!-- Modal «🖨️ Imprimir QRs»: etiquetas QR en PDF (hoja A4) para las cajas. -->
+  <ModalImprimirQR />
 
   <!-- Acción rápida móvil: "+ Nuevo Objeto", por ENCIMA de la bandeja inferior fija. -->
   <BotonAccionRapida

@@ -249,6 +249,15 @@ class Contenedor(models.Model):
         verbose_name="Código QR",
         help_text="Imagen del código QR generado para este contenedor"
     )
+    qr_impreso = models.BooleanField(
+        default=False,
+        verbose_name="QR impreso",
+        help_text=(
+            "True cuando la etiqueta QR de esta caja ya se generó e imprimió "
+            "desde «Imprimir QRs» (PDF A4). Alimenta el filtro «Solo cajas no "
+            "impresas / nuevas» del modal de impresión de etiquetas."
+        )
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

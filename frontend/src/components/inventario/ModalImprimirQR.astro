@@ -1,0 +1,129 @@
+---
+// =============================================================================
+// MODAL «🖨️ IMPRIMIR QRs» · ETIQUETAS QR EN PDF PARA CAJAS
+// -----------------------------------------------------------------------------
+// Se monta en /almacenamiento y /objetos. Cualquier elemento de la barra
+// superior con `data-abrir-imprimir-qr` abre este diálogo:
+//
+//   1 · FILTRO DE SELECCIÓN  → Todas las cajas · Solo cajas no impresas /
+//       nuevas (campo `qr_impreso`) · Selección manual (checkboxes).
+//   2 · FORMATO DE HOJA A4   → 3x3 (9 por hoja, DEFAULT) · 2x2 (4) · 4x4 (16).
+//   3 · BOTÓN FINAL          → «Generar PDF para Imprimir»: pide el PDF al
+//       backend (GET /api/cajas/generar_pdf_qr/), lo abre en una pestaña nueva
+//       lista para imprimir y marca `qr_impreso = true` en las cajas incluidas.
+//
+// La lógica vive en src/lib/imprimirQrEtiquetas.ts (auth centralizada en
+// services/auth). Este componente sólo aporta el markup Tailwind y su propio
+// <script> de inicialización, así las dos páginas no repiten código.
+//
+// NOTA DE ESTILOS: los bloques que se muestran/ocultan por JS NO combinan la
+// clase `hidden` con una utilidad de display en el MISMO elemento (en Tailwind
+// v4 el orden del bundle puede dejar el display por encima de `.hidden`).
+// =============================================================================
+---
+
+<div id="modalImprimirQr" role="dialog" aria-modal="true" aria-labelledby="imprimirQrTitulo"
+  class="hidden fixed inset-0 z-[9998] bg-black/70 backdrop-blur-sm overflow-y-auto p-3 sm:p-6">
+  <div class="mx-auto w-full max-w-2xl my-4 sm:my-8 bg-white rounded-2xl shadow-2xl overflow-hidden">
+
+    <header class="flex items-start justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50">
+      <div class="min-w-0">
+        <h3 id="imprimirQrTitulo" class="text-base font-bold text-gray-900">🖨️ Imprimir QRs</h3>
+        <p class="text-[11px] text-gray-500">Etiquetas A4 con el QR, el nombre, el código y la ubicación de cada caja.</p>
+      </div>
+      <button type="button" id="imprimirQrCerrar" aria-label="Cerrar el modal de impresión"
+        class="shrink-0 w-9 h-9 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 text-xl leading-none">✕</button>
+    </header>
+
+    <div class="p-4 space-y-5 max-h-[70vh] overflow-y-auto">
+
+      <!-- ===================== 1 · FILTRO DE SELECCIÓN ===================== -->
+      <section>
+        <h4 class="text-sm font-bold text-gray-900 mb-2">1 · ¿Qué cajas imprimimos?</h4>
+
+        <div class="space-y-2">
+          <label class="flex items-start gap-2.5 p-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer transition-base">
+            <input type="radio" name="filtroImprimirQr" value="todas" checked
+              class="mt-0.5 w-4 h-4 text-amber-600 focus:ring-amber-500" />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-gray-900">Todas las cajas</span>
+              <span class="block text-xs text-gray-500">Imprime el QR de todo el inventario móvil del Estok activo.</span>
+            </span>
+            <span id="imprimirQrConteoTodas" class="ml-auto shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">—</span>
+          </label>
+
+          <label class="flex items-start gap-2.5 p-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer transition-base">
+            <input type="radio" name="filtroImprimirQr" value="nuevas"
+              class="mt-0.5 w-4 h-4 text-amber-600 focus:ring-amber-500" />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-gray-900">Solo cajas no impresas / nuevas</span>
+              <span class="block text-xs text-gray-500">Cajas que todavía no tienen su etiqueta impresa.</span>
+            </span>
+            <span id="imprimirQrConteoNuevas" class="ml-auto shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">—</span>
+          </label>
+
+          <label class="flex items-start gap-2.5 p-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer transition-base">
+            <input type="radio" name="filtroImprimirQr" value="manual"
+              class="mt-0.5 w-4 h-4 text-amber-600 focus:ring-amber-500" />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-gray-900">Selección manual</span>
+              <span class="block text-xs text-gray-500">Elegí una por una las cajas a imprimir.</span>
+            </span>
+          </label>
+        </div>
+
+        <!-- Lista de selección manual (la pinta lib/imprimirQrEtiquetas.ts) -->
+        <div id="imprimirQrListaWrap" class="hidden mt-3">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span id="imprimirQrSeleccionResumen" class="text-xs font-medium text-gray-600">—</span>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="imprimirQrMarcarTodas"
+                class="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-base">Todas</button>
+              <button type="button" id="imprimirQrMarcarNinguna"
+                class="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-base">Ninguna</button>
+            </div>
+          </div>
+          <div id="imprimirQrLista"
+            class="max-h-56 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-100 bg-white"></div>
+          <p id="imprimirQrListaVacia" class="hidden mt-1 text-xs text-gray-500">
+            No hay cajas para listar en este Estok.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== 2 · FORMATO DE HOJA A4 ===================== -->
+      <section>
+        <h4 class="text-sm font-bold text-gray-900 mb-2">2 · Formato de hoja (A4)</h4>
+        <select id="imprimirQrFormato"
+          class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-base cursor-pointer">
+          <option value="3x3" selected>3x3 (9 QR por hoja A4)</option>
+          <option value="2x2">2x2 (4 por hoja)</option>
+          <option value="4x4">4x4 (16 por hoja)</option>
+        </select>
+        <p id="imprimirQrResumen" class="mt-1.5 text-xs text-gray-500">—</p>
+      </section>
+
+      <!-- Error accionable (HTTP / selección vacía) -->
+      <div id="imprimirQrError"
+        class="hidden rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm"></div>
+    </div>
+
+    <footer class="px-4 py-3 border-t border-gray-200 bg-gray-50">
+      <button type="button" id="imprimirQrGenerar"
+        class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-base shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
+        <span id="imprimirQrGenerarTexto">🖨️ Generar PDF para Imprimir</span>
+        <span id="imprimirQrGenerarSpinner" class="hidden" aria-hidden="true">
+          <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+      </button>
+    </footer>
+  </div>
+</div>
+
+<script>
+  import { initModalImprimirQr } from '../../lib/imprimirQrEtiquetas';
+  initModalImprimirQr();
+</script>

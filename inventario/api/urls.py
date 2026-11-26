@@ -99,6 +99,13 @@ urlpatterns = [
     path('inventario/mudanza/', MudanzaView.as_view(), name='mudanza'),
     # Migración MASIVA «Mudar Todo el Stock» (bloque + purga de estructuras)
     path('inventario/mudanza/todo/', MudanzaMasivaView.as_view(), name='mudanza-masiva'),
+    # ETIQUETAS QR IMPRIMIBLES (PDF A4) - alias publico del modal Imprimir QRs.
+    # Misma accion del ContenedorViewSet (tambien disponible en
+    # /api/contenedores/generar_pdf_qr/). Parametros: filtro, ids, formato y
+    # marcar_impreso (ver api/viewsets/organizacion/qr_etiquetas_acciones.py).
+    path('cajas/generar_pdf_qr/',
+         ContenedorViewSet.as_view({'get': 'generar_pdf_qr'}),
+         name='cajas-generar-pdf-qr'),
     # Captura PÚBLICA de decisiones remotas del dueño (puente del 403).
     # AllowAny: la única credencial es el token FIRMADO de un solo uso.
     path('public/objeto-remoto-decision/',

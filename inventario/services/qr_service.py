@@ -93,6 +93,44 @@ class QRService:
         base_url = getattr(settings, 'SITE_URL', 'http://localhost:8000')
         return f"{base_url}/api/objetos/?contenedor={contenedor_id}"
 
+    def generar_png(self, contenedor_id: str, box_size: Optional[int] = None) -> bytes:
+        """
+        Genera el QR de un contenedor y devuelve los bytes PNG EN MEMORIA.
+
+        Es la ÚNICA implementación de la configuración visual/técnica del QR
+        (versión, corrección de error, borde y colores). La usan:
+          · `generar_qr()`  → persiste la imagen en media/qrcodes/
+          · services/qr_etiquetas_pdf_service.py → la incrusta en el PDF de
+            etiquetas imprimibles.
+
+        `box_size` permite subir la resolución para impresión sin tocar el
+        archivo guardado en disco (que conserva QR_BOX_SIZE).
+
+        Args:
+            contenedor_id: UUID del contenedor.
+            box_size: píxeles por módulo (default QR_BOX_SIZE).
+
+        Returns:
+            Contenido binario del PNG.
+        """
+        qr = qrcode.QRCode(
+            version=QR_VERSION,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medio: tolera ~15% de daño
+            box_size=box_size or QR_BOX_SIZE,
+            border=QR_BORDER,
+        )
+        qr.add_data(self._build_contenedor_url(contenedor_id))
+        qr.make(fit=True)
+
+        img = qr.make_image(
+            fill_color=QR_FILL_COLOR,
+            back_color=QR_BACK_COLOR
+        )
+
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        return img_buffer.getvalue()
+
     def generar_qr(self, contenedor_id: str, contenedor_nombre: str = "") -> Optional[str]:
         """
         Genera un código QR para un contenedor y lo guarda como archivo.
@@ -105,36 +143,13 @@ class QRService:
             Ruta relativa del archivo QR generado, o None si falla.
         """
         try:
-            # Construir la URL/datos para el QR
-            qr_data = self._build_contenedor_url(contenedor_id)
-
-            # Configurar el QR
-            qr = qrcode.QRCode(
-                version=QR_VERSION,
-                error_correction=qrcode.constants.ERROR_CORRECT_M,  # Medio: tolera ~15% de daño
-                box_size=QR_BOX_SIZE,
-                border=QR_BORDER,
-            )
-            qr.add_data(qr_data)
-            qr.make(fit=True)
-
-            # Generar la imagen
-            img = qr.make_image(
-                fill_color=QR_FILL_COLOR,
-                back_color=QR_BACK_COLOR
-            )
+            # Generar la imagen (configuración única en generar_png)
+            png = self.generar_png(contenedor_id)
 
             # Guardar la imagen en el directorio de QR
-            filename = self._get_qr_filename(contenedor_id)
-            filepath = self.qr_dir / filename
-
-            # Convertir PIL Image a bytes y guardar
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-
+            filepath = self.qr_dir / self._get_qr_filename(contenedor_id)
             with open(filepath, 'wb') as f:
-                f.write(img_buffer.getvalue())
+                f.write(png)
 
             relative_path = self._get_qr_relative_path(contenedor_id)
             logger.info(

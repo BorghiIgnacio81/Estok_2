@@ -33,9 +33,10 @@ from ..fusion_espacial import ids_del_grupo
 from .acciones_contenedor import AccionesContenedorMixin
 from .filtros_bandeja import aplicar_filtro_bandeja
 from .helpers_organizacion import OrganizacionHelpersMixin, _validar_membresia, filtrar_por_espacio_padre
+from .qr_etiquetas_acciones import AccionesQrEtiquetasMixin
 
 
-class ContenedorViewSet(AccionesContenedorMixin, OrganizacionHelpersMixin, viewsets.ModelViewSet):
+class ContenedorViewSet(AccionesQrEtiquetasMixin, AccionesContenedorMixin, OrganizacionHelpersMixin, viewsets.ModelViewSet):
     queryset = Contenedor.objects.all()
     serializer_class = ContenedorSerializer
     permission_classes = [permissions.IsAuthenticated, HasRolePermission]
