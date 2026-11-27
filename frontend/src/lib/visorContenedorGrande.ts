@@ -21,7 +21,10 @@ import { toast, columnasDeFilaInterna, filasInternasDe } from './mapaJerarquico'
 import type { UbicacionPlano } from './mapaJerarquico';
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
-import type { ItemElastico } from './lienzoElastico';
+import type { ItemElastico, ItemNuevoEspacial } from './lienzoElastico';
+// ASISTENTE VISUAL DE PLANTILLAS 2D (Nivel 3 · Mueble / Subdivisiones).
+import { abrirGeneradorVisualEspacial } from '../components/GeneradorVisualEspacial';
+import { itemNuevoDesdeElemento } from './generadorVisualEspacial/presetsEspaciales';
 import { conectarLienzoHabitacionVacia } from './visorContenedorGrandeVacio';
 import type { MuebleVisor, SubContVisor, SubObjVisor } from './visorContenedorGrandeHtml';
 import { visorContenidoGrandeHtml } from './visorContenedorGrandeHtml';
@@ -437,7 +440,29 @@ function conectarLienzosElasticos(): void {
         })),
       adaptador: adaptadorContenedores(),
       notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
-      crearItem: () => crearEstanteEnMueble(muebleId),
+      crearItem: (nuevo) => crearEstanteEnMueble(muebleId, nuevo),
+      // ASISTENTE VISUAL (Nivel 3): el botón «➕ Crear Espacio» del mueble abre
+      // PRIMERO las 4 estructuras de cajones/estantes/barrales/maleteros. Sólo
+      // «Crear en blanco» cae al alta manual de un estante suelto.
+      abrirGenerador: () => {
+        const mueble = muebles.find((m) => m.id === muebleId);
+        const estantes = subContenedores.filter(
+          (x) => x.parent_contenedor === muebleId,
+        ).length;
+        abrirGeneradorVisualEspacial({
+          nivel: 3,
+          contexto: {
+            titulo: `Estructura de «${mueble?.nombre ?? 'el mueble'}»`,
+            descripcion:
+              'Probá 4 combinaciones de cajones, estantes, barrales y maleteros para este mueble.',
+          },
+          configuracionInicial: { estantes: Math.max(3, estantes) },
+          crearElemento: (elemento) =>
+            crearEstanteEnMueble(muebleId, itemNuevoDesdeElemento(elemento)),
+          crearEnBlanco: () => crearEstanteEnMueble(muebleId),
+          alInsertar: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
+        });
+      },
     });
     const lienzo = scope.querySelector<HTMLElement>('[data-lienzo-pu]');
     if (lienzo) enlazarDropPadre(lienzo, muebleId);
@@ -487,23 +512,27 @@ function enlazarDropPadre(lienzo: HTMLElement, muebleId: string): void {
 }
 
 /** Crea un estante/cajón nuevo dentro del mueble (rectángulo libre, sin grilla). */
-async function crearEstanteEnMueble(muebleId: string): Promise<boolean> {
+async function crearEstanteEnMueble(
+  muebleId: string,
+  nuevo?: ItemNuevoEspacial,
+): Promise<boolean> {
   if (!roomActual) return false;
   const mueble = muebles.find((m) => m.id === muebleId);
   const n = subContenedores.filter((x) => x.parent_contenedor === muebleId).length;
+  const nombre = nuevo?.nombre.trim() || `Estante ${n + 1}`;
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: `Estante ${n + 1}`,
+        nombre,
         descripcion: '',
         ubicacion: roomActual.id,
         parent_contenedor: muebleId,
-        ui_left: `${6 + (n % 5) * 12}%`,
-        ui_top: `${8 + (n % 4) * 16}%`,
-        ui_width: '28%',
-        ui_height: '24%',
+        ui_left: nuevo?.ui_left ?? `${6 + (n % 5) * 12}%`,
+        ui_top: nuevo?.ui_top ?? `${8 + (n % 4) * 16}%`,
+        ui_width: nuevo?.ui_width ?? '28%',
+        ui_height: nuevo?.ui_height ?? '24%',
         es_inmueble: false,
       }),
     });
@@ -512,8 +541,12 @@ async function crearEstanteEnMueble(muebleId: string): Promise<boolean> {
       return false;
     }
     if (res.ok) {
-      toast(`✅ «Estante ${n + 1}» fundado en «${mueble?.nombre || 'el mueble'}».`);
-      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      // Las altas de una PLANTILLA se notifican UNA sola vez al terminar el lote
+      // (Generador Visual → alInsertar); el alta manual avisa al instante.
+      if (!nuevo) {
+        toast(`✅ «${nombre}» fundado en «${mueble?.nombre || 'el mueble'}».`);
+        window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      }
       return true;
     }
     const err = await res.json().catch(() => ({}));

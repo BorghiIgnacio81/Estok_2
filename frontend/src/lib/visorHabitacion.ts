@@ -388,19 +388,37 @@ function enlazarVisor(): void {
       e.preventDefault();
       e.stopPropagation();
       if (!roomActual) return;
+      // Captura local: el narrowing no sobrevive dentro del callback «en blanco».
+      const room = roomActual;
       const fila = Number(btn.dataset.crearFila);
       const col = Number(btn.dataset.crearCol);
       if (!fila || !col) return;
-      window.dispatchEvent(
-        new CustomEvent('estok:crear-mueble-en-celda', {
-          detail: {
-            ubicacionId: roomActual.id,
-            fila,
-            col,
-            habitacionNombre: roomActual.nombre,
-          },
-        }),
-      );
+      // ASISTENTE VISUAL PRIMERO (Nivel 2): el botón «➕ Crear mueble aquí» de
+      // una celda vacía abre las 4 disposiciones de muebles. Sólo «Crear en
+      // blanco» conserva el modal técnico con la celda exacta (comportamiento
+      // original), tal como pide el flujo de creación.
+      abrirGeneradorVisualEspacial({
+        nivel: 2,
+        contexto: {
+          titulo: `Muebles de «${room.nombre}»`,
+          descripcion: 'Elegí cuántos muebles hay y probá 4 disposiciones 2D para el cuarto.',
+        },
+        configuracionInicial: { muebles: Math.max(3, contenedoresRoom.length) },
+        crearElemento: (elemento) => crearMuebleEnHabitacion(itemNuevoDesdeElemento(elemento)),
+        crearEnBlanco: () => {
+          window.dispatchEvent(
+            new CustomEvent('estok:crear-mueble-en-celda', {
+              detail: {
+                ubicacionId: room.id,
+                fila,
+                col,
+                habitacionNombre: room.nombre,
+              },
+            }),
+          );
+        },
+        alInsertar: notificarEspacios,
+      });
     });
   });
 

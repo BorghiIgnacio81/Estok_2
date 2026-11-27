@@ -158,25 +158,43 @@ function conectarCreacion(opts: OpcionesPlantaUnica): void {
   opts.scope
     .querySelectorAll<HTMLElement>('[data-nueva-ubicacion],[data-lienzo-crear]')
     .forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        if (btn.dataset.creando === '1') return;
-        // PLANTILLAS 2D: el nivel inyecta `abrirGenerador` para ofrecer el modal
-        // de 3 pasos (configuración → 4 presets → ajuste fino). La opción
-        // «Crear en blanco» del modal delega en el alta manual original.
-        if (opts.abrirGenerador) {
-          opts.abrirGenerador();
-          return;
-        }
-        btn.dataset.creando = '1';
-        btn.classList.add('pu-creando');
-        try {
-          await crearRectangulo(opts);
-        } finally {
-          delete btn.dataset.creando;
-          btn.classList.remove('pu-creando');
-        }
-      });
+      // Anti-doble-binding: los visores pueden reconectar el mismo host sin
+      // repintarlo; un botón debe abrir UN solo asistente por clic.
+      if (btn.dataset.gveHandler === '1') return;
+      btn.dataset.gveHandler = '1';
+      btn.addEventListener('click', () => void onNuevoEspacio(opts, btn));
     });
+}
+
+/**
+ * HANDLER ÚNICO «onNuevoEspacio» · FLUJO DE APERTURA DEL ASISTENTE VISUAL.
+ *
+ * TODO botón de alta de espacio (`data-lienzo-crear`, `data-nueva-ubicacion` y
+ * los equivalentes de los visores) pasa PRIMERO por el Generador Visual de
+ * Plantillas 2D. Sólo cuando el nivel no registró `abrirGenerador` —o cuando el
+ * asistente falla al montarse— se ejecuta el alta manual directa. La opción
+ * «Crear en blanco» del propio asistente delega en `crearRectangulo` (el editor
+ * manual en blanco), de modo que el comportamiento original queda intacto.
+ */
+async function onNuevoEspacio(opts: OpcionesPlantaUnica, btn: HTMLElement): Promise<void> {
+  if (btn.dataset.creando === '1') return;
+  if (opts.abrirGenerador) {
+    try {
+      opts.abrirGenerador();
+      return;
+    } catch (error) {
+      // Si el modal no puede montarse, la creación manual sigue disponible.
+      console.error('No se pudo abrir el Generador Visual Espacial; se usa el alta manual.', error);
+    }
+  }
+  btn.dataset.creando = '1';
+  btn.classList.add('pu-creando');
+  try {
+    await crearRectangulo(opts);
+  } finally {
+    delete btn.dataset.creando;
+    btn.classList.remove('pu-creando');
+  }
 }
 
 /**
