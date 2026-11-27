@@ -70,7 +70,7 @@ import '../styles/almacenamiento-espera.css';
 // explorador) y refuerzo del resaltado NARANJA del nodo seleccionado.
 import '../styles/almacenamiento-fuelle.css';
 // Iconografía de interfaz: rutas canónicas (WebP optimizados) en UN solo módulo.
-import { ASSET_CAJA } from '../lib/assetsUi';
+import { ASSET_CAJA, ASSET_QR_IMPRESORA } from '../lib/assetsUi';
 ---
 
 <AuthGuard />
@@ -110,7 +110,7 @@ import { ASSET_CAJA } from '../lib/assetsUi';
           class="inline-flex shrink-0 items-center justify-center self-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer h-20 w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
           title="Imprimir QRs"
           aria-label="Imprimir QRs">
-          <img src="/qr-impresora.png" alt="" aria-hidden="true" draggable="false"
+          <img src={ASSET_QR_IMPRESORA} alt="" aria-hidden="true" draggable="false"
             class="block w-full h-full object-cover object-center max-w-none select-none pointer-events-none" />
         </button>
         <button type="button" id="nuevaCajaContenedorBtn"
@@ -154,7 +154,11 @@ import { ASSET_CAJA } from '../lib/assetsUi';
             </div>
             <div class="flex items-center gap-2 flex-wrap">
               <button type="button" id="btnVolverNivel" class="hidden nav-volver" title="⬅ Volver de Nivel: desandá el camino de portales paso a paso">⬅ Volver de Nivel</button>
-              <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
+              <!-- ACCIONES PRINCIPALES DE LA PROPIEDAD (mismo lugar del antiguo
+                   «✏️ Editar»): ⚡ Usar plantilla abre el Asistente 2D del Nivel 1;
+                   🛠️ Crear desde cero abre el editor manual en blanco. -->
+              <button type="button" data-usar-plantilla class="portales-modo-boton portales-modo-boton--plantilla" title="Abrir el Asistente de Plantillas 2D: elegí cuántos ambientes hay y probá 4 maquetas antes de crear la planta completa">⚡ Usar plantilla</button>
+              <button type="button" data-modo-editar class="portales-modo-boton" title="Abrir el editor manual en blanco: habilitar la edición in-place de los planos (crear, renombrar, arrastrar, fusionar, estirar)">🛠️ Crear desde cero</button>
               <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
             </div>
           </div>
@@ -208,7 +212,13 @@ import { ASSET_CAJA } from '../lib/assetsUi';
               <h2 id="tituloPanelDerecho" class="text-lg font-semibold text-gray-900 flex items-center gap-2">🗺️ Mapa general de la Planta</h2>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-              <button type="button" data-modo-editar class="portales-modo-boton" title="Habilitar la edición in-place de los planos (renombrar, arrastrar, fusionar, estirar)">✏️ Editar</button>
+              <!-- ACCIONES PRINCIPALES DE LA PROPIEDAD (antes: un único «✏️ Editar»):
+                   ⚡ Usar plantilla → Asistente 2D del Nivel 1 (ambientes ➔ 4
+                     maquetas ➔ habitaciones creadas y YA COLOCADAS en el lienzo).
+                   🛠️ Crear desde cero → editor manual en blanco (data-modo-editar,
+                     conserva la máquina Editar ⇄ Guardar sin cambios). -->
+              <button type="button" data-usar-plantilla class="portales-modo-boton portales-modo-boton--plantilla" title="Abrir el Asistente de Plantillas 2D: elegí cuántos ambientes hay y probá 4 maquetas antes de crear la planta completa">⚡ Usar plantilla</button>
+              <button type="button" data-modo-editar class="portales-modo-boton" title="Abrir el editor manual en blanco: habilitar la edición in-place de los planos (crear, renombrar, arrastrar, fusionar, estirar)">🛠️ Crear desde cero</button>
               <button type="button" data-modo-guardar class="portales-modo-boton hidden" title="Guardar ui_width/ui_height por PUT y bloquear la grilla para navegar por portales">💾 Guardar</button>
               <button type="button" id="btnOrganizarEscena4" class="hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer" title="Abrir la Organización Interna del mueble: pantalla dividida con la Bandeja de Carga Fina a la derecha">📦 Organizar Contenido</button>
               <button type="button" id="btnVolverEscena" class="nav-volver hidden" title="Volver al nivel anterior del flujo en cascada">

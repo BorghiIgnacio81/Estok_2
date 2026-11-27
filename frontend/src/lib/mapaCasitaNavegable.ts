@@ -51,6 +51,7 @@ import { renderCasaHtml, renderHabitacionesHtml } from './mapaCasita/renderCasit
 import {
   cargarDatos,
   crearApartamentoSiFalta,
+  crearEnDepartamento,
   crearHabitacionEnPlanta,
   guardarEspacioUnicoDivision,
 } from './mapaCasita/cargaCasita';
@@ -120,6 +121,19 @@ function notificarPlanta(): void {
   );
 }
 
+/**
+ * REPINTADO PÚBLICO DEL LIENZO DE LA PROPIEDAD: repinta la casa / el editor de
+ * habitaciones y republica la planta activa. Lo usa «⚡ Usar plantilla» al fijar
+ * la planta destino de la maqueta.
+ */
+export function refrescarLienzoCasita(): void {
+  preservarScroll(() => {
+    render();
+    enlazar();
+  });
+  notificarPlanta();
+}
+
 // =============================================================================
 // PANEL DERECHO · EDITOR ELÁSTICO DE HABITACIONES (fuelle asimétrico)
 // =============================================================================
@@ -129,8 +143,10 @@ function notificarPlanta(): void {
  * Comparte el mismo contrato con el Modo Casa y el Modo Planta Única: recibe el
  * alta real de habitaciones de la división activa y ofrece las 4 distribuciones
  * según la cantidad de dormitorios, baños, cocina y living elegida.
+ * Se exporta para que «⚡ Usar plantilla» (cabecera de /almacenamiento) abra el
+ * MISMO asistente sin depender de un botón interno del lienzo.
  */
-function abrirGeneradorPlanta(
+export function abrirGeneradorPlanta(
   tituloContexto: string,
   crear: (nuevo?: ItemNuevoEspacial) => Promise<boolean>,
 ): void {
@@ -248,16 +264,8 @@ function enlazar(): void {
   // Se evalúa con las MISMAS plantas registradas que el render: si el Estok sumó
   // una segunda planta, el enlace cae en la rama de Modo Casa (selector de plantas).
   if (esPlantaUnica(estado.estok, estado.divisiones)) {
-    // Alta real en el departamento único (garantiza la división raíz).
-    const crearEnDepartamento = async (nuevo?: ItemNuevoEspacial): Promise<boolean> => {
-      let apartamento = apartamentoDePlantaUnica(estado.divisiones);
-      if (!apartamento) {
-        const id = await crearApartamentoSiFalta();
-        apartamento = estado.divisiones.find((d) => d.id === id) ?? null;
-      }
-      if (!apartamento) return false;
-      return crearHabitacionEnPlanta(apartamento, nuevo);
-    };
+    // Alta real en el departamento único (garantiza la división raíz). La
+    // función vive en cargaCasita.ts: la comparte «⚡ Usar plantilla».
     conectarPlantaUnica({
       scope: refs.mapa,
       rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),
@@ -376,12 +384,9 @@ async function cargarYRefrescar(): Promise<boolean> {
     estado.filaActiva = null;
   }
   // El re-render del lienzo NO debe mover el scroll del navegador (fix de jitter
-  // visual): se reafirma la posición vigente tras inyectar el marcado nuevo.
-  preservarScroll(() => {
-    render();
-    enlazar();
-  });
-  notificarPlanta();
+  // visual): `refrescarLienzoCasita` reafirma la posición vigente tras inyectar
+  // el marcado nuevo.
+  refrescarLienzoCasita();
   return true;
 }
 

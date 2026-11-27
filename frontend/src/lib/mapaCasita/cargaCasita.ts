@@ -45,6 +45,22 @@ export async function crearApartamentoSiFalta(): Promise<string | null> {
 }
 
 /**
+ * Alta de una habitación en el contenedor «Departamento» (Modo Planta Única):
+ * garantiza la división raíz antes de insertar. La comparten el lienzo del
+ * Mapa Estok (mapaCasitaNavegable.ts) y la acción «⚡ Usar plantilla» de la
+ * cabecera de /almacenamiento (mapaCasita/plantillasPropiedad.ts).
+ */
+export async function crearEnDepartamento(nuevo?: ItemNuevoEspacial): Promise<boolean> {
+  let apartamento = apartamentoDePlantaUnica(estado.divisiones);
+  if (!apartamento) {
+    const id = await crearApartamentoSiFalta();
+    apartamento = estado.divisiones.find((d) => d.id === id) ?? null;
+  }
+  if (!apartamento) return false;
+  return crearHabitacionEnPlanta(apartamento, nuevo);
+}
+
+/**
  * Crea una habitación nueva (rectángulo elástico libre) dentro de la planta
  * activa. Reutiliza el MISMO motor 2D que el Modo Planta Única; la tarjeta
  * hereda iconografía contextual y se persiste multi-tenant (JWT + X-Estok-Id).

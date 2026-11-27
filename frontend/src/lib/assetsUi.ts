@@ -52,6 +52,17 @@ export const ASSET_MUDANZA = '/mudanza.webp';
 export const ASSET_BOTON_QR = '/boton-qr.webp';
 
 /**
+ * CTA «🖨️ Imprimir QRs» de /almacenamiento y /objetos: ilustración original
+ * /qr-impresora.png pintada como BOTÓN GRÁFICO PURO (w-full h-full
+ * object-cover, sin fondo ni borde). Render: 80-144 px.
+ *
+ * NO se precachea en el Service Worker (public/sw.js) a propósito: pesa ~2,4 MB
+ * y bloquearía la instalación de la PWA. Se sirve con la estrategia estática
+ * habitual (stale-while-revalidate) y queda cacheada tras el primer uso.
+ */
+export const ASSET_QR_IMPRESORA = '/qr-impresora.png';
+
+/**
  * Trigger «Exportar Datos / Informe» de la barra de acciones (Objetos).
  * Se sirve en JPG a propósito: es el único formato que renderiza de forma
  * garantizada en todos los WebView (TWA/PWABuilder, Capacitor, Safari iOS) y en

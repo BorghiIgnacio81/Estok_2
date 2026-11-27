@@ -10,7 +10,9 @@
 //   1. AlmacenamientoBoard  → tablero clásico (modal editar, drag&drop de stock).
 //   2. initOffsetHeaderBandeja → canasta lateral anclada BAJO el header.
 //   3. Canastas            → bandeja inferior/flotante y carga fina.
-//   4. Mapa Estok          → lienzo de la casa (Nivel 1).
+//   4. Mapa Estok          → lienzo de la casa (Nivel 1) + acciones de la
+//                            cabecera de la propiedad («⚡ Usar plantilla» /
+//                            «🛠️ Crear desde cero»).
 //   5. Visores             → habitación y contenedor grande.
 //   6. Modo lienzo         → ✏️ Editar / 💾 Guardar.
 //   7. Portales            → máquina de niveles recursiva (al final: monta los
@@ -28,6 +30,11 @@ import { iniciarModoLienzo } from './modoLienzo';
 import { initCajaDetalle } from './cajaDetalle';
 import { initOffsetHeaderBandeja } from './layout/offsetHeaderBandeja';
 import { initNuevaCajaModal } from './nuevaCajaModal';
+// ACCIÓN «⚡ USAR PLANTILLA» de la cabecera de la propiedad: abre el Generador
+// Visual Espacial del Nivel 1 (conteo de ambientes ➔ 4 maquetas ➔ habitaciones
+// creadas y dibujadas en el lienzo). «🛠️ Crear desde cero» sigue siendo el
+// interruptor de edición in-place (data-modo-editar → iniciarModoLienzo).
+import { initAccionesPropiedad } from './accionesPropiedadPlantillas';
 // TOGGLE RÁPIDO «CAJA LLENA»: el badge de cada tarjeta del tablero alterna el
 // estado con un PATCH parcial, sin abrir el modal de edición.
 import { initCajaLlenaToggle } from './cajaLlenaToggle';
@@ -69,6 +76,10 @@ export function iniciarAlmacenamiento(): void {
       mapa: document.getElementById('mapaEstokPanel'),
       badge: document.getElementById('mapaJerarquicoBadge'),
     });
+    // Acciones principales de la cabecera de la propiedad:
+    //   ⚡ Usar plantilla  → Generador Visual Espacial 2D del Nivel 1.
+    //   🛠️ Crear desde cero → interruptor de edición (data-modo-editar).
+    initAccionesPropiedad();
     initVisor();
     initBandejaCargaFina({ contenedor: document.getElementById('cargaFinaPanel') });
     initCajaDetalle({

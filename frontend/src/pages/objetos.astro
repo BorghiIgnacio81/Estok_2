@@ -50,6 +50,7 @@ import {
   ASSET_FOTO_OBJETO,
   ASSET_MUEBLE,
   ASSET_NUEVO_OBJETO,
+  ASSET_QR_IMPRESORA,
 } from '../lib/assetsUi';
 // Modal de cámara del escáner QR: al escanear muestra el contenido y la ruta de
 // ubicación completa de la caja/objeto (lógica en lib/escanerQrModal.ts).
@@ -84,7 +85,7 @@ import ListaObjetosMovil from '../components/objetos/ListaObjetosMovil.astro';
           class="inline-flex shrink-0 items-center justify-center p-0 m-0 bg-transparent border-0 shadow-none leading-none cursor-pointer h-24 w-24 md:h-32 md:w-32 lg:h-36 lg:w-36 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2"
           title="Imprimir QRs"
           aria-label="Imprimir QRs">
-          <img src="/qr-impresora.png" alt="" aria-hidden="true" draggable="false"
+          <img src={ASSET_QR_IMPRESORA} alt="" aria-hidden="true" draggable="false"
             class="block w-full h-full object-cover object-center max-w-none select-none pointer-events-none" />
         </button>
         <CategoriaCreator class="h-24 md:h-32 lg:h-36 w-auto hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer object-contain" />

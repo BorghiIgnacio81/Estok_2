@@ -18,11 +18,13 @@
    ---------------------------------------------------------------------------
    No hay reglas que oculten #panelIzquierdoCol ni que colapsen #gridCascada: la
    izquierda conserva el plano del nivel superior y la tira de minimapas.
-   Sólo se apaga el interruptor de edición, porque el nivel terminal no tiene
-   lienzo propio que modelar (queda «🧩 Modelar divisiones» en el panel).
+   Sólo se apaga el interruptor de edición —y el alta por plantillas, que también
+   escribe sobre el lienzo del nivel— porque el nivel terminal no tiene lienzo
+   propio que modelar (queda «🧩 Modelar divisiones» en el panel).
    --------------------------------------------------------------------------- */
 html.portales-espacio-final [data-modo-editar],
-html.portales-espacio-final [data-modo-guardar] {
+html.portales-espacio-final [data-modo-guardar],
+html.portales-espacio-final [data-usar-plantilla] {
   display: none !important;
 }
 
