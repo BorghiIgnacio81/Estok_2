@@ -23,7 +23,10 @@ import { iconoDeEspacio } from '../../iconosFisicos';
 // arquitectura (divisiones y muebles). Las cajas son CONTENIDO del inventario.
 import { esCajaDeContenidoEnPlano } from '../../taxonomiaContenedor';
 import { adaptadorContenedores, adaptadorUbicaciones } from '../../lienzoElastico';
-import type { AdaptadorEspacios, ItemElastico } from '../../lienzoElastico';
+import type { AdaptadorEspacios, ItemElastico, ItemNuevoEspacial } from '../../lienzoElastico';
+// GENERADOR VISUAL ESPACIAL 2D (Nivel 2 · Habitación / Nivel 3 · Mueble /
+// Nivel 4 · Estante): adaptador propio de la cascada de portales.
+import { abrirGeneradorDivisiones } from './generadorDivisionesPortales';
 import { renderLienzoElastico } from '../../mapaPlantaUnica';
 import { conectarLienzoElastico } from '../../plantaUnicaInteractivo';
 import { checkboxEspacioFinalHtml, GUIA_ESPACIO_FINAL } from '../../espacioFinal';
@@ -203,7 +206,11 @@ async function ubicacionDeNodo(nodo: NodoPortal): Promise<string | null> {
  * `ubicacion` (campo obligatorio del serializer) para no romper la validación con
  * un 400. Así el descenso interno es idéntico en CUALQUIER nivel (N+1, N+2, …).
  */
-async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean> {
+async function crearEspacioEnNodo(
+  nodo: NodoPortal,
+  n: number,
+  nuevo?: ItemNuevoEspacial,
+): Promise<boolean> {
   if (!nodo.id) return false;
   const ubicacion = await ubicacionDeNodo(nodo);
   if (!ubicacion) {
@@ -211,14 +218,14 @@ async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean>
     return false;
   }
   const cuerpo: Record<string, unknown> = {
-    nombre: `Espacio ${n + 1}`,
+    nombre: nuevo?.nombre.trim() || `Espacio ${n + 1}`,
     descripcion: '',
     // OBLIGATORIO del serializer: Ubicación física del contenedor padre.
     ubicacion,
-    ui_left: `${6 + (n % 5) * 12}%`,
-    ui_top: `${8 + (n % 4) * 16}%`,
-    ui_width: '28%',
-    ui_height: '24%',
+    ui_left: nuevo?.ui_left ?? `${6 + (n % 5) * 12}%`,
+    ui_top: nuevo?.ui_top ?? `${8 + (n % 4) * 16}%`,
+    ui_width: nuevo?.ui_width ?? '28%',
+    ui_height: nuevo?.ui_height ?? '24%',
     es_inmueble: false,
     // Subdivisión estructural: geometría del mapa sin stock espejo.
     crear_espejo: false,
@@ -246,7 +253,9 @@ async function crearEspacioEnNodo(nodo: NodoPortal, n: number): Promise<boolean>
       toast('❌ ' + (err?.detail || err?.error || 'No se pudo crear el espacio.'));
       return false;
     }
-    toast('✅ Espacio interno creado. Arrastralo para acomodarlo.');
+    // Las altas de una PLANTILLA se notifican UNA sola vez al terminar el lote
+    // (Generador Visual → alInsertar); el alta manual avisa al instante.
+    if (!nuevo) toast('✅ Espacio interno creado. Arrastralo para acomodarlo.');
     return true;
   } catch {
     toast('❌ Error de conexión al crear el espacio.');
@@ -379,7 +388,19 @@ export function pintarEditorDivisiones(
     scope: host,
     rooms: () => items,
     adaptador: adaptadorContenedores(),
-    crearItem: () => crearEspacioEnNodo(nodo, items.length),
+    crearItem: (nuevo) => crearEspacioEnNodo(nodo, items.length, nuevo),
+    // PLANTILLAS 2D DEL NIVEL ACTIVO (adaptador de la cascada):
+    //   · Habitación → 4 disposiciones de muebles dentro del cuarto.
+    //   · Mueble     → 4 estructuras de cajones/estantes/barrales/maleteros.
+    //   · Estante    → 4 maquetas de cómo acomodar y apilar las cajas.
+    // «Crear en blanco» delega en el alta manual original del nodo.
+    abrirGenerador: () =>
+      abrirGeneradorDivisiones({
+        nodo,
+        interior,
+        cantidadItems: items.length,
+        crear: (nuevo) => crearEspacioEnNodo(nodo, items.length, nuevo),
+      }),
     // ⧉ DUPLICAR: copia exacta contigua del espacio/sub-división (mismas
     // dimensiones, tipo y configuración) + nombre incremental. El latido de
     // cambios re-renderiza el nivel con la nueva pieza ya en su lugar.

@@ -87,6 +87,21 @@ export interface ItemElastico {
   slug?: string | null;
 }
 
+/**
+ * ALTA CON GEOMETRÍA EXPLÍCITA (plantillas del Generador Visual Espacial 2D).
+ * Los adaptadores de cada nivel (`crearItem`) reciben este parcial opcional y
+ * lo usan como nombre + `ui_*` en el POST. Sin parcial, el alta cae al
+ * comportamiento original (nombre incremental + posición en cascada).
+ */
+export interface ItemNuevoEspacial {
+  nombre: string;
+  icono?: string | null;
+  ui_left: string;
+  ui_top: string;
+  ui_width: string;
+  ui_height: string;
+}
+
 /** Resultado del borrado físico de una estructura espacial (macro-espacio). */
 export interface ResultadoEliminar {
   ok: boolean;

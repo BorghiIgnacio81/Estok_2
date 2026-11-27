@@ -33,6 +33,11 @@ import {
 import { conectarLienzoElastico } from './plantaUnicaInteractivo';
 import { adaptadorContenedores } from './lienzoElastico';
 import type { ItemElastico } from './lienzoElastico';
+import type { ItemNuevoEspacial } from './lienzoElastico';
+// GENERADOR VISUAL ESPACIAL 2D (Nivel 2 · Habitación / Muebles): 4 disposiciones
+// de muebles dentro del cuarto activo.
+import { abrirGeneradorVisualEspacial } from '../components/GeneradorVisualEspacial';
+import { itemNuevoDesdeElemento } from './generadorVisualEspacial/presetsEspaciales';
 import { renderLienzoElastico } from './mapaPlantaUnica';
 // Viewport CONGELADO: cada refresco del visor conserva scroll, foco y caret.
 import { conservarViewport } from './edicionEspacioActiva';
@@ -458,6 +463,19 @@ function enlazarVisor(): void {
       adaptador: adaptadorContenedores(),
       notificarCambios: notificarEspacios,
       crearItem: crearMuebleEnHabitacion,
+      // Plantillas 2D del Nivel 2: 4 disposiciones de muebles en el cuarto.
+      abrirGenerador: () =>
+        abrirGeneradorVisualEspacial({
+          nivel: 2,
+          contexto: {
+            titulo: `Muebles de «${roomActual?.nombre ?? 'la habitación'}»`,
+            descripcion: 'Elegí cuántos muebles hay y probá 4 disposiciones 2D para el cuarto.',
+          },
+          configuracionInicial: { muebles: Math.max(3, contenedoresRoom.length) },
+          crearElemento: (el) => crearMuebleEnHabitacion(itemNuevoDesdeElemento(el)),
+          crearEnBlanco: () => crearMuebleEnHabitacion(),
+          alInsertar: notificarEspacios,
+        }),
     });
     const lienzoEl = scopeLienzo.querySelector<HTMLElement>('[data-lienzo-pu]');
     if (lienzoEl) enlazarDropHabitacion(lienzoEl);
@@ -781,21 +799,22 @@ function enlazarDropHabitacion(lienzo: HTMLElement): void {
 }
 
 /** Crea un mueble nuevo (rectángulo libre) dentro de la habitación activa. */
-async function crearMuebleEnHabitacion(): Promise<boolean> {
+async function crearMuebleEnHabitacion(nuevo?: ItemNuevoEspacial): Promise<boolean> {
   if (!roomActual) return false;
   const n = contenedoresRoom.length;
+  const nombre = nuevo?.nombre.trim() || `Mueble ${n + 1}`;
   try {
     const res = await fetch(`${API_BASE_URL}/contenedores/`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: `Mueble ${n + 1}`,
+        nombre,
         descripcion: '',
         ubicacion: roomActual.id,
-        ui_left: `${6 + (n % 5) * 12}%`,
-        ui_top: `${8 + (n % 4) * 16}%`,
-        ui_width: '28%',
-        ui_height: '24%',
+        ui_left: nuevo?.ui_left ?? `${6 + (n % 5) * 12}%`,
+        ui_top: nuevo?.ui_top ?? `${8 + (n % 4) * 16}%`,
+        ui_width: nuevo?.ui_width ?? '28%',
+        ui_height: nuevo?.ui_height ?? '24%',
         es_inmueble: false,
       }),
     });
@@ -804,8 +823,12 @@ async function crearMuebleEnHabitacion(): Promise<boolean> {
       return false;
     }
     if (res.ok) {
-      toast(`✅ «Mueble ${n + 1}» creado en «${roomActual.nombre}».`);
-      notificarEspacios();
+      // Las altas de una PLANTILLA se refrescan UNA sola vez al terminar el lote
+      // (Generador Visual → alInsertar); el alta manual avisa al instante.
+      if (!nuevo) {
+        toast(`✅ «${nombre}» se agregó a «${roomActual.nombre}».`);
+        notificarEspacios();
+      }
       return true;
     }
     const err = await res.json().catch(() => ({}));

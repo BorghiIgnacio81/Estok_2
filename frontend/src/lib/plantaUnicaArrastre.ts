@@ -27,7 +27,7 @@ import {
   limpiarDesplazamientoVisual,
   pct,
 } from './lienzoCajas';
-import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico } from './lienzoElastico';
+import { adaptadorUbicaciones, type AdaptadorEspacios, type ItemElastico, type ItemNuevoEspacial } from './lienzoElastico';
 import { crearNotificadorDebounced, guardadoEditor } from './debounceGuardado';
 import { iniciarBloqueoResize } from './bloqueoScrollGesto';
 import { preservarScrollAsync } from './scrollPreservado';
@@ -55,7 +55,14 @@ export interface OpcionesPlantaUnica {
   /** Persistencia del recurso espacial (por defecto: Ubicación, Nivel 1/2). */
   adaptador?: AdaptadorEspacios;
   /** Crea un nuevo rectángulo en el lienzo. Por defecto: Ubicación de Planta Única. */
-  crearItem?: () => Promise<boolean>;
+  crearItem?: (nuevo?: ItemNuevoEspacial) => Promise<boolean>;
+  /**
+   * Abre el Generador Visual Espacial 2D DEL NIVEL (lo inyecta cada consumidor
+   * con su `nivel`, su contexto y su callback de alta). Si existe, el botón
+   * «➕ Crear …» abre el modal de 3 pasos en vez del alta directa; la opción
+   * «Crear en blanco» del modal sigue llamando al alta manual original.
+   */
+  abrirGenerador?: () => void;
   /**
    * «Duplicar» (⧉) del espacio/sub-división: crea una copia real en el backend con
    * las mismas dimensiones, tipo y configuración, desplazada al lado del original.

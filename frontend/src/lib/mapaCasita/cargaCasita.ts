@@ -17,6 +17,8 @@ import {
   toast,
 } from '../mapaJerarquico';
 import type { UbicacionPlano } from '../mapaJerarquico';
+// Geometría explícita de las plantillas del Generador Visual Espacial 2D.
+import type { ItemNuevoEspacial } from '../lienzoElastico';
 import { apartamentoDePlantaUnica } from './dominioCasita';
 import { estado } from './estadoCasita';
 // El limbo «En Tránsito» es un espacio VIRTUAL de sistema: no se modela ni se
@@ -47,20 +49,24 @@ export async function crearApartamentoSiFalta(): Promise<string | null> {
  * activa. Reutiliza el MISMO motor 2D que el Modo Planta Única; la tarjeta
  * hereda iconografía contextual y se persiste multi-tenant (JWT + X-Estok-Id).
  */
-export async function crearHabitacionEnPlanta(div: UbicacionPlano): Promise<boolean> {
+export async function crearHabitacionEnPlanta(
+  div: UbicacionPlano,
+  nuevo?: ItemNuevoEspacial,
+): Promise<boolean> {
   const n = estado.habitaciones.filter((h) => h.parent_ubicacion === div.id).length;
+  const nombre = nuevo?.nombre.trim() || `Habitación ${n + 1}`;
   try {
     const res = await fetch(`${API_BASE_URL}/ubicaciones/`, {
       method: 'POST',
       headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre: `Habitación ${n + 1}`,
+        nombre,
         parent_ubicacion: div.id,
         piso: div.parent_grid_row === 1 ? PISO_PRIMERO : PISO_BAJA,
-        ui_left: `${6 + (n % 5) * 12}%`,
-        ui_top: `${8 + (n % 4) * 16}%`,
-        ui_width: '28%',
-        ui_height: '24%',
+        ui_left: nuevo?.ui_left ?? `${6 + (n % 5) * 12}%`,
+        ui_top: nuevo?.ui_top ?? `${8 + (n % 4) * 16}%`,
+        ui_width: nuevo?.ui_width ?? '28%',
+        ui_height: nuevo?.ui_height ?? '24%',
       }),
     });
     if (res.status === 401) {
@@ -68,8 +74,12 @@ export async function crearHabitacionEnPlanta(div: UbicacionPlano): Promise<bool
       return false;
     }
     if (res.ok) {
-      toast(`✅ «Habitación ${n + 1}» creada en «${div.nombre}».`);
-      window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      // Las altas de una PLANTILLA se notifican UNA sola vez al terminar todo
+      // el lote (Generador Visual → alInsertar); el alta manual avisa al instante.
+      if (!nuevo) {
+        toast(`✅ «${nombre}» se agregó a «${div.nombre}».`);
+        window.dispatchEvent(new CustomEvent('estok:espacios-cambiados'));
+      }
       return true;
     }
     const err = await res.json().catch(() => ({}));

@@ -25,6 +25,11 @@ import { fetchEstokConfig } from './mapaJerarquico';
 import { renderPlantaUnica } from './mapaPlantaUnica';
 import { conectarPlantaUnica } from './plantaUnicaInteractivo';
 import { adaptadorUbicaciones } from './lienzoElastico';
+import type { ItemNuevoEspacial } from './lienzoElastico';
+// GENERADOR VISUAL ESPACIAL 2D (Nivel 1 · Planta / Propiedad): el botón
+// «➕ Habitación» abre el modal de 3 pasos con 4 distribuciones de casa/depto.
+import { abrirGeneradorVisualEspacial } from '../components/GeneradorVisualEspacial';
+import { itemNuevoDesdeElemento } from './generadorVisualEspacial/presetsEspaciales';
 import { modoLienzoActual } from './modoLienzo';
 // Fix de jitter visual: los refrescos asíncronos conservan la posición de scroll.
 import { preservarScroll } from './scrollPreservado';
@@ -120,6 +125,29 @@ function notificarPlanta(): void {
 // =============================================================================
 
 /**
+ * GENERADOR VISUAL ESPACIAL · NIVEL 1 (Planta / Propiedad).
+ * Comparte el mismo contrato con el Modo Casa y el Modo Planta Única: recibe el
+ * alta real de habitaciones de la división activa y ofrece las 4 distribuciones
+ * según la cantidad de dormitorios, baños, cocina y living elegida.
+ */
+function abrirGeneradorPlanta(
+  tituloContexto: string,
+  crear: (nuevo?: ItemNuevoEspacial) => Promise<boolean>,
+): void {
+  abrirGeneradorVisualEspacial({
+    nivel: 1,
+    contexto: {
+      titulo: tituloContexto,
+      descripcion:
+        'Elegí dormitorios, baños, cocina y living: el motor arma 4 distribuciones 2D listas para ajustar.',
+    },
+    crearElemento: (elemento) => crear(itemNuevoDesdeElemento(elemento)),
+    crearEnBlanco: () => crear(),
+    alInsertar: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
+  });
+}
+
+/**
  * MONTA EL EDITOR DE HABITACIONES EN EL PANEL DERECHO (host `listaHabitacionesPanel`).
  *
  * Con una planta activa, la IZQUIERDA queda RÍGIDA en el plano general y acá vive
@@ -194,13 +222,16 @@ function montarEditorHabitacionesDerecha(): void {
 
   // MOTOR 2D ELÁSTICO UNIFICADO: renombrar al clic, arrastre/reacomodo, estirado
   // por esquina y fusión en «L» sobre el adaptador real de Ubicaciones.
+  const crearEnPlanta = (nuevo?: ItemNuevoEspacial) => crearHabitacionEnPlanta(div, nuevo);
   conectarPlantaUnica({
     scope: host,
     rooms: () =>
       habitacionesDePlanta(estado.divisiones, estado.habitaciones, estado.filaActiva || 1),
     adaptador: adaptadorUbicaciones(),
     apartamentoId: () => div.id,
-    crearItem: () => crearHabitacionEnPlanta(div),
+    crearItem: crearEnPlanta,
+    // Plantillas 2D del Nivel 1: 4 distribuciones de casa/depto según cuartos.
+    abrirGenerador: () => abrirGeneradorPlanta(`Distribución de «${div.nombre}»`, crearEnPlanta),
     notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
   });
 }
@@ -217,11 +248,25 @@ function enlazar(): void {
   // Se evalúa con las MISMAS plantas registradas que el render: si el Estok sumó
   // una segunda planta, el enlace cae en la rama de Modo Casa (selector de plantas).
   if (esPlantaUnica(estado.estok, estado.divisiones)) {
+    // Alta real en el departamento único (garantiza la división raíz).
+    const crearEnDepartamento = async (nuevo?: ItemNuevoEspacial): Promise<boolean> => {
+      let apartamento = apartamentoDePlantaUnica(estado.divisiones);
+      if (!apartamento) {
+        const id = await crearApartamentoSiFalta();
+        apartamento = estado.divisiones.find((d) => d.id === id) ?? null;
+      }
+      if (!apartamento) return false;
+      return crearHabitacionEnPlanta(apartamento, nuevo);
+    };
     conectarPlantaUnica({
       scope: refs.mapa,
       rooms: () => roomsDePlantaUnica(estado.divisiones, estado.habitaciones),
       apartamentoId: () => apartamentoDePlantaUnica(estado.divisiones)?.id ?? null,
       asegurarApartamento: crearApartamentoSiFalta,
+      crearItem: crearEnDepartamento,
+      // Plantillas 2D del Nivel 1 (Modo Planta Única): 4 distribuciones.
+      abrirGenerador: () =>
+        abrirGeneradorPlanta('Distribución del departamento', crearEnDepartamento),
       notificarCambios: () => window.dispatchEvent(new CustomEvent('estok:espacios-cambiados')),
     });
     return;

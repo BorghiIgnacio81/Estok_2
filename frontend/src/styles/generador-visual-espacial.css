@@ -1,0 +1,622 @@
+/* =============================================================================
+   GENERADOR VISUAL ESPACIAL · MODAL DE 3 PASOS
+   -----------------------------------------------------------------------------
+   Hoja dedicada del componente components/GeneradorVisualEspacial.tsx.
+   Sólo se importa en /almacenamiento (lib/almacenamientoArranque), donde viven
+   los 4 niveles de la jerarquía. Paleta ámbar/naranja coherente con los lienzos
+   elásticos existentes (planta-unica.css · portales-recursivos.css).
+   ============================================================================= */
+
+/* Bloqueo de scroll del documento mientras el modal está abierto. */
+body.gve-bloqueo-scroll {
+  overflow: hidden;
+}
+
+.gve-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+}
+
+.gve-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  max-height: 94vh;
+  background: #ffffff;
+  border: 1px solid #fde68a;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+/* ------------------------------- CABECERA -------------------------------- */
+.gve-cab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #fffbeb, #fff7ed);
+  border-bottom: 1px solid #fde68a;
+}
+
+.gve-cab-texto {
+  min-width: 0;
+}
+
+.gve-nivel {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b45309;
+}
+
+.gve-titulo {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #1f2937;
+}
+
+.gve-sub {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.gve-cerrar {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gve-cerrar:hover {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* --------------------------- INDICADOR DE PASOS --------------------------- */
+.gve-pasos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 18px;
+  list-style: none;
+  background: #fffbeb;
+  border-bottom: 1px solid #fef3c7;
+}
+
+.gve-paso {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a8a29e;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.gve-paso-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #e7e5e4;
+  color: #78716c;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.gve-paso--activo {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.gve-paso--activo .gve-paso-num {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.gve-paso--hecho {
+  color: #15803d;
+}
+
+.gve-paso--hecho .gve-paso-num {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+/* --------------------------------- CUERPO -------------------------------- */
+.gve-cuerpo {
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+}
+
+.gve-h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.gve-ayuda {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.gve-nota {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fffbeb;
+  border: 1px dashed #fcd34d;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #92400e;
+}
+
+/* ------------------------- PASO 1 · SELECTORES ---------------------------- */
+.gve-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.gve-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  background: #fffdf5;
+}
+
+.gve-campo-titulo {
+  font-size: 12px;
+  font-weight: 700;
+  color: #78350f;
+}
+
+.gve-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.gve-select:focus {
+  outline: none;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+.gve-campo-ayuda {
+  font-size: 10px;
+  color: #a8a29e;
+}
+
+.gve-resumen {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.gve-resumen-titulo {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+
+.gve-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gve-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #d1fae5;
+  font-size: 11px;
+  color: #166534;
+}
+
+/* ------------------------- PASO 2 · 4 PLANTILLAS -------------------------- */
+.gve-presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.gve-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  text-align: left;
+  border: 2px solid #e7e5e4;
+  border-radius: 14px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.gve-preset:hover {
+  border-color: #fbbf24;
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.18);
+  transform: translateY(-1px);
+}
+
+.gve-preset--activo {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18);
+  background: #fffbeb;
+}
+
+.gve-preset-svg {
+  display: block;
+  overflow: hidden;
+  border-radius: 9px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+}
+
+.gve-preset-svg svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
+.gve-preset-titulo {
+  font-size: 12px;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.gve-preset-desc {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+.gve-preset-meta {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #b45309;
+}
+
+/* --------------------------- PASO 3 · LIENZO ------------------------------ */
+.gve-lienzo {
+  position: relative;
+  width: 100%;
+  /* Fallback para WebView sin `aspect-ratio` (Safari 14 / Chrome 87 del target). */
+  height: min(52vh, 420px);
+  border: 2px dashed #f59e0b;
+  border-radius: 14px;
+  background-color: #fffbeb;
+  background-image:
+    linear-gradient(rgba(245, 158, 11, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 158, 11, 0.12) 1px, transparent 1px);
+  background-size: 10% 10%;
+  overflow: hidden;
+  touch-action: none;
+}
+
+@supports (aspect-ratio: 4 / 3) {
+  .gve-lienzo {
+    height: auto;
+    aspect-ratio: 4 / 3;
+  }
+}
+
+.gve-lienzo-vacio {
+  margin: 0;
+  padding: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: #b45309;
+}
+
+.gve-lienzo-item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px;
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 4px rgba(120, 53, 15, 0.18);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.gve-lienzo-item--activo {
+  border-color: #b45309;
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.35);
+  cursor: grabbing;
+}
+
+.gve-lienzo-icono {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.gve-lienzo-nombre {
+  max-width: 100%;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #78350f;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gve-lienzo-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  border-top-left-radius: 6px;
+  background: linear-gradient(135deg, transparent 45%, #d97706 45%);
+  cursor: nwse-resize;
+}
+
+
+/* -------------------- PASO 3 · LISTA Y ACCIONES DE AJUSTE ----------------- */
+.gve-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.gve-contador {
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.gve-lista {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.gve-fila {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gve-fila-icono {
+  flex: 0 0 auto;
+  width: 24px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.gve-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1f2937;
+  background: #ffffff;
+}
+
+.gve-input:focus {
+  outline: none;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22);
+}
+
+.gve-mini {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  background: #fafaf9;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gve-mini:hover {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.gve-mini--peligro:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* --------------------------------- PIE ----------------------------------- */
+.gve-pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid #fde68a;
+  background: #fffbeb;
+}
+
+.gve-pie-izq {
+  margin-right: auto;
+}
+
+.gve-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.gve-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.gve-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gve-btn--primario {
+  background: #d97706;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(180, 83, 9, 0.28);
+}
+
+.gve-btn--primario:hover:not(:disabled) {
+  background: #b45309;
+}
+
+.gve-btn--secundario {
+  background: #ffffff;
+  border-color: #d6d3d1;
+  color: #44403c;
+}
+
+.gve-btn--secundario:hover:not(:disabled) {
+  background: #fafaf9;
+}
+
+.gve-btn--fantasma {
+  background: transparent;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.gve-btn--fantasma:hover:not(:disabled) {
+  background: #fef3c7;
+}
+
+/* ------------------------------ RESPONSIVE ------------------------------- */
+@media (max-width: 640px) {
+  .gve-root {
+    padding: 0;
+  }
+
+  .gve-panel {
+    width: 100%;
+    max-height: 100vh;
+    max-height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .gve-cab {
+    padding: 12px 14px;
+  }
+
+  .gve-pasos {
+    padding: 8px 12px;
+    overflow-x: auto;
+  }
+
+  .gve-cuerpo {
+    padding: 12px 14px 16px;
+  }
+
+  .gve-presets {
+    grid-template-columns: 1fr;
+  }
+
+  .gve-lienzo {
+    height: min(46vh, 360px);
+  }
+
+  @supports (aspect-ratio: 1 / 1) {
+    .gve-lienzo {
+      height: auto;
+      aspect-ratio: 1 / 1;
+    }
+  }
+
+  .gve-pie {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+  }
+
+  .gve-pie-izq {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .gve-pie .gve-btn {
+    flex: 1 1 auto;
+  }
+}
+

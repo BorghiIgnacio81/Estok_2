@@ -160,6 +160,13 @@ function conectarCreacion(opts: OpcionesPlantaUnica): void {
     .forEach((btn) => {
       btn.addEventListener('click', async () => {
         if (btn.dataset.creando === '1') return;
+        // PLANTILLAS 2D: el nivel inyecta `abrirGenerador` para ofrecer el modal
+        // de 3 pasos (configuración → 4 presets → ajuste fino). La opción
+        // «Crear en blanco» del modal delega en el alta manual original.
+        if (opts.abrirGenerador) {
+          opts.abrirGenerador();
+          return;
+        }
         btn.dataset.creando = '1';
         btn.classList.add('pu-creando');
         try {
